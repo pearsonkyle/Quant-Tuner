@@ -48,6 +48,6 @@ class RunConfig(BaseModel):
     bench: BenchConfig = Field(default_factory=BenchConfig)
 
     @classmethod
-    def from_yaml(cls, path: Path) -> "RunConfig":
+    def from_yaml(cls, path: Path) -> RunConfig:
         with open(path) as f:
             return cls.model_validate(yaml.safe_load(f))

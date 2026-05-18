@@ -100,7 +100,7 @@ def extract_text_lm(
 
     for sf in shard_files:
         with safe_open(sf, framework="pt", device="cpu") as f:
-            for key in f.keys():
+            for key in f:
                 if any(key.startswith(p) for p in drop_prefixes):
                     continue
                 tensor = f.get_tensor(key)

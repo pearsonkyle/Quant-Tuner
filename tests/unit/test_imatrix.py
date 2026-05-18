@@ -2,7 +2,14 @@
 
 import numpy as np
 
-from quant_tuner.calibrate.imatrix import _col_l2_sq, _l1_normalize
+from quant_tuner.calibrate import imatrix as imx
+from quant_tuner.calibrate.imatrix import (
+    ForwardStats,
+    _col_l2_sq,
+    _l1_normalize,
+    build_analytic,
+    build_outlier_l4,
+)
 from quant_tuner.models.hf_gguf_map import is_ssm, map_hf_to_gguf
 
 
@@ -48,3 +55,72 @@ def test_is_ssm():
     assert is_ssm("blk.3.ssm_dt.weight")
     assert not is_ssm("blk.3.attn_q.weight")
     assert not is_ssm("blk.3.ffn_down.weight")
+
+
+def test_forward_stats_roundtrip(tmp_path):
+    stats = ForwardStats(
+        e_a4={
+            "blk.0.attn_q.weight": np.array([0.1, 0.2, 0.3], dtype=np.float32),
+            "blk.0.ffn_down.weight": np.array([1.0, 2.0], dtype=np.float32),
+        },
+        max_abs={
+            "blk.0.attn_q.weight": np.array([1.5, 2.5, 0.5], dtype=np.float32),
+            "blk.0.ffn_down.weight": np.array([4.0, 5.0], dtype=np.float32),
+        },
+    )
+    out = tmp_path / "stats.npz"
+    stats.save(out)
+    loaded = ForwardStats.load(out)
+    assert set(loaded.e_a4) == set(stats.e_a4)
+    for k in stats.e_a4:
+        np.testing.assert_allclose(loaded.e_a4[k], stats.e_a4[k])
+        np.testing.assert_allclose(loaded.max_abs[k], stats.max_abs[k])
+
+
+def test_build_analytic_respects_ssm_passthrough(monkeypatch):
+    # Two linear-projection tensors and one SSM tensor.
+    base = {
+        "blk.0.attn_q.weight": np.array([1.0, 4.0, 9.0], dtype=np.float32),    # E[a^2]
+        "blk.0.ffn_down.weight": np.array([2.0, 2.0], dtype=np.float32),
+        "blk.0.ssm_dt.weight": np.array([7.0, 7.0, 7.0], dtype=np.float32),
+    }
+    # W[:, c] columns chosen so ||W[:, c]||^2 is easy to verify.
+    weights = {
+        "blk.0.attn_q.weight": np.array(
+            [[1.0, 0.0, 1.0], [0.0, 1.0, 1.0]], dtype=np.float32
+        ),  # col sums-of-squares: [1, 1, 2]
+        "blk.0.ffn_down.weight": np.array([[3.0, 0.0], [4.0, 0.0]], dtype=np.float32),
+        # col sums-of-squares: [9 + 16, 0] = [25, 0]
+        "blk.0.ssm_dt.weight": np.zeros((2, 3), dtype=np.float32),
+    }
+    monkeypatch.setattr(imx, "_load_base_imatrix", lambda _p: base)
+    monkeypatch.setattr(imx, "_load_weights", lambda _p: weights)
+
+    out = build_analytic("dummy_f16", "dummy_base")
+
+    # attn_q: [1*1, 1*4, 2*9] = [1, 4, 18]
+    np.testing.assert_allclose(out["blk.0.attn_q.weight"], [1.0, 4.0, 18.0])
+    # ffn_down: [25*2, 0*2] = [50, 0]
+    np.testing.assert_allclose(out["blk.0.ffn_down.weight"], [50.0, 0.0])
+    # SSM tensor MUST pass through raw E[a^2], not be reranked.
+    np.testing.assert_allclose(out["blk.0.ssm_dt.weight"], [7.0, 7.0, 7.0])
+
+
+def test_build_outlier_l4_falls_back_when_stats_missing(monkeypatch):
+    """If forward stats lack a tensor, that tensor falls back to E[a^2]."""
+    base = {
+        "blk.0.attn_q.weight": np.array([0.0, 16.0, 81.0], dtype=np.float32),
+        "blk.0.attn_k.weight": np.array([0.5, 0.5, 0.5], dtype=np.float32),  # no fwd stats
+        "blk.0.ssm_dt.weight": np.array([7.0, 7.0], dtype=np.float32),
+    }
+    monkeypatch.setattr(imx, "_load_base_imatrix", lambda _p: base)
+
+    stats = ForwardStats(
+        e_a4={"blk.0.attn_q.weight": np.array([1.0, 16.0, 81.0], dtype=np.float32)},
+        max_abs={"blk.0.attn_q.weight": np.array([2.0, 4.0, 9.0], dtype=np.float32)},
+    )
+    out = build_outlier_l4("dummy_base", stats)
+
+    np.testing.assert_allclose(out["blk.0.attn_q.weight"], [1.0, 4.0, 9.0])
+    np.testing.assert_allclose(out["blk.0.attn_k.weight"], [0.5, 0.5, 0.5])  # E[a^2] fallback
+    np.testing.assert_allclose(out["blk.0.ssm_dt.weight"], [7.0, 7.0])  # SSM passthrough

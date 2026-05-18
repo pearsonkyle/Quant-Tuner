@@ -52,14 +52,14 @@ def _col_l2_sq(weight: np.ndarray) -> np.ndarray:
     return (w * w).sum(axis=0)
 
 
-def _load_base_imatrix(path: Path) -> dict[str, tuple[np.ndarray, int]]:
-    """Read an existing imatrix GGUF as ``{tensor: (E[a^2], count)}``."""
+def _load_base_imatrix(path: Path) -> dict[str, np.ndarray]:
+    """Read an existing imatrix GGUF as ``{tensor: E[a^2]}`` (sum_sq divided by count)."""
     _ensure_gguf_py()
     from gguf import GGUFReader
 
     reader = GGUFReader(str(path))
     raw = {t.name: np.array(t.data) for t in reader.tensors}
-    out: dict[str, tuple[np.ndarray, int]] = {}
+    out: dict[str, np.ndarray] = {}
     for name, arr in raw.items():
         if not name.endswith(".in_sum2"):
             continue
@@ -68,7 +68,7 @@ def _load_base_imatrix(path: Path) -> dict[str, tuple[np.ndarray, int]]:
         if cnt is None:
             continue
         c = max(int(cnt.flat[0]), 1)
-        out[base] = (arr.astype(np.float32) / c, c)
+        out[base] = arr.astype(np.float32) / c
     return out
 
 
@@ -96,32 +96,32 @@ def _l1_normalize(v: np.ndarray) -> np.ndarray:
 
 @dataclass
 class ForwardStats:
-    """Per-input-channel outlier stats keyed by GGUF tensor name."""
+    """Per-input-channel outlier stats keyed by GGUF tensor name.
+
+    Both arrays are 1-D, length = input-channel count. ``e_a4`` is the streaming
+    mean of ``a^4`` over all tokens seen; ``max_abs`` is the per-channel running
+    maximum of ``|a|``.
+    """
 
     e_a4: dict[str, np.ndarray]
     max_abs: dict[str, np.ndarray]
-    counts: dict[str, int]
 
     def save(self, path: Path) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
-        payload: dict[str, np.ndarray] = {}
         names = list(self.e_a4.keys())
+        payload: dict[str, np.ndarray] = {"__tensor_names__": np.array(names)}
         for t in names:
             payload[f"{t}__e_a4"] = self.e_a4[t].astype(np.float32)
             payload[f"{t}__max_abs"] = self.max_abs[t].astype(np.float32)
-        payload["__counts__"] = np.array([self.counts[t] for t in names], dtype=np.int64)
-        payload["__tensor_names__"] = np.array(names)
         np.savez(path, **payload)
 
     @classmethod
-    def load(cls, path: Path) -> "ForwardStats":
+    def load(cls, path: Path) -> ForwardStats:
         z = np.load(path, allow_pickle=True)
         names = list(z["__tensor_names__"])
-        counts_arr = z["__counts__"]
         return cls(
             e_a4={t: z[f"{t}__e_a4"].astype(np.float32) for t in names},
             max_abs={t: z[f"{t}__max_abs"].astype(np.float32) for t in names},
-            counts=dict(zip(names, [int(c) for c in counts_arr])),
         )
 
 
@@ -164,7 +164,7 @@ def collect_forward_stats(
         if t.name.endswith(".in_sum2")
     }
 
-    hf_modules: dict[str, "torch.nn.Linear"] = {}
+    hf_modules: dict[str, torch.nn.Linear] = {}
     mapping: dict[str, str] = {}
     for name, mod in model.named_modules():
         if isinstance(mod, torch.nn.Linear):
@@ -217,7 +217,7 @@ def collect_forward_stats(
         for name, ss in sum_sq_sq.items()
     }
     max_abs_np = {name: t.cpu().numpy().astype(np.float32) for name, t in max_abs.items()}
-    return ForwardStats(e_a4=e_a4, max_abs=max_abs_np, counts=dict(counts))
+    return ForwardStats(e_a4=e_a4, max_abs=max_abs_np)
 
 
 # --- Variant builders ----------------------------------------------------- #
@@ -236,7 +236,7 @@ def _build_simple(
     weights = _load_weights(f16)
     out: dict[str, np.ndarray] = {}
     ssm = skipped = 0
-    for tname, (ea2, _c) in base.items():
+    for tname, ea2 in base.items():
         if tname not in weights:
             skipped += 1
             continue
@@ -291,7 +291,7 @@ def build_outlier_l4(
     base = _load_base_imatrix(base_imatrix)
     out: dict[str, np.ndarray] = {}
     ssm = missing = mismatch = 0
-    for tname, (ea2, _c) in base.items():
+    for tname, ea2 in base.items():
         if is_ssm(tname):
             out[tname] = ea2.astype(np.float32)
             ssm += 1
@@ -322,7 +322,7 @@ def build_outlier_max(
     base = _load_base_imatrix(base_imatrix)
     out: dict[str, np.ndarray] = {}
     ssm = missing = mismatch = 0
-    for tname, (ea2, _c) in base.items():
+    for tname, ea2 in base.items():
         if is_ssm(tname):
             out[tname] = ea2.astype(np.float32)
             ssm += 1
@@ -457,17 +457,4 @@ def calibrate(
     )
 
 
-__all__ = [
-    "ANALYTIC_VARIANTS",
-    "OUTLIER_VARIANTS",
-    "ForwardStats",
-    "Variant",
-    "build_analytic",
-    "build_hybrid_custom",
-    "build_mix_50",
-    "build_outlier_l4",
-    "build_outlier_max",
-    "calibrate",
-    "collect_forward_stats",
-    "write_imatrix",
-]
+__all__ = ["ForwardStats", "Variant", "calibrate", "collect_forward_stats"]
