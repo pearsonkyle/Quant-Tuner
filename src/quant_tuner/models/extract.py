@@ -70,6 +70,13 @@ def extract_text_lm(
     new_config = _build_text_config(config)
     if causal_lm_arch:
         new_config["architectures"] = [causal_lm_arch]
+    # If MTP weights are being dropped, zero out the MTP layer count so the
+    # GGUF converter doesn't claim more layers exist than the safetensors hold.
+    if any(p.startswith("mtp.") for p in drop_prefixes):
+        if "mtp_num_hidden_layers" in new_config:
+            new_config["mtp_num_hidden_layers"] = 0
+        if "num_nextn_predict_layers" in new_config:
+            new_config["num_nextn_predict_layers"] = 0
     with open(output_dir / "config.json", "w") as f:
         json.dump(new_config, f, indent=2)
 
@@ -100,7 +107,7 @@ def extract_text_lm(
 
     for sf in shard_files:
         with safe_open(sf, framework="pt", device="cpu") as f:
-            for key in f:
+            for key in f.keys():  # noqa: SIM118 -- safe_open objects need explicit .keys()
                 if any(key.startswith(p) for p in drop_prefixes):
                     continue
                 tensor = f.get_tensor(key)
