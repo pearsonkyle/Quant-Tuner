@@ -1,0 +1,35 @@
+# Activation-aware weight scaling (AWQ) → Q4_K_M.
+#
+# Default reproduces the `awq_best` leaderboard variant: α grid-searched per
+# group over {0, 0.25, 0.5, 0.75, 1.0}. Set `params.force_alpha: 0.5` to
+# reproduce `awq_a050` (the original AWQ paper's fixed setting).
+name: q4_k_m_awq
+
+model: PLACEHOLDER
+
+workspace: ./out/q4_k_m_awq
+
+data:
+  logs: PLACEHOLDER
+  train_frac: 0.8
+  test_frac: 0.1
+  holdout_frac: 0.1
+  max_tokens: 500000
+  context_len: 16384
+
+calibration:
+  method: awq
+  variant: best           # `best` = grid search; `a050` = force_alpha 0.5
+  params:
+    # alphas: [0.0, 0.25, 0.5, 0.75, 1.0]   # uncomment to override the grid
+    # force_alpha: 0.5                       # uncomment for `a050` variant
+    proxy_tokens: 256
+    rmsnorm_plus_one: true  # true for Qwen3.5; false for Llama/Mistral/Qwen3
+    sanity_max_rel: 0.03    # F16 logit-drift bound after fold; > 0.03 raises
+
+quantize:
+  type: Q4_K_M
+
+bench:
+  suite: full
+  eval_ctx: 8192

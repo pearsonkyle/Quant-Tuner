@@ -1,0 +1,41 @@
+# Hessian-based weight rounding (GPTQ) → Q4_K_M.
+#
+# GPTQ rewrites the weights themselves toward an INT4 g32 grid, with error
+# compensation across columns. After applying, the F16 GGUF is run through
+# `verify_perplexity` against the baseline F16 PPL — if the ratio exceeds 1.5
+# the recipe aborts before wasting time on the final quantize step. This is
+# the guard against the IQ3_S-style catastrophic blowup observed in the
+# source experiment leaderboard.
+name: q4_k_m_gptq
+
+model: PLACEHOLDER
+
+workspace: ./out/q4_k_m_gptq
+
+data:
+  logs: PLACEHOLDER
+  train_frac: 0.8
+  test_frac: 0.1
+  holdout_frac: 0.1
+  max_tokens: 500000
+  context_len: 16384
+
+calibration:
+  method: gptq
+  variant: default
+  params:
+    tokens: 32768          # larger than imatrix/AWQ — Hessians need more samples
+    ctx: 2048
+    n_bits: 4
+    group_size: 32
+    dampen: 0.01
+    actorder: true
+    sanity_max_rel: 0.5    # logit-drift bound after rounding
+    ppl_max_ratio: 1.5     # verify_perplexity threshold against F16 reference
+
+quantize:
+  type: Q4_K_M
+
+bench:
+  suite: full
+  eval_ctx: 8192

@@ -38,10 +38,23 @@ def bench(
 @app.command()
 def leaderboard(
     results: Path = typer.Option(..., help="results.csv to aggregate"),
-    out: Path = typer.Option(Path("LEADERBOARD.md")),
+    out: Path = typer.Option(Path("LEADERBOARD.md"), help="markdown output path"),
+    weights: str = typer.Option(
+        "1,2,1", help="SQS weights alpha,beta,gamma (compression, fidelity, speed)"
+    ),
+    sort_by: str = typer.Option("sqs", "--sort", help="column to sort by"),
 ) -> None:
-    """Aggregate results.csv into a markdown leaderboard."""
-    typer.echo(f"[stub] leaderboard {results} -> {out}")
+    """Aggregate results.csv into a markdown leaderboard with SQS scores."""
+    from quant_tuner.leaderboard.aggregate import aggregate
+
+    parts = [float(x) for x in weights.split(",")]
+    if len(parts) != 3:
+        raise typer.BadParameter("--weights expects three comma-separated numbers")
+    a, b, c = parts
+
+    markdown = aggregate(results, weights=(a, b, c), sort_by=sort_by)
+    out.write_text(markdown)
+    typer.echo(f"wrote {out}")
 
 
 if __name__ == "__main__":

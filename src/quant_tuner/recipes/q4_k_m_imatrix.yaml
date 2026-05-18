@@ -1,0 +1,32 @@
+# Output-aware imatrix calibration → Q4_K_M.
+#
+# The `hybrid_custom` variant is the recommended default — per-tensor
+# L1-normalized max of E[a^2] and the analytic prior, so any channel that's
+# important under either signal gets the precision budget. No forward pass
+# needed beyond the standard llama-imatrix run.
+name: q4_k_m_imatrix
+
+# Required: HF repo id or local path; CLI/runner fills these in at invocation time.
+model: PLACEHOLDER
+
+workspace: ./out/q4_k_m_imatrix
+
+data:
+  logs: PLACEHOLDER       # path to a usage-log .jsonl
+  train_frac: 0.8
+  test_frac: 0.1
+  holdout_frac: 0.1
+  max_tokens: 500000
+  context_len: 16384
+
+calibration:
+  method: imatrix
+  variant: hybrid_custom  # one of: analytic | mix_50 | hybrid_custom | outlier_l4 | outlier_max
+  params: {}
+
+quantize:
+  type: Q4_K_M
+
+bench:
+  suite: full             # quick | kld | speed | full | leaderboard
+  eval_ctx: 8192

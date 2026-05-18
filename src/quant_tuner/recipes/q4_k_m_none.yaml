@@ -1,0 +1,27 @@
+# Q4_K_M with NO calibration — useful as a leaderboard floor.
+#
+# Quantizes the F16 GGUF directly with `llama-quantize`, skipping the imatrix
+# argument entirely. This produces the row labelled `Q4_K_M-none` in the
+# source experiment leaderboard, and answers the question: "how much did
+# calibration actually buy me over a stock quant?"
+name: q4_k_m_none
+
+model: PLACEHOLDER
+
+workspace: ./out/q4_k_m_none
+
+data:
+  logs: PLACEHOLDER     # not strictly needed (no calibration), but the eval
+                        # set is still drawn from the holdout split.
+
+calibration:
+  method: none
+  variant: default
+  params: {}
+
+quantize:
+  type: Q4_K_M
+
+bench:
+  suite: full
+  eval_ctx: 8192
