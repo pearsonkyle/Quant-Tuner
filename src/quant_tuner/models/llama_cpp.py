@@ -99,12 +99,19 @@ def imatrix(
     return out
 
 
-def bench(model: Path, n_prompt: int = 2048, n_gen: int = 128, log: Path | None = None) -> str:
+def bench(
+    model: Path,
+    n_prompt: int = 2048,
+    n_gen: int = 128,
+    repetitions: int = 5,
+    log: Path | None = None,
+) -> str:
     cmd: list[str | Path] = [
         llama_bin("llama-bench"),
         "-m", model,
         "-p", str(n_prompt),
         "-n", str(n_gen),
+        "-r", str(repetitions),
         "-o", "json",
     ]
     return run(cmd, log=log)

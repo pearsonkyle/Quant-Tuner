@@ -13,15 +13,22 @@ With default weights α=1, β=2, γ=1, the score weights fidelity twice as
 heavily as compression and speed. The FP16 row always lands at exactly 1.000
 regardless of weights, so SQS values above 1 indicate "net better than F16
 under the weighting" and values below indicate "net worse".
+
+Tool-call columns are merged in optionally from a sidecar CSV produced by
+``scripts/eval_toolcall.py`` (vendored). The join key is ``basename(quant_path)``
+on the bench side ↔ ``model`` on the toolcall side; rows without a match
+render as ``-``.
 """
 
 from __future__ import annotations
 
 import csv
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+# (csv_key, display_header). Order = column order in the rendered table.
 COLUMNS: tuple[tuple[str, str], ...] = (
     ("model", "Model"),
     ("size_gib", "Size (GiB)"),
@@ -35,8 +42,37 @@ COLUMNS: tuple[tuple[str, str], ...] = (
     ("prefill_tok_s", "Prefill tok/s"),
     ("decode_tok_s", "Decode tok/s"),
     ("ttft_2k_ms", "TTFT@2k (ms)"),
+    # Tool-call columns (merged in from eval_toolcall.py output)
+    ("tool_selection_acc", "Tool Sel %"),
+    ("param_acc_mean", "Param Acc %"),
+    ("schema_valid_rate", "Schema %"),
+    ("rollout_complete_rate", "Rollout Done %"),
     ("sqs", "SQS"),
 )
+
+# Number of decimals per column key. Anything not listed renders as raw.
+_FORMATS: dict[str, str] = {
+    "size_gib": "{:.2f}",
+    "bpw": "{:.3f}",
+    "ppl": "{:.3f}",
+    "ppl_ratio": "{:.3f}",
+    "mean_kld": "{:.3f}",
+    "median_kld": "{:.4f}",
+    "same_top_p": "{:.2f}",
+    "rms_dp": "{:.2f}",
+    "sqs": "{:.3f}",
+}
+# Columns that combine value ± stdev into a single cell.
+_SPEED_PAIRS: dict[str, tuple[str, str]] = {
+    # display_key: (mean_field, stdev_field)
+    "prefill_tok_s": ("prefill_tok_s", "prefill_stdev"),
+    "decode_tok_s": ("decode_tok_s", "decode_stdev"),
+    "ttft_2k_ms": ("ttft_2k_ms", "ttft_stdev_ms"),
+}
+# Columns that render as a percentage of [0, 1].
+_PCT_COLUMNS = {
+    "tool_selection_acc", "param_acc_mean", "schema_valid_rate", "rollout_complete_rate",
+}
 
 DEFAULT_WEIGHTS = (1.0, 2.0, 1.0)  # alpha, beta, gamma
 
@@ -108,6 +144,45 @@ def load_results(csv_path: Path) -> list[dict]:
         return list(csv.DictReader(f))
 
 
+def merge_toolcall(
+    rows: list[dict], toolcall_csv: Path, *, latest_only: bool = True
+) -> list[dict]:
+    """Join tool-call accuracy columns into bench rows by basename(quant_path).
+
+    The toolcall CSV is keyed by GGUF filename (``model-f16.gguf``,
+    ``Q4_K_M-stock_wiki.gguf``, …); the bench CSV is keyed by label. The join
+    bridge is the ``quant_path`` column from the bench row. If ``latest_only``
+    is True (default), only the row with the highest ``timestamp`` per GGUF is
+    kept (older toolcall_results.csv files can have duplicates).
+    """
+    if not toolcall_csv.exists():
+        return rows
+    with toolcall_csv.open() as f:
+        tc_rows = list(csv.DictReader(f))
+    by_filename: dict[str, dict] = {}
+    for r in tc_rows:
+        filename = r.get("model") or ""
+        if not filename:
+            continue
+        if latest_only:
+            prev = by_filename.get(filename)
+            if prev is None or (prev.get("timestamp") or "") < (r.get("timestamp") or ""):
+                by_filename[filename] = r
+        else:
+            by_filename[filename] = r
+
+    for r in rows:
+        qp = r.get("quant_path") or ""
+        tc = by_filename.get(os.path.basename(qp))
+        if not tc:
+            continue
+        for k in ("tool_selection_acc", "param_acc_mean",
+                  "schema_valid_rate", "rollout_complete_rate"):
+            if tc.get(k) not in (None, ""):
+                r[k] = tc[k]
+    return rows
+
+
 SortOrder = Literal["asc", "desc"]
 
 
@@ -132,6 +207,35 @@ def sort_rows(
     )
 
 
+def _format_cell(key: str, row: dict) -> str:
+    """Format one table cell, with column-specific rules."""
+    if key == "model":
+        return row.get("model") or ""
+
+    # Speed columns: value ± stdev.
+    if key in _SPEED_PAIRS:
+        mean_field, stdev_field = _SPEED_PAIRS[key]
+        mean = _to_float(row.get(mean_field))
+        stdev = _to_float(row.get(stdev_field))
+        if mean is None:
+            return "-"
+        digits = 1 if "ttft" in key else 2
+        cell = f"{mean:.{digits}f}"
+        if stdev is not None:
+            cell += f" ± {stdev:.{digits}f}"
+        return cell
+
+    if key in _PCT_COLUMNS:
+        v = _to_float(row.get(key))
+        return "-" if v is None else f"{v * 100:.1f}"
+
+    v = _to_float(row.get(key))
+    if v is None:
+        return row.get(key) or "-"
+    fmt = _FORMATS.get(key, "{}")
+    return fmt.format(v)
+
+
 def render_markdown(
     rows: list[dict],
     *,
@@ -154,13 +258,7 @@ def render_markdown(
         "| " + " | ".join("---" for _ in headers) + " |",
     ]
     for r in rows:
-        cells: list[str] = []
-        for key, _ in COLUMNS:
-            v = r.get(key, "") or ""
-            if key == "sqs":
-                f = _to_float(v)
-                v = f"{f:.3f}" if f is not None else ""
-            cells.append(str(v))
+        cells = [_format_cell(key, r) for key, _ in COLUMNS]
         lines.append("| " + " | ".join(cells) + " |")
     return "\n".join(lines) + "\n"
 
@@ -171,14 +269,18 @@ def aggregate(
     weights: tuple[float, float, float] = DEFAULT_WEIGHTS,
     sort_by: str = "sqs",
     order: SortOrder | None = None,
+    toolcall_csv: Path | None = None,
 ) -> str:
-    """End-to-end: load a results.csv, compute SQS, sort, render markdown.
+    """End-to-end: load a results.csv, optionally merge tool-call columns,
+    compute SQS, sort, render markdown.
 
     Raises ``RuntimeError`` if no FP16 baseline row is present — SQS is only
     meaningful relative to a reference, so we'd rather fail loud than silently
     produce all-1.0 scores.
     """
     rows = load_results(results_csv)
+    if toolcall_csv is not None:
+        rows = merge_toolcall(rows, toolcall_csv)
     f16 = find_f16_baseline(rows)
     if f16 is None:
         raise RuntimeError(
@@ -201,6 +303,7 @@ __all__ = [
     "compute_sqs",
     "find_f16_baseline",
     "load_results",
+    "merge_toolcall",
     "render_markdown",
     "sort_rows",
 ]

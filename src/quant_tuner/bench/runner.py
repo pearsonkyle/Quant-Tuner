@@ -22,15 +22,22 @@ class BenchRow:
     same_top_p: float | None
     rms_dp: float | None
     prefill_tok_s: float | None
+    prefill_stdev: float | None
     decode_tok_s: float | None
+    decode_stdev: float | None
     ttft_2k_ms: float | None
+    ttft_stdev_ms: float | None
+    bench_repetitions: int | None
     quant_path: str
 
 
 CSV_COLUMNS = [
     "model", "size_gib", "bpw",
     "ppl", "ppl_ratio", "mean_kld", "median_kld", "same_top_p", "rms_dp",
-    "prefill_tok_s", "decode_tok_s", "ttft_2k_ms",
+    "prefill_tok_s", "prefill_stdev",
+    "decode_tok_s", "decode_stdev",
+    "ttft_2k_ms", "ttft_stdev_ms",
+    "bench_repetitions",
     "quant_path",
 ]
 
@@ -46,15 +53,20 @@ def bench_one(
     n_tokens: int | None = None,
     log_dir: Path | None = None,
     suite: str = "full",
+    bench_repetitions: int = 10,
 ) -> BenchRow:
     """Run KLD + speed for one quantized model and return a row.
 
     suite:
       - "quick":      bpw only
       - "kld":        bpw + kld (requires eval_dataset + eval_baseline)
-      - "speed":      bpw + llama-bench
+      - "speed":      bpw + llama-bench (`bench_repetitions` runs of prefill+decode)
       - "full":       all of the above
       - "leaderboard": alias for full
+
+    ``bench_repetitions`` controls how many times llama-bench repeats each
+    timing measurement; with the default of 10, we get prefill/decode/TTFT
+    mean ± sample stdev per row. Set to 1 to skip variance estimation.
     """
     kld_metrics = kld.KLDMetrics()
     speed_metrics = speed.SpeedMetrics()
@@ -70,7 +82,11 @@ def bench_one(
         )
 
     if suite in ("speed", "full", "leaderboard"):
-        speed_metrics = speed.evaluate(quant_path, log=log_dir / f"{label}.bench.log")
+        speed_metrics = speed.evaluate(
+            quant_path,
+            repetitions=bench_repetitions,
+            log=log_dir / f"{label}.bench.log",
+        )
 
     return BenchRow(
         model=label,
@@ -83,22 +99,41 @@ def bench_one(
         same_top_p=kld_metrics.same_top_p,
         rms_dp=kld_metrics.rms_dp,
         prefill_tok_s=speed_metrics.prefill_tok_s,
+        prefill_stdev=speed_metrics.prefill_stdev,
         decode_tok_s=speed_metrics.decode_tok_s,
+        decode_stdev=speed_metrics.decode_stdev,
         ttft_2k_ms=speed_metrics.ttft_2k_ms,
+        ttft_stdev_ms=speed_metrics.ttft_stdev_ms,
+        bench_repetitions=speed_metrics.n_repetitions,
         quant_path=str(quant_path),
     )
 
 
 def append_row(csv_path: Path, row: BenchRow) -> None:
-    """Append a row, dropping any prior row with the same `model` label."""
+    """Append a row, dropping any prior row with the same `model` label.
+
+    Preserves any extra columns present in the existing CSV (e.g. tool-call
+    metrics merged in by ``leaderboard.aggregate``) — we read with DictReader
+    and write the superset back out, sorted with our known columns first.
+    """
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     existing: list[dict] = []
+    existing_fields: list[str] = []
     if csv_path.exists():
         with open(csv_path) as f:
-            existing = [r for r in csv.DictReader(f) if r["model"] != row.model]
+            reader = csv.DictReader(f)
+            existing_fields = list(reader.fieldnames or [])
+            existing = [r for r in reader if r["model"] != row.model]
+
+    fieldnames = list(CSV_COLUMNS)
+    for f in existing_fields:
+        if f not in fieldnames:
+            fieldnames.append(f)
+
     with open(csv_path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=CSV_COLUMNS)
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         for r in existing:
-            writer.writerow({k: r.get(k, "") for k in CSV_COLUMNS})
-        writer.writerow({k: ("" if v is None else v) for k, v in asdict(row).items()})
+            writer.writerow({k: r.get(k, "") for k in fieldnames})
+        out = {k: ("" if v is None else v) for k, v in asdict(row).items()}
+        writer.writerow({k: out.get(k, "") for k in fieldnames})
