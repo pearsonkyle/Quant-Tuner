@@ -1,0 +1,27 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+.uv-cache/
+dist/
+build/
+
+# Workspace artifacts
+workspace/
+out/
+*.gguf
+*.kld
+*.imatrix
+*.npz
+*.pt
+*.safetensors
+
+# Tooling
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# OS
+.DS_Store
