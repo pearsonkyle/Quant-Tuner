@@ -1,254 +1,154 @@
-"""Run the tool-call benchmark N times per model with stochastic sampling and aggregate.
+#!/usr/bin/env python3
+"""Run the tool-call benchmark N times per model with stochastic sampling.
 
-For each GGUF:
-  1. Spawn llama-server once (saves ~30s × (N-1) reps per model of warmup).
-  2. Run eval_toolcall.py via --base-url N times, each with a different seed.
+Thin wrapper over :mod:`quant_tuner.eval.reps`. For each GGUF:
+  1. Spawn ``llama-server`` once (saves the ~30s warmup per rep).
+  2. Run ``eval.toolcall.run_toolcall_eval`` ``--reps`` times against it, each
+     with a per-rep seed (``--base-seed + rep``).
   3. Tear down the server.
 
-Per-rep rows go into toolcall_t0p7_results.csv. After all models complete, the
-aggregator computes mean ± stdev across the N reps per model and writes
-toolcall_t0p7_aggregated.csv (one row per model).
+After every model finishes, the aggregator computes mean ± stdev per metric
+across the reps. Default settings: 10 reps × the 8 GGUFs in
+``out/omnicoder_q4_k_m/``. Use ``--models`` / ``--reps`` to scope down.
 
-Wall-time estimate at default settings (n=25 holdout, 10 reps, 8 models): ~15 h.
+Wall-time estimate at defaults (n=25 holdout, 10 reps, 8 models): ~15 h.
 """
 
 from __future__ import annotations
 
 import argparse
-import csv
-import math
-import socket
-import subprocess
 import sys
 import time
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
-WORK = REPO / "out" / "omnicoder_q4_k_m"
-LOGS = WORK / "logs"
-HOLDOUT = WORK / "toolcall_holdout.jsonl"
-RESULTS = WORK / "toolcall_reps_results.csv"
-AGGREGATED = WORK / "toolcall_reps_aggregated.csv"
-LLAMA_SERVER = REPO / "vendor" / "llama.cpp" / "build" / "bin" / "llama-server"
-EVAL_SCRIPT = REPO / "scripts" / "eval_toolcall.py"
+_REPO = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(_REPO / "src"))
 
-# Sampling parameters tuned for tool-calling: lower temperature for stability,
-# wider top_p (no nucleus pruning of tail), no presence penalty (penalties
-# were suppressing valid tool calls in the prior attempt).
-SAMPLING = {
-    "temperature": 0.6,
-    "top_p": 0.95,
-    "top_k": 20,
-    "min_p": 0.0,
-    "presence_penalty": 0.0,
-    "repetition_penalty": 1.0,
-}
+from quant_tuner.eval.reps import (
+    RepResult,
+    run_reps_for_models,
+    sampling_extra_cols,
+    write_csvs,
+)
+from quant_tuner.eval.toolcall import Sampling, run_toolcall_eval
 
-REPETITIONS = 10
-CTX = 16384
-NGL = 99
-SERVER_STARTUP_TIMEOUT = 120
+_WORK = _REPO / "out" / "omnicoder_q4_k_m"
 
 DEFAULT_MODELS = [
-    WORK / "model-f16.gguf",
-    WORK / "Q4_K_M-none.gguf",
-    WORK / "Q4_K_M-stock_custom.gguf",
-    WORK / "Q4_K_M-stock_wiki.gguf",
-    WORK / "Q4_K_M-stock_mixed.gguf",
-    WORK / "Q4_K_M-hybrid_custom.gguf",
-    WORK / "Q4_K_M-hybrid_wiki.gguf",
-    WORK / "Q4_K_M-hybrid_mixed.gguf",
+    _WORK / "model-f16.gguf",
+    _WORK / "Q4_K_M-none.gguf",
+    _WORK / "Q4_K_M-stock_custom.gguf",
+    _WORK / "Q4_K_M-stock_wiki.gguf",
+    _WORK / "Q4_K_M-stock_mixed.gguf",
+    _WORK / "Q4_K_M-hybrid_custom.gguf",
+    _WORK / "Q4_K_M-hybrid_wiki.gguf",
+    _WORK / "Q4_K_M-hybrid_mixed.gguf",
 ]
-# Mutable so an outer driver (e.g. reproduce_leaderboard.py) can override
-# both the model list and the repetition count before calling main().
-MODELS: list[Path] = list(DEFAULT_MODELS)
 
-PER_REP_METRICS = (
-    "tool_selection_acc", "param_acc_mean", "schema_valid_rate",
-    "rollout_complete_rate", "rollout_tool_set_match_rate",
-    "n_turns",
+DEFAULT_SAMPLING = Sampling(
+    temperature=0.6,
+    top_p=0.95,
+    top_k=20,
+    min_p=0.0,
+    presence_penalty=0.0,
+    repetition_penalty=1.0,
+    max_tokens=512,
 )
-
-
-def free_port() -> int:
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
-
-
-def wait_for_health(base_url: str, timeout: float = SERVER_STARTUP_TIMEOUT) -> None:
-    import requests
-    url = base_url.rstrip("/").removesuffix("/v1") + "/health"
-    deadline = time.time() + timeout
-    last_err: Exception | None = None
-    while time.time() < deadline:
-        try:
-            r = requests.get(url, timeout=2)
-            if r.status_code == 200:
-                return
-        except Exception as e:
-            last_err = e
-        time.sleep(0.5)
-    raise TimeoutError(f"llama-server at {url} not healthy in {timeout}s ({last_err})")
-
-
-def spawn_server(model: Path, port: int) -> subprocess.Popen:
-    log_path = LOGS / f"server_reps_{model.stem}_{int(time.time())}.log"
-    log_fh = log_path.open("w")
-    cmd = [
-        str(LLAMA_SERVER),
-        "-m", str(model),
-        "--jinja",
-        "--port", str(port),
-        "-c", str(CTX),
-        "-ngl", str(NGL),
-        "--host", "127.0.0.1",
-    ]
-    print(f"  spawning server: {' '.join(cmd[:5])} … (log: {log_path.name})", flush=True)
-    return subprocess.Popen(cmd, stdout=log_fh, stderr=subprocess.STDOUT)
-
-
-def run_one_rep(model: Path, base_url: str, rep_index: int) -> None:
-    """Run eval_toolcall.py once against a running server, with a per-rep seed."""
-    seed = 1000 + rep_index  # deterministic but distinct per rep
-    rep_log = LOGS / f"toolcall_t0p7_{model.stem}_rep{rep_index:02d}.log"
-    cmd = [
-        sys.executable, str(EVAL_SCRIPT),
-        "--model", str(model),
-        "--base-url", base_url,
-        "--holdout", str(HOLDOUT),
-        "--out", str(RESULTS),
-        "--ctx", str(CTX),
-        "--max-turns-per-session", "10",
-        "--rollout-max-turns", "20",
-        "--temperature", str(SAMPLING["temperature"]),
-        "--top-p", str(SAMPLING["top_p"]),
-        "--top-k", str(SAMPLING["top_k"]),
-        "--min-p", str(SAMPLING["min_p"]),
-        "--presence-penalty", str(SAMPLING["presence_penalty"]),
-        "--repetition-penalty", str(SAMPLING["repetition_penalty"]),
-        "--seed", str(seed),
-    ]
-    with rep_log.open("w") as fh:
-        rc = subprocess.run(cmd, stdout=fh, stderr=subprocess.STDOUT).returncode
-    return rc
-
-
-def aggregate_per_model() -> None:
-    """Compute mean ± stdev per metric across reps for each model."""
-    if not RESULTS.exists():
-        print(f"  no reps written to {RESULTS.name}; skipping aggregate", flush=True)
-        return
-    by_model: dict[str, list[dict]] = {}
-    with RESULTS.open() as f:
-        for row in csv.DictReader(f):
-            by_model.setdefault(row["model"], []).append(row)
-
-    out_fields = ["model", "n_reps"]
-    for k in PER_REP_METRICS:
-        out_fields += [f"{k}_mean", f"{k}_stdev"]
-    out_fields += list(SAMPLING.keys())
-
-    with AGGREGATED.open("w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=out_fields)
-        w.writeheader()
-        for model, rows in sorted(by_model.items()):
-            agg: dict = {"model": model, "n_reps": len(rows)}
-            for k in PER_REP_METRICS:
-                vals = []
-                for r in rows:
-                    try:
-                        vals.append(float(r[k]))
-                    except (KeyError, ValueError):
-                        pass
-                if not vals:
-                    agg[f"{k}_mean"] = ""
-                    agg[f"{k}_stdev"] = ""
-                    continue
-                mean = sum(vals) / len(vals)
-                stdev = (
-                    math.sqrt(sum((v - mean) ** 2 for v in vals) / (len(vals) - 1))
-                    if len(vals) > 1 else 0.0
-                )
-                agg[f"{k}_mean"] = mean
-                agg[f"{k}_stdev"] = stdev
-            for k, v in SAMPLING.items():
-                agg[k] = v
-            w.writerow(agg)
-    print(f"\nWrote aggregate: {AGGREGATED}", flush=True)
 
 
 def _build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__)
-    p.add_argument(
-        "--models", nargs="+", type=Path, default=None,
-        help="Override the model list (default: 8 GGUFs in out/omnicoder_q4_k_m/). "
-             "Pass paths to one or more GGUF files.",
-    )
-    p.add_argument(
-        "--reps", type=int, default=None,
-        help=f"Number of repetitions per model (default: {REPETITIONS})",
-    )
-    p.add_argument(
-        "--results", type=Path, default=None,
-        help="Override per-rep CSV path (default: out/.../toolcall_reps_results.csv)",
-    )
-    p.add_argument(
-        "--aggregated", type=Path, default=None,
-        help="Override aggregated CSV path (default: out/.../toolcall_reps_aggregated.csv)",
-    )
+    p.add_argument("--models", nargs="+", type=Path, default=DEFAULT_MODELS,
+                   help="GGUFs to eval (default: 8 in out/omnicoder_q4_k_m/)")
+    p.add_argument("--holdout", type=Path,
+                   default=_WORK / "toolcall_holdout.jsonl",
+                   help="Per-session JSONL holdout")
+    p.add_argument("--reps", type=int, default=10,
+                   help="Repetitions per model (default: 10)")
+    p.add_argument("--base-seed", type=int, default=1000,
+                   help="Sampling seed for rep 0 (subsequent reps add 1)")
+    p.add_argument("--results", type=Path,
+                   default=_WORK / "toolcall_reps_results.csv")
+    p.add_argument("--aggregated", type=Path,
+                   default=_WORK / "toolcall_reps_aggregated.csv")
+    p.add_argument("--log-dir", type=Path, default=_WORK / "logs")
+    p.add_argument("--ctx", type=int, default=16384)
+    p.add_argument("--ngl", type=int, default=99)
+    p.add_argument("--max-turns-per-session", type=int, default=10)
+    p.add_argument("--rollout-max-turns", type=int, default=20)
     return p
 
 
 def main() -> int:
-    global MODELS, REPETITIONS, RESULTS, AGGREGATED
     args = _build_arg_parser().parse_args()
-    if args.models is not None:
-        MODELS = list(args.models)
-    if args.reps is not None:
-        REPETITIONS = args.reps
-    if args.results is not None:
-        RESULTS = args.results
-    if args.aggregated is not None:
-        AGGREGATED = args.aggregated
+    args.log_dir.mkdir(parents=True, exist_ok=True)
 
-    assert HOLDOUT.exists(), HOLDOUT
-    assert LLAMA_SERVER.exists(), LLAMA_SERVER
-    LOGS.mkdir(parents=True, exist_ok=True)
+    assert args.holdout.exists(), f"holdout missing: {args.holdout}"
 
-    print(f"=== tool-call reps: {REPETITIONS} × {len(MODELS)} models ===", flush=True)
-    print(f"sampling: {SAMPLING}", flush=True)
-    print(f"holdout:  {HOLDOUT}", flush=True)
-    print(f"results:  {RESULTS} (per-rep) / {AGGREGATED} (aggregated)", flush=True)
+    def eval_one_rep(base_url: str, sampling: Sampling, rep_idx: int) -> dict[str, float]:
+        per_turn_log = (
+            args.log_dir / f"toolcall_reps_{int(time.time())}_rep{rep_idx:02d}.jsonl"
+        )
+        summary = run_toolcall_eval(
+            holdout=args.holdout,
+            base_url=base_url,
+            sampling=sampling,
+            max_turns_per_session=args.max_turns_per_session,
+            rollout_max_turns=args.rollout_max_turns,
+            per_turn_log=per_turn_log,
+        )
+        return {
+            "tool_selection_acc": summary.tool_selection_acc,
+            "param_acc_mean": summary.param_acc_mean,
+            "schema_valid_rate": summary.schema_valid_rate,
+            "rollout_complete_rate": summary.rollout_complete_rate,
+            "rollout_tool_set_match_rate": summary.rollout_tool_set_match_rate,
+            "n_turns": float(summary.n_turns),
+        }
 
-    t_total = time.time()
-    for mi, model in enumerate(MODELS, 1):
-        if not model.exists():
-            print(f"[{mi}/{len(MODELS)}] SKIP missing {model.name}", flush=True)
-            continue
-        print(f"\n[{mi}/{len(MODELS)}] {model.name}", flush=True)
-        port = free_port()
-        proc = spawn_server(model, port)
-        base_url = f"http://127.0.0.1:{port}/v1"
-        try:
-            wait_for_health(base_url)
-            for rep in range(REPETITIONS):
-                t0 = time.time()
-                rc = run_one_rep(model, base_url, rep)
-                dt = (time.time() - t0) / 60
-                status = "OK" if rc == 0 else f"FAIL rc={rc}"
-                print(f"    rep {rep + 1}/{REPETITIONS}: {status} ({dt:.1f} min)", flush=True)
-        finally:
-            proc.terminate()
-            try:
-                proc.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-        # Incremental aggregate after each model so partial results are always usable.
-        aggregate_per_model()
+    def on_rep(model_name: str, rr: RepResult) -> None:
+        status = "OK" if rr.error is None else f"FAIL ({rr.error[:60]})"
+        sel = rr.metrics.get("tool_selection_acc", float("nan"))
+        print(f"    rep {rr.rep + 1}/{args.reps}: {status}  "
+              f"sel={sel:.3f}  ({rr.elapsed_sec / 60:.1f} min)", flush=True)
 
-    aggregate_per_model()
-    total_min = (time.time() - t_total) / 60
+    def on_model(mr) -> None:
+        print(f"\n  aggregate ({mr.model}):", flush=True)
+        for metric in sorted(mr.aggregate):
+            a = mr.aggregate[metric]
+            print(f"    {metric:30s}  {a['mean']:.4f} ± {a['stdev']:.4f}  (n={a['n']})",
+                  flush=True)
+
+    print(f"=== tool-call reps: {args.reps} × {len(args.models)} models ===", flush=True)
+    print(f"sampling:    T={DEFAULT_SAMPLING.temperature}  "
+          f"top_p={DEFAULT_SAMPLING.top_p}  top_k={DEFAULT_SAMPLING.top_k}  "
+          f"min_p={DEFAULT_SAMPLING.min_p}  pp={DEFAULT_SAMPLING.presence_penalty}  "
+          f"rep_pen={DEFAULT_SAMPLING.repetition_penalty}", flush=True)
+    print(f"holdout:     {args.holdout}", flush=True)
+    print(f"results:     {args.results}  (per-rep) / {args.aggregated}  (aggregated)",
+          flush=True)
+
+    t0 = time.time()
+    by_model = run_reps_for_models(
+        models=list(args.models),
+        eval_fn=eval_one_rep,
+        reps=args.reps,
+        sampling=DEFAULT_SAMPLING,
+        base_seed=args.base_seed,
+        ctx=args.ctx, ngl=args.ngl,
+        log_dir=args.log_dir,
+        per_rep_callback=on_rep,
+        per_model_callback=on_model,
+    )
+
+    write_csvs(
+        by_model,
+        per_rep=args.results,
+        aggregated=args.aggregated,
+        extra_cols=sampling_extra_cols(DEFAULT_SAMPLING),
+    )
+
+    total_min = (time.time() - t0) / 60
     print(f"\n=== ALL DONE in {total_min:.1f} min ===", flush=True)
     return 0
 
