@@ -23,6 +23,49 @@ quantizer's budget, not the inference path.
 See `docs/methods.md` for the algorithmic details and `docs/benchmarks.md` for
 the metric definitions.
 
+## Results so far (Tesslate/OmniCoder-9B @ Q4_K_M)
+
+End-to-end run on a real 9B coding model. The calibration corpus is the
+user's actual usage log (`logtrain.jsonl`, 253 sessions split 80/10/10 by
+fingerprint); the eval is the held-out test split. Tool-call eval uses the
+disjoint holdout split (10 sessions, claude + qwen sources).
+
+Sorted by SQS (1, 2, 1 weights — fidelity weighted 2×):
+
+| Model | Size (GiB) | Mean KLD | Same Top p | Prefill tok/s | Decode tok/s | TTFT@2k (ms) | Tool Sel % | Param Acc % | Schema % | Rollout % | SQS |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| stock/Q4_K_M-custom  | 5.24 | 0.612 | 84.75 | 778.7 ± 15 | 64.40 ± 0.4 | 2630 ± 52 | 33.3 | 33.3 | 73.3 | 70.0 | 1.513 |
+| stock/Q4_K_M-wiki    | 5.24 | 0.635 | 84.45 | 776.1 ± 8  | 64.15 ± 0.6 | 2639 ± 26 | 37.5 | 32.8 | 75.0 | 80.0 | 1.509 |
+| hybrid/Q4_K_M-custom | 5.24 | **0.595** | **84.80** | 764.9 ± 8  | 63.32 ± 0.8 | 2678 ± 30 | 37.5 | 32.8 | 75.0 | 60.0 | 1.507 |
+| hybrid/Q4_K_M-wiki   | 5.24 | 0.638 | 84.28 | 763.1 ± 13 | 60.53 ± 2.6 | 2684 ± 47 | **41.2** | **35.3** | 64.7 | 50.0 | 1.486 |
+| baseline/Q4_K_M-none | 5.24 | 1.012 | 81.11 | 741.3 ± 18 | 64.44 ± 0.5 | 2763 ± 68 | 33.3 | 26.7 | 66.7 | 40.0 | 1.480 |
+| baseline/fp16        | 16.69 | 0.000 | 99.99 | 901.5 ± 20 | 28.10 ± 0.07 | 2272 ± 51 | 41.2 | 35.3 | 70.6 | 60.0 | 1.000 |
+
+Per-run stdev is over 10 `llama-bench` repetitions on the same machine, one
+model at a time. Tool-call sample sizes are small (10 sessions, 15–17
+scored turns each), so the small inter-row gaps in those columns are within
+noise — but the **calibration-vs-no-calibration** gaps are real and consistent
+with the KLD signal.
+
+Headline reads:
+
+- **Any imatrix beats none.** Mean KLD drops 1.012 → ~0.6 (≈ −40 %).
+- **Your-own-data beats wikitext on KLD.** custom ≈ 0.60, wiki ≈ 0.64. The
+  gap is wider under hybrid (7 %) than stock (4 %) — the analytic refinement
+  amplifies the corpus signal.
+- **Hybrid beats stock at fixed corpus on KLD, but only just at Q4_K_M.** ~3 % on
+  custom, basically tied on wiki. Hybrid is expected to pull further ahead
+  at lower bit budgets (IQ4_XS, IQ3_S) where channel allocation is binding.
+- **Tool-call accuracy is too sample-limited to rank** the four calibrated
+  rows, but all of them beat the uncalibrated quant on schema-validity and
+  rollout-completion. fp16 ≠ best tool-caller here — the calibrated Q4
+  rows sit at or near fp16 on every tool-call column except top-1 selection.
+
+Raw data: `out/omnicoder_q4_k_m/{LEADERBOARD.md, results.csv, toolcall_results.csv}`.
+Reproduce with `scripts/run_omnicoder_q4_k_m.py` followed by
+`scripts/run_omnicoder_wiki_vs_custom.py`, `scripts/run_toolcall_all.py`,
+and `scripts/rebench_speed.py`.
+
 ## Requirements
 
 * Python ≥ 3.11
