@@ -154,10 +154,35 @@ uv sync
               results.csv  →  LEADERBOARD.md
 ```
 
+## Running an end-to-end calibration
+
+The CLI is recipe-driven. Each recipe under `src/quant_tuner/recipes/` declares
+one calibration method × quant type:
+
+```bash
+# Method = imatrix (hybrid_custom variant), quant = Q4_K_M
+uv run quant-tuner run \
+    --recipe q4_k_m_imatrix \
+    --model Tesslate/OmniCoder-9B \
+    --logs logtrain.jsonl \
+    --workspace ./out/my_run
+
+# Validate-only (resolves the recipe + overrides, prints the merged config):
+uv run quant-tuner run --recipe q4_k_m_imatrix --model X --logs Y --workspace W --dry-run
+```
+
+Available recipes: `q4_k_m_imatrix`, `q4_k_m_awq`, `q4_k_m_gptq`, `q4_k_m_none`.
+A recipe is just YAML — copy any of them to a local file and pass the path to
+`--recipe` to override the calibration variant or sampling params.
+
+`quant-tuner bench --quant Q.gguf --reference F16.gguf --eval EVAL.txt --out
+results.csv` benches an existing quant without re-running calibration, and
+`quant-tuner leaderboard --results results.csv` aggregates a directory's CSV
+into a sorted markdown report.
+
 ## Python API
 
-The CLI (`quant-tuner …`) currently exposes only top-level stubs; the working
-surface is the Python API. A minimal end-to-end run on a 1B model:
+The pipeline functions are also importable for ad-hoc scripting:
 
 ```python
 from pathlib import Path
@@ -231,18 +256,24 @@ src/quant_tuner/
 ├── quantize/         # HF → F16 GGUF, F16 → Q* GGUF
 ├── bench/            # bpw | kld | speed | runner (CSV row builder)
 ├── data/             # log ingest, stratified packing, train/test/holdout split
+├── eval/             # tool-call scoring, llama-server lifecycle, run_toolcall_eval
+├── experiments/      # shared log/phase/step helpers for driver scripts
+├── leaderboard/      # CSV → markdown aggregation with SQS scoring
 ├── models/           # HF extract, llama.cpp binary wrappers, HF→GGUF name map
-└── leaderboard/      # CSV → markdown aggregation with SQS scoring
+├── recipes/          # YAML recipes consumed by `quant-tuner run --recipe ...`
+├── cli.py            # typer CLI: run | bench | leaderboard
+└── pipeline.py       # end-to-end pipeline: extract → calibrate → quantize → bench
 
 vendor/llama.cpp      # pinned submodule, commit 45b455e6
-tests/unit/           # 36 passing tests; pure-math + parser coverage
+tests/unit/           # 100+ passing tests
 ```
 
 ## Status
 
-Pre-alpha. Calibrators and bench infrastructure work end-to-end via the Python
-API. The `quant-tuner …` CLI commands are still stubs. The leaderboard
-aggregation (`SQS` scoring formula, markdown report writer) is the next milestone.
+Beta. End-to-end calibration runs via the CLI (`quant-tuner run --recipe …`) or
+the Python API. Tool-call evaluation lives in `quant_tuner.eval`. The OmniCoder
+leaderboard reproducer (`scripts/reproduce_leaderboard.py`) chains the eight
+study artifacts end-to-end.
 
 ## Pinned llama.cpp
 

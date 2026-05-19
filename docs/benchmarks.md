@@ -53,16 +53,17 @@ agent workflows that send long contexts. Heavy K-quants (Q5_K_M, Q6_K) tend
 to have lower decode tok/s than the F16 baseline on CPU/Metal because the
 dequantize cost per matmul exceeds the I/O savings.
 
-### Tool-call accuracy — from `scripts/eval_toolcall.py`
+### Tool-call accuracy — from `quant_tuner.eval`
 
 KLD measures token-level fidelity but doesn't tell you whether the quant still
-emits *valid tool calls* on real agentic traffic. The tool-call eval runs each
-quant against a held-out session corpus
-(`scripts/build_toolcall_holdout.py` — sampled with a fixed seed from
-`logtrain.jsonl`'s `test + holdout` slices, fingerprint-disjoint from the
-calibration `train` slice). The model is served via `llama-server`'s
-OpenAI-compatible endpoint; the script does two independent passes per
-session:
+emits *valid tool calls* on real agentic traffic. The tool-call eval — entry
+point `quant_tuner.eval.run_toolcall_eval(holdout, model_path=…)` — runs each
+quant against a held-out session corpus (`scripts/build_toolcall_holdout.py`
+samples it with a fixed seed from `logtrain.jsonl`'s `test + holdout` slices,
+fingerprint-disjoint from the calibration `train` slice). The model is served
+via `llama-server`'s OpenAI-compatible endpoint (lifecycle managed by
+`quant_tuner.eval.server.running_server`). Each session goes through two
+independent passes:
 
 **1. Per-turn pass.** For every ground-truth assistant turn that emitted a
 `tool_calls`, replay the prior context and ask the model for *one* completion.
@@ -93,7 +94,7 @@ recorded `tools_used` set), is logged to CSV but not currently displayed.
 A predicted call's parameter score is `(hits) / (required keys)`, where each
 key counts as a hit if it's present **and** its value is *equivalent* to the
 ground truth. Equivalence is type-aware, dispatched by key name and JSON-schema
-type (`eval_toolcall.compare_value`):
+type (`quant_tuner.eval.scoring.compare_value`):
 
 | Argument shape           | How values compare                                                            |
 | ------------------------ | ----------------------------------------------------------------------------- |
