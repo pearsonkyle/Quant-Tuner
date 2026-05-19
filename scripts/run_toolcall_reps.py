@@ -14,6 +14,7 @@ Wall-time estimate at default settings (n=25 holdout, 10 reps, 8 models): ~15 h.
 
 from __future__ import annotations
 
+import argparse
 import csv
 import math
 import socket
@@ -48,7 +49,7 @@ CTX = 16384
 NGL = 99
 SERVER_STARTUP_TIMEOUT = 120
 
-MODELS = [
+DEFAULT_MODELS = [
     WORK / "model-f16.gguf",
     WORK / "Q4_K_M-none.gguf",
     WORK / "Q4_K_M-stock_custom.gguf",
@@ -58,6 +59,9 @@ MODELS = [
     WORK / "Q4_K_M-hybrid_wiki.gguf",
     WORK / "Q4_K_M-hybrid_mixed.gguf",
 ]
+# Mutable so an outer driver (e.g. reproduce_leaderboard.py) can override
+# both the model list and the repetition count before calling main().
+MODELS: list[Path] = list(DEFAULT_MODELS)
 
 PER_REP_METRICS = (
     "tool_selection_acc", "param_acc_mean", "schema_valid_rate",
@@ -174,7 +178,40 @@ def aggregate_per_model() -> None:
     print(f"\nWrote aggregate: {AGGREGATED}", flush=True)
 
 
+def _build_arg_parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(description=__doc__)
+    p.add_argument(
+        "--models", nargs="+", type=Path, default=None,
+        help="Override the model list (default: 8 GGUFs in out/omnicoder_q4_k_m/). "
+             "Pass paths to one or more GGUF files.",
+    )
+    p.add_argument(
+        "--reps", type=int, default=None,
+        help=f"Number of repetitions per model (default: {REPETITIONS})",
+    )
+    p.add_argument(
+        "--results", type=Path, default=None,
+        help="Override per-rep CSV path (default: out/.../toolcall_reps_results.csv)",
+    )
+    p.add_argument(
+        "--aggregated", type=Path, default=None,
+        help="Override aggregated CSV path (default: out/.../toolcall_reps_aggregated.csv)",
+    )
+    return p
+
+
 def main() -> int:
+    global MODELS, REPETITIONS, RESULTS, AGGREGATED
+    args = _build_arg_parser().parse_args()
+    if args.models is not None:
+        MODELS = list(args.models)
+    if args.reps is not None:
+        REPETITIONS = args.reps
+    if args.results is not None:
+        RESULTS = args.results
+    if args.aggregated is not None:
+        AGGREGATED = args.aggregated
+
     assert HOLDOUT.exists(), HOLDOUT
     assert LLAMA_SERVER.exists(), LLAMA_SERVER
     LOGS.mkdir(parents=True, exist_ok=True)
