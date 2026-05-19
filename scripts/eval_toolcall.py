@@ -365,21 +365,51 @@ def strip_for_api(msgs: list[dict]) -> list[dict]:
 
 
 def call_model(client: OpenAI, messages: list[dict], tools: list[dict],
-               temperature: float, max_tokens: int) -> Any:
-    return client.chat.completions.create(
-        model="local",
-        messages=messages,
-        tools=tools,
-        temperature=temperature,
-        max_tokens=max_tokens,
-    )
+               temperature: float, max_tokens: int,
+               top_p: float | None = None,
+               top_k: int | None = None,
+               min_p: float | None = None,
+               presence_penalty: float | None = None,
+               repetition_penalty: float | None = None,
+               seed: int | None = None) -> Any:
+    """Call /v1/chat/completions with OpenAI-standard + llama.cpp-extension sampling params.
+
+    `top_p` and `presence_penalty` are OpenAI-standard. `top_k`, `min_p`, and
+    `repetition_penalty` are llama.cpp extensions — passed through `extra_body`
+    so the OpenAI SDK forwards them unmodified in the request JSON.
+    """
+    kwargs: dict = {
+        "model": "local",
+        "messages": messages,
+        "tools": tools,
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+    extra: dict = {}
+    if top_p is not None:
+        kwargs["top_p"] = top_p
+    if presence_penalty is not None:
+        kwargs["presence_penalty"] = presence_penalty
+    if seed is not None:
+        kwargs["seed"] = seed
+    if top_k is not None:
+        extra["top_k"] = top_k
+    if min_p is not None:
+        extra["min_p"] = min_p
+    if repetition_penalty is not None:
+        extra["repeat_penalty"] = repetition_penalty  # llama.cpp's name for this field
+    if extra:
+        kwargs["extra_body"] = extra
+    return client.chat.completions.create(**kwargs)
 
 
 def eval_per_turn(client: OpenAI, session: dict, temperature: float, max_tokens: int,
                   max_turns: int, log_fh, system_prompt: str | None = None,
-                  stop_on_fail: bool = True) -> list[dict]:
+                  stop_on_fail: bool = True,
+                  sampling: dict | None = None) -> list[dict]:
     """Score every assistant tool_call turn in the session."""
     results = []
+    sampling = sampling or {}
     msgs = maybe_inject_system(session["messages"], system_prompt)
     tools = session["tools"]
     sid = session.get("session_id")
@@ -400,7 +430,7 @@ def eval_per_turn(client: OpenAI, session: dict, temperature: float, max_tokens:
                                      or truth_tc.get("arguments")) or {}
 
         try:
-            resp = call_model(client, prefix, tools, temperature, max_tokens)
+            resp = call_model(client, prefix, tools, temperature, max_tokens, **sampling)
             choice = resp.choices[0].message
             pred_tcs = choice.tool_calls or []
         except Exception as e:
@@ -449,8 +479,10 @@ def eval_per_turn(client: OpenAI, session: dict, temperature: float, max_tokens:
 
 
 def eval_rollout(client: OpenAI, session: dict, temperature: float, max_tokens: int,
-                 max_turns: int, log_fh, system_prompt: str | None = None) -> dict:
+                 max_turns: int, log_fh, system_prompt: str | None = None,
+                 sampling: dict | None = None) -> dict:
     """Run a single rollout, splicing in recorded tool results by call order per tool."""
+    sampling = sampling or {}
     msgs = maybe_inject_system(session["messages"], system_prompt)
     tools = session["tools"]
     sid = session.get("session_id")
@@ -480,7 +512,7 @@ def eval_rollout(client: OpenAI, session: dict, temperature: float, max_tokens: 
 
     for turn in range(max_turns):
         try:
-            resp = call_model(client, convo, tools, temperature, max_tokens)
+            resp = call_model(client, convo, tools, temperature, max_tokens, **sampling)
             choice = resp.choices[0].message
         except Exception as e:
             completed_reason = f"error: {e}"
@@ -542,6 +574,18 @@ def main() -> int:
     p.add_argument("--holdout", default=_DEFAULT_HOLDOUT)
     p.add_argument("--out", default=_DEFAULT_OUT)
     p.add_argument("--temperature", type=float, default=0.0)
+    p.add_argument("--top-p", type=float, default=None,
+                   help="Nucleus sampling threshold (OpenAI-standard)")
+    p.add_argument("--top-k", type=int, default=None,
+                   help="Top-k filter (llama.cpp extension)")
+    p.add_argument("--min-p", type=float, default=None,
+                   help="Min-probability threshold (llama.cpp extension)")
+    p.add_argument("--presence-penalty", type=float, default=None,
+                   help="OpenAI-standard presence penalty")
+    p.add_argument("--repetition-penalty", type=float, default=None,
+                   help="llama.cpp `repeat_penalty` (1.0 = disabled)")
+    p.add_argument("--seed", type=int, default=None,
+                   help="If set, llama.cpp uses this seed for sampling (per-server)")
     p.add_argument("--max-tokens", type=int, default=512)
     p.add_argument("--ctx", type=int, default=8192)
     p.add_argument("--ngl", type=int, default=99)
@@ -603,13 +647,24 @@ def main() -> int:
     all_turn_results: list[dict] = []
     all_rollouts: list[dict] = []
 
+    sampling: dict = {}
+    if args.top_p is not None:           sampling["top_p"] = args.top_p
+    if args.top_k is not None:           sampling["top_k"] = args.top_k
+    if args.min_p is not None:           sampling["min_p"] = args.min_p
+    if args.presence_penalty is not None: sampling["presence_penalty"] = args.presence_penalty
+    if args.repetition_penalty is not None: sampling["repetition_penalty"] = args.repetition_penalty
+    if args.seed is not None:            sampling["seed"] = args.seed
+    if sampling:
+        print(f"sampling: temperature={args.temperature} + {sampling}")
+
     try:
         for si, sess in enumerate(sessions, 1):
             print(f"[{si}/{len(sessions)}] {sess.get('session_id')}")
             turns = eval_per_turn(client, sess, args.temperature, args.max_tokens,
                                   args.max_turns_per_session, log_fh,
                                   system_prompt=args.system_prompt or None,
-                                  stop_on_fail=not args.no_stop_on_fail)
+                                  stop_on_fail=not args.no_stop_on_fail,
+                                  sampling=sampling)
             all_turn_results.extend(turns)
             sel = sum(1 for t in turns if t.get("selection"))
             print(f"    per-turn: {len(turns)} eval'd, selection {sel}/{len(turns)}")
@@ -617,7 +672,8 @@ def main() -> int:
             if not args.skip_rollout:
                 roll = eval_rollout(client, sess, args.temperature, args.max_tokens,
                                     args.rollout_max_turns, log_fh,
-                                    system_prompt=args.system_prompt or None)
+                                    system_prompt=args.system_prompt or None,
+                                    sampling=sampling)
                 all_rollouts.append(roll)
                 print(f"    rollout: completed={roll['completed']} reason={roll['reason']}"
                       f" tool_set_match={roll['tool_set_match']}")
@@ -649,6 +705,12 @@ def main() -> int:
         "rollout_complete_rate": n_roll_done / len(all_rollouts) if all_rollouts else 0.0,
         "rollout_tool_set_match_rate": n_roll_match / len(all_rollouts) if all_rollouts else 0.0,
         "temperature": args.temperature,
+        "top_p": args.top_p if args.top_p is not None else "",
+        "top_k": args.top_k if args.top_k is not None else "",
+        "min_p": args.min_p if args.min_p is not None else "",
+        "presence_penalty": args.presence_penalty if args.presence_penalty is not None else "",
+        "repetition_penalty": args.repetition_penalty if args.repetition_penalty is not None else "",
+        "seed": args.seed if args.seed is not None else "",
         "timestamp": ts,
     }
 
