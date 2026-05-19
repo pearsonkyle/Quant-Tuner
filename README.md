@@ -188,6 +188,31 @@ results.csv` benches an existing quant without re-running calibration, and
 `quant-tuner leaderboard --results results.csv` aggregates a directory's CSV
 into a sorted markdown report.
 
+## Task-level benchmarks
+
+Two task evals live alongside the KLD/speed bench, both reporting
+**mean ± stdev across N reps** for a configurable N (default 10):
+
+```bash
+# Tool-calling on a held-out session corpus (built from logtrain.jsonl)
+uv run python scripts/run_toolcall_reps.py \
+    --models out/run/model-f16.gguf out/run/Q4_K_M-none.gguf \
+    --reps 10
+
+# MMLU-Pro CS + math (25 random questions per subject, 2-shot)
+uv run python scripts/build_mmlu_pro_holdout.py    # one-time, downloads dataset
+uv run python scripts/run_mmlu_pro_reps.py \
+    --models out/run/model-f16.gguf out/run/Q4_K_M-none.gguf \
+    --reps 10
+```
+
+Both runners spawn one `llama-server` per model and reuse it across reps; the
+per-rep seed is `--base-seed + rep_idx` for reproducibility. Output: one CSV
+per rep + one aggregated CSV (mean / stdev / n per metric). Plug a new
+benchmark into this pipeline by writing a `dict[str, float]`-returning adapter
+on top of `quant_tuner.eval.reps.run_reps_for_models` — see
+`docs/benchmarks.md` § "Multi-rep eval".
+
 ## Python API
 
 The pipeline functions are also importable for ad-hoc scripting:
@@ -264,7 +289,7 @@ src/quant_tuner/
 ├── quantize/         # HF → F16 GGUF, F16 → Q* GGUF
 ├── bench/            # bpw | kld | speed | runner (CSV row builder)
 ├── data/             # log ingest, stratified packing, train/test/holdout split
-├── eval/             # tool-call scoring, llama-server lifecycle, run_toolcall_eval
+├── eval/             # task-level evals (toolcall, mmlu_pro) + generic N-rep runner
 ├── experiments/      # shared log/phase/step helpers for driver scripts
 ├── leaderboard/      # CSV → markdown aggregation with SQS scoring
 ├── models/           # HF extract, llama.cpp binary wrappers, HF→GGUF name map

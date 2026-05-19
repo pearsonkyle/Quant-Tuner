@@ -132,8 +132,145 @@ schema if `arguments` is malformed.
 Defaults to greedy (`temperature=0`). The runner forwards OpenAI-standard
 params (`top_p`, `presence_penalty`, `seed`) directly and llama.cpp
 extensions (`top_k`, `min_p`, `repeat_penalty`) via `extra_body`. The
-multi-rep runner (`scripts/run_toolcall_reps.py`) holds one `llama-server`
-per model across N repetitions and emits mean ± stdev per metric.
+multi-rep runner (`scripts/run_toolcall_reps.py` — see "Multi-rep eval"
+below) holds one `llama-server` per model across N repetitions and emits
+mean ± stdev per metric.
+
+### MMLU-Pro reasoning — from `quant_tuner.eval.mmlu_pro`
+
+A third axis: does the quant still solve reasoning-heavy multiple-choice
+questions? Useful as a check that a quant tuned for one workload
+(e.g. tool-calling on `logtrain.jsonl`) hasn't quietly regressed on
+general knowledge.
+
+Entry point `quant_tuner.eval.run_mmlu_pro_eval(holdout, model_path=…)`.
+The holdout JSON (built by `scripts/build_mmlu_pro_holdout.py`) bundles
+two sections:
+
+| Section | Source | Used as |
+| --- | --- | --- |
+| `shots[<subject>]` | first `--n-shot` rows of the dev split | few-shot demonstrations |
+| `samples` | `--n-per-subject` random rows from the test split (seeded) | the actual eval set |
+
+Default: 25 samples × {`computer science`, `math`}, 2-shot, seed=42 — pass
+`--subjects`, `--n-per-subject`, `--n-shot`, `--seed` to change any of these.
+
+#### Prompt format
+
+Each evaluation builds a chat-completion prompt of the form:
+
+```
+system   : You are an expert taking a multiple-choice exam. … respond with
+           only the letter of the best answer.
+user     : Subject: <subject>
+           Question: <shot 1 question>
+           Options:
+           (A) … (B) … (C) … …
+assistant: Answer: <truth letter>
+user     : <shot 2 question, same format>
+assistant: Answer: <truth letter>
+user     : <target question>      ← model responds here
+```
+
+The number of demonstration pairs equals `holdout.n_shot`. MMLU-Pro has up
+to 10 answer choices per question (A–J), so the parser bounds the valid
+letter range by `len(options)` — a 4-option question rejects an "F"
+prediction even if the model emits one.
+
+#### Answer extraction
+
+`parse_answer` walks four tiers in priority order:
+
+1. Explicit marker: `Answer: X` (or `Answer = X`, `Answer - X`, `Answer:(X)`,
+   case-insensitive)
+2. Parenthesized: `(X)` anywhere in the completion
+3. Verb phrase: `answer is X` / `the answer is (X)`
+4. Fallback: first standalone capital letter A–J in the completion
+
+A reply of "B" alone, "Answer: (B)", "The answer is B", or "After working
+through this, B is right." all resolve to `"B"`. A reply with no in-range
+letter at all (or a letter past the option count) is logged as
+`pred=None`, counted as `n_unparseable`, and treated as a wrong answer for
+accuracy purposes.
+
+#### Output
+
+`run_mmlu_pro_eval` returns an `MmluProSummary` dataclass with:
+
+* `accuracy` — overall, fraction of correct predictions
+* `by_subject[<subject>]` — `{n, correct, accuracy, unparseable}` per subject
+* `n_unparseable` — completions where no letter could be extracted
+* `per_sample` — full row list for debugging (also written as JSONL log)
+
+The CLI shim `scripts/eval_mmlu_pro.py` appends one CSV row per
+`(model, run)` with per-subject accuracy as broken-out columns.
+
+## Multi-rep eval (`quant_tuner.eval.reps`)
+
+Any benchmark whose summary reduces to `dict[str, float]` can plug into the
+generic multi-rep runner — `eval.reps.run_reps_for_models` spawns one
+`llama-server` per model, runs the eval `N` times against it with a per-rep
+seed (`base_seed + rep_idx`), and aggregates **mean ± stdev** across reps.
+
+Defaults to **10 reps**; override with `--reps` on the CLI or `reps=N` in
+Python. Set it to `1` for a quick smoke test, `25+` for tighter confidence
+intervals.
+
+```bash
+# 10 reps × 8 GGUFs (~14 h at default settings)
+uv run python scripts/run_toolcall_reps.py
+
+# Just two models, 5 reps
+uv run python scripts/run_toolcall_reps.py \
+    --models out/run/model-f16.gguf out/run/Q4_K_M-none.gguf \
+    --reps 5
+
+# MMLU-Pro, same shape
+uv run python scripts/run_mmlu_pro_reps.py --models out/run/*.gguf --reps 10
+
+# Deterministic (no stdev → 1 rep is enough)
+uv run python scripts/run_mmlu_pro_reps.py --temperature 0 --reps 1
+```
+
+Both runners emit **two CSVs**:
+
+| File | Shape | Use |
+| --- | --- | --- |
+| `<name>_reps_results.csv` | one row per `(model, rep)` | debugging individual reps |
+| `<name>_reps_aggregated.csv` | one row per model | leaderboard input |
+
+The aggregated CSV expands each metric into `<m>_mean` / `<m>_stdev` /
+`<m>_n` columns, plus the sampling params (`temperature`, `top_p`, …) for
+traceability. The leaderboard aggregator (`leaderboard.aggregate.merge_toolcall`)
+detects this shape automatically and renders cells as `mean ± stdev`.
+
+To plug a new benchmark into this pipeline, write a `dict[str, float]`-returning
+adapter and call `run_reps_for_models`:
+
+```python
+from quant_tuner.eval.reps import run_reps_for_models, write_csvs, sampling_extra_cols
+from quant_tuner.eval.toolcall import Sampling
+
+def my_eval(base_url: str, sampling: Sampling, rep: int) -> dict[str, float]:
+    # … run one rep against the model at base_url …
+    return {"my_metric_1": 0.85, "my_metric_2": 0.42}
+
+sampling = Sampling(temperature=0.6, top_p=0.95, top_k=20)
+by_model = run_reps_for_models(
+    models=[Path("model.gguf")],
+    eval_fn=my_eval,
+    reps=10,
+    sampling=sampling,
+)
+write_csvs(by_model,
+           per_rep=Path("out/my_reps.csv"),
+           aggregated=Path("out/my_agg.csv"),
+           extra_cols=sampling_extra_cols(sampling))
+```
+
+`run_reps_for_models` handles server lifecycle (spawn/health-check/teardown
+per model), error capture (a failed rep gets `error=…` and is skipped during
+aggregation), and per-rep / per-model callbacks for progress logging.
 
 ## Bench suites
 
