@@ -47,18 +47,26 @@ read those with the caveat below):
 
 | Model | Size | Mean KLD | Same Top p | Decode tok/s | Tool Sel % | Param Acc % | Schema % | Rollout % |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| baseline/fp16        | 16.69 | 0.000 | 99.99 | 27.63 ± 0.08 | 39.0 | 33.5 | 63.4 | 80.0 |
+| baseline/fp16        | 16.69 | 0.000 | 99.99 | 13.05 ± 1.88† | 39.0 | 33.5 | 63.4 | 80.0 |
 | **hybrid / custom**  | 5.24 | **0.595** | **84.80** | 45.55 ± 4.47 | **44.4** | 35.6 | **68.9** | 76.0 |
 | stock / custom       | 5.24 | 0.612 | 84.75 | 58.15 ± 2.06 | 40.5 | **37.5** | 64.3 | 76.0 |
 | stock / mixed        | 5.24 | 0.612 | 84.60 | 45.35 ± 4.22 | 41.9 | 34.3 | 62.8 | **80.0** |
 | hybrid / mixed       | 5.24 | 0.613 | 84.72 | 48.28 ± 4.03 | 41.9 | 34.3 | 60.5 | 72.0 |
 | stock / wiki         | 5.24 | 0.635 | 84.45 | 49.98 ± 4.59 | 43.2 | 36.4 | 63.6 | 76.0 |
 | hybrid / wiki        | 5.24 | 0.638 | 84.28 | 47.39 ± 4.02 | 40.5 | 35.1 | 61.9 | 72.0 |
-| baseline/Q4_K_M-none | 5.24 | 1.012 | 81.11 | 63.77 ± 1.73 | 30.6 | 27.1 | 61.1 | 72.0 |
+| baseline/Q4_K_M-none | 5.24 | 1.012 | 81.11 | 16.97 ± 4.02† | 30.6 | 27.1 | 61.1 | 72.0 |
 
 Per-run stdev is over 10 `llama-bench` repetitions, one model at a time.
 Tool-call accuracy uses 25 sessions with 36–45 scored turns per model. Full
 leaderboard with prefill/TTFT/PPL columns: `out/omnicoder_q4_k_m/LEADERBOARD.md`.
+
+† The `fp16` and `Q4_K_M-none` decode-tok/s cells were re-measured in a
+later session; the six calibrated rows keep their original numbers. The
+re-measurement reproduced the **fidelity** columns exactly (Mean KLD, Same
+Top p — these are deterministic given the same eval set and baseline) but
+came in 2–4× slower on decode tok/s due to thermal/load state differences on
+the same machine. Treat absolute decode tok/s as a noisy headline; for
+quant-vs-quant comparisons the KLD and tool-call columns are what to read.
 
 ### What this tells us
 
@@ -88,13 +96,13 @@ calibration distribution come from the same source (`logtrain.jsonl`); the
 quantizer is "tuning into" the deployment workload. Even though F16's KLD is 0
 by definition, calibrated Q4 is more accurate on the actual task.
 
-**Caveat on decode tok/s.** The decode-speed numbers cluster 45–64 across what
-should be byte-identical-size Q4 files. The 10-rep stdev within one
-measurement is tight (≤ 4 tok/s), but rows run later in the bench session
-drift lower as the machine heats up — a thermal artifact, not a real
-difference. SQS (which weights decode tok/s equally with compression) is
-therefore noisier than KLD; for the question "which imatrix is best?",
-**read the KLD and tool-call columns**.
+**Caveat on decode tok/s.** Within one bench session, the six calibrated
+Q4 rows cluster 45–58 tok/s and per-rep stdev is tight (≤ 5 tok/s). Across
+sessions, however, absolute numbers swing by 2–4× depending on the
+machine's thermal/load state (see the footnoted refresh of `fp16` and
+`Q4_K_M-none` above). SQS (which weights decode tok/s equally with
+compression) is therefore noisier than KLD; for the question "which
+imatrix is best?", **read the KLD and tool-call columns**.
 
 Raw data: `out/omnicoder_q4_k_m/{LEADERBOARD.md, results.csv, toolcall_reps_aggregated.csv}`.
 
