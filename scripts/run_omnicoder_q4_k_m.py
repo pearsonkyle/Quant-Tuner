@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import json
 import sys
-import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -23,6 +22,7 @@ from quant_tuner.bench import bpw as bpw_mod
 from quant_tuner.bench import kld, runner
 from quant_tuner.calibrate import imatrix
 from quant_tuner.data import ingest, split
+from quant_tuner.experiments import log, phase, step
 from quant_tuner.leaderboard import aggregate
 from quant_tuner.models import extract, llama_cpp
 from quant_tuner.quantize import convert, gguf
@@ -47,127 +47,75 @@ QUANT_NONE = WORK / "Q4_K_M-none.gguf"
 QUANT_IMATRIX = WORK / "Q4_K_M-hybrid_custom.gguf"
 
 
-def log(msg: str) -> None:
-    t = time.strftime("%H:%M:%S")
-    print(f"[{t}] {msg}", flush=True)
+def _prepare_corpora() -> None:
+    from transformers import AutoTokenizer
 
+    tok = AutoTokenizer.from_pretrained(MODEL_DIR, fix_mistral_regex=True)
+    sessions = ingest.load_sessions(LOGTRAIN)
+    sessions = ingest.filter_sessions(sessions, min_score=0.3, require_tools=False)
+    log(f"  {len(sessions)} sessions after filtering")
 
-def phase(name: str):
-    """Context-manager-ish: log entry/exit with timing."""
-    class _P:
-        def __enter__(self_):
-            self_.t0 = time.time()
-            log(f"┌─ {name}")
-            return self_
+    splits = split.split_sessions(
+        sessions, train_frac=0.8, test_frac=0.1, holdout_frac=0.1, seed=42
+    )
+    log(
+        f"  split: train={len(splits['train'])} "
+        f"test={len(splits['test'])} holdout={len(splits['holdout'])}"
+    )
 
-        def __exit__(self_, *exc):
-            dt = time.time() - self_.t0
-            log(f"└─ {name} done ({dt / 60:.1f} min)")
-            return False
-    return _P()
+    # Train corpus → 500k tokens for calibration.
+    chunks, _kept, total, audit = split.stratified_pack(
+        splits["train"], tok, target_tokens=500_000, per_session_cap=6_000, seed=42
+    )
+    split.write_corpus(chunks, CORPUS_TRAIN)
+    (WORK / "train_audit.json").write_text(json.dumps(audit, indent=2, default=str))
+    log(f"  train corpus: {total:,} tokens -> {CORPUS_TRAIN.name}")
+
+    # Eval corpus → 50k tokens (PPL/KLD eval).
+    ev_chunks, _ek, ev_total, ev_audit = split.stratified_pack(
+        splits["test"], tok, target_tokens=50_000, per_session_cap=4_000, seed=43
+    )
+    split.write_corpus(ev_chunks, CORPUS_EVAL)
+    (WORK / "eval_audit.json").write_text(json.dumps(ev_audit, indent=2, default=str))
+    log(f"  eval corpus:  {ev_total:,} tokens -> {CORPUS_EVAL.name}")
 
 
 def main() -> int:
     WORK.mkdir(parents=True, exist_ok=True)
     LOGS.mkdir(parents=True, exist_ok=True)
 
-    # 1) Fetch + extract HF model.
-    if not (MODEL_DIR / "config.json").exists():
-        with phase("extract OmniCoder-9B text-only LM"):
-            extract.extract_text_lm(
-                source=SRC_MODEL,
-                output_dir=MODEL_DIR,
-                causal_lm_arch="Qwen3_5ForCausalLM",
-            )
-    else:
-        log(f"✓ model_extracted/ already present: {MODEL_DIR}")
+    step("extract OmniCoder-9B text-only LM", MODEL_DIR / "config.json",
+         lambda: extract.extract_text_lm(
+             source=SRC_MODEL, output_dir=MODEL_DIR,
+             causal_lm_arch="Qwen3_5ForCausalLM"))
 
-    # 2) HF → F16 GGUF.
-    if not F16_GGUF.exists():
-        with phase("convert HF -> F16 GGUF"):
-            convert.hf_to_f16_gguf(MODEL_DIR, F16_GGUF, log=LOGS / "convert.log")
-    else:
-        log(f"✓ F16 GGUF already present: {F16_GGUF}")
+    step("convert HF -> F16 GGUF", F16_GGUF,
+         lambda: convert.hf_to_f16_gguf(MODEL_DIR, F16_GGUF, log=LOGS / "convert.log"))
 
-    # 3) Prepare calibration corpus + eval split.
-    if not (CORPUS_TRAIN.exists() and CORPUS_EVAL.exists()):
-        with phase("prepare calibration corpus + eval split"):
-            from transformers import AutoTokenizer
+    step("prepare calibration corpus + eval split",
+         [CORPUS_TRAIN, CORPUS_EVAL], _prepare_corpora)
 
-            tok = AutoTokenizer.from_pretrained(MODEL_DIR, fix_mistral_regex=True)
-            sessions = ingest.load_sessions(LOGTRAIN)
-            sessions = ingest.filter_sessions(sessions, min_score=0.3, require_tools=False)
-            log(f"  {len(sessions)} sessions after filtering")
+    step("llama-imatrix (standard E[a^2])", BASE_IMATRIX,
+         lambda: llama_cpp.imatrix(F16_GGUF, CORPUS_TRAIN, BASE_IMATRIX,
+                                   ctx=512, log=LOGS / "imatrix-custom.log"))
 
-            splits = split.split_sessions(
-                sessions, train_frac=0.8, test_frac=0.1, holdout_frac=0.1, seed=42
-            )
-            log(
-                f"  split: train={len(splits['train'])} "
-                f"test={len(splits['test'])} holdout={len(splits['holdout'])}"
-            )
+    step("build output-aware imatrix (hybrid_custom)", HYBRID_IMATRIX,
+         lambda: imatrix.calibrate(
+             variant="hybrid_custom", f16_gguf=F16_GGUF,
+             base_imatrix=BASE_IMATRIX, out_path=HYBRID_IMATRIX))
 
-            # Train corpus → 500k tokens for calibration.
-            chunks, _kept, total, audit = split.stratified_pack(
-                splits["train"], tok, target_tokens=500_000, per_session_cap=6_000, seed=42
-            )
-            split.write_corpus(chunks, CORPUS_TRAIN)
-            (WORK / "train_audit.json").write_text(json.dumps(audit, indent=2, default=str))
-            log(f"  train corpus: {total:,} tokens -> {CORPUS_TRAIN.name}")
+    step("build F16 KLD baseline", EVAL_BASELINE,
+         lambda: kld.build_baseline(F16_GGUF, CORPUS_EVAL, EVAL_BASELINE,
+                                    ctx=8192, log=LOGS / "baseline.log"))
 
-            # Eval corpus → 50k tokens (PPL/KLD eval).
-            ev_chunks, _ek, ev_total, ev_audit = split.stratified_pack(
-                splits["test"], tok, target_tokens=50_000, per_session_cap=4_000, seed=43
-            )
-            split.write_corpus(ev_chunks, CORPUS_EVAL)
-            (WORK / "eval_audit.json").write_text(json.dumps(ev_audit, indent=2, default=str))
-            log(f"  eval corpus:  {ev_total:,} tokens -> {CORPUS_EVAL.name}")
-    else:
-        log("✓ corpora already present")
+    step("quantize Q4_K_M (no imatrix)", QUANT_NONE,
+         lambda: gguf.quantize(F16_GGUF, QUANT_NONE, "Q4_K_M",
+                               log=LOGS / "quantize-none.log"))
 
-    # 4) Standard imatrix via llama-imatrix.
-    if not BASE_IMATRIX.exists():
-        with phase("llama-imatrix (standard E[a^2])"):
-            llama_cpp.imatrix(F16_GGUF, CORPUS_TRAIN, BASE_IMATRIX,
-                              ctx=512, log=LOGS / "imatrix-custom.log")
-    else:
-        log(f"✓ base imatrix already present: {BASE_IMATRIX}")
-
-    # 5) Output-aware imatrix (hybrid_custom).
-    if not HYBRID_IMATRIX.exists():
-        with phase("build output-aware imatrix (hybrid_custom)"):
-            imatrix.calibrate(
-                variant="hybrid_custom",
-                f16_gguf=F16_GGUF,
-                base_imatrix=BASE_IMATRIX,
-                out_path=HYBRID_IMATRIX,
-            )
-    else:
-        log(f"✓ hybrid_custom imatrix already present: {HYBRID_IMATRIX}")
-
-    # 6) F16 KLD baseline.
-    if not EVAL_BASELINE.exists():
-        with phase("build F16 KLD baseline"):
-            kld.build_baseline(F16_GGUF, CORPUS_EVAL, EVAL_BASELINE,
-                               ctx=8192, log=LOGS / "baseline.log")
-    else:
-        log(f"✓ KLD baseline already present: {EVAL_BASELINE}")
-
-    # 7) Quantize Q4_K_M-none and Q4_K_M-hybrid_custom.
-    if not QUANT_NONE.exists():
-        with phase("quantize Q4_K_M (no imatrix)"):
-            gguf.quantize(F16_GGUF, QUANT_NONE, "Q4_K_M",
-                          log=LOGS / "quantize-none.log")
-    else:
-        log(f"✓ {QUANT_NONE.name} already present")
-
-    if not QUANT_IMATRIX.exists():
-        with phase("quantize Q4_K_M (hybrid_custom imatrix)"):
-            gguf.quantize(F16_GGUF, QUANT_IMATRIX, "Q4_K_M",
-                          imatrix=HYBRID_IMATRIX,
-                          log=LOGS / "quantize-imatrix.log")
-    else:
-        log(f"✓ {QUANT_IMATRIX.name} already present")
+    step("quantize Q4_K_M (hybrid_custom imatrix)", QUANT_IMATRIX,
+         lambda: gguf.quantize(F16_GGUF, QUANT_IMATRIX, "Q4_K_M",
+                               imatrix=HYBRID_IMATRIX,
+                               log=LOGS / "quantize-imatrix.log"))
 
     # 8) Bench all three rows into results.csv.
     n_params = bpw_mod.n_params(F16_GGUF)

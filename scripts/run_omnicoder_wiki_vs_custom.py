@@ -20,7 +20,6 @@ import csv
 import os
 import shutil
 import sys
-import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -29,6 +28,7 @@ sys.path.insert(0, str(REPO / "src"))
 from quant_tuner.bench import bpw as bpw_mod
 from quant_tuner.bench import runner
 from quant_tuner.calibrate import imatrix
+from quant_tuner.experiments import log, phase, step
 from quant_tuner.leaderboard import aggregate
 from quant_tuner.models import llama_cpp
 from quant_tuner.quantize import gguf
@@ -58,24 +58,6 @@ RESULTS = WORK / "results.csv"
 LEADERBOARD = WORK / "LEADERBOARD.md"
 
 
-def log(msg: str) -> None:
-    print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
-
-
-def phase(name: str):
-    class _P:
-        def __enter__(self_):
-            self_.t0 = time.time()
-            log(f"┌─ {name}")
-            return self_
-
-        def __exit__(self_, *exc):
-            dt = (time.time() - self_.t0) / 60
-            log(f"└─ {name} done ({dt:.1f} min)")
-            return False
-    return _P()
-
-
 def relabel_row(csv_path: Path, old: str, new: str) -> None:
     """Rename a results.csv row's model column. No-op if old label is absent."""
     if not csv_path.exists():
@@ -101,7 +83,7 @@ def main() -> int:
     assert BASE_IMATRIX_CUSTOM.exists(), f"missing custom imatrix: {BASE_IMATRIX_CUSTOM}"
 
     # 0) Local copy of wiki.test.raw so the workspace is self-contained.
-    if not WIKI_LOCAL.exists():
+    def _copy_wiki():
         if WIKI_SRC is None or not WIKI_SRC.exists():
             raise FileNotFoundError(
                 f"WikiText-2 raw test file not found at {WIKI_LOCAL}. "
@@ -110,27 +92,19 @@ def main() -> int:
                 "and point at wiki.test.raw)."
             )
         shutil.copy(WIKI_SRC, WIKI_LOCAL)
-        log(f"copied {WIKI_SRC.name} -> {WIKI_LOCAL}")
+        log(f"  copied {WIKI_SRC.name} -> {WIKI_LOCAL}")
+    step("stage wiki.test.raw locally", WIKI_LOCAL, _copy_wiki)
 
     # 1) Stock imatrix on wiki corpus.
-    if not BASE_IMATRIX_WIKI.exists():
-        with phase("llama-imatrix on wiki.test.raw"):
-            llama_cpp.imatrix(F16_GGUF, WIKI_LOCAL, BASE_IMATRIX_WIKI,
-                              ctx=512, log=LOGS / "imatrix-wiki.log")
-    else:
-        log(f"✓ wiki imatrix present: {BASE_IMATRIX_WIKI.name}")
+    step("llama-imatrix on wiki.test.raw", BASE_IMATRIX_WIKI,
+         lambda: llama_cpp.imatrix(F16_GGUF, WIKI_LOCAL, BASE_IMATRIX_WIKI,
+                                   ctx=512, log=LOGS / "imatrix-wiki.log"))
 
     # 2) hybrid_custom variant applied to the wiki imatrix.
-    if not HYBRID_IMATRIX_WIKI.exists():
-        with phase("build hybrid_custom imatrix from wiki E[a^2]"):
-            imatrix.calibrate(
-                variant="hybrid_custom",
-                f16_gguf=F16_GGUF,
-                base_imatrix=BASE_IMATRIX_WIKI,
-                out_path=HYBRID_IMATRIX_WIKI,
-            )
-    else:
-        log(f"✓ hybrid_wiki imatrix present: {HYBRID_IMATRIX_WIKI.name}")
+    step("build hybrid_custom imatrix from wiki E[a^2]", HYBRID_IMATRIX_WIKI,
+         lambda: imatrix.calibrate(
+             variant="hybrid_custom", f16_gguf=F16_GGUF,
+             base_imatrix=BASE_IMATRIX_WIKI, out_path=HYBRID_IMATRIX_WIKI))
 
     # 3) Three new quants.
     for qname, src_imatrix, qpath in [
@@ -138,13 +112,10 @@ def main() -> int:
         ("stock_wiki",   BASE_IMATRIX_WIKI,   QUANT_STOCK_WIKI),
         ("hybrid_wiki",  HYBRID_IMATRIX_WIKI, QUANT_HYBRID_WIKI),
     ]:
-        if qpath.exists():
-            log(f"✓ {qpath.name} present")
-            continue
-        with phase(f"quantize Q4_K_M ({qname})"):
-            gguf.quantize(F16_GGUF, qpath, "Q4_K_M",
-                          imatrix=src_imatrix,
-                          log=LOGS / f"quantize-{qname}.log")
+        step(f"quantize Q4_K_M ({qname})", qpath,
+             lambda q=qpath, s=src_imatrix, n=qname: gguf.quantize(
+                 F16_GGUF, q, "Q4_K_M", imatrix=s,
+                 log=LOGS / f"quantize-{n}.log"))
 
     # 4) Bench the three new rows.
     n_params = bpw_mod.n_params(F16_GGUF)

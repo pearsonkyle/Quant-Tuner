@@ -15,9 +15,7 @@ disjoint from the KLD/tool-call eval splits.
 from __future__ import annotations
 
 import json
-import shutil
 import sys
-import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -26,6 +24,7 @@ sys.path.insert(0, str(REPO / "src"))
 from quant_tuner.bench import bpw as bpw_mod, runner
 from quant_tuner.calibrate import imatrix
 from quant_tuner.data import ingest, split
+from quant_tuner.experiments import log, phase, step
 from quant_tuner.models import llama_cpp
 from quant_tuner.quantize import gguf
 
@@ -53,102 +52,61 @@ RESULTS = WORK / "results.csv"
 LOGTRAIN_TARGET_TOKENS = 200_000
 
 
-def log(msg: str) -> None:
-    print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
+def _build_mixed_corpus() -> None:
+    from transformers import AutoTokenizer
 
+    tok = AutoTokenizer.from_pretrained(MODEL_DIR, fix_mistral_regex=True)
+    sessions = ingest.load_sessions(LOGTRAIN)
+    sessions = ingest.filter_sessions(sessions, min_score=0.3, require_tools=False)
+    splits = split.split_sessions(
+        sessions, train_frac=0.8, test_frac=0.1, holdout_frac=0.1, seed=42
+    )
+    chunks, _kept, total, audit = split.stratified_pack(
+        splits["train"], tok,
+        target_tokens=LOGTRAIN_TARGET_TOKENS,
+        per_session_cap=6_000, seed=42,
+    )
+    split.write_corpus(chunks, LOGTRAIN_SAMPLE)
+    log(f"  logtrain sample: {total:,} tokens, {len(chunks)} sessions")
+    log(f"  by source: {audit['tokens_per_source']}")
 
-def phase(name: str):
-    class _P:
-        def __enter__(self_):
-            self_.t0 = time.time()
-            log(f"┌─ {name}")
-            return self_
+    # Wiki first (general English ground), then logtrain (domain).
+    wiki_text = WIKI.read_text()
+    sep = "" if wiki_text.endswith("\n") else "\n"
+    MIXED_CORPUS.write_text(wiki_text + sep + "\n\n" + LOGTRAIN_SAMPLE.read_text())
+    log(f"  mixed corpus: {MIXED_CORPUS.stat().st_size / 1e6:.1f} MB at {MIXED_CORPUS}")
 
-        def __exit__(self_, *exc):
-            log(f"└─ {name} done ({(time.time() - self_.t0) / 60:.1f} min)")
-            return False
-    return _P()
+    (WORK / "mixed_audit.json").write_text(
+        json.dumps({"logtrain_audit": audit,
+                    "wiki_bytes": WIKI.stat().st_size,
+                    "logtrain_bytes": LOGTRAIN_SAMPLE.stat().st_size},
+                   indent=2, default=str)
+    )
 
 
 def main() -> int:
     assert F16.exists(), F16
     assert WIKI.exists(), WIKI
 
-    # 1) Build the mixed corpus from the same train split used for calibration.
-    if not MIXED_CORPUS.exists():
-        with phase("build mixed corpus (wiki + 200k logtrain)"):
-            from transformers import AutoTokenizer
+    step("build mixed corpus (wiki + 200k logtrain)", MIXED_CORPUS, _build_mixed_corpus)
 
-            tok = AutoTokenizer.from_pretrained(MODEL_DIR, fix_mistral_regex=True)
-            sessions = ingest.load_sessions(LOGTRAIN)
-            sessions = ingest.filter_sessions(sessions, min_score=0.3, require_tools=False)
-            splits = split.split_sessions(
-                sessions, train_frac=0.8, test_frac=0.1, holdout_frac=0.1, seed=42
-            )
-            chunks, kept, total, audit = split.stratified_pack(
-                splits["train"],
-                tok,
-                target_tokens=LOGTRAIN_TARGET_TOKENS,
-                per_session_cap=6_000,
-                seed=42,
-            )
-            split.write_corpus(chunks, LOGTRAIN_SAMPLE)
-            log(f"  logtrain sample: {total:,} tokens, {len(chunks)} sessions")
-            log(f"  by source: {audit['tokens_per_source']}")
+    step("llama-imatrix on mixed corpus", BASE_IMATRIX_MIXED,
+         lambda: llama_cpp.imatrix(F16, MIXED_CORPUS, BASE_IMATRIX_MIXED,
+                                   ctx=512, log=LOGS / "imatrix-mixed.log"))
 
-            # Wiki first (provides general English ground), then logtrain (domain).
-            with MIXED_CORPUS.open("w") as out:
-                out.write(WIKI.read_text())
-                if not out.tell() or open(MIXED_CORPUS).read().endswith("\n"):
-                    pass
-                else:
-                    out.write("\n")
-                out.write("\n\n")
-                out.write(LOGTRAIN_SAMPLE.read_text())
-            size_mb = MIXED_CORPUS.stat().st_size / 1e6
-            log(f"  mixed corpus: {size_mb:.1f} MB at {MIXED_CORPUS}")
+    step("build hybrid_custom imatrix from mixed E[a^2]", HYBRID_IMATRIX_MIXED,
+         lambda: imatrix.calibrate(
+             variant="hybrid_custom", f16_gguf=F16,
+             base_imatrix=BASE_IMATRIX_MIXED, out_path=HYBRID_IMATRIX_MIXED))
 
-            (WORK / "mixed_audit.json").write_text(
-                json.dumps({"logtrain_audit": audit,
-                            "wiki_bytes": WIKI.stat().st_size,
-                            "logtrain_bytes": LOGTRAIN_SAMPLE.stat().st_size},
-                           indent=2, default=str)
-            )
-    else:
-        log(f"✓ mixed corpus present: {MIXED_CORPUS}")
-
-    # 2) llama-imatrix on the mixed corpus.
-    if not BASE_IMATRIX_MIXED.exists():
-        with phase("llama-imatrix on mixed corpus"):
-            llama_cpp.imatrix(F16, MIXED_CORPUS, BASE_IMATRIX_MIXED,
-                              ctx=512, log=LOGS / "imatrix-mixed.log")
-    else:
-        log(f"✓ base imatrix present: {BASE_IMATRIX_MIXED.name}")
-
-    # 3) hybrid_custom variant on the mixed imatrix.
-    if not HYBRID_IMATRIX_MIXED.exists():
-        with phase("build hybrid_custom imatrix from mixed E[a^2]"):
-            imatrix.calibrate(
-                variant="hybrid_custom",
-                f16_gguf=F16,
-                base_imatrix=BASE_IMATRIX_MIXED,
-                out_path=HYBRID_IMATRIX_MIXED,
-            )
-    else:
-        log(f"✓ hybrid imatrix present: {HYBRID_IMATRIX_MIXED.name}")
-
-    # 4) Two new quants.
     for qname, src_imatrix, qpath in [
         ("stock_mixed",  BASE_IMATRIX_MIXED,   QUANT_STOCK_MIXED),
         ("hybrid_mixed", HYBRID_IMATRIX_MIXED, QUANT_HYBRID_MIXED),
     ]:
-        if qpath.exists():
-            log(f"✓ {qpath.name} present")
-            continue
-        with phase(f"quantize Q4_K_M ({qname})"):
-            gguf.quantize(F16, qpath, "Q4_K_M",
-                          imatrix=src_imatrix,
-                          log=LOGS / f"quantize-{qname}.log")
+        step(f"quantize Q4_K_M ({qname})", qpath,
+             lambda q=qpath, s=src_imatrix, n=qname: gguf.quantize(
+                 F16, q, "Q4_K_M", imatrix=s,
+                 log=LOGS / f"quantize-{n}.log"))
 
     # 5) Bench the two new rows (full suite = KLD + speed).
     n_params = bpw_mod.n_params(F16)

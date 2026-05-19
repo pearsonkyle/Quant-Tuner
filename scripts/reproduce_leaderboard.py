@@ -56,27 +56,12 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
 
+from quant_tuner.experiments import log, phase as stage
+
 WORK = REPO / "out" / "omnicoder_q4_k_m"
 LOGS = WORK / "logs"
 SCRIPTS = REPO / "scripts"
 RESULTS_CSV = WORK / "results.csv"
-
-
-def log(msg: str) -> None:
-    print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
-
-
-def stage(name: str):
-    class _S:
-        def __enter__(self_):
-            self_.t0 = time.time()
-            log(f"┌─ {name}")
-            return self_
-
-        def __exit__(self_, *exc):
-            log(f"└─ {name} done ({(time.time() - self_.t0) / 60:.1f} min)")
-            return False
-    return _S()
 
 
 def run(cmd: list[str], log_path: Path | None = None) -> None:
