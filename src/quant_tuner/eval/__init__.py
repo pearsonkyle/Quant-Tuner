@@ -7,6 +7,12 @@ scores tool selection, parameter accuracy, schema validity, and rollout
 completion. See ``docs/benchmarks.md`` for metric definitions.
 """
 
+from quant_tuner.eval.mmlu_pro import (
+    MmluProHoldout,
+    MmluProSample,
+    MmluProSummary,
+    run_mmlu_pro_eval,
+)
 from quant_tuner.eval.scoring import (
     compare_value,
     is_schema_valid,
@@ -18,10 +24,14 @@ from quant_tuner.eval.toolcall import EvalSummary, run_toolcall_eval
 
 __all__ = [
     "EvalSummary",
+    "MmluProHoldout",
+    "MmluProSample",
+    "MmluProSummary",
     "compare_value",
     "is_schema_valid",
     "param_score",
     "parse_arguments",
+    "run_mmlu_pro_eval",
     "run_toolcall_eval",
     "schema_for",
 ]
