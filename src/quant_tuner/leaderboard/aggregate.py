@@ -144,42 +144,69 @@ def load_results(csv_path: Path) -> list[dict]:
         return list(csv.DictReader(f))
 
 
+_TOOL_CALL_KEYS = (
+    "tool_selection_acc", "param_acc_mean",
+    "schema_valid_rate", "rollout_complete_rate",
+)
+
+
+def _detect_multirep(tc_rows: list[dict]) -> bool:
+    """Multi-rep aggregated CSVs have ``<key>_mean`` columns; single-rep don't."""
+    if not tc_rows:
+        return False
+    sample = tc_rows[0]
+    return any(f"{k}_mean" in sample for k in _TOOL_CALL_KEYS)
+
+
 def merge_toolcall(
     rows: list[dict], toolcall_csv: Path, *, latest_only: bool = True
 ) -> list[dict]:
     """Join tool-call accuracy columns into bench rows by basename(quant_path).
 
-    The toolcall CSV is keyed by GGUF filename (``model-f16.gguf``,
-    ``Q4_K_M-stock_wiki.gguf``, …); the bench CSV is keyed by label. The join
-    bridge is the ``quant_path`` column from the bench row. If ``latest_only``
-    is True (default), only the row with the highest ``timestamp`` per GGUF is
-    kept (older toolcall_results.csv files can have duplicates).
+    Supports two CSV shapes:
+      * **single-rep** — one row per ``(model, run)``; raw columns
+        ``tool_selection_acc``, ``param_acc_mean``, … with a ``timestamp``.
+      * **multi-rep aggregated** — one row per model; columns
+        ``<key>_mean`` and ``<key>_stdev`` (output of ``run_toolcall_reps.py``).
+
+    For multi-rep, the ``_mean`` value is stored under the bare key name (so the
+    renderer can keep its existing column definitions) and the stdev is stored
+    as ``<key>_stdev`` for the renderer to surface as "mean ± stdev".
     """
     if not toolcall_csv.exists():
         return rows
     with toolcall_csv.open() as f:
         tc_rows = list(csv.DictReader(f))
+    multirep = _detect_multirep(tc_rows)
+
     by_filename: dict[str, dict] = {}
     for r in tc_rows:
         filename = r.get("model") or ""
         if not filename:
             continue
-        if latest_only:
+        if multirep or not latest_only:
+            by_filename[filename] = r
+        else:
             prev = by_filename.get(filename)
             if prev is None or (prev.get("timestamp") or "") < (r.get("timestamp") or ""):
                 by_filename[filename] = r
-        else:
-            by_filename[filename] = r
 
     for r in rows:
         qp = r.get("quant_path") or ""
         tc = by_filename.get(os.path.basename(qp))
         if not tc:
             continue
-        for k in ("tool_selection_acc", "param_acc_mean",
-                  "schema_valid_rate", "rollout_complete_rate"):
-            if tc.get(k) not in (None, ""):
-                r[k] = tc[k]
+        for k in _TOOL_CALL_KEYS:
+            if multirep:
+                mean_v = tc.get(f"{k}_mean")
+                stdev_v = tc.get(f"{k}_stdev")
+                if mean_v not in (None, ""):
+                    r[k] = mean_v
+                if stdev_v not in (None, ""):
+                    r[f"{k}_stdev"] = stdev_v
+            else:
+                if tc.get(k) not in (None, ""):
+                    r[k] = tc[k]
     return rows
 
 
@@ -226,8 +253,13 @@ def _format_cell(key: str, row: dict) -> str:
         return cell
 
     if key in _PCT_COLUMNS:
-        v = _to_float(row.get(key))
-        return "-" if v is None else f"{v * 100:.1f}"
+        mean = _to_float(row.get(key))
+        if mean is None:
+            return "-"
+        stdev = _to_float(row.get(f"{key}_stdev"))
+        if stdev is None:
+            return f"{mean * 100:.1f}"
+        return f"{mean * 100:.1f} ± {stdev * 100:.1f}"
 
     v = _to_float(row.get(key))
     if v is None:

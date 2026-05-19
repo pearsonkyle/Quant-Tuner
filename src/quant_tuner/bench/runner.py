@@ -1,4 +1,4 @@
-"""Single-model bench orchestrator. Python port of experiments/_shared/bench_one.sh."""
+"""Single-model bench orchestrator: BPW + KLD + llama-bench → one CSV row."""
 
 from __future__ import annotations
 

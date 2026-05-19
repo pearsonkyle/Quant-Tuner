@@ -17,6 +17,7 @@ After the new benches the script also renames the existing
 from __future__ import annotations
 
 import csv
+import os
 import shutil
 import sys
 import time
@@ -36,8 +37,11 @@ WORK = REPO / "out" / "omnicoder_q4_k_m"
 LOGS = WORK / "logs"
 
 F16_GGUF = WORK / "model-f16.gguf"
-WIKI_SRC = Path("/Users/kpearson/Programs/ai/llm/omnicoder-gguf-experiment/artifacts/wiki.test.raw")
 WIKI_LOCAL = WORK / "wiki.test.raw"
+# Path to a raw WikiText-2 test file. Override via $WIKI_TEST_RAW if your copy
+# lives elsewhere; only consulted on first run, since WIKI_LOCAL is cached.
+WIKI_SRC_ENV = os.environ.get("WIKI_TEST_RAW")
+WIKI_SRC = Path(WIKI_SRC_ENV) if WIKI_SRC_ENV else None
 
 BASE_IMATRIX_CUSTOM = WORK / "imatrix-custom.gguf"
 BASE_IMATRIX_WIKI = WORK / "imatrix-wiki.gguf"
@@ -98,6 +102,13 @@ def main() -> int:
 
     # 0) Local copy of wiki.test.raw so the workspace is self-contained.
     if not WIKI_LOCAL.exists():
+        if WIKI_SRC is None or not WIKI_SRC.exists():
+            raise FileNotFoundError(
+                f"WikiText-2 raw test file not found at {WIKI_LOCAL}. "
+                "Set $WIKI_TEST_RAW to a local copy "
+                "(download from https://s3.amazonaws.com/research.metamind.io/wikitext/wikitext-2-raw-v1.zip "
+                "and point at wiki.test.raw)."
+            )
         shutil.copy(WIKI_SRC, WIKI_LOCAL)
         log(f"copied {WIKI_SRC.name} -> {WIKI_LOCAL}")
 

@@ -96,12 +96,16 @@ difference. SQS (which weights decode tok/s equally with compression) is
 therefore noisier than KLD; for the question "which imatrix is best?",
 **read the KLD and tool-call columns**.
 
-Raw data: `out/omnicoder_q4_k_m/{LEADERBOARD.md, results.csv, toolcall_results.csv}`.
-Reproduce with `scripts/run_omnicoder_q4_k_m.py`,
-`scripts/run_omnicoder_wiki_vs_custom.py`,
-`scripts/run_omnicoder_mixed_corpus.py`,
-`scripts/run_toolcall_all.py`, and
-`scripts/rebench_speed.py`.
+Raw data: `out/omnicoder_q4_k_m/{LEADERBOARD.md, results.csv, toolcall_reps_aggregated.csv}`.
+
+**Reproduce the whole table:**
+```bash
+uv run python scripts/reproduce_leaderboard.py            # ~17 h cold, ~5 min if cached
+uv run python scripts/reproduce_leaderboard.py --quick-toolcall  # ~6 h, 2 reps × 8 instead of 10 × 8
+uv run python scripts/reproduce_leaderboard.py --skip-toolcall   # skip the 14-h tool-call stage
+```
+
+`reproduce_leaderboard.py` chains seven stages (extract → F16 → calibrate × 3 corpora → holdout → speed rebench → tool-call reps → render). Every stage is idempotent — re-running on a populated workspace just verifies state and re-renders `LEADERBOARD.md`. Individual stages live in `scripts/run_omnicoder_*.py`, `scripts/rebench_speed.py`, and `scripts/run_toolcall_reps.py`.
 
 ## Requirements
 
@@ -228,7 +232,7 @@ src/quant_tuner/
 ├── bench/            # bpw | kld | speed | runner (CSV row builder)
 ├── data/             # log ingest, stratified packing, train/test/holdout split
 ├── models/           # HF extract, llama.cpp binary wrappers, HF→GGUF name map
-└── leaderboard/      # CSV aggregation (Phase 5, in progress)
+└── leaderboard/      # CSV → markdown aggregation with SQS scoring
 
 vendor/llama.cpp      # pinned submodule, commit 45b455e6
 tests/unit/           # 36 passing tests; pure-math + parser coverage

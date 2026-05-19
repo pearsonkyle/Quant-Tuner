@@ -15,7 +15,6 @@ import os
 import random
 import sys
 
-# Vendored from omnicoder-gguf-experiment; adapted to import from quant_tuner.
 _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(_ROOT, "src"))
 from quant_tuner.data.ingest import (  # noqa: E402

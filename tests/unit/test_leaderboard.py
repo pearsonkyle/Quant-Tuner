@@ -171,6 +171,42 @@ def test_aggregate_end_to_end(tmp_path):
     assert all("Model" not in lines[i] or i == 0 for i in range(len(lines)))
 
 
+def test_merge_toolcall_handles_multi_rep_csv(tmp_path):
+    """Aggregated multi-rep CSV (with `_mean`/`_stdev` cols) must populate both
+    the base metric AND a `<key>_stdev` companion key for the renderer."""
+    from quant_tuner.leaderboard.aggregate import _format_cell, merge_toolcall
+
+    tc_path = tmp_path / "toolcall_reps_aggregated.csv"
+    fields = [
+        "model", "n_reps",
+        "tool_selection_acc_mean", "tool_selection_acc_stdev",
+        "param_acc_mean_mean", "param_acc_mean_stdev",
+        "schema_valid_rate_mean", "schema_valid_rate_stdev",
+        "rollout_complete_rate_mean", "rollout_complete_rate_stdev",
+    ]
+    with tc_path.open("w", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=fields)
+        w.writeheader()
+        w.writerow({"model": "Q4_K_M-hybrid_custom.gguf", "n_reps": 10,
+                    "tool_selection_acc_mean": 0.444, "tool_selection_acc_stdev": 0.045,
+                    "param_acc_mean_mean": 0.356, "param_acc_mean_stdev": 0.030,
+                    "schema_valid_rate_mean": 0.689, "schema_valid_rate_stdev": 0.025,
+                    "rollout_complete_rate_mean": 0.76, "rollout_complete_rate_stdev": 0.012})
+
+    rows = [{"model": "hybrid/Q4_K_M-custom",
+             "quant_path": "/abs/path/Q4_K_M-hybrid_custom.gguf"}]
+    out = merge_toolcall(rows, tc_path)
+    assert out[0]["tool_selection_acc"] == "0.444"
+    assert out[0]["tool_selection_acc_stdev"] == "0.045"
+    assert out[0]["schema_valid_rate"] == "0.689"
+
+    # Rendered cell should be "44.4 ± 4.5"
+    cell = _format_cell("tool_selection_acc", out[0])
+    assert cell == "44.4 ± 4.5", cell
+    cell_schema = _format_cell("schema_valid_rate", out[0])
+    assert cell_schema == "68.9 ± 2.5", cell_schema
+
+
 def test_aggregate_raises_without_f16_row(tmp_path):
     csv_path = tmp_path / "no_f16.csv"
     fields = ["model", "size_gib", "same_top_p", "decode_tok_s"]
