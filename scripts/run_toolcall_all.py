@@ -25,8 +25,10 @@ MODELS = [
     WORK / "Q4_K_M-none.gguf",
     WORK / "Q4_K_M-stock_custom.gguf",
     WORK / "Q4_K_M-stock_wiki.gguf",
+    WORK / "Q4_K_M-stock_mixed.gguf",
     WORK / "Q4_K_M-hybrid_custom.gguf",
     WORK / "Q4_K_M-hybrid_wiki.gguf",
+    WORK / "Q4_K_M-hybrid_mixed.gguf",
 ]
 
 

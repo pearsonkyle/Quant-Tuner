@@ -29,8 +29,10 @@ MODELS = [
     ("baseline/Q4_K_M-none",  WORK / "Q4_K_M-none.gguf"),
     ("stock/Q4_K_M-custom",   WORK / "Q4_K_M-stock_custom.gguf"),
     ("stock/Q4_K_M-wiki",     WORK / "Q4_K_M-stock_wiki.gguf"),
+    ("stock/Q4_K_M-mixed",    WORK / "Q4_K_M-stock_mixed.gguf"),
     ("hybrid/Q4_K_M-custom",  WORK / "Q4_K_M-hybrid_custom.gguf"),
     ("hybrid/Q4_K_M-wiki",    WORK / "Q4_K_M-hybrid_wiki.gguf"),
+    ("hybrid/Q4_K_M-mixed",   WORK / "Q4_K_M-hybrid_mixed.gguf"),
 ]
 
 REPETITIONS = 10

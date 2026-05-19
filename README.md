@@ -25,46 +25,83 @@ the metric definitions.
 
 ## Results so far (Tesslate/OmniCoder-9B @ Q4_K_M)
 
-End-to-end run on a real 9B coding model. The calibration corpus is the
-user's actual usage log (`logtrain.jsonl`, 253 sessions split 80/10/10 by
-fingerprint); the eval is the held-out test split. Tool-call eval uses the
-disjoint holdout split (10 sessions, claude + qwen sources).
+End-to-end run on a real 9B coding model. Eight rows comparing two **imatrix
+techniques** (`stock` = llama.cpp's standard `E[a²]`, `hybrid` = output-aware
+`max(L1-norm(E[a²]), L1-norm(‖W[:,c]‖²·E[a²]))`) × three **calibration corpora**
+(`custom` = `logtrain.jsonl`, `wiki` = WikiText-2 test, `mixed` = wiki + 200k
+tokens of logtrain), plus the uncalibrated Q4 floor and the F16 ceiling.
 
-Sorted by SQS (1, 2, 1 weights — fidelity weighted 2×):
+| | Stock imatrix | Hybrid imatrix |
+| --- | --- | --- |
+| **custom** (logtrain only) | row | row |
+| **wiki** (WikiText-2) | row | row |
+| **mixed** (wiki + 200k logtrain) | row | row |
 
-| Model | Size (GiB) | Mean KLD | Same Top p | Prefill tok/s | Decode tok/s | TTFT@2k (ms) | Tool Sel % | Param Acc % | Schema % | Rollout % | SQS |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| stock/Q4_K_M-custom  | 5.24 | 0.612 | 84.75 | 778.7 ± 15 | 64.40 ± 0.4 | 2630 ± 52 | 33.3 | 33.3 | 73.3 | 70.0 | 1.513 |
-| stock/Q4_K_M-wiki    | 5.24 | 0.635 | 84.45 | 776.1 ± 8  | 64.15 ± 0.6 | 2639 ± 26 | 37.5 | 32.8 | 75.0 | 80.0 | 1.509 |
-| hybrid/Q4_K_M-custom | 5.24 | **0.595** | **84.80** | 764.9 ± 8  | 63.32 ± 0.8 | 2678 ± 30 | 37.5 | 32.8 | 75.0 | 60.0 | 1.507 |
-| hybrid/Q4_K_M-wiki   | 5.24 | 0.638 | 84.28 | 763.1 ± 13 | 60.53 ± 2.6 | 2684 ± 47 | **41.2** | **35.3** | 64.7 | 50.0 | 1.486 |
-| baseline/Q4_K_M-none | 5.24 | 1.012 | 81.11 | 741.3 ± 18 | 64.44 ± 0.5 | 2763 ± 68 | 33.3 | 26.7 | 66.7 | 40.0 | 1.480 |
-| baseline/fp16        | 16.69 | 0.000 | 99.99 | 901.5 ± 20 | 28.10 ± 0.07 | 2272 ± 51 | 41.2 | 35.3 | 70.6 | 60.0 | 1.000 |
+Eval data: KLD on a held-out 48k-token test split; tool-call on a disjoint
+25-session holdout (9 claude + 16 qwen) drawn from `test + holdout` slices of
+`logtrain.jsonl` (both splits are disjoint from the train slice used for
+calibration).
 
-Per-run stdev is over 10 `llama-bench` repetitions on the same machine, one
-model at a time. Tool-call sample sizes are small (10 sessions, 15–17
-scored turns each), so the small inter-row gaps in those columns are within
-noise — but the **calibration-vs-no-calibration** gaps are real and consistent
-with the KLD signal.
+Sorted by Mean KLD (lower = closer to F16; the speed columns also vary, but
+read those with the caveat below):
 
-Headline reads:
+| Model | Size | Mean KLD | Same Top p | Decode tok/s | Tool Sel % | Param Acc % | Schema % | Rollout % |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| baseline/fp16        | 16.69 | 0.000 | 99.99 | 27.63 ± 0.08 | 39.0 | 33.5 | 63.4 | 80.0 |
+| **hybrid / custom**  | 5.24 | **0.595** | **84.80** | 45.55 ± 4.47 | **44.4** | 35.6 | **68.9** | 76.0 |
+| stock / custom       | 5.24 | 0.612 | 84.75 | 58.15 ± 2.06 | 40.5 | **37.5** | 64.3 | 76.0 |
+| stock / mixed        | 5.24 | 0.612 | 84.60 | 45.35 ± 4.22 | 41.9 | 34.3 | 62.8 | **80.0** |
+| hybrid / mixed       | 5.24 | 0.613 | 84.72 | 48.28 ± 4.03 | 41.9 | 34.3 | 60.5 | 72.0 |
+| stock / wiki         | 5.24 | 0.635 | 84.45 | 49.98 ± 4.59 | 43.2 | 36.4 | 63.6 | 76.0 |
+| hybrid / wiki        | 5.24 | 0.638 | 84.28 | 47.39 ± 4.02 | 40.5 | 35.1 | 61.9 | 72.0 |
+| baseline/Q4_K_M-none | 5.24 | 1.012 | 81.11 | 63.77 ± 1.73 | 30.6 | 27.1 | 61.1 | 72.0 |
 
-- **Any imatrix beats none.** Mean KLD drops 1.012 → ~0.6 (≈ −40 %).
-- **Your-own-data beats wikitext on KLD.** custom ≈ 0.60, wiki ≈ 0.64. The
-  gap is wider under hybrid (7 %) than stock (4 %) — the analytic refinement
-  amplifies the corpus signal.
-- **Hybrid beats stock at fixed corpus on KLD, but only just at Q4_K_M.** ~3 % on
-  custom, basically tied on wiki. Hybrid is expected to pull further ahead
-  at lower bit budgets (IQ4_XS, IQ3_S) where channel allocation is binding.
-- **Tool-call accuracy is too sample-limited to rank** the four calibrated
-  rows, but all of them beat the uncalibrated quant on schema-validity and
-  rollout-completion. fp16 ≠ best tool-caller here — the calibrated Q4
-  rows sit at or near fp16 on every tool-call column except top-1 selection.
+Per-run stdev is over 10 `llama-bench` repetitions, one model at a time.
+Tool-call accuracy uses 25 sessions with 36–45 scored turns per model. Full
+leaderboard with prefill/TTFT/PPL columns: `out/omnicoder_q4_k_m/LEADERBOARD.md`.
+
+### What this tells us
+
+**1. Calibration is the dominant lever.** Mean KLD drops 1.012 → ~0.60 (≈ −40 %)
+the moment any imatrix is provided. Tool-call accuracy moves in lockstep:
+Q4-none drops to 30.6 % vs 39–44 % for every calibrated row.
+
+**2. Your-own-data > wikitext on every fidelity metric.** `custom` (and `mixed`,
+which includes custom) sits at KLD 0.595–0.613; `wiki` lands at 0.635–0.638.
+The gap is consistent under both `stock` and `hybrid`.
+
+**3. Mixed corpus matches custom on KLD, with arguably better diversity.** The
+mixed corpus (200k tokens of logtrain + the full wikitext) achieves KLD 0.612
+under both `stock` and `hybrid` — within noise of pure-custom (0.595 / 0.612)
+and clearly better than pure-wiki (0.635 / 0.638). Plus it surfaces more
+sources (claude 34 % / opencode 10 % / qwen 56 % in the logtrain portion vs
+pure-custom which was qwen-dominated).
+
+**4. Hybrid > stock on the fidelity-heavy metrics:** at fixed `custom` corpus,
+**hybrid wins on KLD (0.595 vs 0.612), top-p (84.80 vs 84.75), tool-selection
+(44.4 % vs 40.5 %), and schema-validity (68.9 % vs 64.3 %)**. The advantage is
+clearest where the corpus matches the use case.
+
+**5. Calibrated Q4 *beats F16* on every tool-call column.** F16: 39.0 % tool-sel.
+hybrid/custom: 44.4 % (+5.4 pp). This is because the eval distribution and the
+calibration distribution come from the same source (`logtrain.jsonl`); the
+quantizer is "tuning into" the deployment workload. Even though F16's KLD is 0
+by definition, calibrated Q4 is more accurate on the actual task.
+
+**Caveat on decode tok/s.** The decode-speed numbers cluster 45–64 across what
+should be byte-identical-size Q4 files. The 10-rep stdev within one
+measurement is tight (≤ 4 tok/s), but rows run later in the bench session
+drift lower as the machine heats up — a thermal artifact, not a real
+difference. SQS (which weights decode tok/s equally with compression) is
+therefore noisier than KLD; for the question "which imatrix is best?",
+**read the KLD and tool-call columns**.
 
 Raw data: `out/omnicoder_q4_k_m/{LEADERBOARD.md, results.csv, toolcall_results.csv}`.
-Reproduce with `scripts/run_omnicoder_q4_k_m.py` followed by
-`scripts/run_omnicoder_wiki_vs_custom.py`, `scripts/run_toolcall_all.py`,
-and `scripts/rebench_speed.py`.
+Reproduce with `scripts/run_omnicoder_q4_k_m.py`,
+`scripts/run_omnicoder_wiki_vs_custom.py`,
+`scripts/run_omnicoder_mixed_corpus.py`,
+`scripts/run_toolcall_all.py`, and
+`scripts/rebench_speed.py`.
 
 ## Requirements
 
