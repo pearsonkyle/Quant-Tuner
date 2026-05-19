@@ -26,18 +26,20 @@ REPO = Path(__file__).resolve().parents[1]
 WORK = REPO / "out" / "omnicoder_q4_k_m"
 LOGS = WORK / "logs"
 HOLDOUT = WORK / "toolcall_holdout.jsonl"
-RESULTS = WORK / "toolcall_t0p7_results.csv"
-AGGREGATED = WORK / "toolcall_t0p7_aggregated.csv"
+RESULTS = WORK / "toolcall_reps_results.csv"
+AGGREGATED = WORK / "toolcall_reps_aggregated.csv"
 LLAMA_SERVER = REPO / "vendor" / "llama.cpp" / "build" / "bin" / "llama-server"
 EVAL_SCRIPT = REPO / "scripts" / "eval_toolcall.py"
 
-# Sampling parameters per user spec.
+# Sampling parameters tuned for tool-calling: lower temperature for stability,
+# wider top_p (no nucleus pruning of tail), no presence penalty (penalties
+# were suppressing valid tool calls in the prior attempt).
 SAMPLING = {
-    "temperature": 0.7,
-    "top_p": 0.8,
+    "temperature": 0.6,
+    "top_p": 0.95,
     "top_k": 20,
     "min_p": 0.0,
-    "presence_penalty": 1.5,
+    "presence_penalty": 0.0,
     "repetition_penalty": 1.0,
 }
 
