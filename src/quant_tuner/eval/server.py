@@ -44,6 +44,8 @@ def spawn_server(
     ngl: int = 99,
     log_path: Path | None = None,
     chat_template_kwargs: str | None = None,
+    spec_type: str | None = None,
+    spec_draft_n_max: int | None = None,
 ) -> subprocess.Popen:
     """Start ``llama-server`` for ``model_path`` and return the process handle.
 
@@ -55,6 +57,10 @@ def spawn_server(
     ``--chat-template-kwargs`` flag (JSON string, e.g.
     ``'{"enable_thinking":false}'`` to disable reasoning on Qwen3-family
     templates).
+
+    ``spec_type`` / ``spec_draft_n_max`` map to llama-server's ``--spec-type``
+    and ``--spec-draft-n-max`` flags for speculative decoding (e.g. MTP draft
+    heads bundled into the GGUF: ``spec_type="draft-mtp"``).
     """
     binary = llama_bin("llama-server")  # raises if not built
     cmd = [
@@ -68,6 +74,10 @@ def spawn_server(
     ]
     if chat_template_kwargs is not None:
         cmd += ["--chat-template-kwargs", chat_template_kwargs]
+    if spec_type is not None:
+        cmd += ["--spec-type", spec_type]
+    if spec_draft_n_max is not None:
+        cmd += ["--spec-draft-n-max", str(spec_draft_n_max)]
     if log_path is not None:
         log_path.parent.mkdir(parents=True, exist_ok=True)
         log_fh = log_path.open("w")
@@ -84,6 +94,8 @@ def running_server(
     log_path: Path | None = None,
     startup_timeout: float = 120.0,
     chat_template_kwargs: str | None = None,
+    spec_type: str | None = None,
+    spec_draft_n_max: int | None = None,
 ):
     """Context manager: spawn llama-server, wait for health, yield ``base_url``, then terminate.
 
@@ -94,6 +106,7 @@ def running_server(
     proc = spawn_server(
         model_path, port=port, ctx=ctx, ngl=ngl,
         log_path=log_path, chat_template_kwargs=chat_template_kwargs,
+        spec_type=spec_type, spec_draft_n_max=spec_draft_n_max,
     )
     base_url = f"http://127.0.0.1:{port}/v1"
     try:
