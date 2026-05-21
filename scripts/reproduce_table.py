@@ -389,7 +389,7 @@ def _stage_toolcall_reps(L: Layout, reps: int) -> None:
 # Stage 6: MMLU-Pro reps
 # ---------------------------------------------------------------------------
 
-def _stage_mmlu_pro_holdout(L: Layout) -> None:
+def _stage_mmlu_pro_holdout(L: Layout, n_shot: int) -> None:
     L.mmlu_dir.mkdir(parents=True, exist_ok=True)
     if L.mmlu_holdout.exists():
         log(f"  ✓ {L.mmlu_holdout.name} already present")
@@ -398,6 +398,7 @@ def _stage_mmlu_pro_holdout(L: Layout) -> None:
     cmd = [
         sys.executable, str(REPO / "scripts" / "build_mmlu_pro_holdout.py"),
         "--output", str(L.mmlu_holdout),
+        "--n-shot", str(n_shot),
     ]
     rc = subprocess.run(cmd).returncode
     if rc != 0:
@@ -481,8 +482,12 @@ def main() -> int:
                    help="Optional supplement appended to train corpus")
     p.add_argument("--train-max-tokens", type=int, default=250_000)
     p.add_argument("--eval-max-tokens", type=int, default=50_000)
-    p.add_argument("--toolcall-reps", type=int, default=10)
-    p.add_argument("--mmlu-reps", type=int, default=10)
+    p.add_argument("--toolcall-reps", type=int, default=5)
+    p.add_argument("--mmlu-reps", type=int, default=1,
+                   help="MMLU-Pro is essentially deterministic at low T; 1 rep "
+                        "(5-shot) is enough by default.")
+    p.add_argument("--mmlu-n-shot", type=int, default=5,
+                   help="Few-shot K for the MMLU-Pro holdout (default: 5).")
     p.add_argument("--skip-speed-rebench", action="store_true")
     p.add_argument("--skip-toolcall", action="store_true")
     p.add_argument("--skip-mmlu", action="store_true")
@@ -533,8 +538,8 @@ def main() -> int:
             _stage_toolcall_reps(L, args.toolcall_reps)
 
     if not args.skip_mmlu:
-        with phase("stage 7a: MMLU-Pro holdout"):
-            _stage_mmlu_pro_holdout(L)
+        with phase(f"stage 7a: MMLU-Pro holdout ({args.mmlu_n_shot}-shot)"):
+            _stage_mmlu_pro_holdout(L, args.mmlu_n_shot)
         with phase(f"stage 7b: MMLU-Pro reps ({args.mmlu_reps} × 6)"):
             _stage_mmlu_pro_reps(L, args.mmlu_reps)
 

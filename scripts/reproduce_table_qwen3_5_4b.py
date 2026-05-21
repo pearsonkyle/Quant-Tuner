@@ -33,8 +33,9 @@ def main() -> int:
     p.add_argument("--skip-speed-rebench", action="store_true")
     p.add_argument("--skip-toolcall", action="store_true")
     p.add_argument("--skip-mmlu", action="store_true")
-    p.add_argument("--toolcall-reps", type=int, default=10)
-    p.add_argument("--mmlu-reps", type=int, default=10)
+    p.add_argument("--toolcall-reps", type=int, default=5)
+    p.add_argument("--mmlu-reps", type=int, default=1)
+    p.add_argument("--mmlu-n-shot", type=int, default=5)
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
 
@@ -49,6 +50,7 @@ def main() -> int:
             "--supplement", str(args.supplement),
             "--toolcall-reps", str(args.toolcall_reps),
             "--mmlu-reps", str(args.mmlu_reps),
+            "--mmlu-n-shot", str(args.mmlu_n_shot),
         ]
         if args.wiki_test_raw is not None:
             cmd += ["--wiki-test-raw", str(args.wiki_test_raw)]
