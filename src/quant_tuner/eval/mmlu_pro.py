@@ -216,7 +216,14 @@ def score_one(
     messages = build_messages(target, shots, system_prompt=system_prompt)
     try:
         resp = call_model(client, messages, tools=[], sampling=sampling)
-        content = resp.choices[0].message.content or ""
+        msg = resp.choices[0].message
+        content = msg.content or ""
+        # Reasoning models (e.g. Qwen3/DeepSeek-style) emit <think>…</think>;
+        # llama-server splits that into `reasoning_content` and leaves `content`
+        # empty until thinking closes. Concatenate so parse_answer can find the
+        # trailing "Answer: X" regardless of which field it lands in.
+        reasoning = getattr(msg, "reasoning_content", None) or ""
+        combined = (reasoning + "\n" + content) if reasoning else content
     except Exception as e:
         return {
             "question_id": target.question_id,
@@ -227,14 +234,14 @@ def score_one(
             "raw": "",
             "error": str(e),
         }
-    pred = parse_answer(content, n_options=len(target.options))
+    pred = parse_answer(combined, n_options=len(target.options))
     return {
         "question_id": target.question_id,
         "subject": target.subject,
         "truth": target.answer,
         "pred": pred,
         "correct": pred == target.answer,
-        "raw": content[:400],
+        "raw": combined[-400:],
     }
 
 
@@ -295,6 +302,7 @@ def run_mmlu_pro_eval(
     ngl: int = 99,
     server_log_path: Path | None = None,
     server_startup_timeout: float = 120.0,
+    chat_template_kwargs: str | None = None,
     per_sample_log: Path | None = None,
     progress: bool = False,
 ) -> MmluProSummary:
@@ -340,6 +348,7 @@ def run_mmlu_pro_eval(
             model_path, ctx=ctx, ngl=ngl,
             log_path=server_log_path,
             startup_timeout=server_startup_timeout,
+            chat_template_kwargs=chat_template_kwargs,
         ) as url:
             return _run_against(url)
     finally:

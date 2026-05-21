@@ -41,11 +41,19 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--presence-penalty", type=float, default=None)
     p.add_argument("--repetition-penalty", type=float, default=None)
     p.add_argument("--seed", type=int, default=None)
-    p.add_argument("--max-tokens", type=int, default=64,
-                   help="Max completion tokens (default: 64 — letter + brief reasoning)")
+    p.add_argument("--max-tokens", type=int, default=2048,
+                   help="Max completion tokens. Reasoning models (Qwen3/DeepSeek) "
+                        "need headroom for <think>…</think> before the answer.")
     p.add_argument("--ctx", type=int, default=8192)
     p.add_argument("--ngl", type=int, default=99)
     p.add_argument("--server-startup-timeout", type=float, default=120.0)
+    p.add_argument(
+        "--chat-template-kwargs",
+        type=str,
+        default='{"enable_thinking":false}',
+        help='Forwarded to llama-server (default disables Qwen3 reasoning). '
+             "Pass empty string to omit.",
+    )
     return p
 
 
@@ -96,6 +104,7 @@ def main() -> int:
         ngl=args.ngl,
         server_log_path=server_log,
         server_startup_timeout=args.server_startup_timeout,
+        chat_template_kwargs=(args.chat_template_kwargs or None),
         per_sample_log=per_sample_log,
         progress=True,
     )

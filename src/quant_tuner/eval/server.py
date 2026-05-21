@@ -43,12 +43,18 @@ def spawn_server(
     ctx: int = 8192,
     ngl: int = 99,
     log_path: Path | None = None,
+    chat_template_kwargs: str | None = None,
 ) -> subprocess.Popen:
     """Start ``llama-server`` for ``model_path`` and return the process handle.
 
     The caller is responsible for terminating the process and for calling
     :func:`wait_for_health` before issuing requests. Use :func:`running_server`
     for an auto-managed context.
+
+    ``chat_template_kwargs`` is forwarded to llama-server's
+    ``--chat-template-kwargs`` flag (JSON string, e.g.
+    ``'{"enable_thinking":false}'`` to disable reasoning on Qwen3-family
+    templates).
     """
     binary = llama_bin("llama-server")  # raises if not built
     cmd = [
@@ -60,6 +66,8 @@ def spawn_server(
         "-ngl", str(ngl),
         "--host", "127.0.0.1",
     ]
+    if chat_template_kwargs is not None:
+        cmd += ["--chat-template-kwargs", chat_template_kwargs]
     if log_path is not None:
         log_path.parent.mkdir(parents=True, exist_ok=True)
         log_fh = log_path.open("w")
@@ -75,10 +83,18 @@ def running_server(
     ngl: int = 99,
     log_path: Path | None = None,
     startup_timeout: float = 120.0,
+    chat_template_kwargs: str | None = None,
 ):
-    """Context manager: spawn llama-server, wait for health, yield ``base_url``, then terminate."""
+    """Context manager: spawn llama-server, wait for health, yield ``base_url``, then terminate.
+
+    Pass ``chat_template_kwargs='{"enable_thinking":false}'`` to disable
+    reasoning on Qwen3-family templates during benchmark eval.
+    """
     port = free_port()
-    proc = spawn_server(model_path, port=port, ctx=ctx, ngl=ngl, log_path=log_path)
+    proc = spawn_server(
+        model_path, port=port, ctx=ctx, ngl=ngl,
+        log_path=log_path, chat_template_kwargs=chat_template_kwargs,
+    )
     base_url = f"http://127.0.0.1:{port}/v1"
     try:
         wait_for_health(base_url, timeout=startup_timeout)

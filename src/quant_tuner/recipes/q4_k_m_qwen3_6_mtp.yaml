@@ -1,0 +1,36 @@
+# Qwen3.6-27B quantized to Q4_K_M with the MTP head bundled into the GGUF.
+#
+# - Strips the vision tower (the source repo is multimodal).
+# - Keeps the multi-token-prediction (MTP) layers so the GGUF can be served
+#   with `llama-server --spec-type draft-mtp` for speculative decoding.
+# - Uses the published `hybrid_custom` imatrix variant for calibration.
+name: q4_k_m_qwen3_6_mtp
+
+model: Qwen/Qwen3.6-27B
+
+workspace: ./out/q4_k_m_qwen3_6_mtp
+
+data:
+  logs: PLACEHOLDER       # path to a usage-log .jsonl
+  train_frac: 0.8
+  test_frac: 0.1
+  holdout_frac: 0.1
+  train_max_tokens: 250000
+  eval_max_tokens: 50000
+  supplement: ./calibration_supplement.txt
+  context_len: 16384
+
+extract:
+  keep_mtp: true
+
+calibration:
+  method: imatrix
+  variant: hybrid_custom
+  params: {}
+
+quantize:
+  type: Q4_K_M
+
+bench:
+  suite: full
+  eval_ctx: 8192

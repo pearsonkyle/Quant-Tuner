@@ -72,10 +72,19 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--aggregated", type=Path,
                    default=_WORK / "toolcall_reps_aggregated.csv")
     p.add_argument("--log-dir", type=Path, default=_WORK / "logs")
-    p.add_argument("--ctx", type=int, default=16384)
+    p.add_argument("--ctx", type=int, default=32768,
+                   help="ctx budget per rollout. Rollouts hit 16k after a few "
+                        "tool-call rounds; 32k absorbs the long-tail sessions.")
     p.add_argument("--ngl", type=int, default=99)
     p.add_argument("--max-turns-per-session", type=int, default=10)
     p.add_argument("--rollout-max-turns", type=int, default=20)
+    p.add_argument(
+        "--chat-template-kwargs",
+        type=str,
+        default='{"enable_thinking":false}',
+        help='Forwarded to llama-server (default: \'{"enable_thinking":false}\' to '
+             "disable reasoning on Qwen3-family templates). Pass empty string to omit.",
+    )
     return p
 
 
@@ -137,6 +146,7 @@ def main() -> int:
         base_seed=args.base_seed,
         ctx=args.ctx, ngl=args.ngl,
         log_dir=args.log_dir,
+        chat_template_kwargs=(args.chat_template_kwargs or None),
         per_rep_callback=on_rep,
         per_model_callback=on_model,
     )

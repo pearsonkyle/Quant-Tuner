@@ -413,6 +413,7 @@ def run_toolcall_eval(
     ngl: int = 99,
     server_log_path: Path | None = None,
     server_startup_timeout: float = 120.0,
+    chat_template_kwargs: str | None = None,
     per_turn_log: Path | None = None,
     progress: bool = False,
 ) -> EvalSummary:
@@ -461,6 +462,7 @@ def run_toolcall_eval(
             model_path, ctx=ctx, ngl=ngl,
             log_path=server_log_path,
             startup_timeout=server_startup_timeout,
+            chat_template_kwargs=chat_template_kwargs,
         ) as url:
             return _run_against(url)
     finally:

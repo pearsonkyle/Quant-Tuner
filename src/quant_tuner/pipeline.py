@@ -48,7 +48,9 @@ def extract_and_convert(cfg: RunConfig, ws: Workspace) -> Path:
     f16 = ws.gguf_dir / "model-f16.gguf"
 
     step("extract HF model", ws.model_extracted / "config.json",
-         lambda: extract.extract_text_lm(source=cfg.model, output_dir=ws.model_extracted))
+         lambda: extract.extract_text_lm(
+             source=cfg.model, output_dir=ws.model_extracted,
+             keep_mtp=cfg.extract.keep_mtp))
 
     step("convert HF -> F16 GGUF", f16,
          lambda: convert.hf_to_f16_gguf(ws.model_extracted, f16, log=logs / "convert.log"))
@@ -109,19 +111,19 @@ def _build_corpora(cfg: RunConfig, ws: Workspace, train: Path, eval_: Path) -> N
     if not train.exists():
         chunks, _kept, total, audit = split.stratified_pack(
             splits["train"], tok,
-            target_tokens=cfg.data.max_tokens,
+            target_tokens=cfg.data.train_max_tokens,
             per_session_cap=6_000, seed=42,
         )
-        split.write_corpus(chunks, train)
+        split.write_corpus(chunks, train, supplement=cfg.data.supplement)
         (ws.corpus_dir / "train_audit.json").write_text(
             json.dumps(audit, indent=2, default=str))
-        log(f"  train: {total:,} tokens -> {train.name}")
+        suffix = f" (+ supplement {cfg.data.supplement.name})" if cfg.data.supplement else ""
+        log(f"  train: {total:,} tokens -> {train.name}{suffix}")
 
     if not eval_.exists():
-        ev_target = max(cfg.data.max_tokens // 10, 20_000)
         ev_chunks, _ek, ev_total, ev_audit = split.stratified_pack(
             splits["test"], tok,
-            target_tokens=ev_target,
+            target_tokens=cfg.data.eval_max_tokens,
             per_session_cap=4_000, seed=43,
         )
         split.write_corpus(ev_chunks, eval_)

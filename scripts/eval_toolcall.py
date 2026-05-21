@@ -74,6 +74,13 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-stop-on-fail", action="store_true",
                    help="Continue scoring further turns even after the model picks "
                         "the wrong tool (or no tool).")
+    p.add_argument(
+        "--chat-template-kwargs",
+        type=str,
+        default='{"enable_thinking":false}',
+        help='Forwarded to llama-server (default disables Qwen3 reasoning). '
+             "Pass empty string to omit.",
+    )
     return p
 
 
@@ -134,6 +141,7 @@ def main() -> int:
         ngl=args.ngl,
         server_log_path=server_log,
         server_startup_timeout=args.server_startup_timeout,
+        chat_template_kwargs=(args.chat_template_kwargs or None),
         per_turn_log=per_turn_log,
         progress=True,
     )

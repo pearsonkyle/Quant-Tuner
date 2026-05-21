@@ -14,10 +14,12 @@ Method = Literal["imatrix", "awq", "gptq", "none"]
 class DataConfig(BaseModel):
     logs: Path | None = None
     corpus: Path | None = None
+    supplement: Path | None = None
     train_frac: float = 0.8
     test_frac: float = 0.1
     holdout_frac: float = 0.1
-    max_tokens: int = 500_000
+    train_max_tokens: int = 250_000
+    eval_max_tokens: int = 50_000
     context_len: int = 16_384
 
 
@@ -26,6 +28,10 @@ class CalibrationConfig(BaseModel):
     variant: str = "default"
     # Method-specific overrides; calibrators read what they need.
     params: dict = Field(default_factory=dict)
+
+
+class ExtractConfig(BaseModel):
+    keep_mtp: bool = False
 
 
 class QuantizeConfig(BaseModel):
@@ -43,6 +49,7 @@ class RunConfig(BaseModel):
     model: str  # HF repo id or local path
     workspace: Path
     data: DataConfig = Field(default_factory=DataConfig)
+    extract: ExtractConfig = Field(default_factory=ExtractConfig)
     calibration: CalibrationConfig = Field(default_factory=CalibrationConfig)
     quantize: QuantizeConfig = Field(default_factory=QuantizeConfig)
     bench: BenchConfig = Field(default_factory=BenchConfig)

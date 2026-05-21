@@ -28,14 +28,14 @@ the metric definitions.
 End-to-end run on a real 9B coding model. Eight rows comparing two **imatrix
 techniques** (`stock` = llama.cpp's standard `E[a²]`, `hybrid` = output-aware
 `max(L1-norm(E[a²]), L1-norm(‖W[:,c]‖²·E[a²]))`) × three **calibration corpora**
-(`custom` = `logtrain.jsonl`, `wiki` = WikiText-2 test, `mixed` = wiki + 200k
+(`custom` = `logtrain.jsonl`, `wiki` = WikiText-2 test, `mixed` = wiki + 250k
 tokens of logtrain), plus the uncalibrated Q4 floor and the F16 ceiling.
 
 | | Stock imatrix | Hybrid imatrix |
 | --- | --- | --- |
 | **custom** (logtrain only) | row | row |
 | **wiki** (WikiText-2) | row | row |
-| **mixed** (wiki + 200k logtrain) | row | row |
+| **mixed** (wiki + 250k logtrain) | row | row |
 
 Eval data: KLD on a held-out 48k-token test split; tool-call on a disjoint
 25-session holdout (9 claude + 16 qwen) drawn from `test + holdout` slices of
@@ -45,66 +45,14 @@ calibration).
 Sorted by Mean KLD (lower = closer to F16; the speed columns also vary, but
 read those with the caveat below):
 
-| Model | Size | Mean KLD | Same Top p | Decode tok/s | Tool Sel % | Param Acc % | Schema % | Rollout % |
+| Model | Size | Mean KLD | Same Top p | Tool Sel % | Param Acc % | Schema % | Rollout % | MMLU-Pro % |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| baseline/fp16        | 16.69 | 0.000 | 99.99 | 13.05 ± 1.88† | 39.0 | 33.5 | 63.4 | 80.0 |
-| **hybrid / custom**  | 5.24 | **0.595** | **84.80** | 45.55 ± 4.47 | **44.4** | 35.6 | **68.9** | 76.0 |
-| stock / custom       | 5.24 | 0.612 | 84.75 | 58.15 ± 2.06 | 40.5 | **37.5** | 64.3 | 76.0 |
-| stock / mixed        | 5.24 | 0.612 | 84.60 | 45.35 ± 4.22 | 41.9 | 34.3 | 62.8 | **80.0** |
-| hybrid / mixed       | 5.24 | 0.613 | 84.72 | 48.28 ± 4.03 | 41.9 | 34.3 | 60.5 | 72.0 |
-| stock / wiki         | 5.24 | 0.635 | 84.45 | 49.98 ± 4.59 | 43.2 | 36.4 | 63.6 | 76.0 |
-| hybrid / wiki        | 5.24 | 0.638 | 84.28 | 47.39 ± 4.02 | 40.5 | 35.1 | 61.9 | 72.0 |
-| baseline/Q4_K_M-none | 5.24 | 1.012 | 81.11 | 16.97 ± 4.02† | 30.6 | 27.1 | 61.1 | 72.0 |
-
-Per-run stdev is over 10 `llama-bench` repetitions, one model at a time.
-Tool-call accuracy uses 25 sessions with 36–45 scored turns per model. Full
-leaderboard with prefill/TTFT/PPL columns: `out/omnicoder_q4_k_m/LEADERBOARD.md`.
-
-† The `fp16` and `Q4_K_M-none` decode-tok/s cells were re-measured in a
-later session; the six calibrated rows keep their original numbers. The
-re-measurement reproduced the **fidelity** columns exactly (Mean KLD, Same
-Top p — these are deterministic given the same eval set and baseline) but
-came in 2–4× slower on decode tok/s due to thermal/load state differences on
-the same machine. Treat absolute decode tok/s as a noisy headline; for
-quant-vs-quant comparisons the KLD and tool-call columns are what to read.
-
-### What this tells us
-
-**1. Calibration is the dominant lever.** Mean KLD drops 1.012 → ~0.60 (≈ −40 %)
-the moment any imatrix is provided. Tool-call accuracy moves in lockstep:
-Q4-none drops to 30.6 % vs 39–44 % for every calibrated row.
-
-**2. Your-own-data > wikitext on every fidelity metric.** `custom` (and `mixed`,
-which includes custom) sits at KLD 0.595–0.613; `wiki` lands at 0.635–0.638.
-The gap is consistent under both `stock` and `hybrid`.
-
-**3. Mixed corpus matches custom on KLD, with arguably better diversity.** The
-mixed corpus (200k tokens of logtrain + the full wikitext) achieves KLD 0.612
-under both `stock` and `hybrid` — within noise of pure-custom (0.595 / 0.612)
-and clearly better than pure-wiki (0.635 / 0.638). Plus it surfaces more
-sources (claude 34 % / opencode 10 % / qwen 56 % in the logtrain portion vs
-pure-custom which was qwen-dominated).
-
-**4. Hybrid > stock on the fidelity-heavy metrics:** at fixed `custom` corpus,
-**hybrid wins on KLD (0.595 vs 0.612), top-p (84.80 vs 84.75), tool-selection
-(44.4 % vs 40.5 %), and schema-validity (68.9 % vs 64.3 %)**. The advantage is
-clearest where the corpus matches the use case.
-
-**5. Calibrated Q4 *beats F16* on every tool-call column.** F16: 39.0 % tool-sel.
-hybrid/custom: 44.4 % (+5.4 pp). This is because the eval distribution and the
-calibration distribution come from the same source (`logtrain.jsonl`); the
-quantizer is "tuning into" the deployment workload. Even though F16's KLD is 0
-by definition, calibrated Q4 is more accurate on the actual task.
-
-**Caveat on decode tok/s.** Within one bench session, the six calibrated
-Q4 rows cluster 45–58 tok/s and per-rep stdev is tight (≤ 5 tok/s). Across
-sessions, however, absolute numbers swing by 2–4× depending on the
-machine's thermal/load state (see the footnoted refresh of `fp16` and
-`Q4_K_M-none` above). SQS (which weights decode tok/s equally with
-compression) is therefore noisier than KLD; for the question "which
-imatrix is best?", **read the KLD and tool-call columns**.
-
-Raw data: `out/omnicoder_q4_k_m/{LEADERBOARD.md, results.csv, toolcall_reps_aggregated.csv}`.
+| baseline/fp16        | 
+| hybrid / mixed       | 
+| **hybrid / custom**  | 
+| stock / custom       | 
+| stock / wiki         | 
+| baseline/Q4_K_M-none | 
 
 **Reproduce the whole table:**
 ```bash
@@ -114,6 +62,25 @@ uv run python scripts/reproduce_leaderboard.py --skip-toolcall   # skip the 14-h
 ```
 
 `reproduce_leaderboard.py` chains seven stages (extract → F16 → calibrate × 3 corpora → holdout → speed rebench → tool-call reps → render). Every stage is idempotent — re-running on a populated workspace just verifies state and re-renders `LEADERBOARD.md`. Individual stages live in `scripts/run_omnicoder_*.py`, `scripts/rebench_speed.py`, and `scripts/run_toolcall_reps.py`.
+
+**For any other model**, use the parameterized reproducer:
+
+```bash
+# One pass per quant type — each lands in its own workspace.
+uv run python scripts/reproduce_table.py \
+    --model Qwen/Qwen3.5-4B --quant-type Q4_K_M \
+    --logs logtrain.jsonl --wiki-test-raw /path/to/wiki.test.raw
+
+uv run python scripts/reproduce_table.py \
+    --model Qwen/Qwen3.5-4B --quant-type IQ4_NL \
+    --logs logtrain.jsonl --wiki-test-raw /path/to/wiki.test.raw
+
+# Or chain both quant types for Qwen3.5-4B back-to-back:
+uv run python scripts/reproduce_table_qwen3_5_4b.py \
+    --logs logtrain.jsonl --wiki-test-raw /path/to/wiki.test.raw
+```
+
+The reproducer goes through 7 stages: F16 → 2 corpora (custom / wiki) → 4 imatrix variants ({stock, hybrid} × {custom, wiki}) → 5 quants (`<TYPE>-none` + 4 calibrated) → KLD + 10-rep speed bench → tool-call holdout + reps → MMLU-Pro reps → `LEADERBOARD.md`. Pass `--skip-toolcall`, `--skip-mmlu`, or `--skip-speed-rebench` to scope down; `--toolcall-reps N` / `--mmlu-reps N` shrink the long stages.
 
 ## Requirements
 
@@ -179,14 +146,40 @@ uv run quant-tuner run \
 uv run quant-tuner run --recipe q4_k_m_imatrix --model X --logs Y --workspace W --dry-run
 ```
 
-Available recipes: `q4_k_m_imatrix`, `q4_k_m_awq`, `q4_k_m_gptq`, `q4_k_m_none`.
-A recipe is just YAML — copy any of them to a local file and pass the path to
-`--recipe` to override the calibration variant or sampling params.
+Available recipes: `q4_k_m_imatrix`, `q4_k_m_awq`, `q4_k_m_gptq`, `q4_k_m_none`,
+`q4_k_m_qwen3_5_4b`, `q4_k_m_qwen3_6_mtp`. A recipe is just YAML — copy any of
+them to a local file and pass the path to `--recipe` to override the
+calibration variant or sampling params.
 
-`quant-tuner bench --quant Q.gguf --reference F16.gguf --eval EVAL.txt --out
-results.csv` benches an existing quant without re-running calibration, and
-`quant-tuner leaderboard --results results.csv` aggregates a directory's CSV
-into a sorted markdown report.
+### Calibration token budget
+
+Each recipe declares two token budgets under `data:`:
+
+```yaml
+data:
+  train_max_tokens: 250000        # cap for the calibration corpus
+  eval_max_tokens:  50000         # cap for the KLD/PPL eval slice
+  supplement: ./calibration_supplement.txt   # optional; appended to train.txt
+```
+
+The stratified packer fills `train.txt` up to `train_max_tokens` (a little
+over is allowed — sessions can spill past the cap by ≤10%) and `eval.txt` up
+to `eval_max_tokens`, both drawn from disjoint splits of the same log file.
+If `supplement` is set, the file is appended verbatim to the train corpus
+after packing — useful for language coverage (Rust, SQL, shell, etc.) that's
+under-represented in your usage logs. The bundled
+`calibration_supplement.txt` is the one used for the published results.
+
+### Qwen3.5-4B example
+
+```bash
+uv run python scripts/quantize_qwen3_5_4b.py --logs logtrain.jsonl
+# → out/q4_k_m_qwen3_5_4b/gguf/Q4_K_M-imatrix.gguf
+```
+
+The recipe (`q4_k_m_qwen3_5_4b.yaml`) targets `Qwen/Qwen3.5-4B`, uses the
+`hybrid_custom` imatrix variant, and applies the 250K / 50K token budgets
+plus the bundled supplement.
 
 ## Task-level benchmarks
 

@@ -53,12 +53,20 @@ def extract_text_lm(
     rename_prefix: tuple[str, str] | None = ("model.language_model.", "model."),
     causal_lm_arch: str | None = None,
     max_shard_size: str = "4GB",
+    keep_mtp: bool = False,
 ) -> Path:
     """Strip vision/MTP weights from a VLM and write a CausalLM checkpoint.
 
     For models that are already CausalLM, this is a no-op pass-through —
     the source directory is returned unchanged.
+
+    When ``keep_mtp=True``, the ``mtp.*`` prefix is removed from the drop list
+    and the MTP layer counts in ``config.json`` are preserved so the GGUF
+    converter bundles the multi-token-prediction head alongside the trunk.
     """
+    if keep_mtp:
+        drop_prefixes = tuple(p for p in drop_prefixes if not p.startswith("mtp."))
+
     model_path = fetch_model(source)
     with open(model_path / "config.json") as f:
         config = json.load(f)

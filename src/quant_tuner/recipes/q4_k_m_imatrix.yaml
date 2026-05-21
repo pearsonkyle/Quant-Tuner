@@ -16,7 +16,9 @@ data:
   train_frac: 0.8
   test_frac: 0.1
   holdout_frac: 0.1
-  max_tokens: 500000
+  train_max_tokens: 250000
+  eval_max_tokens: 50000
+  supplement: ./calibration_supplement.txt
   context_len: 16384
 
 calibration:

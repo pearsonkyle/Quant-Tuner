@@ -1,0 +1,30 @@
+# Qwen3.5-4B quantized to Q4_K_M with the published `hybrid_custom` imatrix
+# variant. Calibration corpus is capped at ~250K train tokens + the language
+# supplement; eval set is ~50K tokens drawn from the test split.
+name: q4_k_m_qwen3_5_4b
+
+model: Qwen/Qwen3.5-4B
+
+workspace: ./out/q4_k_m_qwen3_5_4b
+
+data:
+  logs: PLACEHOLDER       # path to a usage-log .jsonl
+  train_frac: 0.8
+  test_frac: 0.1
+  holdout_frac: 0.1
+  train_max_tokens: 250000
+  eval_max_tokens: 50000
+  supplement: ./calibration_supplement.txt
+  context_len: 16384
+
+calibration:
+  method: imatrix
+  variant: hybrid_custom
+  params: {}
+
+quantize:
+  type: Q4_K_M
+
+bench:
+  suite: full
+  eval_ctx: 8192

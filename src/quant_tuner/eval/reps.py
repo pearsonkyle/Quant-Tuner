@@ -130,6 +130,7 @@ def run_reps_for_model(
     ngl: int = 99,
     server_log_path: Path | None = None,
     server_startup_timeout: float = 120.0,
+    chat_template_kwargs: str | None = None,
     per_rep_callback: Callable[[RepResult], None] | None = None,
 ) -> ModelReps:
     """Spawn ``llama-server`` for ``model``, run ``eval_fn`` ``reps`` times.
@@ -142,6 +143,7 @@ def run_reps_for_model(
         model, ctx=ctx, ngl=ngl,
         log_path=server_log_path,
         startup_timeout=server_startup_timeout,
+        chat_template_kwargs=chat_template_kwargs,
     ) as base_url:
         for rep_idx in range(reps):
             seed = _seed_for(base_seed, rep_idx)
@@ -181,6 +183,7 @@ def run_reps_for_models(
     ngl: int = 99,
     log_dir: Path | None = None,
     server_startup_timeout: float = 120.0,
+    chat_template_kwargs: str | None = None,
     per_rep_callback: Callable[[str, RepResult], None] | None = None,
     per_model_callback: Callable[[ModelReps], None] | None = None,
 ) -> list[ModelReps]:
@@ -204,6 +207,7 @@ def run_reps_for_models(
             ctx=ctx, ngl=ngl,
             server_log_path=server_log,
             server_startup_timeout=server_startup_timeout,
+            chat_template_kwargs=chat_template_kwargs,
             per_rep_callback=_cb,
         )
         results.append(mr)
