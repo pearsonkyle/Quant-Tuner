@@ -82,6 +82,60 @@ uv run python scripts/reproduce_table_qwen3_5_4b.py \
 
 The reproducer goes through 7 stages: F16 → 2 corpora (custom / wiki) → 4 imatrix variants ({stock, hybrid} × {custom, wiki}) → 5 quants (`<TYPE>-none` + 4 calibrated) → KLD + 10-rep speed bench → tool-call holdout + reps → MMLU-Pro reps → `LEADERBOARD.md`. Pass `--skip-toolcall`, `--skip-mmlu`, or `--skip-speed-rebench` to scope down; `--toolcall-reps N` / `--mmlu-reps N` shrink the long stages.
 
+## Results so far (Qwen/Qwen3.6-27B @ Q5_K_S)
+
+End-to-end run on Qwen3.6-27B with the MTP head retained in the GGUF. Calibration:
+`hybrid_custom` imatrix on `logtrain.jsonl` (250k tokens) + `calibration_supplement.txt`.
+Eval data: 48k-token held-out KLD/PPL slice from `logtrain.jsonl`; 10-session tool-call
+holdout disjoint from the calibration split; 50-question MMLU-Pro slice (25 CS + 25 math,
+2-shot). Hardware: Apple M-series, Metal backend, `llama.cpp` @ pinned `45b455e6`.
+
+| Model | Size (GiB) | BPW | PPL | KLD | Same Top-p | Decode tok/s | Prefill tok/s | Tool Sel % | Param Acc % | Schema % | Rollout % | MMLU-Pro % |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| baseline / fp16            | 50.90 | 16.00 | 5.233 | —     | 100.0 |  6.96 ± 0.46 | 182.2 ± 1.8 | 71.2 ± 4.1 | 35.2 ± 0.7 | 84.6 ± 1.2 | 40.0 ± 0.0 | 59.3 ± 2.3 |
+| **Q5_K_S / hybrid_custom** | 17.67 |  5.56 | 5.523 | 0.425 |  88.9 | 13.14 ± 0.39 | 166.0 ± 3.1 | 64.9 ± 0.8 | 33.1 ± 0.4 | 81.8 ± 1.9 | 43.3 ± 5.8 | 58.0 ± 3.5 |
+
+KLD/PPL/speed are 10 reps of `llama-bench`; tool-call and MMLU-Pro are 3 reps each at
+`T=0.6, top_p=0.95, top_k=20` (Qwen-recommended sampling).
+
+**MTP draft heads.** The Q5_K_S GGUF bundles the MTP layers (`qwen35.nextn_predict_layers = 1`),
+so it can be served with `llama-server --spec-type draft-mtp --spec-draft-n-max N`.
+Because the model has **1 nextn layer**, set `--spec-draft-n-max 1`; values above 1 exceed
+the trained head depth, drop acceptance rate, and hurt throughput. Benchmarked against a
+true baseline (no `--spec-type` flag) and cross-checked against `unsloth/Qwen3.6-27B-MTP-GGUF`:
+
+| Model | `--spec-draft-n-max` | Decode tok/s | Draft acceptance | Speedup |
+| --- | ---: | ---: | ---: | ---: |
+| ours (imatrix Q5_K_S) | 1 | 18.73 ± 1.35 | 86 % | **1.05x** |
+| ours (imatrix Q5_K_S) | 2 | 17.23 ± 2.04 | 74 % | 0.92x |
+| ours — baseline | — | 17.81 ± 0.87 | — | — |
+| unsloth Q5_K_S | 2 | 17.74 ± 2.46 | 77 % | 0.99x |
+| unsloth — baseline | — | 17.92 ± 0.44 | — | — |
+
+MTP gives a modest 5 % wall-clock lift on Metal at `n_max=1`; larger wins appear on CUDA
+where decode is compute- rather than memory-bandwidth-bound. Our imatrix calibration yields
+higher draft acceptance (86 % vs 77 %) than the unsloth baseline GGUF.
+
+**Reproduce:**
+
+```bash
+uv run quant-tuner run --recipe q5_k_s_qwen3_6_mtp \
+    --model Qwen/Qwen3.6-27B --logs logtrain.jsonl \
+    --workspace out/q5_k_s_qwen3_6_mtp
+uv run quant-tuner bench \
+    --quant out/q5_k_s_qwen3_6_mtp/gguf/model-f16.gguf \
+    --reference out/q5_k_s_qwen3_6_mtp/gguf/model-f16.gguf \
+    --eval out/q5_k_s_qwen3_6_mtp/corpus/eval.txt \
+    --out out/q5_k_s_qwen3_6_mtp/results.csv --label baseline/fp16
+uv run python scripts/run_toolcall_reps.py \
+    --models out/q5_k_s_qwen3_6_mtp/gguf/{model-f16,Q5_K_S-imatrix}.gguf \
+    --holdout artifacts/toolcall_holdout.jsonl --reps 3
+uv run python scripts/run_mmlu_pro_reps.py \
+    --models out/q5_k_s_qwen3_6_mtp/gguf/{model-f16,Q5_K_S-imatrix}.gguf --reps 3
+uv run python scripts/bench_mtp_speed.py \
+    --model out/q5_k_s_qwen3_6_mtp/gguf/Q5_K_S-imatrix.gguf --reps 5 --n-max 1
+```
+
 ## Requirements
 
 * Python ≥ 3.11

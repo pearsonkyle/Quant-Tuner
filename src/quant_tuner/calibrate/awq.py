@@ -439,7 +439,61 @@ def apply(
         src = model_dir / name
         if src.exists():
             shutil.copy2(src, out_dir / name)
+    _preserve_auxiliary_tensors(model_dir, out_dir)
     return out_dir
+
+
+def _preserve_auxiliary_tensors(src_dir: Path, dst_dir: Path) -> None:
+    """Copy tensors present in ``src_dir`` but missing from ``dst_dir``.
+
+    ``AutoModelForCausalLM.from_pretrained`` only loads parameters known to the
+    causal-LM class, so auxiliary heads (e.g. MTP layers on Qwen3.6) are dropped
+    on ``save_pretrained``. Without this rescue, the post-fold HF→GGUF
+    conversion would miss those tensors and the resulting GGUF would fail to
+    load (e.g. ``missing tensor 'blk.64.attn_norm.weight'``).
+    """
+    import json
+
+    src_index = src_dir / "model.safetensors.index.json"
+    dst_index = dst_dir / "model.safetensors.index.json"
+    if not src_index.exists() or not dst_index.exists():
+        return
+
+    from safetensors import safe_open
+    from safetensors.torch import save_file
+
+    src_map = json.loads(src_index.read_text())["weight_map"]
+    dst_obj = json.loads(dst_index.read_text())
+    dst_map = dst_obj["weight_map"]
+    missing = sorted(set(src_map) - set(dst_map))
+    if not missing:
+        return
+
+    print(
+        f"[awq.apply] preserving {len(missing)} auxiliary tensors not in causal-LM class",
+        file=sys.stderr,
+    )
+    by_shard: dict[str, list[str]] = {}
+    for k in missing:
+        by_shard.setdefault(src_map[k], []).append(k)
+
+    aux_shard = "model-aux.safetensors"
+    aux_tensors: dict[str, torch.Tensor] = {}
+    total_bytes = 0
+    for shard, keys in by_shard.items():
+        with safe_open(src_dir / shard, framework="pt") as f:
+            for k in keys:
+                t = f.get_tensor(k)
+                aux_tensors[k] = t
+                total_bytes += t.numel() * t.element_size()
+
+    save_file(aux_tensors, dst_dir / aux_shard, metadata={"format": "pt"})
+
+    dst_map.update({k: aux_shard for k in aux_tensors})
+    dst_obj["weight_map"] = dst_map
+    md = dst_obj.setdefault("metadata", {})
+    md["total_size"] = int(md.get("total_size", 0)) + total_bytes
+    dst_index.write_text(json.dumps(dst_obj, indent=2))
 
 
 __all__ = [

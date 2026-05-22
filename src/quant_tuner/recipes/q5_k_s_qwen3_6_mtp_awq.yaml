@@ -1,0 +1,41 @@
+# Qwen3.6-27B quantized to Q5_K_S via AWQ (grid-searched α).
+#
+# - Strips the vision tower; keeps the MTP head (same as the imatrix recipe).
+# - AWQ-best: per-group α grid-searched over {0, 0.25, 0.5, 0.75, 1.0}.
+# - apply() defaults (rmsnorm_plus_one=True, sanity_max_rel=0.03) are correct
+#   for the Qwen3.5-family RMSNorm; do not override.
+name: q5_k_s_qwen3_6_mtp_awq
+
+model: Qwen/Qwen3.6-27B
+
+workspace: ./out/q5_k_s_qwen3_6_mtp_awq
+
+data:
+  logs: PLACEHOLDER       # path to a usage-log .jsonl
+  train_frac: 0.8
+  test_frac: 0.1
+  holdout_frac: 0.1
+  train_max_tokens: 250000
+  eval_max_tokens: 50000
+  supplement: ./calibration_supplement.txt
+  context_len: 16384
+
+extract:
+  keep_mtp: true
+
+calibration:
+  method: awq
+  variant: best           # `best` = grid search over `alphas`
+  params:
+    tokens: 16384         # calibration token budget for mean(|x|) capture
+    ctx: 1024
+    proxy_tokens: 256
+    # alphas: [0.0, 0.25, 0.5, 0.75, 1.0]   # default; uncomment to override
+    # force_alpha: 0.5                       # uncomment for `a050` variant
+
+quantize:
+  type: Q5_K_S
+
+bench:
+  suite: full
+  eval_ctx: 8192
