@@ -223,11 +223,22 @@ def _build_token_batches(
     seq_len: int,
     max_tokens: int,
     seed: int = 42,
+    wiki_mix: float = 0.0,
+    wiki_text: Path | None = None,
 ) -> list[list[int]]:
-    """Tokenize the logtrain train split and pack into fixed-length chunks."""
+    """Tokenize logtrain train split (+ optional wiki mix) and pack into chunks.
+
+    wiki_mix is the target fraction of chunks drawn from wiki/general text.
+    When wiki_mix > 0 and wiki_text is None, wikitext-2-raw-v1 is streamed
+    from HuggingFace datasets.
+    """
+    import random
     from transformers import AutoTokenizer
 
+    rng = random.Random(seed)
     tok = AutoTokenizer.from_pretrained(str(model_dir), fix_mistral_regex=True)
+
+    # --- tool-call corpus ---
     sessions = ingest.load_sessions(logtrain)
     sessions = ingest.filter_sessions(sessions, min_score=0.3, require_tools=False)
     splits = split.split_sessions(
@@ -236,21 +247,54 @@ def _build_token_batches(
     train_sessions = splits["train"]
     log(f"  {len(train_sessions)} train sessions")
 
-    all_ids: list[int] = []
+    logs_ids: list[int] = []
     for s in train_sessions:
         text = _session_to_text(s, tok)
         ids = tok.encode(text, add_special_tokens=False)
-        all_ids.extend(ids)
-        if len(all_ids) >= max_tokens:
-            break
+        logs_ids.extend(ids)
 
-    all_ids = all_ids[:max_tokens]
-    log(f"  {len(all_ids):,} train tokens")
+    logs_ids = logs_ids[:max_tokens]
+    log(f"  {len(logs_ids):,} tool-call tokens")
 
-    chunks: list[list[int]] = []
-    for i in range(0, len(all_ids) - seq_len, seq_len):
-        chunks.append(all_ids[i : i + seq_len + 2])  # +2 for the 2-step lookahead labels
-    return chunks
+    def _to_chunks(token_ids: list[int]) -> list[list[int]]:
+        out = []
+        for i in range(0, len(token_ids) - seq_len, seq_len):
+            out.append(token_ids[i : i + seq_len + 2])
+        return out
+
+    logs_chunks = _to_chunks(logs_ids)
+
+    if wiki_mix <= 0.0:
+        return logs_chunks
+
+    # --- wiki corpus ---
+    if wiki_text is not None and wiki_text.exists():
+        raw = wiki_text.read_text(encoding="utf-8", errors="replace")
+        wiki_ids = tok.encode(raw, add_special_tokens=False)
+    else:
+        log("  loading wikitext-2-raw-v1 from HuggingFace datasets …")
+        from datasets import load_dataset
+        ds = load_dataset("wikitext", "wikitext-2-raw-v1", split="train", trust_remote_code=False)
+        wiki_ids = []
+        for row in ds:
+            text = row["text"]
+            if text.strip():
+                wiki_ids.extend(tok.encode(text, add_special_tokens=False))
+    log(f"  {len(wiki_ids):,} wiki tokens")
+
+    wiki_chunks = _to_chunks(wiki_ids)
+
+    # Interleave at chunk level to hit the target wiki_mix fraction.
+    n_total = len(logs_chunks) + len(wiki_chunks)
+    n_wiki  = min(len(wiki_chunks), round(n_total * wiki_mix))
+    n_logs  = len(logs_chunks)
+
+    rng.shuffle(wiki_chunks)
+    mixed = logs_chunks + wiki_chunks[:n_wiki]
+    rng.shuffle(mixed)
+    log(f"  mixed corpus: {n_logs} tool-call + {n_wiki} wiki chunks "
+        f"({n_wiki / len(mixed) * 100:.0f}% wiki)")
+    return mixed
 
 
 def _session_to_text(session: dict, tok: object) -> str:
@@ -491,6 +535,13 @@ def main() -> int:
                    help="Resume from a checkpoint .pt file saved by --checkpoint-every")
     p.add_argument("--eval-every", type=int, default=100,
                    help="Evaluate MTP perplexity on holdout every N steps")
+    p.add_argument("--wiki-mix", type=float, default=0.0,
+                   help="Fraction of training chunks drawn from wiki/general text "
+                        "(0.0 = tool-call only; 0.3 = 30%% wiki). Preserves the "
+                        "head's calibration to backbone representations on general text.")
+    p.add_argument("--wiki-text", type=Path, default=None,
+                   help="Path to a raw .txt wiki corpus. If omitted and --wiki-mix > 0, "
+                        "wikitext-2-raw-v1 is loaded from HuggingFace datasets.")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
@@ -562,6 +613,9 @@ def main() -> int:
             args.model, args.logs,
             seq_len=args.seq_len,
             max_tokens=args.max_train_tokens,
+            seed=args.seed,
+            wiki_mix=args.wiki_mix,
+            wiki_text=args.wiki_text,
         )
         log(f"  {len(chunks)} chunks of length {args.seq_len}")
 

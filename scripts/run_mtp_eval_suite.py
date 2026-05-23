@@ -46,9 +46,10 @@ from quant_tuner.experiments import log, phase  # noqa: E402
 WORKSPACE = REPO / "out" / "benchmark_9b_iq3s"
 
 GGUF_NAMES = {
-    "vanilla":       "IQ3_S-custom.gguf",
-    "trained":       "IQ3_S-trained.gguf",
-    "trained-noisy": "IQ3_S-trained-noisy.gguf",
+    "vanilla":        "IQ3_S-custom.gguf",
+    "trained":        "IQ3_S-trained.gguf",
+    "trained-noisy":  "IQ3_S-trained-noisy.gguf",
+    "trained-mixed":  "IQ3_S-trained-mixed.gguf",
 }
 
 TOOLCALL_SAMPLING = dict(

@@ -63,9 +63,11 @@ def _gguf_path(workspace: Path, slug: str, variant: str) -> Path | None:
     """Resolve the GGUF path for (slug, variant).
 
     variant is one of:
-      "vanilla"       — IQ3_S-custom.gguf built with donor MTP weights
-      "trained"       — IQ3_S-trained.gguf built after train_mtp_head.py (may not exist)
-      "trained-noisy" — IQ3_S-trained-noisy.gguf trained with IQ3_S quantization noise
+      "vanilla"        — IQ3_S-custom.gguf built with donor MTP weights
+      "trained"        — IQ3_S-trained.gguf (tool-call logs only)
+      "trained-noisy"  — IQ3_S-trained-noisy.gguf (tool-call + quant noise)
+      "trained-mixed"  — IQ3_S-trained-mixed.gguf (tool-call + 30% wiki)
+      "fp16"           — model-f16.gguf (full precision baseline)
     """
     base = workspace / slug
     if variant == "vanilla":
@@ -76,6 +78,9 @@ def _gguf_path(workspace: Path, slug: str, variant: str) -> Path | None:
         return p if p.exists() else None
     if variant == "trained-noisy":
         p = base / "IQ3_S-trained-noisy.gguf"
+        return p if p.exists() else None
+    if variant == "trained-mixed":
+        p = base / "IQ3_S-trained-mixed.gguf"
         return p if p.exists() else None
     if variant == "fp16":
         p = base / "model-f16.gguf"
@@ -303,12 +308,14 @@ def _plot(results: list[dict], out_png: Path) -> None:
         "vanilla":       "-",
         "trained":       "--",
         "trained-noisy": "-.",
+        "trained-mixed": (0, (3, 1, 1, 1)),
         "fp16":          ":",
     }
     markers = {
         "vanilla":       "o",
         "trained":       "s",
         "trained-noisy": "^",
+        "trained-mixed": "P",
         "fp16":          "D",
     }
 

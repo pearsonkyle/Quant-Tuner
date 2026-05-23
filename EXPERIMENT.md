@@ -24,6 +24,11 @@ Red Team (Safety, Response Quality, etc.)
 
 Tables:
 
+First look into quantization performance:
+| Model | Size (GiB) | BPW | PPL | KLD | Same Top-p | 
+| --- | --- | --- | --- | --- | --- |
+
+
 General Performance:
 <!-- Populated by: scripts/run_mtp_eval_suite.py → out/benchmark_9b_iq3s/eval/mtp_suite/mtp_eval_summary.json -->
 | Model | Quant | Technique | MTP Variant | Tool Sel % | Param Acc % | Schema % | Rollout % | MMLU-Pro % |
@@ -32,14 +37,17 @@ General Performance:
 | qwen | IQ3_S | imatrix+ | vanilla | | | | | |
 | qwen | IQ3_S | imatrix+ | trained | | | | | |
 | qwen | IQ3_S | imatrix+ | trained-noisy | | | | | |
+| qwen | IQ3_S | imatrix+ | trained-mixed | | | | | |
 | jackrong | FP16 | — | — | | | | | |
 | jackrong | IQ3_S | imatrix+ | vanilla | | | | | |
 | jackrong | IQ3_S | imatrix+ | trained | | | | | |
 | jackrong | IQ3_S | imatrix+ | trained-noisy | | | | | |
+| jackrong | IQ3_S | imatrix+ | trained-mixed | | | | | |
 | tesslate | FP16 | — | — | | | | | |
 | tesslate | IQ3_S | imatrix+ | vanilla | | | | | |
 | tesslate | IQ3_S | imatrix+ | trained | | | | | |
 | tesslate | IQ3_S | imatrix+ | trained-noisy | | | | | |
+| tesslate | IQ3_S | imatrix+ | trained-mixed | | | | | |
 
 Red Team Performance:
 | Model | Quant | MTP Variant | Safety | Vulnerability | Hallucination | Response Quality |
@@ -59,32 +67,35 @@ MTP Performance Acceptance:
 <!-- accept_rate = per-token draft acceptance rate (%) at --spec-draft-n-max=N -->
 | Model | Quant | MTP Variant | n=1 acc % | n=2 acc % | n=3 acc % |
 | --- | --- | --- | --- | --- | --- |
-| qwen | FP16 | fp16 | 75.6 | 54.5 | 49.7 |
-| qwen | IQ3_S | vanilla | 73.0 | 53.3 | 39.2 |
-| qwen | IQ3_S | trained | 75.4 | 54.2 | 45.1 |
-| qwen | IQ3_S | trained-noisy | 74.6 | 55.4 | 40.8 |
-| jackrong | FP16 | fp16 | 73.2 | 61.7 | 48.4 |
-| jackrong | IQ3_S | vanilla | 72.6 | 60.3 | 47.5 |
-| jackrong | IQ3_S | trained | 76.0 | 59.5 | 49.2 |
-| jackrong | IQ3_S | trained-noisy | 69.6 | 53.3 | 39.4 |
-| tesslate | FP16 | fp16 | 78.9 | 56.0 | 50.8 |
-| tesslate | IQ3_S | vanilla | 75.0 | 64.0 | 42.4 |
-| tesslate | IQ3_S | trained | 70.3 | 51.2 | 40.2 |
-| tesslate | IQ3_S | trained-noisy | 68.3 | 45.1 | 40.7 |
+| qwen | FP16 |  | 72.9 ± 2.9 | 59.9 ± 4.4 | 47.8 ± 1.6 |
+| qwen | IQ3_S |  | 73.5 ± 4.1 | 59.5 ± 5.8 | 45.1 ± 4.4 |
+| qwen | IQ3_S | custom | 67.7 ± 2.1 | 52.3 ± 3.3 | 40.9 ± 4.6 |
+| qwen | IQ3_S | custom+noisy | 67.5 ± 0.2 | 55.8 ± 6.4 | 44.4 ± 5.5 |
+| jackrong | FP16 |  | 75.1 ± 1.1 | 63.8 ± 3.0 | 49.5 ± 1.8 |
+| jackrong | IQ3_S |  | 74.0 ± 2.0 | 62.1 ± 2.0 | 48.6 ± 3.3 |
+| jackrong | IQ3_S | custom | 69.9 ± 2.3 | 55.7 ± 2.0 | 44.9 ± 2.0 |
+| jackrong | IQ3_S | custom+noisy | 72.6 ± 2.2 | 54.3 ± 3.7 | 42.4 ± 2.9 |
+| tesslate | FP16 |  | 75.5 ± 2.7 | 61.2 ± 5.7 | 49.6 ± 2.8 |
+| tesslate | IQ3_S |  | 73.9 ± 3.9 | 55.8 ± 3.6 | 43.8 ± 3.7 |
+| tesslate | IQ3_S | custom | 69.8 ± 5.0 | 54.1 ± 4.7 | 44.6 ± 2.5 |
+| tesslate | IQ3_S | custom+noisy | 69.7 ± 3.6 | 54.6 ± 5.7 | 42.1 ± 8.4 |
 
 MTP Throughput:
 <!-- Populated by: scripts/run_mtp_pipeline.py + fp16 sweep → out/benchmark_9b_iq3s/mtp_acceptance.json -->
 | Model | Quant | MTP Variant | baseline tok/s | n=1 tok/s | n=2 tok/s | n=3 tok/s |
 | --- | --- | --- | --- | --- | --- | --- |
-| qwen | FP16 | fp16 | 15.9 | 23.6 | 16.4 | 18.9 |
-| qwen | IQ3_S | vanilla | 55.2 | 49.9 | 40.0 | 31.9 |
-| qwen | IQ3_S | trained | 55.4 | 51.1 | 40.8 | 37.1 |
-| qwen | IQ3_S | trained-noisy | 55.6 | 51.0 | 42.8 | 32.7 |
-| jackrong | FP16 | fp16 | 13.5 | 18.3 | 39.7 | 14.9 |
-| jackrong | IQ3_S | vanilla | 55.0 | 49.9 | 43.3 | 35.9 |
-| jackrong | IQ3_S | trained | 55.3 | 50.8 | 42.9 | 36.4 |
-| jackrong | IQ3_S | trained-noisy | 54.9 | 48.6 | 40.6 | 31.9 |
-| tesslate | FP16 | fp16 | 12.4 | 13.0 | 22.4 | 29.0 |
-| tesslate | IQ3_S | vanilla | 64.3 | 60.9 | 53.2 | 38.1 |
-| tesslate | IQ3_S | trained | 60.2 | 50.5 | 38.8 | 30.6 |
-| tesslate | IQ3_S | trained-noisy | 52.4 | 47.2 | 36.5 | 32.3 |
+| qwen | FP16 | fp16 | 6.5 ± 0.5 | 9.8 ± 1.0 | 11.0 ± 1.2 | 10.5 ± 0.9 |
+| qwen | IQ3_S | vanilla | 27.7 ± 1.3 | 25.3 ± 6.6 | 22.8 ± 2.9 | 19.4 ± 3.8 |
+| qwen | IQ3_S | trained | 13.4 ± 4.4 | 12.8 ± 1.6 | 10.9 ± 2.6 | 10.6 ± 2.6 |
+| qwen | IQ3_S | trained-noisy | 13.0 ± 0.6 | 13.9 ± 2.8 | 13.8 ± 1.9 | 11.1 ± 2.2 |
+| qwen | IQ3_S | trained-mixed | | | | |
+| jackrong | FP16 | fp16 | 9.9 ± 4.3 | 13.0 ± 4.5 | 15.8 ± 4.4 | 13.2 ± 4.7 |
+| jackrong | IQ3_S | vanilla | 16.8 ± 6.0 | 15.3 ± 4.8 | 14.1 ± 5.2 | 11.7 ± 3.9 |
+| jackrong | IQ3_S | trained | 12.1 ± 3.2 | 12.3 ± 3.9 | 10.9 ± 1.2 | 9.3 ± 1.2 |
+| jackrong | IQ3_S | trained-noisy | 12.2 ± 1.8 | 13.9 ± 1.5 | 13.8 ± 1.5 | 10.2 ± 3.0 |
+| jackrong | IQ3_S | trained-mixed | | | | |
+| tesslate | FP16 | fp16 | 8.8 ± 0.7 | 11.4 ± 2.8 | 14.3 ± 2.2 | 12.2 ± 2.3 |
+| tesslate | IQ3_S | vanilla | 11.2 ± 0.8 | 12.2 ± 0.6 | 10.6 ± 1.3 | 9.1 ± 1.0 |
+| tesslate | IQ3_S | trained | 16.0 ± 6.5 | 16.8 ± 9.2 | 14.6 ± 5.5 | 12.4 ± 3.4 |
+| tesslate | IQ3_S | trained-noisy | 24.7 ± 13.1 | 25.1 ± 8.6 | 24.8 ± 4.4 | 22.6 ± 4.6 |
+| tesslate | IQ3_S | trained-mixed | | | | |
