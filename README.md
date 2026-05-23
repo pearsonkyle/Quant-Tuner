@@ -82,6 +82,48 @@ uv run python scripts/reproduce_table_qwen3_5_4b.py \
 
 The reproducer goes through 7 stages: F16 → 2 corpora (custom / wiki) → 4 imatrix variants ({stock, hybrid} × {custom, wiki}) → 5 quants (`<TYPE>-none` + 4 calibrated) → KLD + 10-rep speed bench → tool-call holdout + reps → MMLU-Pro reps → `LEADERBOARD.md`. Pass `--skip-toolcall`, `--skip-mmlu`, or `--skip-speed-rebench` to scope down; `--toolcall-reps N` / `--mmlu-reps N` shrink the long stages.
 
+## Results so far (9B model comparison @ IQ3_S with MTP)
+
+Three Qwen3.5-9B-family models compared at IQ3_S quantization. All GGUFs bundle the MTP
+`nextn_predict` layers (`qwen35.nextn_predict_layers = 1`) for speculative decoding.
+Calibration: `hybrid_custom` imatrix on `logtrain.jsonl` (250k tokens). IQ3_S without
+calibration gives catastrophic perplexity (~3.6M PPL measured); `hybrid_custom` is required.
+Eval: KLD on a held-out 50k-token test split; speed is 10-rep `llama-bench`.
+Hardware: Apple M-series, Metal backend.
+
+| Model | Variant | BPW | PPL | Mean KLD | Same Top-p | Decode tok/s |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| Qwen/Qwen3.5-9B | baseline/fp16 | 16.01 | 6.65 | — | 100.0% | 27.13 |
+| Qwen/Qwen3.5-9B | **IQ3_S-custom** | 3.89 | 7.37 | 1.175 | 74.6% | 60.10 |
+| Jackrong/Qwopus3.5-9B-Coder | baseline/fp16 | 16.01 | 4.78 | — | 100.0% | 26.04 |
+| Jackrong/Qwopus3.5-9B-Coder | **IQ3_S-custom** | 3.89 | 6.40 | **0.919** | 75.7% | 48.92 |
+| Tesslate/OmniCoder-9B | baseline/fp16 | 16.01 | 6.64 | — | 100.0% | 21.46 |
+| Tesslate/OmniCoder-9B | **IQ3_S-custom** | 3.89 | 7.40 | 1.172 | 74.6% | 46.14 |
+
+Notes:
+- **Jackrong wins on quality** at IQ3_S — lowest KLD (0.919) and best PPL (6.40), despite
+  being a code-specialized fine-tune of the same base.
+- **Qwen IQ3_S is fastest** at 60 tok/s — the other two carry VLM overhead from their
+  extraction path (Tesslate is a `Qwen3_5ForConditionalGeneration` with a vision tower).
+- **Tesslate fp16 is slowest** (21 tok/s) — the hybrid attention architecture
+  (GatedDeltaNet layers) adds per-token overhead on Metal.
+- MTP layers were injected into Jackrong and Tesslate from the Qwen/Qwen3.5-9B donor (those
+  models declare `mtp_num_hidden_layers=1` in config but ship without the weights).
+
+**MTP head training.** A fine-tuned MTP head for Tesslate/OmniCoder-9B is in progress,
+adapting the donor weights to the tool-call distribution. See
+`scripts/train_mtp_head.py` and `scripts/plot_mtp_acceptance.py` for the training
+pipeline and acceptance-rate-vs-draft-depth analysis.
+
+**Reproduce:**
+
+```bash
+uv run python scripts/benchmark_9b_models.py \
+    --logs logtrain.jsonl \
+    --workspace out/benchmark_9b_iq3s
+# Results: out/benchmark_9b_iq3s/comparison.csv
+```
+
 ## Results so far (Qwen/Qwen3.6-27B @ Q5_K_S)
 
 End-to-end run on Qwen3.6-27B with the MTP head retained in the GGUF. Calibration:

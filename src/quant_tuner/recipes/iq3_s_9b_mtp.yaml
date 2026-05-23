@@ -1,0 +1,37 @@
+# IQ3_S quantization for Qwen3.5-9B-family models with the MTP head bundled.
+#
+# - Keeps the multi-token-prediction (nextn_predict) layers so the GGUF can
+#   be served with `llama-server --spec-type draft-mtp` for speculative decoding.
+# - Uses `hybrid_custom` imatrix calibration — required at IQ3_S to avoid
+#   catastrophic perplexity blowup that occurs with uncalibrated quantization.
+# - Designed for: Qwen/Qwen3.5-9B, Jackrong/Qwopus3.5-9B-Coder,
+#   Tesslate/OmniCoder-9B (and any other pure-CausalLM Qwen3.5-9B derivative).
+name: iq3_s_9b_mtp
+
+model: PLACEHOLDER      # HF repo id or local path, e.g. Qwen/Qwen3.5-9B
+workspace: PLACEHOLDER  # output directory, e.g. ./out/iq3s_qwen3_5_9b
+
+data:
+  logs: PLACEHOLDER     # path to a usage-log .jsonl (e.g. logtrain.jsonl)
+  train_frac: 0.8
+  test_frac: 0.1
+  holdout_frac: 0.1
+  train_max_tokens: 250000
+  eval_max_tokens: 50000
+  supplement: ./calibration_supplement.txt
+  context_len: 16384
+
+extract:
+  keep_mtp: true
+
+calibration:
+  method: imatrix
+  variant: hybrid_custom
+  params: {}
+
+quantize:
+  type: IQ3_S
+
+bench:
+  suite: full
+  eval_ctx: 8192

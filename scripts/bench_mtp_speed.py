@@ -15,6 +15,11 @@ Usage:
     uv run python scripts/bench_mtp_speed.py \\
         --model out/q5_k_s_qwen3_6_mtp/gguf/Q5_K_S-imatrix.gguf \\
         --reps 5 --n-max 1
+
+    # Use holdout sessions as prompts (acceptance rate reflects real distribution):
+    uv run python scripts/bench_mtp_speed.py \\
+        --model out/benchmark_9b_iq3s/tesslate/IQ3_S-custom.gguf \\
+        --holdout-jsonl logtrain.jsonl --reps 5 --n-max 1
 """
 
 from __future__ import annotations
@@ -41,6 +46,48 @@ PROMPTS = [
     "Summarize the difference between TCP and UDP in two short paragraphs, then give one example use case for each.",
     "Write a SQL query that returns, for each user, their three most recent orders along with the order total.",
 ]
+
+
+def _load_holdout_prompts(jsonl_path: Path, max_prompts: int = 20) -> list[str]:
+    """Extract user turns from the holdout split of a logtrain.jsonl file.
+
+    Uses the same split logic as the benchmark pipeline: the last 10% of
+    sessions (by sort order) are treated as holdout. Returns up to
+    ``max_prompts`` non-empty user messages.
+    """
+    import math
+
+    sessions: list[list[dict]] = []
+    with open(jsonl_path) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(obj, dict) and "messages" in obj:
+                sessions.append(obj["messages"])
+
+    holdout_n = max(1, math.ceil(len(sessions) * 0.1))
+    holdout_sessions = sessions[-holdout_n:]
+
+    prompts: list[str] = []
+    for messages in holdout_sessions:
+        for msg in messages:
+            if msg.get("role") == "user":
+                content = msg.get("content", "")
+                if isinstance(content, list):
+                    content = " ".join(
+                        p.get("text", "") for p in content if isinstance(p, dict)
+                    )
+                content = content.strip()
+                if content:
+                    prompts.append(content)
+                    if len(prompts) >= max_prompts:
+                        return prompts
+    return prompts
 
 
 def run_one(base_url: str, prompt: str, max_tokens: int) -> dict:
@@ -73,11 +120,14 @@ def bench_config(
     ctx: int,
     chat_template_kwargs: str | None,
     log_dir: Path,
+    prompts: list[str] | None = None,
 ) -> dict:
     """Spawn server with the given spec-decode config, run ``reps`` prompts, summarize."""
     log_path = log_dir / f"llama-server.{label}.log"
     print(f"\n=== {label}  (spec_type={spec_type}, spec_draft_n_max={spec_draft_n_max}) ===")
     print(f"  server log: {log_path}")
+
+    prompt_pool = (prompts or PROMPTS)[:max(reps, len(prompts or PROMPTS))]
 
     rates: list[float] = []
     n_drafted = 0
@@ -96,7 +146,7 @@ def bench_config(
         print("  warmup...")
         run_one(base_url, "Say hi.", max_tokens=8)
 
-        for i, prompt in enumerate(PROMPTS[:reps]):
+        for i, prompt in enumerate(prompt_pool[:reps]):
             t0 = time.time()
             resp = run_one(base_url, prompt, max_tokens=max_tokens)
             elapsed = time.time() - t0
@@ -149,12 +199,32 @@ def main() -> int:
         default='{"enable_thinking":false}',
         help='Forwarded to llama-server; pass "" to omit',
     )
+    parser.add_argument(
+        "--holdout-jsonl",
+        type=Path,
+        default=None,
+        help="logtrain.jsonl path; extracts holdout-split user turns as prompts "
+             "so acceptance rate reflects the real data distribution",
+    )
     parser.add_argument("--out", type=Path, default=None, help="Optional JSON results path")
     args = parser.parse_args()
 
     if not args.model.exists():
         print(f"error: model not found: {args.model}", file=sys.stderr)
         return 2
+
+    # Build prompt list: holdout sessions take priority over built-in prompts.
+    active_prompts = PROMPTS
+    if args.holdout_jsonl is not None:
+        if not args.holdout_jsonl.exists():
+            print(f"error: holdout jsonl not found: {args.holdout_jsonl}", file=sys.stderr)
+            return 2
+        holdout = _load_holdout_prompts(args.holdout_jsonl, max_prompts=max(args.reps * 2, 20))
+        if holdout:
+            print(f"Loaded {len(holdout)} prompts from holdout split of {args.holdout_jsonl.name}")
+            active_prompts = holdout
+        else:
+            print("WARNING: no user turns found in holdout split; falling back to built-in prompts")
 
     log_dir = args.model.parent.parent / "eval" / "mtp_speed"
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -171,6 +241,7 @@ def main() -> int:
         ctx=args.ctx,
         chat_template_kwargs=ctk,
         log_dir=log_dir,
+        prompts=active_prompts,
     )
     # True baseline: no --spec-type, no --spec-draft-n-max.  Passing
     # --spec-draft-n-max 0 with --spec-type still set is not a valid baseline —
@@ -185,6 +256,7 @@ def main() -> int:
         ctx=args.ctx,
         chat_template_kwargs=ctk,
         log_dir=log_dir,
+        prompts=active_prompts,
     )
 
     print("\n=== summary ===")

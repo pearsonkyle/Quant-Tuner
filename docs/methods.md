@@ -169,3 +169,192 @@ Anything `llama-quantize --help` lists works; common ones:
 | `IQ4_XS`  | ~4.25       | Smaller than Q4_K_M with similar quality; slower CPU prefill |
 | `IQ3_S`   | ~3.5        | Visible quality drop; calibration matters most here   |
 | `IQ2_M`   | ~2.7        | Aggressive; only viable with strong calibration        |
+
+## MTP head training
+
+`llama.cpp` supports multi-token prediction (MTP) speculative decoding via
+`--spec-type draft-mtp`. The draft head is bundled directly in the GGUF
+(`qwen35.nextn_predict_layers > 0`) and requires no separate model file.
+
+### Why fine-tune the MTP head?
+
+Pre-trained MTP weights (e.g. from a base Qwen3.5-9B checkpoint) are calibrated
+to the base model's hidden-state distribution. Two things shift that distribution
+on your setup:
+
+1. **Fine-tuning** — SFT/instruction-tuned derivatives have a shifted residual
+   stream; the donor MTP weights predict from the wrong distribution.
+2. **Quantization** — the IQ3_S/Q4_K_M backbone produces hidden states with
+   quantization noise that accumulates across all 32 layers before the MTP head
+   reads them.
+
+Fine-tuning the MTP head on your domain data (with optional quantization noise
+injection) recovers both losses and raises the per-token draft acceptance rate.
+
+### Training pipeline (`scripts/train_mtp_head.py`)
+
+```bash
+# Typical run — 2 epochs, no noise injection
+uv run python scripts/train_mtp_head.py \
+    --model out/benchmark_9b_iq3s/tesslate/model_extracted \
+    --logs logtrain.jsonl \
+    --out out/benchmark_9b_iq3s/tesslate/mtp_trained \
+    --steps 293 --lr 2e-5
+
+# With quantization noise injection (see "Measuring quant noise" below)
+uv run python scripts/train_mtp_head.py \
+    --model out/benchmark_9b_iq3s/tesslate/model_extracted \
+    --logs logtrain.jsonl \
+    --out out/benchmark_9b_iq3s/tesslate/mtp_trained \
+    --steps 293 --lr 2e-5 \
+    --quant-type IQ3_S          # looks up σ=0.058 from built-in defaults
+    # or: --quant-noise 0.042   # use a measured value directly
+```
+
+**Key flags:**
+
+| Flag | Default | Description |
+| --- | --- | --- |
+| `--steps` | 500 | Optimizer steps. 2 epochs ≈ `(n_chunks / grad_accum)×2`. For 585 chunks @ accum=4 → 293 steps. |
+| `--lr` | 2e-5 | AdamW learning rate. Cosine decay to 0 over `--steps`. |
+| `--eval-every` | 100 | Steps between holdout PPL + top-1 accuracy evals. Also saves checkpoint and progress figure. |
+| `--quant-type` | None | GGUF quant type; looks up noise level from defaults table. |
+| `--quant-noise` | 0.0 | Explicit relative noise std (overrides `--quant-type`). |
+| `--resume` | None | Path to a `.pt` checkpoint to resume from. |
+
+Evals fire at **step 25** (early capability check) plus every `--eval-every`
+steps. Each eval reports holdout PPL and top-1 accuracy (acceptance rate proxy)
+and saves a 3-panel progress figure to `--out/progress_stepNNNN.png`.
+
+**Epoch calculation:**
+```
+chunks   = floor(train_tokens / seq_len)     # e.g. 300k / 512 = 585
+steps_per_epoch = chunks / grad_accum        # 585 / 4 = 146
+steps_for_N_epochs = round(N * steps_per_epoch)
+```
+
+### Measuring quantization noise (`scripts/measure_quant_noise.py`)
+
+The MTP head trains on FP16 hidden states but sees quantized hidden states at
+inference. The gap is quantified as the relative Frobenius norm of the activation
+difference at the final hidden layer:
+
+```
+σ_rel = ||h_fp16 − h_quant||_F / ||h_fp16||_F
+```
+
+**How the measurement works:**
+
+1. `llama-quantize --allow-requantize Q.gguf tmp_f16.gguf F16` — exact
+   dequantization using the same code that wrote the quantized file; works for
+   any GGUF quant type with no custom dequant code needed.
+2. Load both F16 GGUFs via `GGUFReader`; compare projection weight tensors to
+   get per-tensor relative RMSE.
+3. Propagate to activation noise:
+   `σ_rel ≈ sqrt(N_layers) × mean_weight_RMSE × 0.35`
+   (the 0.35 constant accounts for RMSNorm dampening error accumulation across
+   residual layers; derived empirically on Qwen3-family models).
+4. Optionally (`--empirical`): patch the HF model with dequantized weights, run
+   calibration batches, and measure the actual activation difference.
+
+```bash
+# Fast estimate (weight-based, ~2 min)
+uv run python scripts/measure_quant_noise.py \
+    --model  out/benchmark_9b_iq3s/tesslate/model_extracted \
+    --f16-gguf   out/benchmark_9b_iq3s/tesslate/model-f16.gguf \
+    --quant-gguf out/benchmark_9b_iq3s/tesslate/IQ3_S-custom.gguf \
+    --logs   logtrain.jsonl \
+    --out    out/benchmark_9b_iq3s/quant_noise.json
+
+# Empirical (forward-pass, ~5 min, more accurate)
+uv run python scripts/measure_quant_noise.py \
+    --model  out/benchmark_9b_iq3s/tesslate/model_extracted \
+    --f16-gguf   out/benchmark_9b_iq3s/tesslate/model-f16.gguf \
+    --quant-gguf out/benchmark_9b_iq3s/tesslate/IQ3_S-custom.gguf \
+    --logs   logtrain.jsonl \
+    --empirical
+```
+
+The script appends results to `--out` as JSON keyed by quant type, so you can
+accumulate measurements across formats:
+
+```json
+{
+  "IQ3_S":  {"sigma_estimated": 0.061, "sigma_empirical": 0.058, "mean_weight_rmse": 0.031},
+  "Q4_K_M": {"sigma_estimated": 0.023, "mean_weight_rmse": 0.012}
+}
+```
+
+**Built-in defaults** (used when `--quant-type` is set but no measurement exists):
+
+| Quant type | σ_rel (default) |
+| --- | ---: |
+| `Q8_0` | 0.002 |
+| `Q6_K` | 0.005 |
+| `Q5_K_M` | 0.013 |
+| `Q4_K_M` | 0.022 |
+| `Q3_K_M` | 0.048 |
+| `IQ4_XS` | 0.018 |
+| `IQ3_S` | 0.058 |
+| `IQ2_M` | 0.095 |
+
+Run `measure_quant_noise.py` to replace these with values specific to your model
+and corpus — defaults are averaged across model families and may be off by
+±30–50% for any individual model.
+
+### Installing trained weights and rebuilding the GGUF
+
+After training, the `model-mtp-trained.safetensors` shard must be installed into
+`model_extracted` and the GGUF reconverted so llama.cpp picks up the new weights:
+
+```bash
+# 1. Install trained weights
+cp out/benchmark_9b_iq3s/tesslate/mtp_trained/model-mtp-trained.safetensors \
+   out/benchmark_9b_iq3s/tesslate/model_extracted/
+
+# 2. Update the safetensors index to point mtp.* keys to the new shard
+#    (run_mtp_pipeline.py does this automatically)
+python3 -c "
+import json; p = 'out/benchmark_9b_iq3s/tesslate/model_extracted/model.safetensors.index.json'
+idx = json.load(open(p)); wm = idx['weight_map']
+for k in list(wm):
+    if k.startswith('mtp.'): wm[k] = 'model-mtp-trained.safetensors'
+json.dump(idx, open(p,'w'), indent=2)
+"
+
+# 3. Reconvert + requantize (reuse existing imatrix; MTP activations are
+#    a tiny fraction of the calibration signal)
+rm out/benchmark_9b_iq3s/tesslate/model-f16.gguf
+uv run quant-tuner run --recipe iq3_s_9b_mtp \
+    --model out/benchmark_9b_iq3s/tesslate/model_extracted \
+    --workspace out/benchmark_9b_iq3s/tesslate
+```
+
+Or use the orchestrator which handles all three models end-to-end:
+
+```bash
+uv run python scripts/run_mtp_pipeline.py \
+    --logs logtrain.jsonl \
+    --models tesslate,jackrong,qwen
+```
+
+### Evaluating MTP acceptance rate
+
+```bash
+# Speed + acceptance rate vs --spec-draft-n-max, holdout prompts
+uv run python scripts/bench_mtp_speed.py \
+    --model out/benchmark_9b_iq3s/tesslate/IQ3_S-trained.gguf \
+    --holdout-jsonl logtrain.jsonl \
+    --reps 5 --n-max 1
+
+# Compare vanilla vs trained across all models (produces PNG chart)
+uv run python scripts/plot_mtp_acceptance.py \
+    --workspace out/benchmark_9b_iq3s \
+    --holdout-jsonl logtrain.jsonl \
+    --variants vanilla,trained \
+    --n-max-values 1,2,3
+```
+
+`plot_mtp_acceptance.py` sweeps `--spec-draft-n-max` in [1, 2, 3] for each
+`(model × variant)` pair and writes `mtp_acceptance.json` + `mtp_acceptance.png`
+to the workspace root.
