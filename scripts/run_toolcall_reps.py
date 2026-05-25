@@ -7,9 +7,10 @@ Thin wrapper over :mod:`quant_tuner.eval.reps`. For each GGUF:
      with a per-rep seed (``--base-seed + rep``).
   3. Tear down the server.
 
-After every model finishes, the aggregator computes mean ± stdev per metric
-across the reps. Default settings: 10 reps × the 8 GGUFs in
-``out/omnicoder_q4_k_m/``. Use ``--models`` / ``--reps`` to scope down.
+After every model finishes, the aggregator computes mean ± stdev across the
+reps for tool_selection_acc, param_acc_mean, and schema_valid_rate. Default
+settings: 10 reps × the 8 GGUFs in ``out/omnicoder_q4_k_m/``. Use
+``--models`` / ``--reps`` to scope down.
 
 Wall-time estimate at defaults (n=25 holdout, 10 reps, 8 models): ~15 h.
 """
@@ -77,7 +78,6 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                         "tool-call rounds; 32k absorbs the long-tail sessions.")
     p.add_argument("--ngl", type=int, default=99)
     p.add_argument("--max-turns-per-session", type=int, default=10)
-    p.add_argument("--rollout-max-turns", type=int, default=20)
     p.add_argument(
         "--chat-template-kwargs",
         type=str,
@@ -85,6 +85,14 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help='Forwarded to llama-server (default: \'{"enable_thinking":false}\' to '
              "disable reasoning on Qwen3-family templates). Pass empty string to omit.",
     )
+    p.add_argument("--temperature", type=float, default=None,
+                   help="Override sampling.temperature (lower → less variance)")
+    p.add_argument("--top-p", type=float, default=None,
+                   help="Override sampling.top_p")
+    p.add_argument("--top-k", type=int, default=None,
+                   help="Override sampling.top_k")
+    p.add_argument("--min-p", type=float, default=None,
+                   help="Override sampling.min_p")
     return p
 
 
@@ -93,6 +101,16 @@ def main() -> int:
     args.log_dir.mkdir(parents=True, exist_ok=True)
 
     assert args.holdout.exists(), f"holdout missing: {args.holdout}"
+
+    sampling = Sampling(
+        temperature=args.temperature if args.temperature is not None else DEFAULT_SAMPLING.temperature,
+        top_p=args.top_p if args.top_p is not None else DEFAULT_SAMPLING.top_p,
+        top_k=args.top_k if args.top_k is not None else DEFAULT_SAMPLING.top_k,
+        min_p=args.min_p if args.min_p is not None else DEFAULT_SAMPLING.min_p,
+        presence_penalty=DEFAULT_SAMPLING.presence_penalty,
+        repetition_penalty=DEFAULT_SAMPLING.repetition_penalty,
+        max_tokens=DEFAULT_SAMPLING.max_tokens,
+    )
 
     def eval_one_rep(base_url: str, sampling: Sampling, rep_idx: int) -> dict[str, float]:
         per_turn_log = (
@@ -103,16 +121,19 @@ def main() -> int:
             base_url=base_url,
             sampling=sampling,
             max_turns_per_session=args.max_turns_per_session,
-            rollout_max_turns=args.rollout_max_turns,
             per_turn_log=per_turn_log,
         )
         return {
             "tool_selection_acc": summary.tool_selection_acc,
             "param_acc_mean": summary.param_acc_mean,
             "schema_valid_rate": summary.schema_valid_rate,
-            "rollout_complete_rate": summary.rollout_complete_rate,
-            "rollout_tool_set_match_rate": summary.rollout_tool_set_match_rate,
-            "n_turns": float(summary.n_turns),
+            "continuation_type_match_rate": summary.continuation_type_match_rate,
+            "recovery_appropriate_rate": summary.recovery_appropriate_rate,
+            "n_scored": float(summary.n_scored),
+            "n_total": float(summary.n_total),
+            "n_post_result": float(summary.n_post_result),
+            "n_post_result_errors": float(summary.n_post_result_errors),
+            "truth_malformed_count": float(summary.truth_quality.get("malformed_truth", 0)),
         }
 
     def on_rep(model_name: str, rr: RepResult) -> None:
@@ -129,10 +150,10 @@ def main() -> int:
                   flush=True)
 
     print(f"=== tool-call reps: {args.reps} × {len(args.models)} models ===", flush=True)
-    print(f"sampling:    T={DEFAULT_SAMPLING.temperature}  "
-          f"top_p={DEFAULT_SAMPLING.top_p}  top_k={DEFAULT_SAMPLING.top_k}  "
-          f"min_p={DEFAULT_SAMPLING.min_p}  pp={DEFAULT_SAMPLING.presence_penalty}  "
-          f"rep_pen={DEFAULT_SAMPLING.repetition_penalty}", flush=True)
+    print(f"sampling:    T={sampling.temperature}  "
+          f"top_p={sampling.top_p}  top_k={sampling.top_k}  "
+          f"min_p={sampling.min_p}  pp={sampling.presence_penalty}  "
+          f"rep_pen={sampling.repetition_penalty}", flush=True)
     print(f"holdout:     {args.holdout}", flush=True)
     print(f"results:     {args.results}  (per-rep) / {args.aggregated}  (aggregated)",
           flush=True)
@@ -142,7 +163,7 @@ def main() -> int:
         models=list(args.models),
         eval_fn=eval_one_rep,
         reps=args.reps,
-        sampling=DEFAULT_SAMPLING,
+        sampling=sampling,
         base_seed=args.base_seed,
         ctx=args.ctx, ngl=args.ngl,
         log_dir=args.log_dir,
@@ -155,7 +176,7 @@ def main() -> int:
         by_model,
         per_rep=args.results,
         aggregated=args.aggregated,
-        extra_cols=sampling_extra_cols(DEFAULT_SAMPLING),
+        extra_cols=sampling_extra_cols(sampling),
     )
 
     total_min = (time.time() - t0) / 60

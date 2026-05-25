@@ -82,6 +82,9 @@ def _gguf_path(workspace: Path, slug: str, variant: str) -> Path | None:
     if variant == "trained-mixed":
         p = base / "IQ3_S-trained-mixed.gguf"
         return p if p.exists() else None
+    if variant == "trained-iq3s":
+        p = base / "IQ3_S-trained-iq3s.gguf"
+        return p if p.exists() else None
     if variant == "fp16":
         p = base / "model-f16.gguf"
         return p if p.exists() else None

@@ -1,4 +1,4 @@
-"""End-to-end tool-call evaluation: per-turn replay + full-session rollouts."""
+"""Per-turn tool-call evaluation: replay each ground-truth turn and score it."""
 
 from __future__ import annotations
 
@@ -10,10 +10,8 @@ from typing import IO, Any
 from openai import OpenAI
 
 from quant_tuner.eval.scoring import (
-    is_schema_valid,
-    param_score,
     parse_arguments,
-    schema_for,
+    score_turn,
 )
 from quant_tuner.eval.server import running_server
 
@@ -141,6 +139,134 @@ def call_model(
 # ---------------------------------------------------------------------------
 
 
+_ERROR_PATTERNS = (
+    "error", "failed", "exception", "traceback",
+    "command not found", "no such file", "permission denied",
+    "exit code 1", "exit code: 1", "non-zero exit",
+)
+
+
+def looks_like_error(content: str | None) -> bool:
+    """Heuristic: does this tool-result string read like an error?"""
+    if not content:
+        return False
+    lc = content.lower()
+    return any(p in lc for p in _ERROR_PATTERNS)
+
+
+def prior_tool_result(msgs: list[dict], i: int) -> dict | None:
+    """The message immediately before index ``i`` if it's a ``tool`` role, else None."""
+    if i <= 0:
+        return None
+    prev = msgs[i - 1]
+    return prev if prev.get("role") == "tool" else None
+
+
+def _truth_calls_from_message(m: dict) -> tuple[list[tuple[str, dict]], bool]:
+    """Parse ground-truth ``tool_calls`` from an assistant message.
+
+    Returns ``(calls, malformed)``. ``malformed`` is True if any call's
+    arguments failed to parse as a JSON object — those calls fall back to
+    ``{}`` but the flag lets the orchestrator separate data-quality issues
+    from model misses.
+    """
+    calls: list[tuple[str, dict]] = []
+    malformed = False
+    for tc in m.get("tool_calls") or []:
+        name = (tc.get("function") or {}).get("name") or tc.get("name")
+        raw = (tc.get("function") or {}).get("arguments") or tc.get("arguments")
+        parsed = parse_arguments(raw)
+        if parsed is None and raw not in (None, "", {}):
+            malformed = True
+        calls.append((name, parsed or {}))
+    return calls, malformed
+
+
+def _score_post_result(
+    prior: dict,
+    truth_msg: dict,
+    pred_tcs: list,
+    pred_content: str | None,
+) -> dict:
+    """Compare model's continuation against ground truth for an assistant turn
+    that immediately follows a ``tool`` message.
+    """
+    truth_kind = "tool_call" if truth_msg.get("tool_calls") else "final_answer"
+    pred_kind = "tool_call" if pred_tcs else "final_answer"
+    rec: dict = {
+        "truth_kind": truth_kind,
+        "pred_kind": pred_kind,
+        "continuation_type_match": truth_kind == pred_kind,
+        "prior_was_error": looks_like_error(prior.get("content")),
+    }
+    if not rec["prior_was_error"]:
+        rec["recovery_appropriate"] = None
+        return rec
+    # Recovery heuristic: when the prior result was an error, an appropriate
+    # next action either gives up (text reply) or retries with a *different*
+    # tool name or different arguments than the call that produced the error.
+    if pred_kind == "final_answer":
+        rec["recovery_appropriate"] = True
+        return rec
+    prior_call_id = prior.get("tool_call_id")
+    prior_call = _find_call_by_id(truth_msg, prior_call_id)  # may be None
+    # Look further back: scan the conversation by tool_call_id is not enough;
+    # the failing call is in an *earlier* assistant turn. We pass the failing
+    # call's signature via prior.get("_failing_call") if available; otherwise
+    # fall back to comparing tool name against any pred call.
+    failing = prior.get("_failing_call") or prior_call
+    if not failing:
+        rec["recovery_appropriate"] = None
+        return rec
+    fname = failing.get("name")
+    fargs = failing.get("args") or {}
+    changed = any(
+        p.function.name != fname
+        or (parse_arguments(p.function.arguments) or {}) != fargs
+        for p in pred_tcs
+    )
+    rec["recovery_appropriate"] = changed
+    return rec
+
+
+def _find_call_by_id(msg: dict, call_id: str | None) -> dict | None:
+    if not call_id:
+        return None
+    for tc in msg.get("tool_calls") or []:
+        if tc.get("id") == call_id:
+            return {
+                "name": (tc.get("function") or {}).get("name") or tc.get("name"),
+                "args": parse_arguments(
+                    (tc.get("function") or {}).get("arguments") or tc.get("arguments")
+                ) or {},
+            }
+    return None
+
+
+def _annotate_failing_calls(msgs: list[dict]) -> None:
+    """Attach ``_failing_call`` to each ``tool`` message whose content looks
+    like an error, pointing back to the assistant ``tool_calls`` entry that
+    produced it (matched by ``tool_call_id``). Mutates ``msgs`` in place.
+    """
+    by_id: dict[str, dict] = {}
+    for m in msgs:
+        if m.get("role") == "assistant":
+            for tc in m.get("tool_calls") or []:
+                tid = tc.get("id")
+                if tid:
+                    by_id[tid] = {
+                        "name": (tc.get("function") or {}).get("name") or tc.get("name"),
+                        "args": parse_arguments(
+                            (tc.get("function") or {}).get("arguments")
+                            or tc.get("arguments")
+                        ) or {},
+                    }
+        elif m.get("role") == "tool" and looks_like_error(m.get("content")):
+            failing = by_id.get(m.get("tool_call_id"))
+            if failing is not None:
+                m["_failing_call"] = failing
+
+
 def eval_per_turn(
     client: OpenAI,
     session: dict,
@@ -151,90 +277,111 @@ def eval_per_turn(
     system_prompt: str | None = DEFAULT_SYSTEM_PROMPT,
     stop_on_fail: bool = True,
 ) -> list[dict]:
-    """Score every assistant ``tool_calls`` turn in ``session``.
+    """Score assistant turns in ``session``.
 
-    For each ground-truth assistant turn, replay the prior context and compare
-    the model's first tool call to the recorded one. Emits one record per
-    scored turn, optionally appended as JSONL to ``log_fh``.
+    Two kinds of records are emitted:
+
+    * ``kind="tool_call"`` — an assistant turn that issues ``tool_calls``.
+      Compared via :func:`score_turn` (selection / param_acc / schema_valid).
+    * ``kind="post_result"`` — an assistant turn that immediately follows a
+      ``tool`` message. Scores whether the model's continuation type matches
+      ground truth and, when the prior tool result looks like an error,
+      whether the model's next action is an appropriate recovery.
+
+    A single assistant turn can produce both records (one model call, two
+    score views). Turns where ground-truth ``tool_calls`` arguments fail to
+    parse are still emitted but flagged ``truth_malformed=True`` so the
+    aggregator can exclude them from denominators.
     """
     results: list[dict] = []
     msgs = maybe_inject_system(session["messages"], system_prompt)
+    _annotate_failing_calls(msgs)
     tools = session["tools"]
     sid = session.get("session_id")
     src = session.get("source")
+    stratum = session.get("stratum")
+    n_truth_turns = sum(
+        1 for m in msgs if m.get("role") == "assistant" and m.get("tool_calls")
+    )
 
     turn_idx = 0
+    last_scored_truth = 0
+    stopped_early = False
     for i, m in enumerate(msgs):
-        if m.get("role") != "assistant" or not m.get("tool_calls"):
+        if m.get("role") != "assistant":
+            continue
+        has_tool_calls = bool(m.get("tool_calls"))
+        prior = prior_tool_result(msgs, i)
+        if not has_tool_calls and prior is None:
             continue
         if turn_idx >= max_turns:
             break
         turn_idx += 1
+        if has_tool_calls:
+            last_scored_truth += 1
 
+        base = {
+            "session": sid, "source": src, "stratum": stratum, "turn": turn_idx,
+        }
         prefix = strip_for_api(msgs[:i])
-        truth_tc = m["tool_calls"][0]
-        truth_name = (truth_tc.get("function") or {}).get("name") or truth_tc.get("name")
-        truth_args = parse_arguments(
-            (truth_tc.get("function") or {}).get("arguments") or truth_tc.get("arguments")
-        ) or {}
 
         try:
             resp = call_model(client, prefix, tools, sampling)
             choice = resp.choices[0].message
             pred_tcs = choice.tool_calls or []
+            pred_content = choice.content
         except Exception as e:
             rec = {
-                "session": sid, "source": src, "turn": turn_idx, "error": str(e),
-                "truth_name": truth_name, "selection": False,
+                **base, "kind": "tool_call" if has_tool_calls else "post_result",
+                "error": str(e), "selection": False,
                 "param_acc": 0.0, "schema_valid": False,
             }
             results.append(rec)
             if log_fh is not None:
                 log_fh.write(json.dumps(rec) + "\n")
             if stop_on_fail:
+                stopped_early = True
                 break
             continue
 
-        if not pred_tcs:
+        if has_tool_calls:
+            truth_calls, truth_malformed = _truth_calls_from_message(m)
+            truth_names = [n for n, _ in truth_calls]
+            pred_calls: list[tuple[str, dict | None]] = [
+                (p.function.name, parse_arguments(p.function.arguments)) for p in pred_tcs
+            ]
+            scored = score_turn(pred_calls, truth_calls, tools)
             rec = {
-                "session": sid, "source": src, "turn": turn_idx,
-                "truth_name": truth_name, "pred_name": None,
-                "selection": False, "param_acc": 0.0, "schema_valid": False,
-                "note": "no tool_calls emitted",
-                "pred_content": (choice.content or "")[:200],
+                **base, "kind": "tool_call",
+                "truth_names": truth_names,
+                "pred_names": [n for n, _ in pred_calls],
+                "truth_malformed": truth_malformed,
+                **scored,
             }
+            if not pred_calls:
+                rec["pred_content"] = (pred_content or "")[:200]
             results.append(rec)
             if log_fh is not None:
                 log_fh.write(json.dumps(rec) + "\n")
-            if stop_on_fail:
+            if stop_on_fail and not truth_malformed and not scored["selection"]:
+                stopped_early = True
                 break
-            continue
 
-        pred_tc = pred_tcs[0]
-        pred_name = pred_tc.function.name
-        pred_args = parse_arguments(pred_tc.function.arguments)
+        if prior is not None:
+            post = _score_post_result(prior, m, pred_tcs, pred_content)
+            rec = {**base, "kind": "post_result", **post}
+            results.append(rec)
+            if log_fh is not None:
+                log_fh.write(json.dumps(rec) + "\n")
 
-        selection = (pred_name or "").lower() == (truth_name or "").lower()
-        sch = schema_for(truth_name, tools)
-        pacc, pdetails = (
-            param_score(pred_args, truth_args, sch) if selection
-            else (0.0, {"wrong_tool": True})
-        )
-        schema_ok, schema_msg = is_schema_valid(pred_name, pred_args, tools)
-
-        rec = {
-            "session": sid, "source": src, "turn": turn_idx,
-            "truth_name": truth_name, "pred_name": pred_name,
-            "selection": selection, "param_acc": pacc, "param_details": pdetails,
-            "schema_valid": schema_ok, "schema_msg": schema_msg,
-            "truth_args_keys": sorted(truth_args.keys()),
-            "pred_args_keys": sorted((pred_args or {}).keys()),
+    # Attach session-level completion marker to the first record so the
+    # aggregator can count completion states without re-walking sessions.
+    if results:
+        results[0]["_session_meta"] = {
+            "n_truth_turns": n_truth_turns,
+            "scored_truth_turns": last_scored_truth,
+            "stopped_early": stopped_early,
         }
-        results.append(rec)
-        if log_fh is not None:
-            log_fh.write(json.dumps(rec) + "\n")
-        if stop_on_fail and not selection:
-            break
     return results
 
 
@@ -247,7 +394,11 @@ def eval_rollout(
     log_fh: IO[str] | None = None,
     system_prompt: str | None = DEFAULT_SYSTEM_PROMPT,
 ) -> dict:
-    """Run a single rollout, splicing in recorded tool results by call order per tool."""
+    """Run a single rollout, splicing in recorded tool results by call order per tool.
+
+    Currently unwired from :func:`run_toolcall_eval` — kept for future
+    agentic-loop benchmarks. Per-turn replay is the canonical eval path.
+    """
     msgs = maybe_inject_system(session["messages"], system_prompt)
     tools = session["tools"]
     sid = session.get("session_id")
@@ -335,19 +486,32 @@ def eval_rollout(
 
 @dataclass
 class EvalSummary:
-    """Aggregate metrics returned by :func:`run_toolcall_eval`."""
+    """Aggregate metrics returned by :func:`run_toolcall_eval`.
+
+    Scalars are computed over ``tool_call``-kind turns with valid ground
+    truth only (``truth_malformed`` and errored turns excluded from the
+    denominator). ``n_scored`` is that denominator; ``n_total`` includes
+    everything.
+    """
 
     model: str
     n_sessions: int
-    n_turns: int
     tool_selection_acc: float
     param_acc_mean: float
     schema_valid_rate: float
-    rollout_complete_rate: float
-    rollout_tool_set_match_rate: float
+    n_scored: int = 0
+    n_total: int = 0
+    continuation_type_match_rate: float = 0.0
+    recovery_appropriate_rate: float = 0.0
+    n_post_result: int = 0
+    n_post_result_errors: int = 0
     per_turn: list[dict] = field(default_factory=list)
-    rollouts: list[dict] = field(default_factory=list)
     by_source: dict[str, dict] = field(default_factory=dict)
+    by_stratum: dict[str, dict] = field(default_factory=dict)
+    per_tool: dict[str, dict] = field(default_factory=dict)
+    by_turn_depth: dict[int, dict] = field(default_factory=dict)
+    session_completion: dict[str, int] = field(default_factory=dict)
+    truth_quality: dict[str, int] = field(default_factory=dict)
 
 
 def _load_sessions(holdout: Path) -> list[dict]:
@@ -355,45 +519,111 @@ def _load_sessions(holdout: Path) -> list[dict]:
         return [json.loads(line) for line in f if line.strip()]
 
 
+def _summarize_tool_call_group(ts: list[dict]) -> dict:
+    n = len(ts)
+    if not n:
+        return {"n": 0, "tool_selection_acc": 0.0,
+                "param_acc_mean": 0.0, "schema_valid_rate": 0.0}
+    return {
+        "n": n,
+        "tool_selection_acc": sum(1 for t in ts if t.get("selection")) / n,
+        "param_acc_mean": sum(t.get("param_acc", 0.0) for t in ts) / n,
+        "schema_valid_rate": sum(1 for t in ts if t.get("schema_valid")) / n,
+    }
+
+
 def _aggregate(
     model_label: str,
     n_sessions: int,
     per_turn: list[dict],
-    rollouts: list[dict],
 ) -> EvalSummary:
-    n = len(per_turn)
-    n_sel = sum(1 for t in per_turn if t.get("selection"))
-    n_schema = sum(1 for t in per_turn if t.get("schema_valid"))
-    n_roll_done = sum(1 for r in rollouts if r.get("completed"))
-    n_roll_match = sum(1 for r in rollouts if r.get("tool_set_match"))
-    pacc = (sum(t.get("param_acc", 0.0) for t in per_turn) / n) if n else 0.0
+    # Session-completion accounting. Pre-pass: which sessions hit an error?
+    sessions_with_error: set = set()
+    for r in per_turn:
+        if r.get("error"):
+            sessions_with_error.add(r.get("session"))
 
-    by_src: dict[str, list[dict]] = {}
+    completion = {"complete": 0, "stopped_early": 0, "errored": 0, "empty": 0}
     for t in per_turn:
-        by_src.setdefault(t.get("source") or "unknown", []).append(t)
-    src_summary = {
-        src: {
-            "n": len(ts),
-            "tool_selection_acc": sum(1 for t in ts if t.get("selection")) / len(ts),
-            "param_acc_mean": sum(t.get("param_acc", 0.0) for t in ts) / len(ts),
-            "schema_valid_rate": sum(1 for t in ts if t.get("schema_valid")) / len(ts),
-        }
-        for src, ts in by_src.items()
-        if ts
+        meta = t.get("_session_meta")
+        if not meta:
+            continue
+        sid = t.get("session")
+        if sid in sessions_with_error:
+            completion["errored"] += 1
+        elif meta["stopped_early"]:
+            completion["stopped_early"] += 1
+        elif meta["scored_truth_turns"] == 0:
+            completion["empty"] += 1
+        else:
+            completion["complete"] += 1
+
+    # Tool-call-kind turns: split into scored vs. excluded (malformed truth
+    # or errored API call) before computing the headline scalars.
+    tc_turns = [t for t in per_turn if t.get("kind") == "tool_call"]
+    n_total = len(tc_turns)
+    scored = [
+        t for t in tc_turns
+        if not t.get("truth_malformed") and not t.get("error")
+    ]
+    n_scored = len(scored)
+    truth_quality = {
+        "malformed_truth": sum(1 for t in tc_turns if t.get("truth_malformed")),
+        "api_errors": sum(1 for t in tc_turns if t.get("error")),
+        "scored": n_scored,
+        "total": n_total,
     }
+
+    headline = _summarize_tool_call_group(scored)
+
+    # Post-result kind: continuation-type + recovery rates.
+    pr_turns = [t for t in per_turn if t.get("kind") == "post_result"]
+    n_pr = len(pr_turns)
+    n_pr_err = sum(1 for t in pr_turns if t.get("prior_was_error"))
+    cont_rate = (
+        sum(1 for t in pr_turns if t.get("continuation_type_match")) / n_pr
+        if n_pr else 0.0
+    )
+    rec_subset = [
+        t for t in pr_turns if t.get("recovery_appropriate") is not None
+    ]
+    rec_rate = (
+        sum(1 for t in rec_subset if t.get("recovery_appropriate")) / len(rec_subset)
+        if rec_subset else 0.0
+    )
+
+    # Stratified breakdowns over the scored tool_call turns.
+    by_src: dict[str, list[dict]] = {}
+    by_strat: dict[str, list[dict]] = {}
+    by_depth: dict[int, list[dict]] = {}
+    per_tool: dict[str, list[dict]] = {}
+    for t in scored:
+        by_src.setdefault(t.get("source") or "unknown", []).append(t)
+        by_strat.setdefault(t.get("stratum") or "unknown", []).append(t)
+        by_depth.setdefault(int(t.get("turn", 0)), []).append(t)
+        # Per-tool: attribute the turn to every ground-truth tool name.
+        for name in t.get("truth_names") or []:
+            per_tool.setdefault(name, []).append(t)
 
     return EvalSummary(
         model=model_label,
         n_sessions=n_sessions,
-        n_turns=n,
-        tool_selection_acc=(n_sel / n) if n else 0.0,
-        param_acc_mean=pacc,
-        schema_valid_rate=(n_schema / n) if n else 0.0,
-        rollout_complete_rate=(n_roll_done / len(rollouts)) if rollouts else 0.0,
-        rollout_tool_set_match_rate=(n_roll_match / len(rollouts)) if rollouts else 0.0,
+        tool_selection_acc=headline["tool_selection_acc"],
+        param_acc_mean=headline["param_acc_mean"],
+        schema_valid_rate=headline["schema_valid_rate"],
+        n_scored=n_scored,
+        n_total=n_total,
+        continuation_type_match_rate=cont_rate,
+        recovery_appropriate_rate=rec_rate,
+        n_post_result=n_pr,
+        n_post_result_errors=n_pr_err,
         per_turn=per_turn,
-        rollouts=rollouts,
-        by_source=src_summary,
+        by_source={k: _summarize_tool_call_group(v) for k, v in by_src.items()},
+        by_stratum={k: _summarize_tool_call_group(v) for k, v in by_strat.items()},
+        per_tool={k: _summarize_tool_call_group(v) for k, v in per_tool.items()},
+        by_turn_depth={k: _summarize_tool_call_group(v) for k, v in by_depth.items()},
+        session_completion=completion,
+        truth_quality=truth_quality,
     )
 
 
@@ -405,8 +635,6 @@ def run_toolcall_eval(
     sampling: Sampling | None = None,
     model_label: str | None = None,
     max_turns_per_session: int = 8,
-    rollout_max_turns: int = 12,
-    skip_rollout: bool = False,
     stop_on_fail: bool = True,
     system_prompt: str | None = DEFAULT_SYSTEM_PROMPT,
     ctx: int = 8192,
@@ -417,7 +645,7 @@ def run_toolcall_eval(
     per_turn_log: Path | None = None,
     progress: bool = False,
 ) -> EvalSummary:
-    """Run the per-turn + rollout passes against one model and return aggregates.
+    """Run the per-turn pass against one model and return aggregates.
 
     Either ``model_path`` (spawn a server) **or** ``base_url`` (use a running
     one) must be provided. The two are mutually exclusive: pass ``model_path``
@@ -436,7 +664,6 @@ def run_toolcall_eval(
     def _run_against(url: str) -> EvalSummary:
         client = OpenAI(base_url=url, api_key="sk-no-key")
         all_turns: list[dict] = []
-        all_rolls: list[dict] = []
         for i, sess in enumerate(sessions, 1):
             if progress:
                 print(f"[{i}/{len(sessions)}] {sess.get('session_id')}", flush=True)
@@ -446,14 +673,7 @@ def run_toolcall_eval(
                 system_prompt=system_prompt, stop_on_fail=stop_on_fail,
             )
             all_turns.extend(turns)
-            if not skip_rollout:
-                roll = eval_rollout(
-                    client, sess, sampling,
-                    max_turns=rollout_max_turns, log_fh=log_fh,
-                    system_prompt=system_prompt,
-                )
-                all_rolls.append(roll)
-        return _aggregate(label, len(sessions), all_turns, all_rolls)
+        return _aggregate(label, len(sessions), all_turns)
 
     try:
         if base_url is not None:

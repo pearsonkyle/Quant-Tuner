@@ -45,6 +45,66 @@ def existing_fingerprints(paths: list[str]) -> set[str]:
 _PATH_KEYS = {"file_path", "filepath", "filename", "path"}
 _COMMAND_KEYS = {"command", "cmd"}
 
+_ERROR_PATTERNS = (
+    "error", "failed", "exception", "traceback",
+    "command not found", "no such file", "permission denied",
+    "exit code 1", "exit code: 1", "non-zero exit",
+)
+
+
+def looks_like_error(content: str | None) -> bool:
+    if not content:
+        return False
+    lc = content.lower()
+    return any(p in lc for p in _ERROR_PATTERNS)
+
+
+def has_recovery_turn(messages: list[dict]) -> bool:
+    """A session has a recovery opportunity if an error-bearing tool result is
+    followed by an assistant turn that issues a *different* tool call (different
+    tool name or different arguments than the call that produced the error)."""
+    by_id: dict[str, tuple[str, dict]] = {}
+    for i, m in enumerate(messages):
+        if m.get("role") == "assistant":
+            for tc in m.get("tool_calls") or []:
+                tid = tc.get("id")
+                if not tid:
+                    continue
+                fn = tc.get("function") or {}
+                args = fn.get("arguments")
+                if isinstance(args, str):
+                    try:
+                        args = json.loads(args)
+                    except json.JSONDecodeError:
+                        args = {}
+                by_id[tid] = (fn.get("name") or tc.get("name"), args or {})
+        elif m.get("role") == "tool" and looks_like_error(m.get("content")):
+            failing = by_id.get(m.get("tool_call_id"))
+            if failing is None:
+                continue
+            for nxt in messages[i + 1:]:
+                if nxt.get("role") != "assistant":
+                    continue
+                for tc in nxt.get("tool_calls") or []:
+                    fn = tc.get("function") or {}
+                    args = fn.get("arguments")
+                    if isinstance(args, str):
+                        try:
+                            args = json.loads(args)
+                        except json.JSONDecodeError:
+                            args = {}
+                    if (fn.get("name"), args or {}) != failing:
+                        return True
+                break
+    return False
+
+
+def has_parallel_call(messages: list[dict]) -> bool:
+    return any(
+        m.get("role") == "assistant" and len(m.get("tool_calls") or []) >= 2
+        for m in messages
+    )
+
 
 def first_assistant_call(messages: list[dict]) -> tuple[str | None, dict]:
     for m in messages:
@@ -116,7 +176,12 @@ def main() -> int:
         ],
         help="JSONL files whose sessions should be excluded (fingerprint match).",
     )
-    p.add_argument("--n", type=int, default=10)
+    p.add_argument("--n", type=int, default=25,
+                   help="Number of anchored (easy) sessions")
+    p.add_argument("--n-recovery", type=int, default=5,
+                   help="Number of sessions that include an error→recovery turn")
+    p.add_argument("--n-parallel", type=int, default=5,
+                   help="Number of sessions with at least one parallel tool-call turn")
     p.add_argument("--min-tool-calls", type=int, default=2)
     p.add_argument("--min-score", type=float, default=0.5)
     p.add_argument("--min-user-chars", type=int, default=200,
@@ -133,7 +198,11 @@ def main() -> int:
     excluded = existing_fingerprints(args.exclude)
     print(f"Excluding {len(excluded)} session fingerprints from {len(args.exclude)} files")
 
-    by_source: dict[str, list[tuple]] = {}
+    # Classify each candidate into all strata it qualifies for; one session
+    # can appear in multiple stratum pools but is picked at most once.
+    by_stratum_src: dict[str, dict[str, list[tuple]]] = {
+        "anchored": {}, "recovery": {}, "parallel": {},
+    }
     for s in sessions:
         if s.get("score", 0.0) < args.min_score:
             continue
@@ -149,48 +218,79 @@ def main() -> int:
             continue
         if len(first_user_text(msgs)) < args.min_user_chars:
             continue
-        if args.require_anchor and not is_anchored(msgs):
-            continue
         src = s.get("source") or "unknown"
-        by_source.setdefault(src, []).append((s, msgs, tools))
+        entry = (s, msgs, tools)
+        if (not args.require_anchor) or is_anchored(msgs):
+            by_stratum_src["anchored"].setdefault(src, []).append(entry)
+        if has_recovery_turn(msgs):
+            by_stratum_src["recovery"].setdefault(src, []).append(entry)
+        if has_parallel_call(msgs):
+            by_stratum_src["parallel"].setdefault(src, []).append(entry)
 
-    print("Candidates per source:", {k: len(v) for k, v in by_source.items()})
+    for strat, by_src in by_stratum_src.items():
+        print(f"Candidates per source ({strat}):",
+              {k: len(v) for k, v in by_src.items()})
 
-    # Stratified round-robin: take equal counts from each source; if a source
-    # is exhausted, redistribute its remaining quota across the others.
     rng = random.Random(args.seed)
-    for v in by_source.values():
-        rng.shuffle(v)
+    for by_src in by_stratum_src.values():
+        for v in by_src.values():
+            rng.shuffle(v)
 
-    sources = sorted(by_source.keys())
-    picked: list[tuple] = []
-    cursors = {s: 0 for s in sources}
-    while len(picked) < args.n:
-        progressed = False
-        for src in sources:
-            if len(picked) >= args.n:
+    seen_ids: set[str] = set()
+    picked: list[tuple[str, tuple]] = []  # (stratum, entry)
+
+    def _round_robin(by_src: dict[str, list[tuple]], quota: int, stratum: str) -> int:
+        srcs = sorted(by_src.keys())
+        cursors = {s: 0 for s in srcs}
+        taken = 0
+        while taken < quota:
+            progressed = False
+            for src in srcs:
+                if taken >= quota:
+                    break
+                while cursors[src] < len(by_src[src]):
+                    entry = by_src[src][cursors[src]]
+                    cursors[src] += 1
+                    sid = entry[0].get("session_id") or entry[0].get("id")
+                    if sid in seen_ids:
+                        continue
+                    picked.append((stratum, entry))
+                    seen_ids.add(sid)
+                    taken += 1
+                    progressed = True
+                    break
+            if not progressed:
                 break
-            if cursors[src] < len(by_source[src]):
-                picked.append(by_source[src][cursors[src]])
-                cursors[src] += 1
-                progressed = True
-        if not progressed:
-            break
+        return taken
 
-    if len(picked) < args.n:
-        print(f"WARNING: only found {len(picked)} candidates, requested {args.n}", file=sys.stderr)
+    quotas = [
+        ("anchored", args.n),
+        ("recovery", args.n_recovery),
+        ("parallel", args.n_parallel),
+    ]
+    for stratum, quota in quotas:
+        got = _round_robin(by_stratum_src[stratum], quota, stratum)
+        if got < quota:
+            print(
+                f"WARNING: stratum {stratum}: only {got}/{quota} sessions available",
+                file=sys.stderr,
+            )
 
-    src_counts: dict[str, int] = {}
-    for s, _, _ in picked:
-        src_counts[s.get("source")] = src_counts.get(s.get("source"), 0) + 1
-    print(f"Holdout source distribution: {src_counts}")
+    src_counts: dict[str, dict[str, int]] = {}
+    for stratum, (s, _, _) in picked:
+        src = s.get("source") or "unknown"
+        src_counts.setdefault(stratum, {})[src] = (
+            src_counts.setdefault(stratum, {}).get(src, 0) + 1
+        )
+    print(f"Holdout stratum × source matrix: {src_counts}")
 
     os.makedirs(os.path.dirname(args.output), exist_ok=True)
     with open(args.output, "w") as f:
-        for s, msgs, tools in picked:
+        for stratum, (s, msgs, tools) in picked:
             rec = {
                 "session_id": s.get("session_id") or s.get("id"),
                 "source": s.get("source"),
+                "stratum": stratum,
                 "score": s.get("score"),
                 "tools_used": s.get("tools_used", []),
                 "tool_call_count": s.get("metrics", {}).get("tool_calls", 0),
@@ -200,7 +300,7 @@ def main() -> int:
             f.write(json.dumps(rec) + "\n")
 
     tool_counter: dict[str, int] = {}
-    for _, msgs, _ in picked:
+    for _, (_, msgs, _) in picked:
         for m in msgs:
             for tc in m.get("tool_calls") or []:
                 name = (tc.get("function") or {}).get("name") or tc.get("name")

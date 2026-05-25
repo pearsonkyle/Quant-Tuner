@@ -50,6 +50,7 @@ GGUF_NAMES = {
     "trained":        "IQ3_S-trained.gguf",
     "trained-noisy":  "IQ3_S-trained-noisy.gguf",
     "trained-mixed":  "IQ3_S-trained-mixed.gguf",
+    "trained-iq3s":   "IQ3_S-trained-iq3s.gguf",
 }
 
 TOOLCALL_SAMPLING = dict(

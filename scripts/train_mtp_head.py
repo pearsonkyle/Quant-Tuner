@@ -73,6 +73,7 @@ QUANT_NOISE_DEFAULTS: dict[str, float] = {
 
 from quant_tuner.data import ingest, split
 from quant_tuner.experiments import log, phase
+from quant_tuner.mtp.chunks import build_token_batches, session_to_text as _session_to_text
 
 
 # ---------------------------------------------------------------------------
@@ -216,124 +217,6 @@ class Qwen3MTPHead(torch.nn.Module):
 # ---------------------------------------------------------------------------
 # Data loading
 # ---------------------------------------------------------------------------
-
-def _build_token_batches(
-    model_dir: Path,
-    logtrain: Path,
-    seq_len: int,
-    max_tokens: int,
-    seed: int = 42,
-    wiki_mix: float = 0.0,
-    wiki_text: Path | None = None,
-) -> list[list[int]]:
-    """Tokenize logtrain train split (+ optional wiki mix) and pack into chunks.
-
-    wiki_mix is the target fraction of chunks drawn from wiki/general text.
-    When wiki_mix > 0 and wiki_text is None, wikitext-2-raw-v1 is streamed
-    from HuggingFace datasets.
-    """
-    import random
-    from transformers import AutoTokenizer
-
-    rng = random.Random(seed)
-    tok = AutoTokenizer.from_pretrained(str(model_dir), fix_mistral_regex=True)
-
-    # --- tool-call corpus ---
-    sessions = ingest.load_sessions(logtrain)
-    sessions = ingest.filter_sessions(sessions, min_score=0.3, require_tools=False)
-    splits = split.split_sessions(
-        sessions, train_frac=0.8, test_frac=0.1, holdout_frac=0.1, seed=seed
-    )
-    train_sessions = splits["train"]
-    log(f"  {len(train_sessions)} train sessions")
-
-    logs_ids: list[int] = []
-    for s in train_sessions:
-        text = _session_to_text(s, tok)
-        ids = tok.encode(text, add_special_tokens=False)
-        logs_ids.extend(ids)
-
-    logs_ids = logs_ids[:max_tokens]
-    log(f"  {len(logs_ids):,} tool-call tokens")
-
-    def _to_chunks(token_ids: list[int]) -> list[list[int]]:
-        out = []
-        for i in range(0, len(token_ids) - seq_len, seq_len):
-            out.append(token_ids[i : i + seq_len + 2])
-        return out
-
-    logs_chunks = _to_chunks(logs_ids)
-
-    if wiki_mix <= 0.0:
-        return logs_chunks
-
-    # --- wiki corpus ---
-    if wiki_text is not None and wiki_text.exists():
-        raw = wiki_text.read_text(encoding="utf-8", errors="replace")
-        wiki_ids = tok.encode(raw, add_special_tokens=False)
-    else:
-        log("  loading wikitext-2-raw-v1 from HuggingFace datasets …")
-        from datasets import load_dataset
-        ds = load_dataset("wikitext", "wikitext-2-raw-v1", split="train", trust_remote_code=False)
-        wiki_ids = []
-        for row in ds:
-            text = row["text"]
-            if text.strip():
-                wiki_ids.extend(tok.encode(text, add_special_tokens=False))
-    log(f"  {len(wiki_ids):,} wiki tokens")
-
-    wiki_chunks = _to_chunks(wiki_ids)
-
-    # Interleave at chunk level to hit the target wiki_mix fraction.
-    n_total = len(logs_chunks) + len(wiki_chunks)
-    n_wiki  = min(len(wiki_chunks), round(n_total * wiki_mix))
-    n_logs  = len(logs_chunks)
-
-    rng.shuffle(wiki_chunks)
-    mixed = logs_chunks + wiki_chunks[:n_wiki]
-    rng.shuffle(mixed)
-    log(f"  mixed corpus: {n_logs} tool-call + {n_wiki} wiki chunks "
-        f"({n_wiki / len(mixed) * 100:.0f}% wiki)")
-    return mixed
-
-
-def _session_to_text(session: dict, tok: object) -> str:
-    """Render a session to a flat text string via the tokenizer's chat template."""
-    import json as _json
-
-    raw_messages = session.get("messages", [])
-    if not raw_messages:
-        return ""
-
-    # Messages may be stored as JSON strings rather than dicts.
-    messages: list[dict] = []
-    for m in raw_messages:
-        if isinstance(m, str):
-            try:
-                m = _json.loads(m)
-            except _json.JSONDecodeError:
-                continue
-        if isinstance(m, dict):
-            messages.append(m)
-
-    if not messages:
-        return ""
-
-    try:
-        return tok.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=False
-        )
-    except Exception:
-        # Fallback: concatenate role + content
-        parts = []
-        for m in messages:
-            role = m.get("role", "")
-            content = m.get("content", "")
-            if isinstance(content, list):
-                content = " ".join(c.get("text", "") for c in content if isinstance(c, dict))
-            parts.append(f"{role}: {content}")
-        return "\n".join(parts)
-
 
 # ---------------------------------------------------------------------------
 # Holdout evaluation (MTP perplexity on the held-out text split)
@@ -543,6 +426,11 @@ def main() -> int:
                    help="Path to a raw .txt wiki corpus. If omitted and --wiki-mix > 0, "
                         "wikitext-2-raw-v1 is loaded from HuggingFace datasets.")
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--iq3s-cache", type=Path, default=None,
+                   help="Path to a hidden-state cache .npy produced by "
+                        "scripts/capture_iq3s_hidden_states.py. When set, the backbone "
+                        "forward pass is skipped and h is read from the cache instead. "
+                        "Forces --quant-noise to 0 (real IQ3_S noise is baked into the cache).")
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
 
@@ -575,6 +463,20 @@ def main() -> int:
     log(f"hidden_size: {config.hidden_size}")
     log(f"steps:       {args.steps}  lr={args.lr}  seq_len={args.seq_len}")
     log(f"out:         {args.out}")
+
+    if args.iq3s_cache is not None:
+        import numpy as np
+        if not args.iq3s_cache.exists():
+            log(f"ERROR: --iq3s-cache not found: {args.iq3s_cache}")
+            return 1
+        _ids_path = args.iq3s_cache.with_name(
+            args.iq3s_cache.stem + "_chunk_ids.npy")
+        if not _ids_path.exists():
+            log(f"ERROR: companion chunk_ids file not found: {_ids_path}")
+            return 1
+        _peek = np.load(str(args.iq3s_cache), mmap_mode="r")
+        log(f"iq3s cache:  {args.iq3s_cache}  shape={_peek.shape}  dtype={_peek.dtype}")
+        del _peek
 
     if args.dry_run:
         log("dry-run — exiting")
@@ -609,7 +511,7 @@ def main() -> int:
 
     # --- Data ---
     with phase("tokenise training data"):
-        chunks = _build_token_batches(
+        chunks = build_token_batches(
             args.model, args.logs,
             seq_len=args.seq_len,
             max_tokens=args.max_train_tokens,
@@ -622,6 +524,51 @@ def main() -> int:
     if not chunks:
         log("ERROR: no training data — check --logs path")
         return 1
+
+    # --- IQ3_S cache (optional) ---
+    iq3s_cache = None
+    iq3s_chunk_ids = None
+    if args.iq3s_cache is not None:
+        import numpy as np
+        if not args.iq3s_cache.exists():
+            log(f"ERROR: --iq3s-cache not found: {args.iq3s_cache}")
+            return 1
+        ids_path = args.iq3s_cache.with_name(
+            args.iq3s_cache.stem + "_chunk_ids.npy")
+        if not ids_path.exists():
+            log(f"ERROR: companion chunk_ids file not found: {ids_path}")
+            return 1
+        iq3s_cache = np.load(str(args.iq3s_cache), mmap_mode="r")
+        iq3s_chunk_ids = np.load(str(ids_path), mmap_mode="r")
+
+        if iq3s_cache.shape[1] != args.seq_len:
+            log(f"ERROR: cache seq_len {iq3s_cache.shape[1]} != --seq-len {args.seq_len}")
+            return 1
+        if iq3s_cache.shape[2] != config.hidden_size:
+            log(f"ERROR: cache hidden {iq3s_cache.shape[2]} != config.hidden_size {config.hidden_size}")
+            return 1
+        if iq3s_chunk_ids.shape[0] != iq3s_cache.shape[0]:
+            log(f"ERROR: chunk_ids rows {iq3s_chunk_ids.shape[0]} != cache rows {iq3s_cache.shape[0]}")
+            return 1
+        if iq3s_chunk_ids.shape[1] != args.seq_len + 2:
+            log(f"ERROR: chunk_ids width {iq3s_chunk_ids.shape[1]} != seq_len+2 {args.seq_len + 2}")
+            return 1
+        if iq3s_chunk_ids.shape[0] > len(chunks):
+            log(f"ERROR: cache n_chunks {iq3s_chunk_ids.shape[0]} > tokenised chunks {len(chunks)} "
+                "(seed / max_tokens / wiki_mix drift between capture and training)")
+            return 1
+        # Token-level parity check on the first chunk.
+        if list(iq3s_chunk_ids[0].astype(int)) != list(chunks[0]):
+            log("ERROR: cached chunk_ids[0] != tokenised chunks[0] — capture used different inputs")
+            log(f"  cached[:10]:    {list(iq3s_chunk_ids[0][:10].astype(int))}")
+            log(f"  tokenised[:10]: {chunks[0][:10]}")
+            return 1
+        if iq3s_chunk_ids.shape[0] < len(chunks):
+            log(f"  cache holds {iq3s_chunk_ids.shape[0]} chunks (< {len(chunks)} tokenised); "
+                "training will cycle through those only")
+            chunks = chunks[: iq3s_chunk_ids.shape[0]]
+        log(f"IQ3_S cache mode active: {args.iq3s_cache}")
+        log(f"  cache shape: {iq3s_cache.shape} dtype={iq3s_cache.dtype}")
 
     # --- Optimiser ---
     opt = torch.optim.AdamW(mtp_head.parameters(), lr=args.lr, weight_decay=0.01)
@@ -655,7 +602,12 @@ def main() -> int:
 
     # --- Resolve quantization noise level ---
     quant_noise = args.quant_noise
-    if quant_noise == 0.0 and args.quant_type is not None:
+    if iq3s_cache is not None:
+        if quant_noise != 0.0 or args.quant_type is not None:
+            log("IQ3_S cache mode: forcing quant_noise=0 "
+                "(real IQ3_S noise is baked into cached hidden states)")
+        quant_noise = 0.0
+    elif quant_noise == 0.0 and args.quant_type is not None:
         qt = args.quant_type.upper().replace("-", "_")
         quant_noise = QUANT_NOISE_DEFAULTS.get(qt, 0.0)
         if quant_noise > 0:
@@ -676,17 +628,28 @@ def main() -> int:
     opt.zero_grad()
 
     while step < args.steps:
-        chunk = chunks[chunk_idx % len(chunks)]
+        idx = chunk_idx % len(chunks)
+        chunk = chunks[idx]
         chunk_idx += 1
 
-        input_ids = torch.tensor([chunk[:-2]], dtype=torch.long, device=device)
-        next_ids  = torch.tensor([chunk[1:-1]], dtype=torch.long, device=device)
-        labels    = torch.tensor([chunk[2:]], dtype=torch.long, device=device)
+        if iq3s_cache is not None:
+            row = iq3s_chunk_ids[idx]
+            input_ids = torch.from_numpy(row[:-2].astype("int64")).to(device).unsqueeze(0)
+            next_ids  = torch.from_numpy(row[1:-1].astype("int64")).to(device).unsqueeze(0)
+            labels    = torch.from_numpy(row[2:].astype("int64")).to(device).unsqueeze(0)
+        else:
+            input_ids = torch.tensor([chunk[:-2]], dtype=torch.long, device=device)
+            next_ids  = torch.tensor([chunk[1:-1]], dtype=torch.long, device=device)
+            labels    = torch.tensor([chunk[2:]], dtype=torch.long, device=device)
 
         with torch.no_grad():
-            out = backbone(input_ids=input_ids, output_hidden_states=True)
-            h   = out.hidden_states[-1]                     # [1, T, H]
-            e   = backbone.model.embed_tokens(next_ids)     # [1, T, H]
+            if iq3s_cache is not None:
+                h = torch.from_numpy(iq3s_cache[idx].copy()).to(
+                    device, dtype=torch.bfloat16).unsqueeze(0)  # [1, T, H]
+            else:
+                out = backbone(input_ids=input_ids, output_hidden_states=True)
+                h   = out.hidden_states[-1]                     # [1, T, H]
+            e   = backbone.model.embed_tokens(next_ids)         # [1, T, H]
 
         # Inject quantization noise: simulate the activation shift the MTP head
         # will see at inference when the backbone runs at reduced precision.

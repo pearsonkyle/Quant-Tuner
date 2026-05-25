@@ -22,6 +22,7 @@ dependencies = [
     "jsonschema>=4.26.0",
     "datasets>=2.18",
     "matplotlib>=3.10.9",
+    "llama-cpp-python>=0.3.2",
 ]
 
 [project.optional-dependencies]

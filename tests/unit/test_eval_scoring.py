@@ -10,6 +10,7 @@ from quant_tuner.eval.scoring import (
     param_score,
     parse_arguments,
     schema_for,
+    score_turn,
 )
 
 
@@ -86,15 +87,27 @@ class TestCompareValue:
         assert (e, s) == (True, True)
 
     def test_generic_string_jaccard_similar(self):
+        # 4/5 word overlap = 0.8, above the 0.7 threshold.
         e, s, m = compare_value(
-            "label", "the quick brown fox", "quick brown fox jumps", None
+            "label",
+            "the quick brown fox",
+            "the quick brown dog fox",
+            None,
         )
         assert m == "string-jaccard"
-        # 3/5 word overlap = 0.6 ≥ 0.5
         assert e is False and s is True
 
     def test_generic_string_jaccard_below_threshold(self):
-        e, s, _ = compare_value("label", "alpha beta", "gamma delta", None)
+        # 3/5 = 0.6 — was "similar" under the old 0.5 threshold, no longer is.
+        e, s, _ = compare_value(
+            "label", "the quick brown fox", "quick brown fox jumps", None
+        )
+        assert (e, s) == (False, False)
+
+    def test_generic_string_empty_vs_empty_not_exact(self):
+        # Empty-vs-empty no longer counted as exact — guards against
+        # placeholder new_string/old_string inflation in Edit calls.
+        e, s, _ = compare_value("new_string", "", "", None)
         assert (e, s) == (False, False)
 
     def test_path_keyword_in_key_name_routes_to_path_comparator(self):
@@ -158,8 +171,66 @@ class TestIsSchemaValid:
         }]
         ok, msg = is_schema_valid("f", {"y": 5}, tools)
         assert ok is False
-        # Either jsonschema or fallback reports the missing key.
         assert "x" in msg
+
+    def test_wrong_value_type_fails(self):
+        tools = [{
+            "function": {
+                "name": "f",
+                "parameters": {
+                    "type": "object",
+                    "required": ["x"],
+                    "properties": {"x": {"type": "integer"}},
+                },
+            }
+        }]
+        ok, msg = is_schema_valid("f", {"x": "five"}, tools)
+        assert ok is False
+        assert "integer" in msg
+
+    def test_enum_violation_fails(self):
+        tools = [{
+            "function": {
+                "name": "f",
+                "parameters": {
+                    "type": "object",
+                    "required": ["mode"],
+                    "properties": {"mode": {"type": "string", "enum": ["a", "b"]}},
+                },
+            }
+        }]
+        ok, msg = is_schema_valid("f", {"mode": "c"}, tools)
+        assert ok is False
+        assert "enum" in msg
+
+    def test_numeric_range_violation_fails(self):
+        tools = [{
+            "function": {
+                "name": "f",
+                "parameters": {
+                    "type": "object",
+                    "required": ["n"],
+                    "properties": {"n": {"type": "integer", "minimum": 1, "maximum": 100}},
+                },
+            }
+        }]
+        ok, msg = is_schema_valid("f", {"n": 999}, tools)
+        assert ok is False
+        assert "maximum" in msg
+
+    def test_boolean_rejected_when_integer_expected(self):
+        tools = [{
+            "function": {
+                "name": "f",
+                "parameters": {
+                    "type": "object",
+                    "required": ["n"],
+                    "properties": {"n": {"type": "integer"}},
+                },
+            }
+        }]
+        ok, _ = is_schema_valid("f", {"n": True}, tools)
+        assert ok is False
 
 
 class TestParamScore:
@@ -176,15 +247,28 @@ class TestParamScore:
         score, _ = param_score({"a": 1}, truth, schema)
         assert score == 0.5
 
-    def test_free_text_key_counts_as_presence_only(self):
-        # `description` is a free-text key — present counts as hit, even if value differs wildly.
+    def test_free_text_key_no_longer_presence_only(self):
+        # `description` is now scored via generic string comparison — unrelated
+        # text fails. Previously presence-only inflated this to 1.0.
         truth = {"description": "explain X carefully"}
         schema = {"required": ["description"], "properties": {}}
         score, details = param_score(
             {"description": "totally unrelated text"}, truth, schema
         )
-        assert score == 1.0
-        assert "free-text" in details["description"]
+        assert score == 0.0
+        assert "mismatch" in details["description"]["result"]
+
+    def test_free_text_command_mismatch_scores_zero(self):
+        # `command` routes to the shell comparator: different argv[0] → no credit.
+        truth = {"command": "git push origin main"}
+        schema = {"required": ["command"], "properties": {}}
+        score, _ = param_score({"command": "ls"}, truth, schema)
+        assert score == 0.0
+
+    def test_pred_unparseable_sentinel(self):
+        score, details = param_score(None, {"a": 1}, {"required": ["a"]})
+        assert score == 0.0
+        assert details == {"pred_unparseable": True}
 
     def test_similar_path_counts_as_hit(self):
         truth = {"file_path": "/a/b/x.py"}
@@ -194,11 +278,6 @@ class TestParamScore:
         )
         assert score == 1.0
         assert "similar" in details["file_path"]
-
-    def test_none_args_returns_zero(self):
-        score, details = param_score(None, {"a": 1}, {"required": ["a"]})
-        assert score == 0.0
-        assert details == {"missing_all": True}
 
     def test_no_required_keys_returns_one(self):
         score, _ = param_score({}, {}, {"required": []})
@@ -211,6 +290,113 @@ class TestParamScore:
         assert score == 1.0
         score, _ = param_score({"a": 1}, truth, None)
         assert score == 0.5
+
+    def test_extra_pred_keys_ignored(self):
+        # Extras in pred_args don't reduce the score.
+        truth = {"a": 1}
+        score, _ = param_score({"a": 1, "extra": "junk", "another": 99}, truth, None)
+        assert score == 1.0
+
+    def test_truth_keys_used_even_when_schema_required_is_narrower(self):
+        # Schema says only "path" is required, but truth carries more — score
+        # against all truth keys so partial edits don't get full credit.
+        truth = {"path": "/a", "new_value": "X"}
+        schema = {"required": ["path"], "properties": {}}
+        score, _ = param_score({"path": "/a"}, truth, schema)
+        assert score == 0.5
+
+
+class TestScoreTurn:
+    @staticmethod
+    def _tools(*names):
+        return [{"function": {"name": n, "parameters": {"type": "object"}}} for n in names]
+
+    def test_single_call_exact_match(self):
+        tools = self._tools("read")
+        out = score_turn(
+            pred_calls=[("read", {"path": "/a"})],
+            truth_calls=[("read", {"path": "/a"})],
+            tools=tools,
+        )
+        assert out["selection"] is True
+        assert out["param_acc"] == 1.0
+        assert out["schema_valid"] is True
+
+    def test_parallel_set_match_order_invariant(self):
+        tools = self._tools("read", "edit")
+        # Pred emits in reverse order — set match still passes.
+        out = score_turn(
+            pred_calls=[("edit", {"path": "/b"}), ("read", {"path": "/a"})],
+            truth_calls=[("read", {"path": "/a"}), ("edit", {"path": "/b"})],
+            tools=tools,
+        )
+        assert out["selection"] is True
+        assert out["param_acc"] == 1.0
+
+    def test_parallel_missing_one_tool_fails_selection(self):
+        tools = self._tools("read", "edit")
+        out = score_turn(
+            pred_calls=[("read", {"path": "/a"})],
+            truth_calls=[("read", {"path": "/a"}), ("edit", {"path": "/b"})],
+            tools=tools,
+        )
+        assert out["selection"] is False
+        assert out["param_acc"] == 0.0
+
+    def test_parallel_extra_tool_fails_selection(self):
+        tools = self._tools("read", "edit", "shell")
+        out = score_turn(
+            pred_calls=[
+                ("read", {"path": "/a"}),
+                ("edit", {"path": "/b"}),
+                ("shell", {"command": "ls"}),
+            ],
+            truth_calls=[("read", {"path": "/a"}), ("edit", {"path": "/b"})],
+            tools=tools,
+        )
+        assert out["selection"] is False
+
+    def test_parallel_param_acc_is_per_call_mean(self):
+        # Two parallel reads, one correct path, one mismatched.
+        tools = self._tools("read")
+        out = score_turn(
+            pred_calls=[
+                ("read", {"path": "/a"}),
+                ("read", {"path": "/wrong"}),
+            ],
+            truth_calls=[
+                ("read", {"path": "/a"}),
+                ("read", {"path": "/b"}),
+            ],
+            tools=tools,
+        )
+        assert out["selection"] is True
+        # First truth /a matches pred[0] /a → 1.0; second truth /b matches
+        # pred[1] /wrong (different basename → no credit) → 0.0. Mean = 0.5.
+        assert out["param_acc"] == 0.5
+
+    def test_no_pred_calls_emitted(self):
+        tools = self._tools("read")
+        out = score_turn(
+            pred_calls=[],
+            truth_calls=[("read", {"path": "/a"})],
+            tools=tools,
+        )
+        assert out["selection"] is False
+        assert out["param_acc"] == 0.0
+        assert out["schema_valid"] is False
+
+    def test_schema_valid_requires_all_pred_calls_pass(self):
+        # One emitted call references a tool not in the list — schema fails.
+        tools = self._tools("read", "edit")
+        out = score_turn(
+            pred_calls=[("read", {"path": "/a"}), ("ghost", {})],
+            truth_calls=[("read", {"path": "/a"}), ("edit", {"path": "/b"})],
+            tools=tools,
+        )
+        # Selection fails (ghost ≠ edit), but schema_valid specifically should
+        # also be False since "ghost" isn't a declared tool.
+        assert out["schema_valid"] is False
 
 
 @pytest.mark.parametrize("key,pred,truth,want_similar", [

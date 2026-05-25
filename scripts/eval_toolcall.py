@@ -2,14 +2,9 @@
 """Tool-call accuracy benchmark for a single GGUF quant.
 
 Runs the model against a holdout JSONL (one session per line, see
-``scripts/build_toolcall_holdout.py``) in two passes:
-
-  1. Per-turn pass — for each ground-truth assistant tool-call turn, replay
-     the prior context and score: tool selection, parameter accuracy, schema
-     validity.
-  2. Rollout pass — once per session, run the full agentic loop feeding in
-     recorded tool results, and record whether the model sustains the
-     conversation.
+``scripts/build_toolcall_holdout.py``). For each ground-truth assistant
+tool-call turn, replays the prior context and scores: tool selection,
+parameter accuracy, schema validity (key-presence only).
 
 Either point at a running llama-server via ``--base-url`` or let the script
 spawn one for you (default).
@@ -65,8 +60,6 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--ngl", type=int, default=99)
     p.add_argument("--max-turns-per-session", type=int, default=8,
                    help="Cap on per-turn evaluations per session")
-    p.add_argument("--rollout-max-turns", type=int, default=12)
-    p.add_argument("--skip-rollout", action="store_true")
     p.add_argument("--server-startup-timeout", type=float, default=120.0)
     p.add_argument("--system-prompt", default=DEFAULT_SYSTEM_PROMPT,
                    help="System prompt injected when a session lacks one. "
@@ -133,8 +126,6 @@ def main() -> int:
         sampling=sampling,
         model_label=args.model.name if args.model else "remote",
         max_turns_per_session=args.max_turns_per_session,
-        rollout_max_turns=args.rollout_max_turns,
-        skip_rollout=args.skip_rollout,
         stop_on_fail=not args.no_stop_on_fail,
         system_prompt=args.system_prompt or None,
         ctx=args.ctx,
@@ -147,25 +138,36 @@ def main() -> int:
     )
 
     # Print summary.
-    n = summary.n_turns
+    n = summary.n_scored
     n_sel = round(summary.tool_selection_acc * n) if n else 0
     n_schema = round(summary.schema_valid_rate * n) if n else 0
-    n_roll = len(summary.rollouts)
     print("\n" + "=" * 60)
     print(f"Model: {summary.model}")
+    print(f"  Scored turns:              {n}/{summary.n_total} "
+          f"(malformed truth: {summary.truth_quality.get('malformed_truth', 0)}, "
+          f"api errors: {summary.truth_quality.get('api_errors', 0)})")
     print(f"  Tool selection accuracy:   {n_sel}/{n}  ({summary.tool_selection_acc:.3f})")
     print(f"  Param accuracy (mean):     {summary.param_acc_mean:.3f}")
     print(f"  Schema-valid rate:         {n_schema}/{n}  ({summary.schema_valid_rate:.3f})")
-    if n_roll:
-        n_done = round(summary.rollout_complete_rate * n_roll)
-        n_match = round(summary.rollout_tool_set_match_rate * n_roll)
-        print(f"  Rollouts completed:        {n_done}/{n_roll}")
-        print(f"  Tool-set match (rollout):  {n_match}/{n_roll}")
+    if summary.n_post_result:
+        print(f"  Post-result turns:         {summary.n_post_result} "
+              f"({summary.n_post_result_errors} after error)")
+        print(f"  Continuation-type match:   {summary.continuation_type_match_rate:.3f}")
+        print(f"  Recovery appropriate:      {summary.recovery_appropriate_rate:.3f}")
+    print(f"  Session completion:        {summary.session_completion}")
     if len(summary.by_source) > 1:
         print("\n  Per-source breakdown:")
         for src in sorted(summary.by_source):
             s = summary.by_source[src]
             print(f"    {src:10s} n={s['n']:3d}  "
+                  f"sel={s['tool_selection_acc']:.2f}  "
+                  f"param={s['param_acc_mean']:.2f}  "
+                  f"schema={s['schema_valid_rate']:.2f}")
+    if summary.by_stratum and len(summary.by_stratum) > 1:
+        print("\n  Per-stratum breakdown:")
+        for strat in sorted(summary.by_stratum):
+            s = summary.by_stratum[strat]
+            print(f"    {strat:10s} n={s['n']:3d}  "
                   f"sel={s['tool_selection_acc']:.2f}  "
                   f"param={s['param_acc_mean']:.2f}  "
                   f"schema={s['schema_valid_rate']:.2f}")
@@ -176,12 +178,9 @@ def main() -> int:
     row = {
         "model": os.path.basename(summary.model),
         "n_sessions": summary.n_sessions,
-        "n_turns": summary.n_turns,
         "tool_selection_acc": summary.tool_selection_acc,
         "param_acc_mean": summary.param_acc_mean,
         "schema_valid_rate": summary.schema_valid_rate,
-        "rollout_complete_rate": summary.rollout_complete_rate,
-        "rollout_tool_set_match_rate": summary.rollout_tool_set_match_rate,
         "temperature": sampling.temperature,
         "top_p": sampling.top_p if sampling.top_p is not None else "",
         "top_k": sampling.top_k if sampling.top_k is not None else "",
