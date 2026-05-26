@@ -23,6 +23,16 @@ _HF_TO_GGUF_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"^model\.layers\.(\d+)\.mlp\.down_proj$"),       "blk.{bid}.ffn_down.weight"),
     (re.compile(r"^lm_head$"),                                    "output.weight"),
     (re.compile(r"^model\.layers\.(\d+)\.self_attn\.qkv_proj$"),  "blk.{bid}.attn_qkv.weight"),
+    # Qwen3-Next-style hybrid linear-attention blocks (Mamba-like mixers).
+    # The first two land on non-SSM tensors (`attn_*`) and will be hooked by
+    # outlier-stat collection. The last three land on `ssm_*` tensors that
+    # `is_ssm` filters out of output-aware reranking; mapping them anyway is
+    # harmless and makes the HF/GGUF coverage 1:1.
+    (re.compile(r"^model\.layers\.(\d+)\.linear_attn\.in_proj_qkv$"), "blk.{bid}.attn_qkv.weight"),
+    (re.compile(r"^model\.layers\.(\d+)\.linear_attn\.in_proj_z$"),   "blk.{bid}.attn_gate.weight"),
+    (re.compile(r"^model\.layers\.(\d+)\.linear_attn\.in_proj_a$"),   "blk.{bid}.ssm_alpha.weight"),
+    (re.compile(r"^model\.layers\.(\d+)\.linear_attn\.in_proj_b$"),   "blk.{bid}.ssm_beta.weight"),
+    (re.compile(r"^model\.layers\.(\d+)\.linear_attn\.out_proj$"),    "blk.{bid}.ssm_out.weight"),
 ]
 
 
