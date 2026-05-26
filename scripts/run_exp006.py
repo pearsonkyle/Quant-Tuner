@@ -120,6 +120,12 @@ CELLS: list[Cell] = [
     # extend this tuple.
     Cell("F3", "outlier_max with E[a²] on all linear_attn-mapped tensors",
          _outlier_max, _vanilla, ("attn_qkv", "attn_gate")),
+    # F4 added post-diagnostic: ffn_down is the most-skewed class (12.0× max/p99),
+    # higher than any of the newly-hooked linear_attn tensors. Tests the
+    # alternative hypothesis that outlier_max's regression is driven by ffn_down
+    # rather than the attn projections exposed by the mapping fix.
+    Cell("F4", "outlier_max with E[a²] on ffn_down",
+         _outlier_max, _vanilla, ("ffn_down",)),
     Cell("H1", "max(L1(√E[a⁴]), L1(max|a|))", _max_l4_mx),
     Cell("H2", "0.5·L1(√E[a⁴]) + 0.5·L1(max|a|)", _blend_l4_mx),
     Cell("H3", "sqrt(L1(√E[a⁴]) · L1(max|a|))", _geom_l4_mx),
