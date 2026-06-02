@@ -46,6 +46,7 @@ def spawn_server(
     chat_template_kwargs: str | None = None,
     spec_type: str | None = None,
     spec_draft_n_max: int | None = None,
+    mmproj_path: Path | None = None,
 ) -> subprocess.Popen:
     """Start ``llama-server`` for ``model_path`` and return the process handle.
 
@@ -61,6 +62,9 @@ def spawn_server(
     ``spec_type`` / ``spec_draft_n_max`` map to llama-server's ``--spec-type``
     and ``--spec-draft-n-max`` flags for speculative decoding (e.g. MTP draft
     heads bundled into the GGUF: ``spec_type="draft-mtp"``).
+
+    ``mmproj_path`` points to a multimodal projector GGUF (``--mmproj``).
+    Required for vision models (e.g. LLaVA, Gemma-3, Qwen2-VL).
     """
     binary = llama_bin("llama-server")  # raises if not built
     cmd = [
@@ -72,6 +76,8 @@ def spawn_server(
         "-ngl", str(ngl),
         "--host", "127.0.0.1",
     ]
+    if mmproj_path is not None:
+        cmd += ["--mmproj", str(mmproj_path)]
     if chat_template_kwargs is not None:
         cmd += ["--chat-template-kwargs", chat_template_kwargs]
     if spec_type is not None:
@@ -96,17 +102,22 @@ def running_server(
     chat_template_kwargs: str | None = None,
     spec_type: str | None = None,
     spec_draft_n_max: int | None = None,
+    mmproj_path: Path | None = None,
 ):
     """Context manager: spawn llama-server, wait for health, yield ``base_url``, then terminate.
 
     Pass ``chat_template_kwargs='{"enable_thinking":false}'`` to disable
     reasoning on Qwen3-family templates during benchmark eval.
+
+    Pass ``mmproj_path`` to enable multimodal (vision) input for models that
+    require a separate projector GGUF (``--mmproj`` flag).
     """
     port = free_port()
     proc = spawn_server(
         model_path, port=port, ctx=ctx, ngl=ngl,
         log_path=log_path, chat_template_kwargs=chat_template_kwargs,
         spec_type=spec_type, spec_draft_n_max=spec_draft_n_max,
+        mmproj_path=mmproj_path,
     )
     base_url = f"http://127.0.0.1:{port}/v1"
     try:
