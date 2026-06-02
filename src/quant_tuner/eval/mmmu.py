@@ -211,11 +211,11 @@ def encode_image_file(path: Path) -> str:
         data = f.read()
     b64 = base64.b64encode(data).decode()
     # Sniff the format from the magic bytes; default to JPEG.
-    if data[:4] == b"\x89PNG":
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
         mime = "image/png"
     elif data[:6] in (b"GIF87a", b"GIF89a"):
         mime = "image/gif"
-    elif data[:4] in (b"RIFF", b"WEBP"):
+    elif data[:4] == b"RIFF" and data[8:12] == b"WEBP":
         mime = "image/webp"
     else:
         mime = "image/jpeg"
@@ -367,7 +367,7 @@ def parse_mc_answer(text: str, n_options: int) -> str | None:
 # ---------------------------------------------------------------------------
 
 
-def _check_is_number(s: str) -> bool:
+def _is_number(s: str) -> bool:
     try:
         float(s.replace(",", ""))
         return True
@@ -378,7 +378,7 @@ def _check_is_number(s: str) -> bool:
 def _normalize_str(s: str) -> list:
     """Normalise a string to a float list element or lower-cased string(s)."""
     s = s.strip()
-    if _check_is_number(s):
+    if _is_number(s):
         return [round(float(s.replace(",", "")), 2)]
     s = s.lower()
     if len(s) == 1:
