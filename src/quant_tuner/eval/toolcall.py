@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import IO, Any
 
-from openai import OpenAI
+from openai import OpenAI, RateLimitError
 
 from quant_tuner.eval.scoring import (
     parse_arguments,
@@ -41,7 +42,17 @@ def maybe_inject_system(msgs: list[dict], system_prompt: str | None) -> list[dic
 
 
 def strip_for_api(msgs: list[dict]) -> list[dict]:
-    """Drop non-OpenAI fields and reshape to chat/completions message format."""
+    """Drop non-OpenAI fields and reshape to chat/completions message format.
+
+    Two normalizations are applied so the result is valid for any
+    OpenAI-compatible API (including those that reject assistant prefill):
+
+    1. Consecutive assistant messages (e.g. a thinking turn followed by a
+       tool-call turn) are merged into a single assistant message.
+    2. A trailing assistant message that carries only text (no tool_calls)
+       is dropped — it is a reasoning/thinking prefix that should not be
+       sent as prefill since not all APIs support it.
+    """
     out: list[dict] = []
     for m in msgs:
         role = m.get("role")
@@ -64,13 +75,25 @@ def strip_for_api(msgs: list[dict]) -> list[dict]:
                         "function": {"name": fn.get("name"), "arguments": args},
                     })
                 o["tool_calls"] = tcs
-            out.append(o)
+            # Merge into previous assistant message if consecutive
+            if out and out[-1]["role"] == "assistant":
+                prev = out[-1]
+                parts = [p for p in [prev["content"], o["content"]] if p]
+                prev["content"] = "\n".join(parts) if parts else None
+                if o.get("tool_calls"):
+                    prev.setdefault("tool_calls", []).extend(o["tool_calls"])
+            else:
+                out.append(o)
         elif role == "tool":
             out.append({
                 "role": "tool",
                 "tool_call_id": m.get("tool_call_id") or "call_0",
                 "content": m.get("content", "") or "",
             })
+    # Drop trailing content-only assistant message (thinking/reasoning prefix)
+    # to avoid prefill errors on APIs that don't support it.
+    while out and out[-1]["role"] == "assistant" and not out[-1].get("tool_calls"):
+        out.pop()
     return out
 
 
@@ -124,14 +147,29 @@ def call_model(
     messages: list[dict],
     tools: list[dict],
     sampling: Sampling,
+    *,
+    model_name: str = "local",
+    max_retries: int = 5,
+    base_delay: float = 2.0,
 ) -> Any:
-    """Call ``/v1/chat/completions`` with OpenAI + llama.cpp sampling params."""
-    return client.chat.completions.create(
-        model="local",
-        messages=messages,
-        tools=tools,
-        **sampling.to_request_kwargs(),
-    )
+    """Call ``/v1/chat/completions`` with retry on rate-limit (429) errors.
+
+    Retries up to *max_retries* times with exponential backoff starting at
+    *base_delay* seconds (2 s → 4 s → 8 s → 16 s → 32 s).
+    """
+    for attempt in range(max_retries + 1):
+        try:
+            return client.chat.completions.create(
+                model=model_name,
+                messages=messages,
+                tools=tools,
+                **sampling.to_request_kwargs(),
+            )
+        except RateLimitError:
+            if attempt == max_retries:
+                raise
+            delay = base_delay * (2 ** attempt)
+            time.sleep(delay)
 
 
 # ---------------------------------------------------------------------------
@@ -276,6 +314,7 @@ def eval_per_turn(
     log_fh: IO[str] | None = None,
     system_prompt: str | None = DEFAULT_SYSTEM_PROMPT,
     stop_on_fail: bool = True,
+    model_name: str = "local",
 ) -> list[dict]:
     """Score assistant turns in ``session``.
 
@@ -326,7 +365,8 @@ def eval_per_turn(
         prefix = strip_for_api(msgs[:i])
 
         try:
-            resp = call_model(client, prefix, tools, sampling)
+            resp = call_model(client, prefix, tools, sampling,
+                              model_name=model_name)
             choice = resp.choices[0].message
             pred_tcs = choice.tool_calls or []
             pred_content = choice.content
@@ -393,6 +433,7 @@ def eval_rollout(
     max_turns: int,
     log_fh: IO[str] | None = None,
     system_prompt: str | None = DEFAULT_SYSTEM_PROMPT,
+    model_name: str = "local",
 ) -> dict:
     """Run a single rollout, splicing in recorded tool results by call order per tool.
 
@@ -428,7 +469,8 @@ def eval_rollout(
 
     for _ in range(max_turns):
         try:
-            resp = call_model(client, convo, tools, sampling)
+            resp = call_model(client, convo, tools, sampling,
+                              model_name=model_name)
             choice = resp.choices[0].message
         except Exception as e:
             completed_reason = f"error: {e}"
@@ -634,6 +676,7 @@ def run_toolcall_eval(
     base_url: str | None = None,
     sampling: Sampling | None = None,
     model_label: str | None = None,
+    model_name: str = "local",
     max_turns_per_session: int = 8,
     stop_on_fail: bool = True,
     system_prompt: str | None = DEFAULT_SYSTEM_PROMPT,
@@ -644,6 +687,7 @@ def run_toolcall_eval(
     chat_template_kwargs: str | None = None,
     per_turn_log: Path | None = None,
     progress: bool = False,
+    api_key: str = "sk-no-key",
 ) -> EvalSummary:
     """Run the per-turn pass against one model and return aggregates.
 
@@ -662,7 +706,7 @@ def run_toolcall_eval(
     log_fh = per_turn_log.open("w") if per_turn_log is not None else None
 
     def _run_against(url: str) -> EvalSummary:
-        client = OpenAI(base_url=url, api_key="sk-no-key")
+        client = OpenAI(base_url=url, api_key=api_key)
         all_turns: list[dict] = []
         for i, sess in enumerate(sessions, 1):
             if progress:
@@ -671,6 +715,7 @@ def run_toolcall_eval(
                 client, sess, sampling,
                 max_turns=max_turns_per_session, log_fh=log_fh,
                 system_prompt=system_prompt, stop_on_fail=stop_on_fail,
+                model_name=model_name,
             )
             all_turns.extend(turns)
         return _aggregate(label, len(sessions), all_turns)

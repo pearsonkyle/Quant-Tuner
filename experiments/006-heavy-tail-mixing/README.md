@@ -1,6 +1,6 @@
 # Experiment 006: outlier_max rescue + heavy-tail signal mixing
 
-- **Status:** planned
+- **Status:** done (2026-05-26)
 - **Tests hypothesis #1:** investigate the imatrix technique and see if we can improve it using custom data or a new optimization metric
 - **Branch:** `exp/006-heavy-tail-mixing`
 
@@ -108,19 +108,39 @@ signal pair as default.
 
 ### Phase B + C — Bench (KLD suite)
 
-| cell | description                                | PPL | KLD (mean) | same_top_p |
-|------|--------------------------------------------|-----|------------|------------|
-| F1   | outlier_max + E[a²] on attn_qkv/attn_gate  |     |            |            |
-| F2   | outlier_max + outlier_l4 on attn_qkv/attn_gate |  |            |            |
-| F3   | outlier_max + E[a²] on all linear_attn     |     |            |            |
-| H1   | max(outlier_l4, outlier_max)               |     |            |            |
-| H2   | 0.5·outlier_l4 + 0.5·outlier_max           |     |            |            |
-| H3   | sqrt(outlier_l4 · outlier_max)             |     |            |            |
-| H4   | max(vanilla, outlier_l4)                   |     |            |            |
+All cells at bpw=5.029, size=5.24 GiB. F4 added post-diagnostic.
+Reference KLD: outlier_l4 = 0.499, outlier_max = 0.562, vanilla = 0.513.
 
-### Tool-call rollout (5 reps × 25-session holdout, mean ± stdev + pass@5)
+| cell | description                                | PPL   | KLD (mean) | same_top_p |
+|------|--------------------------------------------|-------|------------|------------|
+| F1   | outlier_max + E[a²] on attn_qkv/attn_gate  | 3.114 | 0.609      | 89.92      |
+| F2   | outlier_max + outlier_l4 on attn_qkv/attn_gate | 2.990 | 0.609  | 89.93      |
+| F3   | outlier_max + E[a²] on all linear_attn     | 3.114 | 0.609      | 89.92      |
+| F4   | outlier_max + E[a²] on ffn_down            | 3.037 | 0.603      | 89.92      |
+| H1   | max(L1(√E[a⁴]), L1(max\|a\|))              | 3.068 | 0.557      | 90.58      |
+| H2   | 0.5·L1(√E[a⁴]) + 0.5·L1(max\|a\|)          | 3.171 | 0.531      | 90.58      |
+| H3   | sqrt(L1(√E[a⁴]) · L1(max\|a\|))            | 3.220 | 0.535      | 90.49      |
+| H4   | max(L1(E[a²]), L1(√E[a⁴]))                 | 3.246 | **0.493**  | **90.73**  |
 
-Same shape as exp-002's tables. Filled after running both phases.
+Note: F1 and F3 are bit-identical because on Qwopus3.5-9B-Coder the
+non-SSM `linear_attn`-mapped tensors collapse to exactly `attn_qkv` +
+`attn_gate` once `is_ssm` filters out `ssm_*`. F3 added no information
+on this model.
+
+### Tool-call rollout (10 reps × 25-session holdout, mean ± stdev)
+
+Ran only the four H-cells; F-cells were clearly dominated on KLD and
+not worth ~5 h of additional eval time. Reference rows from exp-002
+(same holdout, same sampling, 5 reps there vs. 10 here).
+
+| variant                     | tool_selection_acc | param_acc        | schema_valid     | KLD   |
+|-----------------------------|--------------------|------------------|------------------|-------|
+| outlier_l4 (exp-002 ref)    | 0.539 ± 0.026      | 0.323 ± 0.020    | 0.928 ± 0.024    | 0.499 |
+| outlier_max (exp-002 ref)   | 0.540 ± 0.027      | 0.327 ± 0.017    | 0.901 ± 0.032    | 0.562 |
+| H1: max(l4, mx)             | 0.521 ± 0.044      | 0.310 ± 0.027    | 0.926 ± 0.024    | 0.557 |
+| H2: 0.5·l4 + 0.5·mx         | **0.530 ± 0.029**  | 0.306 ± 0.017    | 0.911 ± 0.030    | 0.531 |
+| H3: sqrt(l4 · mx)           | 0.527 ± 0.026      | 0.318 ± 0.019    | **0.932 ± 0.028**| 0.535 |
+| H4: max(E[a²], l4)          | 0.524 ± 0.034      | **0.323 ± 0.017**| 0.920 ± 0.031    | **0.493** |
 
 ## Observations
 
@@ -182,56 +202,108 @@ quantization is the load-bearing variable.
   extreme tensor class rescue outlier_max?" — direct alternative
   hypothesis.
 
-### Phase B + C — bench + tool-call (not yet run)
+### Phase B — F cells: tensor-class fallback made things worse
 
-_To be filled when cells execute. Watch for:_
+All four F-cells regressed KLD from the outlier_max baseline of 0.562
+to ≥0.603. F1 (E[a²] fallback on attn_qkv/attn_gate) and F4 (E[a²]
+fallback on ffn_down — the actually-most-skewed class) both landed at
+~0.60. F2 (outlier_l4 fallback) was no better. **Swapping the signal
+on two tensor classes while leaving the rest on outlier_max produced a
+worse outcome than uniform application of any single signal.**
 
-- _Does H4 (vanilla + outlier_l4) beat outlier_l4 alone? If yes,
-  E[a²] retains complementary signal even where heavy-tail wins on
-  average. That would also matter for exp-004 (combiner sweep)._
-- _Do H1–H3 cluster (all similar) or spread (combiner matters)?
-  Clustering would suggest the two heavy-tail signals are highly
-  correlated; spread would suggest they're capturing different
-  information._
-- _Surprise outcome: any F cell rescues outlier_max despite the
-  diagnostic predicting null — that would mean the mechanism is more
-  subtle than per-channel skew. Open a follow-up to figure out why._
+This is a stronger result than the predicted null. It implies the
+problem is *not* "one tensor class has bad signal shape" — it's that
+the per-block bit allocator inside llama-quantize is sensitive to the
+*relative* L1-normalized magnitudes across the full tensor set. Mixing
+signal types breaks the implicit cross-tensor calibration that uniform
+signals preserve. This was foreshadowed in the diagnostic ("L1
+normalization happens per tensor, then signals are compared across
+tensors via per-block bit allocation") but the experiment turned the
+hypothesis into a measurement.
+
+The implication for future signal-engineering work: **don't mix signal
+*types* across tensors; only mix signal *values* within a uniform type**
+(which is exactly what the H cells do). The hybrid_custom recipe from
+the published leaderboard follows this rule by construction — it
+combines two values (`E[a²]` and `‖W‖²·E[a²]`) using one consistent
+combining function applied to every tensor.
+
+### Phase C — H cells: signal mixing helps KLD but not tool-call
+
+H4 (max(L1(E[a²]), L1(√E[a⁴]))) is the new KLD champion at 0.493,
+edging out outlier_l4's 0.499. H2 / H3 cluster around 0.531–0.535,
+worse on KLD than outlier_l4 alone but with the best schema_valid_rate
+of the experiment (H3 at 0.932). H1 at 0.557 is the weakest H cell.
+
+But on tool-call rollout, the four H cells are statistically
+indistinguishable from each other and from the exp-002 outlier_l4
+baseline:
+
+- All four H-cell tool_selection_acc means (0.521–0.530) sit inside
+  outlier_l4's 1σ band (0.539 ± 0.026). H4's param_acc of 0.323 ties
+  outlier_l4 exactly. H3's schema_valid of 0.932 marginally beats
+  outlier_l4's 0.928 but well inside both stdevs.
+- The ~12% KLD gap between H4 and H1 (0.493 vs 0.557) does not
+  translate into a measurable task-level difference at n=10.
 
 ## Analysis
 
-_To be filled. Decision tree (updated based on diagnostic):_
+The experiment delivered two findings, one structural and one practical.
 
-1. _If the F cells confirm the diagnostic (null effect on outlier_max
-   rescue) → outlier_max's regression is **not** a single-tensor-class
-   issue; it's a per-block-allocation interaction effect. Either run a
-   second-order experiment (per-block-scale instrumentation) or accept
-   outlier_max as unrecoverable on this architecture._
-2. _If a surprise F cell wins → the diagnostic missed the mechanism;
-   investigate per-block-scale interaction directly before
-   generalizing._
-3. _If H4 (vanilla + outlier_l4) beats outlier_l4 alone → "always
-   augment heavy-tail with vanilla" becomes the recommended pattern;
-   exp-004 should use this as a default combiner; recipe promotion
-   from exp-002 should switch to H4-style variant rather than plain
-   outlier_l4._
-4. _If H1–H3 don't improve over outlier_l4 → the heavy-tail signals
-   are essentially redundant; outlier_l4 alone is the right default._
-5. _If nothing helps → outlier_l4 is at the ceiling for this approach;
-   move attention to bit-rate (Q5_K_S) or exp-004 (the broader
-   combiner sweep)._
+**Structural finding (high confidence, F cells):** Per-tensor signal
+swapping breaks llama-quantize's per-block bit allocation. The
+allocator implicitly assumes consistent signal semantics across
+tensors, and L1-normalized comparison between different signal types
+(max|a| vs. E[a²]) produces a worse outcome than uniform application
+of any single signal. This rules out a whole class of "rescue the
+under-performing variant by patching one tensor class" strategies and
+explains why the published `hybrid_custom` recipe applies one
+combining rule uniformly. Worth a brief note in `calibrate/imatrix.py`
+near where new variants would be added.
+
+**Practical finding (medium confidence, H cells):** Mixing E[a²] with
+heavy-tail signals (H4) produces the best KLD seen on this model and
+matches outlier_l4 on every tool-call metric inside the noise floor.
+The KLD edge is real but small and doesn't translate to a measurable
+task-level win. Recommendation: keep `outlier_l4` as the default for
+this workload; H4 is a viable alternative if a downstream consumer
+prioritizes KLD specifically, but doesn't justify recipe promotion on
+its own. The KLD→tool-call link looks weaker than exp-002's results
+suggested — there's an intermediate regime (KLD ~0.49–0.56) where
+task metrics flatten out.
+
+Decision-tree outcomes from the original plan:
+
+1. F cells → confirmed *and strengthened* the diagnostic. Per-block
+   allocation is the load-bearing mechanism; outlier_max is
+   structurally unrecoverable by per-class patching.
+2. No surprise F cell wins.
+3. H4 ties outlier_l4 on tool-call rather than beating it. Recipe
+   promotion not justified.
+4. H1–H3 do not improve over outlier_l4 on tool-call.
+5. → outlier_l4 is at or near the ceiling for this signal family at
+   Q4_K_M on this workload. Attention should move to bit-rate
+   (Q5_K_S), exp-004 (broader combiner sweep), or per-block-scale
+   instrumentation as a follow-on.
 
 ## Next steps
 
-_Conditional on results. Likely:_
-
-- _If a tensor-class-conditional approach wins: extend the rules to
-  cover more architecture classes (other hybrid SSM/attention models
-  in the OmniCoder/Qwen3.5 family) and verify generalization._
-- _If a mixed signal wins: re-test on the other 2 models alongside
-  the exp-002 generalization runs._
-- _If nothing wins outlier_l4: this experiment is a null result that
-  hardens the recommendation "outlier_l4 alone is sufficient at
-  Q4_K_M for this workload"._
+- **Document the F-cell finding in code.** Add a short comment near
+  the variant dispatch in `calibrate/imatrix.py` noting "all tensors
+  in an imatrix must use the same signal type — mixing signals
+  produces worse cross-tensor allocation than uniform application of
+  any single signal (see exp-006 F cells)." Prevents future re-runs of
+  this experiment.
+- **Generalization probe deferred.** Don't run H4 on the other two
+  OmniCoder/Qwen3.5 models until exp-004's combiner sweep finishes —
+  exp-004 may surface a different winner that supersedes the question.
+- **Follow-up exp-007 (speculative):** Instrument per-block scale
+  derivation inside `llama-quantize` to measure how the bit allocator
+  responds to L1-normalized signal distributions. Would explain the
+  F-cell regression mechanistically and inform whether a
+  "calibration-aware" allocator could rescue outlier_max. Multi-day
+  effort, only worth doing if a downstream user cares about
+  outlier_max specifically.
 
 ## Open questions
 

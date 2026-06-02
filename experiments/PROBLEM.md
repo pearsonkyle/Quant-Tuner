@@ -1,7 +1,7 @@
 # improving quantization performance
 
 - **Created:** 2026-05-25T17:04:13+00:00
-- **Last updated:** 2026-05-25 (after exp-002 + outlier extension w/ HF↔GGUF mapping fix)
+- **Last updated:** 2026-05-26 (after exp-006: F cells null, H4 sets new KLD low but ties on tool-call)
 
 ## Problem statement
 
@@ -178,7 +178,7 @@ each experiment's `README.md` for details.
 | 003 | imatrix token sensitivity            | Jackrong, 3 datasets × 3 tok × 3 ctx | **planned** | _not yet run_                                   |
 | 004 | imatrix combiner sweep               | Jackrong, 5 combiner variants   | **planned** | _scaffolded_                                    |
 | 005 | block-aware imatrix aggregation      | Jackrong, 5 cells (max/mean × 256/32) | **planned** | _scaffolded_                                    |
-| 006 | outlier_max rescue + heavy-tail mixing | Jackrong, 7 cells + diagnostic | **planned** | _scaffolded; diagnostic refutes initial hypothesis — see README_ |
+| 006 | outlier_max rescue + heavy-tail mixing | Jackrong, 8 cells + diagnostic | **done**    | F cells regressed KLD (signal-mixing breaks per-block allocation); H4 set new KLD low 0.493 but tied outlier_l4 on tool-call |
 
 ## Reference artifacts (do not regenerate)
 

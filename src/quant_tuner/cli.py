@@ -142,5 +142,123 @@ def leaderboard(
     typer.echo(f"wrote {out}")
 
 
+db_app = typer.Typer(no_args_is_help=True, add_completion=False,
+                     help="Quant-tracking database (SQLite).")
+app.add_typer(db_app, name="db")
+
+
+@db_app.command("init")
+def db_init(
+    db: Path | None = typer.Option(None, help="DB path (default: out/quant_tuner.db "
+                                   "or $QUANT_TUNER_DB)"),
+) -> None:
+    """Create the database file and tables if they don't exist."""
+    from quant_tuner.db import db_path, get_engine, init_db
+
+    engine = get_engine(db)
+    init_db(engine)
+    typer.echo(f"initialized {db_path(db)}")
+
+
+@db_app.command("import-csv")
+def db_import_csv(
+    results: Path | None = typer.Option(None, help="bench results.csv / kld_results.csv"),
+    reps_agg: Path | None = typer.Option(None, "--reps-agg",
+                                         help="aggregated reps CSV to merge"),
+    gguf_map: Path | None = typer.Option(None, "--gguf-map",
+                                         help="gguf_map.json to disambiguate reps "
+                                         "basenames across repos"),
+    benchmark: str = typer.Option("mmlu", help="benchmark for --reps-agg: mmlu | toolcall"),
+    label_format: str = typer.Option("dataset_quant",
+                                     help="results label layout: dataset_quant | "
+                                     "technique_dataset"),
+    db: Path | None = typer.Option(None, help="DB path override"),
+) -> None:
+    """Backfill the DB from existing CSV files."""
+    from quant_tuner.db import get_engine, init_db, session_scope
+    from quant_tuner.db.imports import (
+        import_reps_aggregated_csv,
+        import_results_csv,
+    )
+
+    engine = get_engine(db)
+    init_db(engine)
+    with session_scope(engine) as session:
+        if results is not None:
+            n = import_results_csv(session, results, label_format=label_format)
+            typer.echo(f"imported {n} quant rows from {results}")
+        if reps_agg is not None:
+            m = import_reps_aggregated_csv(
+                session, reps_agg, benchmark, gguf_map=gguf_map
+            )
+            typer.echo(f"merged {benchmark} reps for {m} quants from {reps_agg}")
+
+
+@db_app.command("export-csv")
+def db_export_csv(
+    out: Path = typer.Option(..., help="output directory for the CSV files"),
+    label_format: str = typer.Option("dataset_quant",
+                                     help="results label layout"),
+    db: Path | None = typer.Option(None, help="DB path override"),
+) -> None:
+    """Regenerate results.csv + reps CSVs from the DB (for render_exp* scripts)."""
+    from quant_tuner.db import get_engine, init_db, session_scope
+    from quant_tuner.db.export import export_reps_csvs, export_results_csv
+
+    engine = get_engine(db)
+    init_db(engine)
+    out.mkdir(parents=True, exist_ok=True)
+    with session_scope(engine) as session:
+        nq = export_results_csv(session, out / "results.csv",
+                                label_format=label_format)
+        typer.echo(f"wrote {out / 'results.csv'} ({nq} quants)")
+        for bench in ("mmlu", "toolcall"):
+            nm = export_reps_csvs(
+                session, bench,
+                per_rep=out / f"{bench}_reps_results.csv",
+                aggregated=out / f"{bench}_reps_aggregated.csv",
+            )
+            if nm:
+                typer.echo(f"wrote {bench} reps CSVs ({nm} quants)")
+
+
+@db_app.command("query")
+def db_query(
+    metric: str = typer.Option(..., help="e.g. mmlu.accuracy or toolcall.tool_selection_acc"),
+    top: int = typer.Option(10, help="show the top-N quants by the metric mean"),
+    model_repo: str | None = typer.Option(None, help="filter by HF repo"),
+    db: Path | None = typer.Option(None, help="DB path override"),
+) -> None:
+    """Rank quants by a benchmark metric's mean across reps."""
+    from quant_tuner.db import get_engine, session_scope
+    from quant_tuner.db.query import aggregate_reps, list_quants
+
+    if "." not in metric:
+        raise typer.BadParameter("metric must be 'benchmark.name' (e.g. mmlu.accuracy)")
+    benchmark, metric_name = metric.split(".", 1)
+
+    engine = get_engine(db)
+    filters = {"model_repo": model_repo} if model_repo else {}
+    rows: list[tuple[str, float, float, int]] = []
+    with session_scope(engine) as session:
+        for q in list_quants(session, **filters):
+            if q.id is None:
+                continue
+            agg = aggregate_reps(session, q.id, benchmark).get(metric_name)
+            if agg is None:
+                continue
+            ds = q.dataset.name if q.dataset is not None else "-"
+            label = f"{q.model_repo} {q.quant_type} {q.technique}/{q.variant} [{ds}]"
+            rows.append((label, agg["mean"], agg["stdev"], int(agg["n"])))
+
+    rows.sort(key=lambda x: x[1], reverse=True)
+    if not rows:
+        typer.echo(f"no quants with {metric}")
+        return
+    typer.echo(f"top {top} by {metric} (mean ± stdev, n):")
+    for label, mean, stdev, n in rows[:top]:
+        typer.echo(f"  {mean:.4f} ± {stdev:.4f} (n={n})  {label}")
+
+
 if __name__ == "__main__":
     app()

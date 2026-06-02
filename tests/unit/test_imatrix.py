@@ -1,5 +1,7 @@
 """Unit tests for imatrix calibrator helpers (no model load required)."""
 
+from pathlib import Path
+
 import numpy as np
 
 from quant_tuner.calibrate import imatrix as imx
@@ -10,6 +12,7 @@ from quant_tuner.calibrate.imatrix import (
     build_analytic,
     build_outlier_l4,
 )
+from quant_tuner.models import llama_cpp
 from quant_tuner.models.hf_gguf_map import is_ssm, map_hf_to_gguf
 
 
@@ -124,3 +127,23 @@ def test_build_outlier_l4_falls_back_when_stats_missing(monkeypatch):
     np.testing.assert_allclose(out["blk.0.attn_q.weight"], [1.0, 4.0, 9.0])
     np.testing.assert_allclose(out["blk.0.attn_k.weight"], [0.5, 0.5, 0.5])  # E[a^2] fallback
     np.testing.assert_allclose(out["blk.0.ssm_dt.weight"], [7.0, 7.0])  # SSM passthrough
+
+
+def _capture_imatrix_cmd(monkeypatch, **kwargs) -> list[str]:
+    """Run llama_cpp.imatrix with run()/llama_bin stubbed; return the built cmd as strings."""
+    captured: dict[str, list] = {}
+    monkeypatch.setattr(llama_cpp, "llama_bin", lambda name: Path(f"/bin/{name}"))
+    monkeypatch.setattr(llama_cpp, "run", lambda cmd, log=None: captured.setdefault("cmd", cmd))
+    llama_cpp.imatrix(Path("m.gguf"), Path("corpus.txt"), Path("o.gguf"), **kwargs)
+    return [str(c) for c in captured["cmd"]]
+
+
+def test_imatrix_passes_parse_special_by_default(monkeypatch):
+    # Our corpus is chat-templated; control markers must tokenize as special IDs.
+    cmd = _capture_imatrix_cmd(monkeypatch)
+    assert "--parse-special" in cmd
+
+
+def test_imatrix_omits_parse_special_when_disabled(monkeypatch):
+    cmd = _capture_imatrix_cmd(monkeypatch, parse_special=False)
+    assert "--parse-special" not in cmd

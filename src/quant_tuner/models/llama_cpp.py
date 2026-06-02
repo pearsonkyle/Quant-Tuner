@@ -87,6 +87,8 @@ def imatrix(
     out: Path,
     ctx: int = 512,
     log: Path | None = None,
+    extra_args: list[str] | None = None,
+    parse_special: bool = True,
 ) -> Path:
     cmd: list[str | Path] = [
         llama_bin("llama-imatrix"),
@@ -95,6 +97,18 @@ def imatrix(
         "-o", out,
         "-c", str(ctx),
     ]
+    # Our calibration corpus is chat-templated (split.write_corpus emits
+    # sessions rendered through apply_chat_template, full of <|im_start|>
+    # etc). Without --parse-special, llama-imatrix tokenizes those control
+    # markers as literal text (e.g. <|im_start|> -> 6 BPE pieces) instead of
+    # the single special-token IDs the model sees at inference, so the
+    # collected activation stats reflect a token distribution that never
+    # occurs in production. Default it on; harmless on raw-text corpora
+    # (wiki) since they contain no special tokens to parse.
+    if parse_special:
+        cmd.append("--parse-special")
+    if extra_args:
+        cmd += extra_args
     run(cmd, log=log)
     return out
 

@@ -23,6 +23,7 @@ dependencies = [
     "datasets>=2.18",
     "matplotlib>=3.10.9",
     "llama-cpp-python>=0.3.2",
+    "sqlmodel>=0.0.22",
 ]
 
 [project.optional-dependencies]
@@ -31,6 +32,12 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.6",
     "mypy>=1.10",
+]
+redteam = [
+    "deepteam>=0.5",
+    "deepeval>=2.0",
+    "hydra-core>=1.3",
+    "omegaconf>=2.3",
 ]
 
 [project.scripts]

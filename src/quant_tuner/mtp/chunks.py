@@ -79,10 +79,10 @@ def build_token_batches(
     splits = split.split_sessions(
         sessions, train_frac=0.8, test_frac=0.1, holdout_frac=0.1, seed=seed
     )
-    # split_sessions builds its split sets from `set(...)` which iterates in
-    # PYTHONHASHSEED-dependent order. Sort by fingerprint so chunk order is
-    # stable across processes (the IQ3_S cache and the trainer tokenize in
-    # separate processes and must agree).
+    # split_sessions now returns splits in a deterministic (seed-shuffled) order,
+    # but we still sort by fingerprint here to make this call site's cross-process
+    # contract explicit: the IQ3_S cache and the trainer tokenize in separate
+    # processes and must agree on chunk order regardless of upstream ordering.
     train_sessions = sorted(splits["train"], key=ingest.session_fingerprint)
     log(f"  {len(train_sessions)} train sessions")
 

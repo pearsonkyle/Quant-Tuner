@@ -56,6 +56,56 @@ blocks (`blk.*.ssm_*`) don't have the `y = W a` linear-projection structure,
 so the output-aware re-ranking is invalid for them. They keep their raw
 `E[a²]` weighting.
 
+### Corpus format and `--parse-special`
+
+The base `E[a²]` signal comes from running `llama-imatrix` over the calibration
+corpus. Our corpus is **chat-templated**: `split.write_corpus` renders each
+session through the model's `apply_chat_template`, so the text is full of
+control markers like `<|im_start|>`, `<|im_end|>`, and tool-call delimiters.
+
+`llama-imatrix` reads the `-f` file as one flat string and tokenizes it once.
+By default (`parse_special=false` in llama.cpp) it tokenizes those control
+markers as **literal text** — e.g. `<|im_start|>` becomes the 6 BPE pieces
+`['<', '|', 'im', '_start', '|', '>']` instead of its single special-token ID.
+The activation statistics would then reflect a token distribution the model
+never sees at inference, corrupting the importance weights for exactly the
+structural tokens we calibrate our own logs to capture.
+
+`models.llama_cpp.imatrix` therefore passes `--parse-special` by default
+(`parse_special=True`). On raw-text corpora (e.g. `wiki.test.raw`) the flag is
+a no-op — there are no special tokens to parse — so it's safe to leave on for
+mixed wiki+log corpora. If you add a code path that invokes `llama-imatrix`
+directly instead of going through the wrapper, pass `--parse-special` yourself.
+
+**Tool schemas must be rendered too.** In `logtrain.jsonl` the tool/function
+schemas are attached to the system message (`messages[0]["tools"]`), not the
+top-level session. `split.session_tools()` resolves them and `template_session`
+passes them to `apply_chat_template`, so the corpus contains the `<tools>{…}`
+schema block the model conditions on at inference. Without this the imatrix
+calibrates tool-calling sessions with no schema context at all.
+
+### Combining wiki + logs (`scripts/build_mixed_corpus.py`)
+
+For a domain-calibrated-but-grounded imatrix, combine your logs with general
+text. The builder concatenates **raw** wiki (general-English anchor, as the
+model saw it in pretraining) with an N-token stratified, chat-templated log
+sample (domain + chat/tool structure with correct special tokens). Defaults to
+500k log tokens + full wiki (~300k) ≈ a 63/37 log/wiki mix.
+
+Two design facts that keep this simple:
+  * **Order is irrelevant.** `llama-imatrix` accumulates `E[a²]` as a running
+    average over fixed-size chunks, so block-concatenation and interleaving
+    yield the same imatrix. We concatenate (wiki first) — no interleaving.
+  * **Don't chat-wrap the wiki.** Wrapping encyclopedia prose in fake
+    user/assistant turns injects role-token activations that don't belong to
+    general-language calibration and mislabels prose as assistant output. Raw
+    wiki + templated logs is the faithful two-mode distribution.
+
+The builder also writes an 80/20 `train.jsonl`/`test.jsonl` split (calibration
+draws from `train` only) and a `mixed_audit.json` with measured token counts.
+Runs are reproducible for a fixed `--seed` (see the determinism note in the
+split section above).
+
 ## AWQ (activation-aware weight scaling)
 
 **Entry points:** `quant_tuner.calibrate.awq.calibrate(...)`, `awq.apply(...)`

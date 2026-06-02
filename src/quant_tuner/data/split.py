@@ -24,6 +24,24 @@ def length_bucket(n_msgs: int) -> str:
     return "long"
 
 
+def session_tools(session: dict, messages: list[dict]) -> list | None:
+    """Resolve the tool schemas for a session.
+
+    Schemas may live at the top level (`session["tools"]`) or, as in the
+    logtrain export, attached to the system message (`messages[0]["tools"]`).
+    Pass these to apply_chat_template so the rendered calibration corpus
+    contains the tool/function schemas the model conditions on at inference —
+    without them, every tool-calling session is rendered with no schema context.
+    """
+    top = session.get("tools")
+    if top:
+        return top
+    for m in messages:
+        if isinstance(m, dict) and m.get("tools"):
+            return m["tools"]
+    return None
+
+
 def template_session(tokenizer, messages: list[dict], tools) -> tuple[str, int]:
     coerce_tool_call_arguments(messages)
     text = tokenizer.apply_chat_template(messages, tools=tools, tokenize=False)
@@ -94,14 +112,15 @@ def stratified_pack(
             messages = normalize_messages(s.get("messages", []))
             if not messages:
                 continue
+            tools = session_tools(s, messages)
             try:
-                text, ntok = cap_session(tokenizer, messages, s.get("tools"), per_session_cap)
+                text, ntok = cap_session(tokenizer, messages, tools, per_session_cap)
             except Exception:
                 continue
             if ntok == 0:
                 continue
             try:
-                _, full_ntok = template_session(tokenizer, messages, s.get("tools"))
+                _, full_ntok = template_session(tokenizer, messages, tools)
             except Exception:
                 full_ntok = ntok
             if ntok < full_ntok:
@@ -163,9 +182,13 @@ def split_sessions(
     n = len(fps)
     n_train = int(n * train_frac)
     n_test = int(n * test_frac)
-    train_fps = set(fps[:n_train])
-    test_fps = set(fps[n_train : n_train + n_test])
-    holdout_fps = set(fps[n_train + n_test :])
+    # Iterate the deterministically-shuffled `fps` list (not sets) so the order
+    # within each split is reproducible. Building lists by iterating a set makes
+    # ordering depend on PYTHONHASHSEED, which silently changes which sessions a
+    # downstream token-budgeted stratified_pack selects run-to-run.
+    train_fps = fps[:n_train]
+    test_fps = fps[n_train : n_train + n_test]
+    holdout_fps = fps[n_train + n_test :]
     return {
         "train": [by_fp[fp] for fp in train_fps],
         "test": [by_fp[fp] for fp in test_fps],
@@ -184,6 +207,7 @@ __all__ = [
     "cap_session",
     "length_bucket",
     "load_sessions",
+    "session_tools",
     "split_sessions",
     "stratified_pack",
     "template_session",

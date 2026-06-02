@@ -26,6 +26,10 @@ fixed and vary the re-weighting variant.
   - `Qwen/Qwen3.5-9B`
   - `Tesslate/OmniCoder-9B`
   - `Jackrong/Qwopus3.5-9B-Coder`
+  - `google/gemma-4-E4B-it` (added later; KLD baseline + bench run at `ctx=4096`
+    because Gemma's ~262k vocab busts `llama-perplexity`'s logit-vector
+    allocation at `ctx=8192`. Within-gemma comparison is valid; absolute
+    KLD/PPL aren't directly comparable to the Qwen rows above.)
 - **Pipeline per model** (one F16 GGUF, one KLD baseline, shared across all 3 cells):
   1. `extract.extract_text_lm` → text-only HF dir
   2. `convert.hf_to_f16_gguf` → F16 GGUF
@@ -46,6 +50,7 @@ Rendered from `out/exp-001/results.csv` by
 |---|---|---|---|---|---|---|---|
 | Jackrong/Qwopus3.5-9B-Coder | imatrix | custom        | 5.24 | 5.029 | 3.3549 | 0.51300 | 90.4960 |
 | Jackrong/Qwopus3.5-9B-Coder | imatrix | wiki.test.raw | 5.24 | 5.029 | 2.9200 | 0.53350 | 90.4180 |
+| Jackrong/Qwopus3.5-9B-Coder | imatrix | 500k-custom+wiki (ctx=8192) | 5.24 | 5.029 | 3.1578 | 0.51996 | 90.3440 |
 | Jackrong/Qwopus3.5-9B-Coder | none    | —             | 5.24 | 5.029 | 2.5144 | 0.95961 | 87.6340 |
 | Qwen/Qwen3.5-9B             | imatrix | custom        | 5.24 | 5.029 | 3.8167 | 0.69968 | 88.7470 |
 | Qwen/Qwen3.5-9B             | imatrix | wiki.test.raw | 5.24 | 5.029 | 3.4109 | 0.71204 | 88.8550 |
@@ -53,13 +58,23 @@ Rendered from `out/exp-001/results.csv` by
 | Tesslate/OmniCoder-9B       | imatrix | custom        | 5.24 | 5.029 | 3.9426 | 0.70067 | 88.9130 |
 | Tesslate/OmniCoder-9B       | imatrix | wiki.test.raw | 5.24 | 5.029 | 3.4310 | 0.70769 | 88.8990 |
 | Tesslate/OmniCoder-9B       | none    | —             | 5.24 | 5.029 | 3.2500 | 1.12088 | 86.0710 |
+| google/gemma-4-E4B-it †     | imatrix | custom        | 4.97 | 5.677 | 4.8479 | 0.03777 | 94.5020 |
+| google/gemma-4-E4B-it †     | imatrix | wiki.test.raw | 4.97 | 5.677 | 4.8114 | 0.03960 | 94.2930 |
+| google/gemma-4-E4B-it †     | imatrix | 500k-custom+wiki (ctx=8192) | 4.97 | 5.677 | 4.8342 | 0.03710 | 94.5510 |
+| google/gemma-4-E4B-it †     | none    | —             | 4.97 | 5.677 | 5.0167 | 0.10911 | 90.8470 |
+
+† Gemma rows were evaluated at `ctx=4096` (vs `ctx=8192` for everything above);
+absolute PPL/KLD aren't directly comparable across that boundary.
 
 Direction: lower is better for PPL and KLD; higher is better for same_top_p.
 
 ## Observations
 
-- All 9 cells produced GGUFs of identical size (5.24 GiB) and BPW (5.029) —
+- All 9 Qwen-class cells produced GGUFs of identical size (5.24 GiB) and BPW
+  (5.029); the 4 gemma cells likewise all land at 4.97 GiB / 5.677 BPW —
   Q4_K_M parameter choice is invariant to the imatrix corpus, as expected.
+  (The BPW gap between families reflects Gemma's tied embedding + much
+  larger vocab, not the calibration.)
 - **PPL and KLD disagree.** `none` has the lowest (best) PPL on every model,
   but the worst KLD (by ~60%) and the worst same_top_p (~2.5 pts behind both
   imatrix cells).
@@ -73,6 +88,22 @@ Direction: lower is better for PPL and KLD; higher is better for same_top_p.
   distribution is dominated by structured / repetitive tokens, which may
   explain why the uncalibrated quant scores well on average log-loss while
   diverging most from F16 in distribution shape.
+- **Gemma flips the PPL story.** On `google/gemma-4-E4B-it`, `none` is the
+  *worst* cell on both PPL (5.017 vs ~4.83 for the three imatrix cells) and
+  KLD (0.109 vs ~0.038 — almost 3×), and trails the imatrix cells by ~3.7
+  pts on `same_top_p`. Within imatrix, the three corpora cluster tightly
+  again (PPL spread ≤ 0.04, KLD spread ≤ 0.002, same_top_p spread ≤ 0.26
+  pts). `mixed8k` edges out the others on KLD and same_top_p, `wiki` on
+  raw PPL. The qualitative ordering "imatrix ≫ none, corpus barely
+  matters" survives the cross-architecture jump; the magnitude is just
+  much larger here.
+- **Follow-up on Jackrong only:** a `mixed8k` cell built an imatrix from
+  500k custom tokens concatenated with the full wiki.test.raw at
+  `ctx=8192` (vs. `ctx=512` for the original cells). KLD (0.520) and
+  same_top_p (90.344) land in the same tight cluster as `custom` and
+  `wiki`; PPL (3.158) falls between them. Reinforces the
+  "corpus + context length don't move distribution-shape metrics much
+  once you're past saturation" reading.
 
 ## Analysis
 

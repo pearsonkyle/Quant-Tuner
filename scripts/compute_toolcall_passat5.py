@@ -32,6 +32,8 @@ RUN_SPECS: list[tuple[Path, str]] = [
     (REPO / "out/exp-002/toolcall_reps_outliers_partial_results.csv", "outliers-partial-52pct"),
     (REPO / "out/exp-002/toolcall_reps_outliers_full_results.csv", "outliers-full-100pct"),
     (REPO / "out/exp-002/toolcall_reps_fp16_results.csv",          "fp16-baseline"),
+    (REPO / "out/exp-002/toolcall_reps_mixed8k_results.csv",       "mixed8k-from-exp001"),
+    (REPO / "out/exp-002/toolcall_reps_mixed8k_outlier_l4_results.csv", "mixed8k+outlier_l4"),
 ]
 
 

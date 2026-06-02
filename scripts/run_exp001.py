@@ -43,13 +43,14 @@ SUPPLEMENT = REPO / "calibration_supplement.txt"
 WIKI_LOCAL = EXP_ROOT / "wiki" / "wiki.test.raw"
 AGGREGATE_CSV = EXP_ROOT / "results.csv"
 
-CELLS = ("custom", "wiki", "none")
+CELLS = ("custom", "wiki", "none", "mixed8k")
 
 
 @dataclass(frozen=True)
 class ModelCfg:
     repo_id: str
     causal_lm_arch: str | None = None  # passed through to extract_text_lm
+    eval_ctx: int = 8192  # KLD baseline + bench context; lowered for huge-vocab models
 
     @property
     def slug(self) -> str:
@@ -60,6 +61,8 @@ MODELS: list[ModelCfg] = [
     ModelCfg("Qwen/Qwen3.5-9B"),
     ModelCfg("Tesslate/OmniCoder-9B", causal_lm_arch="Qwen3_5ForCausalLM"),
     ModelCfg("Jackrong/Qwopus3.5-9B-Coder"),
+    # Gemma's ~262k vocab busts llama-perplexity's logit-vector allocation at ctx=8192.
+    ModelCfg("google/gemma-4-E4B-it", eval_ctx=4096),
 ]
 
 
@@ -107,6 +110,43 @@ def _prepare_corpora(model_dir: Path, train_out: Path, eval_out: Path) -> None:
     log(f"  eval corpus:  {eval_total:,} tokens -> {eval_out.name}")
 
 
+# ---------- merged corpus (500k custom + full wiki) for the mixed8k cell
+
+def _prepare_mixed_corpus(model_dir: Path, mixed_out: Path) -> None:
+    """500k tokens from the custom train slice followed by the full wiki.test.raw.
+
+    Uses the same split/seed as `_prepare_corpora` so the 500k-token slice is
+    identical to what the `custom` cell sees, then appends wiki verbatim.
+    """
+    from transformers import AutoTokenizer
+
+    if not WIKI_LOCAL.exists():
+        raise FileNotFoundError(
+            f"{WIKI_LOCAL} not staged — run with `--only mixed8k` after wiki staging, "
+            "or include the wiki cell on the first run."
+        )
+
+    tok = AutoTokenizer.from_pretrained(model_dir, fix_mistral_regex=True)
+    sessions = ingest.load_sessions(LOGTRAIN)
+    sessions = ingest.filter_sessions(sessions, min_score=0.3, require_tools=False)
+    splits = split.split_sessions(
+        sessions, train_frac=0.8, test_frac=0.1, holdout_frac=0.1, seed=42
+    )
+    train_chunks, _k, train_total, _audit = split.stratified_pack(
+        splits["train"], tok, target_tokens=500_000, per_session_cap=6_000, seed=42
+    )
+
+    mixed_out.parent.mkdir(parents=True, exist_ok=True)
+    with open(mixed_out, "w") as f:
+        for chunk in train_chunks:
+            f.write(chunk + "\n\n")
+        wiki_text = WIKI_LOCAL.read_text()
+        f.write(wiki_text)
+        if not wiki_text.endswith("\n"):
+            f.write("\n")
+    log(f"  mixed corpus: {train_total:,} custom tokens + full wiki -> {mixed_out.name}")
+
+
 # ---------- wiki.test.raw staging (one-time, shared across models)
 
 def _stage_wiki() -> None:
@@ -138,11 +178,14 @@ def _run_model(cfg: ModelCfg, cells: tuple[str, ...], *, dry_run: bool) -> None:
     eval_ds = work / "corpus.eval.txt"
     imat_custom = work / "imatrix-custom.gguf"
     imat_wiki = work / "imatrix-wiki.gguf"
+    imat_mixed = work / "imatrix-mixed8k.gguf"
+    mixed_corpus = work / "corpus.mixed8k.txt"
     base_kld = work / "baseline.kld"
     quants = {
-        "custom": work / "Q4_K_M-custom.gguf",
-        "wiki":   work / "Q4_K_M-wiki.gguf",
-        "none":   work / "Q4_K_M-none.gguf",
+        "custom":   work / "Q4_K_M-custom.gguf",
+        "wiki":     work / "Q4_K_M-wiki.gguf",
+        "none":     work / "Q4_K_M-none.gguf",
+        "mixed8k": work / "Q4_K_M-mixed8k.gguf",
     }
     per_model_csv = work / "results.csv"
 
@@ -181,9 +224,16 @@ def _run_model(cfg: ModelCfg, cells: tuple[str, ...], *, dry_run: bool) -> None:
                  lambda: llama_cpp.imatrix(f16, WIKI_LOCAL, imat_wiki,
                                            ctx=512, log=logs / "imatrix-wiki.log"))
 
+        if "mixed8k" in cells:
+            step("prepare mixed8k corpus (500k custom + full wiki)", mixed_corpus,
+                 lambda: _prepare_mixed_corpus(model_dir, mixed_corpus))
+            step("llama-imatrix mixed8k (ctx=8192)", imat_mixed,
+                 lambda: llama_cpp.imatrix(f16, mixed_corpus, imat_mixed,
+                                           ctx=8192, log=logs / "imatrix-mixed8k.log"))
+
         step("build F16 KLD baseline", base_kld,
              lambda: kld.build_baseline(f16, eval_ds, base_kld,
-                                        ctx=8192, log=logs / "baseline.log"))
+                                        ctx=cfg.eval_ctx, log=logs / "baseline.log"))
 
         for cell in cells:
             qpath = quants[cell]
@@ -192,7 +242,11 @@ def _run_model(cfg: ModelCfg, cells: tuple[str, ...], *, dry_run: bool) -> None:
                      lambda q=qpath, c=cell: gguf.quantize(
                          f16, q, "Q4_K_M", log=logs / f"quantize-{c}.log"))
             else:
-                src_imat = imat_custom if cell == "custom" else imat_wiki
+                src_imat = {
+                    "custom": imat_custom,
+                    "wiki": imat_wiki,
+                    "mixed8k": imat_mixed,
+                }[cell]
                 step(f"quantize Q4_K_M ({cell})", qpath,
                      lambda q=qpath, c=cell, s=src_imat: gguf.quantize(
                          f16, q, "Q4_K_M", imatrix=s,
@@ -202,7 +256,12 @@ def _run_model(cfg: ModelCfg, cells: tuple[str, ...], *, dry_run: bool) -> None:
         for cell in cells:
             qpath = quants[cell]
             technique = "imatrix" if cell != "none" else "none"
-            dataset = {"custom": "custom", "wiki": "wiki.test.raw", "none": "—"}[cell]
+            dataset = {
+                "custom": "custom",
+                "wiki": "wiki.test.raw",
+                "none": "—",
+                "mixed8k": "500k-custom+wiki (ctx=8192)",
+            }[cell]
             label = f"{cfg.repo_id}|{technique}|{dataset}"
             with phase(f"bench {label}"):
                 row = runner.bench_one(
@@ -210,7 +269,7 @@ def _run_model(cfg: ModelCfg, cells: tuple[str, ...], *, dry_run: bool) -> None:
                     reference_n_params=n_params,
                     eval_dataset=eval_ds,
                     eval_baseline=base_kld,
-                    eval_ctx=8192,
+                    eval_ctx=cfg.eval_ctx,
                     log_dir=logs,
                     suite="kld",
                 )
@@ -242,7 +301,7 @@ def main() -> int:
     cells = (args.only,) if args.only else CELLS
 
     EXP_ROOT.mkdir(parents=True, exist_ok=True)
-    if "wiki" in cells and not args.dry_run:
+    if ("wiki" in cells or "mixed8k" in cells) and not args.dry_run:
         with phase("stage wiki.test.raw"):
             _stage_wiki()
 

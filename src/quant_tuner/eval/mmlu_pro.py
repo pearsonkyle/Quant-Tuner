@@ -211,11 +211,13 @@ def score_one(
     sampling: Sampling,
     *,
     system_prompt: str | None = DEFAULT_SYSTEM_PROMPT,
+    model_name: str = "local",
 ) -> dict:
     """Run one MMLU-Pro question through the model and score it."""
     messages = build_messages(target, shots, system_prompt=system_prompt)
     try:
-        resp = call_model(client, messages, tools=[], sampling=sampling)
+        resp = call_model(client, messages, tools=[], sampling=sampling,
+                          model_name=model_name)
         msg = resp.choices[0].message
         content = msg.content or ""
         # Reasoning models (e.g. Qwen3/DeepSeek-style) emit <think>…</think>;
@@ -297,6 +299,7 @@ def run_mmlu_pro_eval(
     base_url: str | None = None,
     sampling: Sampling | None = None,
     model_label: str | None = None,
+    model_name: str = "local",
     system_prompt: str | None = DEFAULT_SYSTEM_PROMPT,
     ctx: int = 8192,
     ngl: int = 99,
@@ -305,6 +308,7 @@ def run_mmlu_pro_eval(
     chat_template_kwargs: str | None = None,
     per_sample_log: Path | None = None,
     progress: bool = False,
+    api_key: str = "sk-no-key",
 ) -> MmluProSummary:
     """Score every sample in the holdout and return aggregate accuracy.
 
@@ -324,11 +328,12 @@ def run_mmlu_pro_eval(
     log_fh = per_sample_log.open("w") if per_sample_log is not None else None
 
     def _run_against(url: str) -> MmluProSummary:
-        client = OpenAI(base_url=url, api_key="sk-no-key")
+        client = OpenAI(base_url=url, api_key=api_key)
         rows: list[dict] = []
         for i, target in enumerate(holdout.samples, 1):
             shots = holdout.shots.get(target.subject, [])[:n_shot]
-            row = score_one(client, target, shots, sampling, system_prompt=system_prompt)
+            row = score_one(client, target, shots, sampling,
+                           system_prompt=system_prompt, model_name=model_name)
             rows.append(row)
             if log_fh is not None:
                 log_fh.write(json.dumps(row) + "\n")
