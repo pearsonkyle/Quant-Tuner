@@ -5,13 +5,16 @@ from __future__ import annotations
 import pytest
 
 from quant_tuner.eval.scoring import (
+    canonical_tool,
     compare_value,
     is_schema_valid,
     param_score,
+    param_score_strict,
     parse_arguments,
     schema_for,
     score_turn,
 )
+from quant_tuner.eval.toolcall import tool_result_is_error
 
 
 class TestParseArguments:
@@ -406,3 +409,142 @@ class TestScoreTurn:
 def test_compare_value_parametrized(key, pred, truth, want_similar):
     _, similar, _ = compare_value(key, pred, truth, None)
     assert similar is want_similar
+
+
+class TestCanonicalTool:
+    @pytest.mark.parametrize("name,canonical", [
+        # read-a-file family across the three agents
+        ("Read", "read"), ("read_file", "read"), ("read", "read"),
+        # shell family
+        ("Bash", "shell"), ("run_shell_command", "shell"), ("bash", "shell"),
+        # edit / write
+        ("Edit", "edit"), ("write_file", "write"), ("Write", "write"),
+        # search
+        ("Grep", "grep"), ("grep_search", "grep"), ("Glob", "glob"),
+        # misc capabilities
+        ("WebFetch", "web_fetch"), ("list_directory", "list"),
+        ("TaskCreate", "todo"), ("AskUserQuestion", "ask"),
+        ("ExitPlanMode", "plan"),
+    ])
+    def test_known_families_collapse(self, name, canonical):
+        assert canonical_tool(name) == canonical
+
+    def test_cross_agent_read_names_share_one_label(self):
+        # The whole point: claude/qwen/opencode spellings unify.
+        assert canonical_tool("Read") == canonical_tool("read_file") == canonical_tool("read")
+
+    def test_unknown_name_passes_through_lowercased(self):
+        assert canonical_tool("SomeCustomTool") == "somecustomtool"
+
+    def test_empty_name(self):
+        assert canonical_tool("") == ""
+
+
+class TestParamScoreStrict:
+    def test_exact_match_full_credit(self):
+        truth = {"path": "/a", "n": 5}
+        schema = {"required": ["path", "n"], "properties": {"n": {"type": "integer"}}}
+        assert param_score_strict({"path": "/a", "n": 5}, truth, schema) == 1.0
+
+    def test_similar_but_not_exact_scores_zero(self):
+        # Same basename, different dir → lenient param_score credits it, strict does not.
+        truth = {"file_path": "/a/b/x.py"}
+        schema = {"required": ["file_path"], "properties": {}}
+        pred = {"file_path": "/c/d/x.py"}
+        assert param_score(pred, truth, schema)[0] == 1.0   # lenient: similar = hit
+        assert param_score_strict(pred, truth, schema) == 0.0  # strict: exact-only
+
+    def test_extra_keys_penalized(self):
+        # 1 truth key matched exactly, but pred has 2 extra keys → denom = 3.
+        truth = {"a": 1}
+        pred = {"a": 1, "extra": "junk", "more": 2}
+        assert param_score_strict(pred, truth, None) == pytest.approx(1 / 3)
+
+    def test_missing_key_penalized(self):
+        truth = {"a": 1, "b": 2}
+        pred = {"a": 1}
+        # union = {a, b}, hits = 1 → 0.5
+        assert param_score_strict(pred, truth, None) == 0.5
+
+    def test_pred_unparseable_scores_zero(self):
+        assert param_score_strict(None, {"a": 1}, None) == 0.0
+
+    def test_both_empty_full_credit(self):
+        assert param_score_strict({}, {}, None) == 1.0
+
+
+class TestScoreTurnStrict:
+    @staticmethod
+    def _tools(*names):
+        return [{"function": {"name": n, "parameters": {"type": "object"}}} for n in names]
+
+    def test_strict_present_and_lower_on_similar_path(self):
+        tools = self._tools("read")
+        out = score_turn(
+            pred_calls=[("read", {"file_path": "/c/d/x.py"})],
+            truth_calls=[("read", {"file_path": "/a/b/x.py"})],
+            tools=tools,
+        )
+        assert out["selection"] is True
+        assert out["param_acc"] == 1.0           # lenient: same basename = hit
+        assert out["param_acc_strict"] == 0.0    # strict: not exact
+        assert out["param_acc_strict"] <= out["param_acc"]
+
+    def test_strict_equals_lenient_on_exact(self):
+        tools = self._tools("read")
+        out = score_turn(
+            pred_calls=[("read", {"path": "/a"})],
+            truth_calls=[("read", {"path": "/a"})],
+            tools=tools,
+        )
+        assert out["param_acc"] == out["param_acc_strict"] == 1.0
+
+    def test_strict_zero_when_selection_fails(self):
+        tools = self._tools("read", "edit")
+        out = score_turn(
+            pred_calls=[("read", {"path": "/a"})],
+            truth_calls=[("read", {"path": "/a"}), ("edit", {"path": "/b"})],
+            tools=tools,
+        )
+        assert out["selection"] is False
+        assert out["param_acc_strict"] == 0.0
+
+
+class TestToolResultIsError:
+    def test_is_error_flag_true_wins(self):
+        assert tool_result_is_error({"is_error": True, "content": "all good"}) is True
+
+    def test_is_error_flag_false_wins_over_content(self):
+        # Flag is authoritative: even error-looking content is not an error
+        # when the source explicitly recorded is_error=False.
+        assert tool_result_is_error(
+            {"is_error": False, "content": "Error: boom\nTraceback"}
+        ) is False
+
+    def test_file_content_with_error_word_does_not_trigger(self):
+        # The whole reason for tightening: a file dump that mentions "error"
+        # somewhere mid-line must NOT register as a tool error.
+        content = (
+            "import logging\n"
+            "class CustomError(Exception):\n"
+            "    pass\n"
+            "# this module raises errors when misused\n"
+        )
+        assert tool_result_is_error({"content": content}) is False
+
+    @pytest.mark.parametrize("content", [
+        "Error: file not found",
+        "  error: something broke",
+        "Traceback (most recent call last):",
+        "process exited with exit code 1",
+        "Exit code: 2",
+        "bash: foo: command not found",
+        "cat: /x: No such file or directory",
+        "Permission denied",
+    ])
+    def test_anchored_signals_trigger(self, content):
+        assert tool_result_is_error({"content": content}) is True
+
+    def test_empty_content_not_error(self):
+        assert tool_result_is_error({"content": ""}) is False
+        assert tool_result_is_error({}) is False

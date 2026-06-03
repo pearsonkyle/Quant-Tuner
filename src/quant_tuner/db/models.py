@@ -198,6 +198,7 @@ class ToolcallRep(_SamplingMixin, table=True):
 
     tool_selection_acc: float | None = Field(default=None)
     param_acc_mean: float | None = Field(default=None)
+    param_acc_strict_mean: float | None = Field(default=None)
     schema_valid_rate: float | None = Field(default=None)
     continuation_type_match_rate: float | None = Field(default=None)
     recovery_appropriate_rate: float | None = Field(default=None)

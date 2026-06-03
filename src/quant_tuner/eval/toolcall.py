@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -11,6 +12,7 @@ from typing import IO, Any
 from openai import OpenAI, RateLimitError
 
 from quant_tuner.eval.scoring import (
+    canonical_tool,
     parse_arguments,
     score_turn,
 )
@@ -157,12 +159,16 @@ def call_model(
     Retries up to *max_retries* times with exponential backoff starting at
     *base_delay* seconds (2 s → 4 s → 8 s → 16 s → 32 s).
     """
+    # Omit ``tools`` entirely when empty: an empty array is rejected by strict
+    # OpenAI servers (e.g. vLLM with --enable-auto-tool-choice). MMLU calls pass
+    # tools=[]; tool-call calls pass a populated list.
+    tools_kwarg = {"tools": tools} if tools else {}
     for attempt in range(max_retries + 1):
         try:
             return client.chat.completions.create(
                 model=model_name,
                 messages=messages,
-                tools=tools,
+                **tools_kwarg,
                 **sampling.to_request_kwargs(),
             )
         except RateLimitError:
@@ -177,19 +183,45 @@ def call_model(
 # ---------------------------------------------------------------------------
 
 
-_ERROR_PATTERNS = (
-    "error", "failed", "exception", "traceback",
-    "command not found", "no such file", "permission denied",
-    "exit code 1", "exit code: 1", "non-zero exit",
+# Anchored error signals. Unlike the old bare-substring heuristic (which fired
+# on any file dump containing the word "error" — ~4940 false positives on the
+# real corpus), these only match structured error markers: a line that *starts*
+# with Error/Traceback, a non-zero exit code, or specific shell failures. This
+# keeps the recovery signal meaningful instead of noise.
+_ERROR_ANCHORS = (
+    re.compile(r"^\s*error[:\s]", re.IGNORECASE | re.MULTILINE),
+    re.compile(r"^\s*traceback\b", re.IGNORECASE | re.MULTILINE),
+    re.compile(r"\bexit code:?\s*[1-9]", re.IGNORECASE),
+    re.compile(r"\bnon-zero exit\b", re.IGNORECASE),
+    re.compile(r"\bcommand not found\b", re.IGNORECASE),
+    re.compile(r"\bno such file or directory\b", re.IGNORECASE),
+    re.compile(r"\bpermission denied\b", re.IGNORECASE),
 )
 
 
-def looks_like_error(content: str | None) -> bool:
-    """Heuristic: does this tool-result string read like an error?"""
+def _content_looks_like_error(content: str | None) -> bool:
+    """Tightened heuristic: does this tool-result string read like a real error?
+
+    Matches only anchored signals (line-start ``Error:``/``Traceback``, non-zero
+    exit code, or specific shell failures), never bare substrings. Used only as
+    a fallback when a tool-result message has no authoritative ``is_error`` flag.
+    """
     if not content:
         return False
-    lc = content.lower()
-    return any(p in lc for p in _ERROR_PATTERNS)
+    return any(rx.search(content) for rx in _ERROR_ANCHORS)
+
+
+def tool_result_is_error(msg: dict) -> bool:
+    """Did this ``tool``-role message report an error?
+
+    Prefers the authoritative ``is_error`` flag when present (Claude Code logs
+    carry it); otherwise falls back to the anchored content heuristic
+    (:func:`_content_looks_like_error`) for sources that don't record the flag
+    (qwen / opencode).
+    """
+    if "is_error" in msg:
+        return bool(msg["is_error"])
+    return _content_looks_like_error(msg.get("content"))
 
 
 def prior_tool_result(msgs: list[dict], i: int) -> dict | None:
@@ -235,7 +267,7 @@ def _score_post_result(
         "truth_kind": truth_kind,
         "pred_kind": pred_kind,
         "continuation_type_match": truth_kind == pred_kind,
-        "prior_was_error": looks_like_error(prior.get("content")),
+        "prior_was_error": tool_result_is_error(prior),
     }
     if not rec["prior_was_error"]:
         rec["recovery_appropriate"] = None
@@ -299,7 +331,7 @@ def _annotate_failing_calls(msgs: list[dict]) -> None:
                             or tc.get("arguments")
                         ) or {},
                     }
-        elif m.get("role") == "tool" and looks_like_error(m.get("content")):
+        elif m.get("role") == "tool" and tool_result_is_error(m):
             failing = by_id.get(m.get("tool_call_id"))
             if failing is not None:
                 m["_failing_call"] = failing
@@ -534,6 +566,12 @@ class EvalSummary:
     truth only (``truth_malformed`` and errored turns excluded from the
     denominator). ``n_scored`` is that denominator; ``n_total`` includes
     everything.
+
+    ``param_acc_strict_mean`` is the exact-only/extra-key-penalized companion to
+    ``param_acc_mean`` (see ``scoring.param_score_strict``); it is always
+    ``<= param_acc_mean``. ``n_post_result_errors`` counts post-result turns
+    whose prior tool result was a *real* error (``is_error`` flag when present,
+    else an anchored heuristic) — not the old bare-substring count.
     """
 
     model: str
@@ -541,6 +579,7 @@ class EvalSummary:
     tool_selection_acc: float
     param_acc_mean: float
     schema_valid_rate: float
+    param_acc_strict_mean: float = 0.0
     n_scored: int = 0
     n_total: int = 0
     continuation_type_match_rate: float = 0.0
@@ -565,11 +604,13 @@ def _summarize_tool_call_group(ts: list[dict]) -> dict:
     n = len(ts)
     if not n:
         return {"n": 0, "tool_selection_acc": 0.0,
-                "param_acc_mean": 0.0, "schema_valid_rate": 0.0}
+                "param_acc_mean": 0.0, "param_acc_strict_mean": 0.0,
+                "schema_valid_rate": 0.0}
     return {
         "n": n,
         "tool_selection_acc": sum(1 for t in ts if t.get("selection")) / n,
         "param_acc_mean": sum(t.get("param_acc", 0.0) for t in ts) / n,
+        "param_acc_strict_mean": sum(t.get("param_acc_strict", 0.0) for t in ts) / n,
         "schema_valid_rate": sum(1 for t in ts if t.get("schema_valid")) / n,
     }
 
@@ -643,9 +684,11 @@ def _aggregate(
         by_src.setdefault(t.get("source") or "unknown", []).append(t)
         by_strat.setdefault(t.get("stratum") or "unknown", []).append(t)
         by_depth.setdefault(int(t.get("turn", 0)), []).append(t)
-        # Per-tool: attribute the turn to every ground-truth tool name.
+        # Per-tool: attribute the turn to every ground-truth tool name,
+        # collapsed to its canonical capability so the same capability isn't
+        # fragmented across per-agent spellings (read_file/Read/read → read).
         for name in t.get("truth_names") or []:
-            per_tool.setdefault(name, []).append(t)
+            per_tool.setdefault(canonical_tool(name), []).append(t)
 
     return EvalSummary(
         model=model_label,
@@ -653,6 +696,7 @@ def _aggregate(
         tool_selection_acc=headline["tool_selection_acc"],
         param_acc_mean=headline["param_acc_mean"],
         schema_valid_rate=headline["schema_valid_rate"],
+        param_acc_strict_mean=headline["param_acc_strict_mean"],
         n_scored=n_scored,
         n_total=n_total,
         continuation_type_match_rate=cont_rate,

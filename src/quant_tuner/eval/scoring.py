@@ -27,6 +27,54 @@ _PATH_ARG_KEYS = frozenset({
 _COMMAND_ARG_KEYS = frozenset({"command", "cmd", "shell_command"})
 
 
+# Cross-agent tool-vocab unification. The same capability is named differently
+# per agent (claude ``Read``/``Bash``/``Edit`` vs qwen ``read_file``/
+# ``run_shell_command``/``edit`` vs opencode ``read``/``bash``). This table
+# collapses those families to one canonical label.
+#
+# AGGREGATION ONLY: this is used for ``per_tool`` breakdowns so a capability's
+# stats aren't fragmented across three spellings. It is NEVER used in selection
+# or param scoring — those stay exact within each session's own schema.
+_CANONICAL_TOOL_FAMILIES: dict[str, str] = {
+    # read a file
+    "read": "read", "read_file": "read",
+    # edit a file
+    "edit": "edit",
+    # write a file
+    "write": "write", "write_file": "write",
+    # run a shell command
+    "bash": "shell", "run_shell_command": "shell", "shell": "shell",
+    # content search
+    "grep": "grep", "grep_search": "grep",
+    # filename/glob search
+    "glob": "glob",
+    # list a directory
+    "list_directory": "list", "ls": "list",
+    # fetch a URL
+    "web_fetch": "web_fetch", "webfetch": "web_fetch",
+    # todo / task list management
+    "todo_write": "todo", "todowrite": "todo",
+    "taskcreate": "todo", "taskupdate": "todo",
+    # spawn a sub-agent
+    "task": "task", "agent": "task",
+    # ask the user a question
+    "ask_user_question": "ask", "askuserquestion": "ask", "question": "ask",
+    # exit plan mode
+    "exit_plan_mode": "plan", "exitplanmode": "plan",
+}
+
+
+def canonical_tool(name: str) -> str:
+    """Map a tool name to its canonical capability label for aggregation.
+
+    Lowercases ``name`` and maps known cross-agent families to a single label
+    (e.g. ``Read``/``read_file``/``read`` → ``read``). Unknown names pass
+    through lowercased unchanged. Aggregation-only — never used in scoring.
+    """
+    lc = (name or "").lower()
+    return _CANONICAL_TOOL_FAMILIES.get(lc, lc)
+
+
 def parse_arguments(args: Any) -> dict | None:
     """Coerce a tool-call ``arguments`` field to a dict, or ``None`` if not parseable."""
     if isinstance(args, dict):
@@ -259,6 +307,41 @@ def param_score(
     return hits / len(required), details
 
 
+def param_score_strict(
+    pred_args: dict | None, truth_args: dict, schema: dict | None
+) -> float:
+    """Strict variant of :func:`param_score`: exact-only, extra keys penalized.
+
+    Differs from the lenient ``param_score`` two ways:
+
+    * only an **exact** match credits a key (``similar`` does not — a normalized
+      path or paraphrased string scores 0), and
+    * extra keys in ``pred_args`` are **penalized**: the denominator is the union
+      ``len(set(truth) | set(pred))`` rather than ``len(truth)``.
+
+    Returns a bare float (no detail dict). Reported alongside ``param_acc`` to
+    expose quant degradation the lenient metric smooths over.
+    """
+    if pred_args is None:
+        return 0.0
+    truth_keys = set(truth_args.keys())
+    pred_keys = set(pred_args.keys())
+    denom = len(truth_keys | pred_keys)
+    if denom == 0:
+        return 1.0
+    props = (schema or {}).get("properties") or {}
+    hits = 0
+    for k in truth_keys:
+        if k not in pred_args:
+            continue
+        exact, _similar, _method = compare_value(
+            k, pred_args[k], truth_args[k], props.get(k)
+        )
+        if exact:
+            hits += 1
+    return hits / denom
+
+
 def score_turn(
     pred_calls: list[tuple[str, dict | None]],
     truth_calls: list[tuple[str, dict]],
@@ -273,6 +356,9 @@ def score_turn(
     * ``param_acc``: when ``selection`` is True, mean of per-truth-call
       ``param_score`` after greedy first-occurrence name-matching against
       ``pred_calls``. When False, 0.0.
+    * ``param_acc_strict``: same shape as ``param_acc`` but using
+      ``param_score_strict`` (exact-only, extra keys penalized). Always
+      ``<= param_acc``.
     * ``schema_valid``: ``all(is_schema_valid(name, args, tools))`` across
       every emitted pred call. Empty pred → False.
     * ``param_details``: per-truth-call breakdown for the log.
@@ -282,10 +368,12 @@ def score_turn(
     selection = bool(truth_names_l) and set(truth_names_l) == set(pred_names_l)
 
     pacc = 0.0
+    pacc_strict = 0.0
     param_details: list[dict] = []
     if selection:
         consumed = [False] * len(pred_calls)
         per_call_scores: list[float] = []
+        per_call_strict: list[float] = []
         for tname, targs in truth_calls:
             tname_l = (tname or "").lower()
             match_idx = next(
@@ -295,19 +383,26 @@ def score_turn(
             )
             if match_idx is None:
                 per_call_scores.append(0.0)
+                per_call_strict.append(0.0)
                 param_details.append({"truth_name": tname, "result": "no pred match"})
                 continue
             consumed[match_idx] = True
             sch = schema_for(tname, tools)
             score, det = param_score(pred_calls[match_idx][1], targs, sch)
+            strict = param_score_strict(pred_calls[match_idx][1], targs, sch)
             per_call_scores.append(score)
+            per_call_strict.append(strict)
             param_details.append({
                 "truth_name": tname,
                 "pred_idx": match_idx,
                 "score": score,
+                "score_strict": strict,
                 "detail": det,
             })
         pacc = sum(per_call_scores) / len(per_call_scores) if per_call_scores else 0.0
+        pacc_strict = (
+            sum(per_call_strict) / len(per_call_strict) if per_call_strict else 0.0
+        )
     else:
         param_details.append({
             "result": "selection mismatch",
@@ -326,6 +421,7 @@ def score_turn(
     return {
         "selection": selection,
         "param_acc": pacc,
+        "param_acc_strict": pacc_strict,
         "param_details": param_details,
         "schema_valid": schema_ok,
         "schema_msg": schema_msg,

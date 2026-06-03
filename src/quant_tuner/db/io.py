@@ -292,6 +292,7 @@ def add_toolcall_reps(
             error=rr.error,
             tool_selection_acc=_f(m, "tool_selection_acc"),
             param_acc_mean=_f(m, "param_acc_mean"),
+            param_acc_strict_mean=_f(m, "param_acc_strict_mean"),
             schema_valid_rate=_f(m, "schema_valid_rate"),
             continuation_type_match_rate=_f(m, "continuation_type_match_rate"),
             recovery_appropriate_rate=_f(m, "recovery_appropriate_rate"),
