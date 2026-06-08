@@ -112,6 +112,32 @@ benchmark-agnostic — anything that reduces to `dict[str, float]` plugs in.
 
 ### Experiment scripts (`scripts/`)
 The OmniCoder reproduction is here; the CLI handles ad-hoc runs.
+- `build_corpora.py` — **canonical text-corpus builder**. One pass, one seed (42),
+  three corpora written to `--out`:
+  - `corpus.cal.txt` — ALL of `wiki.test.raw` + ~500k tokens from the logtrain **train**
+    split (stratified-packed). Feed to `llama-imatrix` and `awq.calibrate(cal_text=…)`.
+  - `corpus.val.txt` — ~10k tokens from the logtrain **test** split + `calibration_supplement.txt`.
+    Feed to `awq.calibrate(holdout_text=…)` for cv-mixed / cv-gate scoring. The supplement
+    is deliberately *under-represented content* (Rust etc.) so that an α candidate winning
+    on val genuinely generalizes beyond the cal distribution — not just a re-draw of the
+    same sessions.
+  - `corpus.eval.txt` — ~30k tokens each (~90k total) sampled deterministically from the
+    external `eaddario/imatrix-calibration` dataset: `{code_small, math_small, tools_small}`
+    parquet files, cached under `out/external/imatrix-calibration/`. Feed to the bench
+    `eval_dataset` for PPL/KLD vs FP16. **Eval is intentionally not derived from logtrain
+    or wiki** — both appear in the calibration corpus, so PPL on them would conflate fit
+    with generalization. External code/math/tools text gives a clean third distribution.
+  Also writes per-domain intermediates (`corpus.cal.logtrain.txt`,
+  `corpus.eval.{code,math,tools}_small.txt`) and `corpora_audit.json` (token counts,
+  session counts, per-source breakdown). Asserts logtrain `train`/`test`/`holdout`
+  fingerprints are disjoint before returning.
+
+  The logtrain `holdout` slice (10%) is *not* used by this script — it remains reserved
+  for the tool-call eval sessions written by `pipeline.py`/`build_toolcall_holdout.py`.
+
+  **Prefer this over the older one-off corpus builders** (`run_omnicoder_mixed_corpus.py`,
+  `build_holdout_chunk.py`) when standing up a new model — those scripts predate this
+  and build single corpora with overlapping cal/eval distributions.
 - `reproduce_leaderboard.py` — orchestrator chaining 7 stages (extract → 3 calibration
   stages → holdout → speed rebench → tool-call reps → render). Each subprocess-isolated.
 - `run_omnicoder_{q4_k_m,wiki_vs_custom,mixed_corpus}.py` — the three calibration stages,
@@ -156,3 +182,15 @@ bare names and absolute paths; `PLACEHOLDER` fields are rejected with a clear
   "which imatrix is best?" read **KLD and tool-call** columns.
 - Calibration `train`, eval `test`, and `holdout` slices come from the same source
   (`logtrain.jsonl`) but are disjoint — preserve this invariant when adding new evals.
+- **Slice / source → corpus mapping** (used by `scripts/build_corpora.py` and the
+  convention every new experiment should follow):
+  - logtrain `train` (80%) + wiki → **calibration** corpus → imatrix + AWQ proxy loss
+  - logtrain `test`  (10%) + `calibration_supplement.txt` → **validation** corpus → AWQ
+    cv-mixed / cv-gate α scoring. The supplement injects under-represented content so
+    val is a genuine distribution shift from cal, not a re-draw of the same sessions.
+  - external `eaddario/imatrix-calibration` {code_small, math_small, tools_small} →
+    **eval** corpus (PPL/KLD). Eval is **not** drawn from logtrain or wiki — those
+    appear in cal and would conflate fit with generalization.
+  - logtrain `holdout` (10%) → tool-call eval sessions (via `pipeline.py` /
+    `build_toolcall_holdout.py`). Untouched by `build_corpora.py`.
+  Don't repurpose a slice or source without re-checking every eval that touches it.

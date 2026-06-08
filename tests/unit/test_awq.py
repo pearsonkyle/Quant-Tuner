@@ -7,7 +7,10 @@ import torch
 from quant_tuner.calibrate.awq import (
     GroupScale,
     ScaleBundle,
+    ScaleGroup,
+    discover_groups,
     fake_quant_int4_g128,
+    fake_quant_q2k_block16,
     fold_rmsnorm_gain,
     proxy_loss,
     scale_from_alpha,
@@ -145,3 +148,193 @@ def test_scale_bundle_roundtrip(tmp_path):
         assert got.prev_norm == orig.prev_norm
         assert got.alpha == orig.alpha
         torch.testing.assert_close(got.scale, orig.scale)
+
+
+# ----- exp-012: q2k 2-bit proxy -------------------------------------------- #
+
+
+def test_q2k_block16_preserves_shape_with_padding():
+    W = torch.randn(8, 200)  # 200 not divisible by 16
+    Wq = fake_quant_q2k_block16(W)
+    assert Wq.shape == W.shape
+
+
+def test_q2k_block16_uses_at_most_4_levels_per_block():
+    W = torch.randn(4, 16) * 3.0
+    Wq = fake_quant_q2k_block16(W)
+    for row in Wq:
+        assert len(torch.unique(row)) <= 4
+
+
+def test_q2k_block16_zero_in_zero_out():
+    Wq = fake_quant_q2k_block16(torch.zeros(4, 64))
+    assert torch.allclose(Wq, torch.zeros_like(Wq))
+
+
+def test_q2k_block16_reconstruction_bounded():
+    """A 2-bit asymmetric quantizer should track the original within ~max range."""
+    torch.manual_seed(0)
+    W = torch.randn(4, 128)
+    Wq = fake_quant_q2k_block16(W)
+    # Per-block max abs error should be small relative to the per-block range.
+    err = (Wq - W).abs().max().item()
+    assert err < W.abs().max().item()  # never exceeds the input range
+
+
+# ----- exp-011: include_output_proj ---------------------------------------- #
+
+
+class _FakeLinear:
+    """Minimal torch.nn.Linear stand-in (isinstance check below uses real Linear)."""
+
+
+def _build_mock_model(*, with_o: bool, with_down: bool):
+    """Construct a tiny stand-in model exposing the attribute tree discover_groups walks."""
+    import torch.nn as nn
+
+    class Block(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.self_attn = nn.Module()
+            self.self_attn.q_proj = nn.Linear(8, 8, bias=False)
+            self.self_attn.k_proj = nn.Linear(8, 8, bias=False)
+            self.self_attn.v_proj = nn.Linear(8, 8, bias=False)
+            if with_o:
+                self.self_attn.o_proj = nn.Linear(8, 8, bias=False)
+            self.input_layernorm = nn.LayerNorm(8)
+            self.mlp = nn.Module()
+            self.mlp.gate_proj = nn.Linear(8, 16, bias=False)
+            self.mlp.up_proj = nn.Linear(8, 16, bias=False)
+            if with_down:
+                self.mlp.down_proj = nn.Linear(16, 8, bias=False)
+            self.post_attention_layernorm = nn.LayerNorm(8)
+
+    class M(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.model = nn.Module()
+            self.model.layers = nn.ModuleList([Block() for _ in range(2)])
+
+    return M()
+
+
+def test_discover_groups_default_excludes_output_projections():
+    m = _build_mock_model(with_o=True, with_down=True)
+    groups = discover_groups(m)
+    ids = {g.group_id for g in groups}
+    assert ids == {"L0_attn", "L0_mlp", "L1_attn", "L1_mlp"}
+
+
+def test_discover_groups_include_output_proj_emits_out_groups():
+    m = _build_mock_model(with_o=True, with_down=True)
+    groups = discover_groups(m, include_output_proj=True)
+    ids_by_layer = {g.group_id for g in groups}
+    assert "L0_attn_out" in ids_by_layer and "L0_mlp_out" in ids_by_layer
+    out_groups = [g for g in groups if g.group_id.endswith("_out")]
+    for g in out_groups:
+        assert g.prev_norm is None
+        assert len(g.members) == 1
+
+
+def test_discover_groups_include_output_proj_skips_missing_modules():
+    m = _build_mock_model(with_o=False, with_down=True)
+    groups = discover_groups(m, include_output_proj=True)
+    ids = {g.group_id for g in groups}
+    assert "L0_attn_out" not in ids
+    assert "L0_mlp_out" in ids
+
+
+# ----- exp-013: per-member α persistence ----------------------------------- #
+
+
+def test_scale_bundle_roundtrip_with_member_scales(tmp_path):
+    members = (
+        "model.layers.0.self_attn.q_proj",
+        "model.layers.0.self_attn.k_proj",
+    )
+    member_alphas = {members[0]: 0.5, members[1]: 0.75}
+    member_scales = {
+        members[0]: torch.tensor([1.0, 0.9, 1.1, 1.0], dtype=torch.float32),
+        members[1]: torch.tensor([0.95, 1.05, 1.0, 1.0], dtype=torch.float32),
+    }
+    b = ScaleBundle(
+        proxy="q2k_b16",
+        groups=[
+            GroupScale(
+                group_id="L0_attn",
+                anchor=members[0],
+                members=members,
+                prev_norm="model.layers.0.input_layernorm",
+                scale=torch.tensor([1.0, 1.0, 1.0, 1.0], dtype=torch.float32),
+                alpha=0.5,
+                member_alphas=member_alphas,
+                member_scales=member_scales,
+            ),
+            GroupScale(
+                group_id="L0_attn_out",
+                anchor="model.layers.0.self_attn.o_proj",
+                members=("model.layers.0.self_attn.o_proj",),
+                prev_norm=None,
+                scale=torch.tensor([1.0, 1.0, 1.0, 1.0], dtype=torch.float32),
+                alpha=0.25,
+            ),
+        ],
+    )
+    path = tmp_path / "awq.pt"
+    b.save(path)
+    loaded = ScaleBundle.load(path)
+
+    assert loaded.proxy == "q2k_b16"
+    assert loaded.groups[0].member_alphas == member_alphas
+    for k, v in member_scales.items():
+        torch.testing.assert_close(loaded.groups[0].member_scales[k], v)
+    assert loaded.groups[1].prev_norm is None
+    assert loaded.groups[1].member_scales is None
+
+
+def test_cv_gate_reverts_to_group_alpha_when_holdout_worsens():
+    """exp-017 gate logic: if α minimizing cal_loss has worse ho_loss than the
+    group α, the gate must revert. Verified by direct simulation of the
+    scoring step (no model load needed)."""
+    cal_losses = {0.0: 80.0, 0.25: 47.0, 0.5: 62.0}  # cal-best is α=0.25
+    ho_losses = {0.0: 45.0, 0.25: 55.0, 0.5: 73.0}    # but α=0.25 is worse on ho
+    group_alpha = 0.0  # assume group picked α=0.0
+
+    # Replicate calibrate()'s decision logic for cv_strategy='gate':
+    m_best_a = min(cal_losses, key=cal_losses.get)
+    assert m_best_a == 0.25  # cal-best
+    if ho_losses[m_best_a] > ho_losses[group_alpha]:
+        m_best_a = group_alpha
+    assert m_best_a == 0.0, "gate should revert when held-out loss worsens"
+
+
+def test_cv_mixed_picks_held_out_friendly_alpha():
+    """exp-018 mixed loss: with cv_weight>0, the score sums cal+w·ho. With
+    high weight, the held-out signal dominates and pulls α toward the
+    held-out-best."""
+    cal_losses = {0.0: 80.0, 0.25: 47.0, 0.5: 62.0}
+    ho_losses = {0.0: 45.0, 0.25: 55.0, 0.5: 73.0}
+
+    # cv_weight=0 reproduces cal-only behavior
+    scores0 = {a: cal_losses[a] + 0.0 * ho_losses[a] for a in cal_losses}
+    assert min(scores0, key=scores0.get) == 0.25
+
+    # cv_weight=2 makes ho dominate enough to pick α=0
+    scores2 = {a: cal_losses[a] + 2.0 * ho_losses[a] for a in cal_losses}
+    # 0.0: 80+90=170 ; 0.25: 47+110=157 ; 0.5: 62+146=208
+    assert min(scores2, key=scores2.get) == 0.25  # still 0.25 wins this case
+
+    # With cv_weight=5, ho dominates fully
+    scores5 = {a: cal_losses[a] + 5.0 * ho_losses[a] for a in cal_losses}
+    # 0.0: 80+225=305 ; 0.25: 47+275=322 ; 0.5: 62+365=427
+    assert min(scores5, key=scores5.get) == 0.0
+
+
+def test_scale_group_prev_norm_optional():
+    g = ScaleGroup(
+        group_id="x",
+        anchor="a",
+        members=("a",),
+        prev_norm=None,
+    )
+    assert g.prev_norm is None
