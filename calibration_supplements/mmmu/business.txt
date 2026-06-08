@@ -1,0 +1,544 @@
+================================================================================
+MMMU DISCIPLINE: Business
+Subjects: Accounting, Economics, Finance, Management, Marketing
+Plain text; llama-imatrix treats the whole file as one continuous token stream.
+Samples are separated by a blank line. No raw special tokens.
+================================================================================
+
+## Accounting
+
+Accounting rests on the accounting equation: Assets = Liabilities + Owners' Equity.
+Every transaction preserves this identity, which is the deep reason double-entry
+bookkeeping works — each entry touches at least two accounts so the books stay in
+balance. Debits and credits are not "good" and "bad"; they are left and right.
+Assets and expenses increase with debits; liabilities, equity, and revenue increase
+with credits. A sale on account, for example, debits Accounts Receivable (an asset
+goes up) and credits Revenue (equity goes up through retained earnings), and the
+equation holds.
+
+The three core financial statements answer three different questions and articulate
+with one another. The income statement asks "was the period profitable?" and runs
+Revenue − Expenses = Net Income over an interval. The balance sheet asks "what does
+the entity own and owe?" at a single instant. The cash flow statement asks "where
+did the cash actually go?", reconciling accrual net income to the change in cash by
+adjusting for non-cash items and working-capital swings. Net income flows into
+retained earnings on the balance sheet, and the cash flow statement's ending cash
+ties to the balance sheet's cash line — the statements are a linked system, not
+three independent reports.
+
+Accrual accounting recognizes revenue when it is earned and expenses when they are
+incurred, regardless of when cash moves; this is the core of the matching principle,
+which pairs the costs of generating revenue with that revenue in the same period.
+Depreciation embodies this: a machine bought for cash today is not expensed all at
+once but allocated over its useful life, matching the cost to the periods that
+benefit from it. The result is that profit and cash can diverge sharply — a
+fast-growing firm can be profitable on the income statement yet starved for cash as
+it funds receivables and inventory.
+
+A simplified income statement (figures in $000s):
+  Revenue                         4,200
+  Cost of goods sold             (2,520)
+  Gross profit                    1,680    (gross margin 40.0%)
+  Operating expenses               (980)
+  Operating income (EBIT)           700
+  Interest expense                  (90)
+  Pre-tax income                    610
+  Income tax (21%)                 (128)
+  Net income                        482    (net margin 11.5%)
+
+Q: A company reports net income of $482k but its cash balance fell during the same
+year. Which single item most plausibly explains profit without cash?
+A. A large increase in accounts receivable (sales booked but not yet collected).
+B. A decrease in inventory.   C. Issuing new equity.   D. Recording depreciation.
+Reasoning: Profit-but-no-cash usually means earnings are tied up in working capital.
+A rise in receivables means revenue was recognized (boosting net income) but the
+cash hasn't arrived — a classic use of cash that doesn't reduce profit. A decrease
+in inventory and depreciation both add cash relative to income; issuing equity adds
+cash. Answer: A.
+
+Q: Under accrual accounting, a firm receives $12,000 on Jan 1 for a one-year service
+contract. On its March 31 income statement (calendar quarter), how much revenue
+should it recognize?
+A. $12,000   B. $0   C. $3,000   D. $1,000
+Reasoning: Revenue is earned ratably as the service is delivered. Three of twelve
+months have elapsed, so 3/12 × $12,000 = $3,000 is recognized; the remaining $9,000
+sits on the balance sheet as deferred (unearned) revenue, a liability. Answer: C.
+
+[user] Reconcile this for me: net income 482, depreciation 140, accounts receivable
+rose 220, inventory fell 60, accounts payable rose 35. What's cash flow from
+operations?
+[assistant] tool_call accounting.cfo({"net_income":482,"depreciation":140,"d_ar":220,"d_inv":-60,"d_ap":35})
+[tool] {"cfo":477,"detail":{"add_depreciation":140,"less_ar_increase":-220,"add_inv_decrease":60,"add_ap_increase":35}}
+[assistant] Cash flow from operations is $477k. Start from net income 482, add back
+non-cash depreciation (+140), subtract the receivables increase (−220, cash tied up),
+add the inventory decrease (+60, cash freed), and add the payables increase (+35,
+cash conserved). 482 + 140 − 220 + 60 + 35 = 477. Note CFO (477) nearly equals net
+income (482) here only by coincidence — the receivables drag almost exactly offsets
+depreciation plus the working-capital tailwinds.
+
+## Economics
+
+Economics begins with scarcity and the idea that every choice has an opportunity
+cost — the value of the next-best alternative forgone. The supply-and-demand model
+is the workhorse: the demand curve slopes down (lower price, more quantity
+demanded), the supply curve slopes up (higher price, more quantity supplied), and
+the market clears where they cross, at the equilibrium price and quantity. Shifts of
+the whole curve (from changing income, input costs, tastes, or the number of buyers
+and sellers) are distinct from movements along a curve (caused only by a change in
+the good's own price) — conflating the two is the most common analytical error.
+
+Elasticity measures responsiveness. Price elasticity of demand is the percentage
+change in quantity demanded divided by the percentage change in price; demand is
+elastic (|E| > 1) when buyers are sensitive (luxuries, many substitutes) and
+inelastic (|E| < 1) when they are not (necessities, addictive goods, no substitutes).
+Elasticity drives revenue strategy: raising the price of an inelastic good raises
+total revenue, while raising the price of an elastic good lowers it, because the
+quantity lost outweighs the higher price.
+
+Market structures sit on a spectrum from perfect competition to monopoly. Under
+perfect competition, many firms sell an identical product, no one has pricing power,
+and price equals marginal cost in the long run, yielding allocative efficiency. A
+monopoly, facing the whole downward-sloping demand curve, restricts output and sets
+price above marginal cost, capturing producer surplus and creating deadweight loss.
+Between them lie monopolistic competition (many firms, differentiated products) and
+oligopoly (a few interdependent firms whose strategic interaction is modeled with
+game theory).
+
+Macroeconomics studies aggregates: GDP, unemployment, and inflation. Fiscal policy
+(government spending and taxation) and monetary policy (central-bank control of
+interest rates and the money supply) are the two levers for stabilizing the business
+cycle. A central bank fighting inflation raises its policy rate, which raises
+borrowing costs, cools investment and consumption, and slows price growth — at the
+risk of raising unemployment, the trade-off sketched by the short-run Phillips curve.
+
+Q: A city imposes a price ceiling on rents set below the market equilibrium. The
+predicted result is:
+A. A surplus of apartments.   B. A shortage of apartments and reduced quality.
+C. No effect, since the ceiling is below equilibrium.   D. Higher equilibrium rents.
+Reasoning: A binding price ceiling (set below equilibrium) makes quantity demanded
+exceed quantity supplied, producing a shortage; landlords also have weaker incentive
+to maintain or build, so quality and supply erode over time. A ceiling above
+equilibrium would not bind. Answer: B.
+
+Q: The demand for a particular brand of salt has a price elasticity of −0.2. To
+increase total revenue, the firm should:
+A. Lower the price.   B. Raise the price.   C. Keep the price fixed.   D. Cannot be
+determined.
+Reasoning: |−0.2| < 1, so demand is inelastic: quantity barely moves when price
+changes. Raising price increases revenue because the proportional quantity loss is
+smaller than the proportional price gain. Answer: B.
+
+[user] If a 10% price cut raises units sold from 8,000 to 9,200, what's the price
+elasticity of demand, and is the product elastic?
+[assistant] tool_call econ.elasticity({"q0":8000,"q1":9200,"pct_price_change":-0.10})
+[tool] {"pct_quantity_change":0.15,"elasticity":-1.5,"classification":"elastic"}
+[assistant] Quantity rose 15% (8,000 → 9,200) in response to a 10% price cut, so the
+price elasticity of demand is 0.15 / (−0.10) = −1.5. Because |−1.5| > 1, demand is
+elastic — buyers are price-sensitive — which means the price cut increased total
+revenue (the 15% volume gain outweighs the 10% price drop). For an elastic good,
+cutting price is the revenue-maximizing direction.
+
+## Finance
+
+Finance is built on the time value of money: a dollar today is worth more than a
+dollar tomorrow because today's dollar can be invested to earn a return. The present
+value of a future cash flow is PV = FV / (1 + r)^n, and the present value of a stream
+of cash flows is the sum of each discounted to today. Net present value (NPV) sums
+the discounted cash flows of a project net of its initial cost; the decision rule is
+simple and powerful — accept any project with positive NPV, because it adds value
+beyond the cost of capital.
+
+Risk and return are linked. The Capital Asset Pricing Model expresses the required
+return on an asset as the risk-free rate plus a risk premium proportional to the
+asset's beta — its sensitivity to overall market moves: E[R] = Rf + β(E[Rm] − Rf).
+Diversification reduces the firm-specific (idiosyncratic) portion of risk for free,
+which is why CAPM rewards only the undiversifiable (systematic) risk captured by
+beta. The weighted average cost of capital (WACC) blends the after-tax cost of debt
+and the cost of equity by their market weights, and it is the standard discount rate
+for a firm's projects of average risk.
+
+Valuation of a business often uses discounted cash flow (DCF): project free cash
+flows for an explicit horizon, estimate a terminal value capturing everything
+beyond, discount both to the present at WACC, and net out debt to reach equity value.
+The terminal value, frequently computed with the Gordon growth model TV = FCF×(1+g) /
+(WACC − g), typically dominates the result, which is why small changes in the assumed
+perpetual growth rate g or discount rate swing the valuation dramatically — DCF is
+only as good as its long-run assumptions.
+
+A two-stage discounting illustration (discount rate 10%):
+  Year 1 FCF 120  -> PV 120 / 1.10^1   = 109.09
+  Year 2 FCF 132  -> PV 132 / 1.10^2   = 109.09
+  Year 3 FCF 145  -> PV 145 / 1.10^3   = 108.94
+  Terminal (g=2%): TV = 145*1.02/(0.10-0.02) = 1,848.75 -> PV 1,848.75/1.10^3 = 1,388.99
+  Enterprise value = 109.09 + 109.09 + 108.94 + 1,388.99 = 1,716.11
+
+Q: Two mutually exclusive projects each cost $1,000 today. Project A returns $1,150
+in one year; Project B returns $1,300 in three years. At a 10% discount rate, which
+has the higher NPV?
+A. Project A   B. Project B   C. They are equal   D. Cannot be determined
+Reasoning: NPV_A = 1,150/1.10 − 1,000 = 1,045.45 − 1,000 = 45.45. NPV_B =
+1,300/1.10^3 − 1,000 = 976.71 − 1,000 = −23.29. A is positive, B is negative, so A
+has the higher NPV and is the only value-creating choice. Answer: A.
+
+Q: A stock has beta 1.4. The risk-free rate is 4% and the expected market return is
+9%. Its CAPM required return is:
+A. 9.0%   B. 11.0%   C. 13.0%   D. 16.6%
+Reasoning: E[R] = Rf + β(E[Rm] − Rf) = 4% + 1.4 × (9% − 4%) = 4% + 1.4 × 5% = 4% +
+7% = 11%. Answer: B.
+
+[user] Should we take on a project costing 500 now that pays 180/yr for 4 years if
+our WACC is 12%? Give NPV and IRR.
+[assistant] tool_call finance.project_eval({"cost":500,"cashflow":180,"years":4,"rate":0.12})
+[tool] {"npv":46.75,"irr":0.1654,"payback_years":2.78}
+[assistant] Yes — take it. At a 12% WACC the project's NPV is +$46.75 (the four
+discounted $180 inflows sum to ~$546.75 against the $500 outlay), and its IRR is
+≈16.5%, comfortably above the 12% hurdle rate. Simple payback is ~2.8 years. Both
+the NPV rule (positive) and the IRR rule (IRR > WACC) say accept. The main caveat is
+sensitivity: if WACC rose to ~16.5% the NPV would fall to roughly zero, so the margin
+of safety is modest.
+
+## Management
+
+Management is the coordination of people and resources toward goals, and its theory
+has swung between treating organizations as machines and as organisms. Scientific
+management (Taylor) optimized tasks through time-and-motion study, maximizing
+efficiency by standardizing the one best way to do each job. The human relations
+movement (following the Hawthorne studies) countered that motivation, attention, and
+social dynamics drive productivity as much as task design. Modern practice blends the
+two: process discipline where work is repetitive and predictable, autonomy and
+intrinsic motivation where work is creative and uncertain.
+
+Strategy frameworks structure the question "where and how should we compete?"
+Porter's Five Forces analyzes an industry's structural attractiveness through the
+threat of new entrants, the bargaining power of suppliers and of buyers, the threat
+of substitutes, and the intensity of rivalry. A SWOT analysis maps internal
+strengths and weaknesses against external opportunities and threats. Porter's generic
+strategies argue a firm must choose a clear position — cost leadership or
+differentiation — and that being "stuck in the middle," neither cheapest nor most
+distinctive, is the path to mediocre returns.
+
+Organizational behavior studies motivation, teams, and leadership. Maslow's
+hierarchy and Herzberg's two-factor theory distinguish hygiene factors (pay,
+conditions) whose absence demotivates from motivators (achievement, growth) whose
+presence energizes. Goal-setting theory finds that specific, challenging goals
+outperform vague "do your best" exhortations, provided there is feedback and
+commitment. Leadership styles — from transactional (exchange of reward for
+performance) to transformational (inspiring a shared vision) — suit different
+contexts, and contingency theories hold that the best style depends on the task,
+the team's maturity, and the environment.
+
+Operations management turns inputs into outputs reliably and cheaply. Lean thinking,
+born at Toyota, attacks waste (muda) — overproduction, waiting, excess inventory,
+defects — and pulls work through the system based on actual demand rather than
+pushing it on a forecast. The theory of constraints argues that a system's
+throughput is set by its single tightest bottleneck, so improvements anywhere else
+are illusory until the constraint is elevated. Quality methods like Six Sigma reduce
+process variation toward defect rates measured in parts per million.
+
+Q: A firm prices in the middle of its market, is neither the low-cost producer nor
+the most differentiated, and earns below-average margins. Porter would describe this
+as:
+A. Cost leadership   B. Focused differentiation   C. Stuck in the middle   D. A blue
+ocean
+Reasoning: Failing to commit to either cost leadership or differentiation, and
+underperforming as a result, is precisely Porter's "stuck in the middle." Answer: C.
+
+[user] Our support team's throughput is capped. Tickets pile up at the "specialist
+review" step while triage and resolution sit idle half the day. Which management
+principle applies and what do I do?
+[assistant] This is the theory of constraints: your system throughput is set by its
+bottleneck — specialist review — so adding capacity to triage or resolution won't
+help; it will just grow the queue in front of the constraint. Steps: (1) exploit the
+constraint — make sure specialists are never idle or doing work others could do
+(strip non-specialist tasks off them). (2) Subordinate the rest — pace triage to the
+specialists' actual rate so work doesn't pile up. (3) Elevate the constraint — add
+specialist capacity or train others to share that step. Only after the bottleneck
+moves do you re-optimize elsewhere. Measure success by end-to-end throughput and
+ticket lead time, not by any single step's utilization.
+
+## Marketing
+
+Marketing manages the relationship between an offering and a market, classically
+organized as the 4 Ps: Product (what is offered and how it is differentiated), Price
+(the value capture and positioning signal), Place (the distribution channels that
+make it available), and Promotion (the communication that builds awareness and
+demand). Modern service-oriented frameworks extend this to 7 Ps, adding People,
+Process, and Physical evidence, recognizing that for services the experience and the
+people delivering it are inseparable from the product.
+
+Segmentation, targeting, and positioning (STP) is the strategic core. Segmentation
+divides a heterogeneous market into groups with similar needs (by demography,
+geography, behavior, or psychographics). Targeting selects which segments to serve
+based on their size, growth, and fit with the firm's strengths. Positioning then
+crafts a distinctive place in the target's mind, usually articulated as a
+positioning statement: for [target] who [need], [brand] is the [category] that
+[key benefit], because [reason to believe]. A muddled position — trying to be
+everything to everyone — is the most common cause of weak brands.
+
+The customer journey reframes marketing around the buyer's process rather than the
+seller's funnel: awareness, consideration, purchase, retention, and advocacy. Metrics
+follow the journey — customer acquisition cost (CAC) measures the price of winning a
+customer, customer lifetime value (LTV) the total margin they generate, and the LTV/CAC
+ratio (a rule of thumb wants it above ~3) gauges whether growth is economically sound.
+A business that acquires customers for more than they are worth is buying revenue at a
+loss, however fast it grows.
+
+Digital marketing adds measurability and experimentation. A/B testing randomly
+assigns users to variants and compares a metric (conversion rate, click-through) with
+a test of statistical significance, so design choices are decided by data rather than
+opinion. Attribution models assign credit for a conversion across the touchpoints
+that preceded it — last-touch is simple but overcredits the final step, while
+multi-touch models distribute credit more fairly across the journey.
+
+A funnel with conversion and unit economics:
+  Visitors           100,000
+  Add to cart          8,000   (8.0% of visitors)
+  Checkout started     5,200   (65% of carts)
+  Purchased            3,640   (70% of checkouts; 3.64% overall conversion)
+  CAC = ad spend $182,000 / 3,640 = $50.00 per customer
+  LTV = avg margin $35/order x 4.5 lifetime orders = $157.50
+  LTV/CAC = 157.50 / 50.00 = 3.15   (healthy, just above the ~3 threshold)
+
+Q: A subscription startup has CAC of $120 and an average customer who pays $20/month
+at 80% gross margin for an average of 9 months before churning. Its LTV/CAC ratio is:
+A. 0.83   B. 1.20   C. 1.50   D. 3.00
+Reasoning: LTV = $20 × 80% margin × 9 months = $144 of gross margin. LTV/CAC = 144 /
+120 = 1.20. That's well below the ~3 rule of thumb, signaling the acquisition economics
+are weak — the firm should improve retention, raise price, or lower CAC. Answer: B.
+
+[user] We're launching a noise-cancelling earbud aimed at remote workers. Draft a
+positioning statement and name the single segment I should target first.
+[assistant] tool_call market.segment_score({"product":"ANC earbuds","segments":["commuters","remote knowledge workers","gym-goers","audiophiles"],"criteria":["need_intensity","willingness_to_pay","reachability"]})
+[tool] {"ranked":[{"segment":"remote knowledge workers","score":8.6},{"segment":"audiophiles","score":7.1},{"segment":"commuters","score":6.4},{"segment":"gym-goers","score":5.2}]}
+[assistant] Target remote knowledge workers first — they have the highest combined
+need intensity (call clarity, focus in shared homes), willingness to pay, and
+reachability (you can reach them precisely through professional channels). Positioning
+statement: "For remote professionals who need to focus and be heard clearly on calls,
+[Brand] is the noise-cancelling earbud that delivers studio-grade call clarity and
+all-day comfort, because its dual-mic beamforming and adaptive ANC are tuned for
+voice, not just music." Keep music-fidelity claims secondary — leading with the
+"work" benefit differentiates you from the audiophile-positioned incumbents and keeps
+the message focused on one segment rather than diluting it across four.
+
+## Accounting (managerial and ratios)
+
+Where financial accounting reports to outsiders, managerial accounting informs
+internal decisions, and its central tool is cost behavior. Costs split into fixed
+(unchanged with volume, like rent) and variable (scaling with each unit, like
+materials). The contribution margin — price minus variable cost per unit — is what
+each sale contributes toward covering fixed costs and then profit. The break-even
+volume is fixed costs divided by contribution margin per unit: below it the firm
+loses money, above it each additional unit drops its full contribution margin to the
+bottom line, which is the source of operating leverage.
+
+Ratio analysis distills statements into comparable signals. Liquidity ratios (current
+ratio = current assets / current liabilities) gauge short-term solvency. Profitability
+ratios (return on equity = net income / equity) gauge how hard shareholder capital
+works. Leverage ratios (debt-to-equity) gauge financial risk. The DuPont decomposition
+splits ROE into net margin × asset turnover × equity multiplier, revealing whether
+returns come from fat margins, efficient asset use, or simply borrowing — three very
+different stories behind the same headline number.
+
+Q: A product sells for $50 with $30 variable cost; fixed costs are $120,000. The
+break-even unit volume is:
+A. 2,400 units   B. 4,000 units   C. 6,000 units   D. 2,000 units
+Reasoning: Contribution margin per unit = $50 − $30 = $20. Break-even = fixed costs /
+CM = $120,000 / $20 = 6,000 units. Answer: C.
+
+A common-size balance sheet (each line as a percent of total assets):
+  Cash & equivalents        12%        Accounts payable          9%
+  Accounts receivable       18%        Short-term debt           6%
+  Inventory                 22%        Current liabilities      15%
+  Current assets            52%        Long-term debt           35%
+  Property & equipment      40%        Total liabilities        50%
+  Intangibles                8%        Shareholders' equity     50%
+  Total assets             100%        Total liab. + equity    100%
+  Current ratio = current assets / current liabilities = 52 / 15 = 3.47
+  Debt-to-equity = total liabilities / equity = 50 / 50 = 1.00
+
+[user] Run a DuPont decomposition: net income 240, revenue 4,000, total assets
+2,000, equity 800. Is ROE driven by margin, turnover, or leverage?
+[assistant] tool_call accounting.dupont({"net_income":240,"revenue":4000,"assets":2000,"equity":800})
+[tool] {"net_margin":0.06,"asset_turnover":2.0,"equity_multiplier":2.5,"roe":0.30}
+[assistant] ROE is 30%, and DuPont splits it into net margin (6%) × asset turnover
+(2.0×) × equity multiplier (2.5×) = 0.06 × 2.0 × 2.5 = 0.30. The story: margins are
+thin (6%), but the firm uses assets efficiently (turning them 2× a year) and
+amplifies returns with meaningful leverage (a 2.5× equity multiplier means assets are
+2.5× equity, i.e. debt-to-equity of 1.5). So this ROE is driven jointly by turnover
+and leverage, not by fat margins — which is healthy on the operations side but means
+roughly the financial-risk portion of ROE would vanish if the firm deleveraged.
+
+## Economics (macro, game theory, and externalities)
+
+Game theory models strategic interaction where each player's best move depends on
+the others'. The prisoner's dilemma is its emblem: two parties would both be better
+off cooperating, but each has a dominant incentive to defect, so rational play yields
+a worse outcome for both — a Nash equilibrium that is not Pareto-efficient. This
+single structure explains arms races, price wars, overfishing, and the difficulty of
+climate agreements: individually rational choices aggregate to a collectively bad
+result, which is why enforceable cooperation (contracts, regulation, repeated
+relationships) creates value.
+
+Externalities are costs or benefits that fall on third parties not party to a
+transaction. A factory that pollutes a river imposes a negative externality; its
+private cost is below the social cost, so the market overproduces. The standard
+remedies internalize the externality: a Pigouvian tax set equal to the marginal
+external cost makes the polluter face the true social cost, while a cap-and-trade
+system fixes the total quantity and lets a market price the right to emit. Public
+goods — non-rival and non-excludable, like national defense or basic research — are
+the mirror image: markets underprovide them because no one can be charged, which is
+the textbook justification for public funding.
+
+Inflation is a sustained rise in the general price level, eroding purchasing power.
+Demand-pull inflation arises when aggregate demand outruns capacity; cost-push
+inflation arises when input costs (energy, wages) rise across the economy. Central
+banks target low, stable inflation (often ~2%) because both extremes are costly:
+high inflation distorts saving and contracts, while deflation raises the real burden
+of debt and can trap an economy in postponed spending. The real interest rate —
+nominal rate minus expected inflation — is what actually governs saving and
+investment decisions.
+
+Q: A government wants to reduce carbon emissions to their socially optimal level
+using a market mechanism that fixes the total quantity of emissions. Which tool fits?
+A. A Pigouvian subsidy   B. Cap-and-trade   C. A price floor on energy   D. A tariff
+Reasoning: Cap-and-trade sets a hard quantity cap on emissions and lets firms trade
+permits, so the total is fixed and the market sets the price. A Pigouvian tax fixes
+the price (not quantity); a subsidy and a tariff do neither directly. Answer: B.
+
+Q: In a one-shot prisoner's dilemma, the Nash equilibrium is:
+A. Both cooperate   B. Both defect   C. One cooperates, one defects   D. There is no
+equilibrium
+Reasoning: Defection is each player's dominant strategy (it pays more regardless of
+the other's choice), so both defect — a Nash equilibrium even though mutual
+cooperation would leave both better off. Answer: B.
+
+## Finance (fixed income, options, portfolios)
+
+A bond is a promise of fixed cash flows, and its price moves inversely to interest
+rates: when market yields rise, the fixed coupons are worth less, so the price falls.
+Duration measures this sensitivity — the approximate percentage price change for a 1%
+change in yield — and is longer for bonds with lower coupons and longer maturities.
+Yield to maturity is the single discount rate that sets the present value of a bond's
+cash flows equal to its market price; it is the bond's internal rate of return if
+held to maturity and all coupons are reinvested at that rate.
+
+Options give the right, not the obligation, to buy (call) or sell (put) an asset at a
+strike price. A call's value rises with the underlying price, volatility, and time to
+expiry; the Black–Scholes model prices European options under assumptions of
+lognormal returns and constant volatility. The key intuition is that an option is a
+leveraged, asymmetric bet: the buyer's loss is capped at the premium while the upside
+is large, which is why options are used both to speculate and to hedge — a put acts as
+insurance on a long position.
+
+Portfolio theory (Markowitz) shows that combining assets whose returns are not
+perfectly correlated reduces risk for a given expected return. The efficient frontier
+is the set of portfolios offering the maximum expected return for each level of risk;
+adding a risk-free asset turns the optimal risky portfolio into the tangency
+portfolio, and investors choose where to sit on the resulting capital market line by
+their risk tolerance. The free lunch of diversification is the foundational result of
+modern finance: idiosyncratic risk can be diversified away, so the market does not
+reward it.
+
+A small bond cash-flow schedule (face $1,000, 5% annual coupon, 3-year, YTM 6%):
+  Year 1 coupon 50  -> PV 50 / 1.06^1   = 47.17
+  Year 2 coupon 50  -> PV 50 / 1.06^2   = 44.50
+  Year 3 coupon+face 1,050 -> PV 1,050 / 1.06^3 = 881.60
+  Price = 47.17 + 44.50 + 881.60 = 973.27   (trades at a discount because coupon < YTM)
+
+Q: A bond's coupon rate is below its yield to maturity. The bond will trade at:
+A. Par   B. A premium (above face)   C. A discount (below face)   D. Cannot be
+determined
+Reasoning: When the coupon rate is less than the required yield, investors discount
+the cash flows more steeply than the coupons compensate, so the price falls below
+face value — a discount bond. Coupon = YTM gives par; coupon > YTM gives a premium.
+Answer: C.
+
+[user] I hold 100 shares at $48. A 3-month put with strike $45 costs $1.50/share.
+What's my worst-case loss with and without the put?
+[assistant] tool_call finance.protective_put({"shares":100,"price":48,"strike":45,"premium":1.50})
+[tool] {"max_loss_unhedged":4800,"max_loss_hedged":450,"breakeven":49.50}
+[assistant] Without the put, your worst case is the stock going to zero: 100 × $48 =
+$4,800 lost. With the protective put, your downside is floored — below $45 the put
+lets you sell at $45, so the most you lose is the $3 drop from $48 to $45 plus the
+$1.50 premium, i.e. ($3 + $1.50) × 100 = $450. The cost of that insurance is that you
+need the stock above $49.50 (48 + 1.50) just to break even, so the put trades upside
+for a capped loss — appropriate if you're worried about a near-term drop but want to
+keep holding.
+
+## Management (decision-making and change)
+
+Decision-making under uncertainty is a core managerial skill, and good practice
+separates the quality of a decision from the quality of its outcome — a sound bet can
+lose, a reckless one can win, and judging only by results trains the wrong instincts.
+Tools include expected-value reasoning (probability-weighted payoffs), decision trees
+that lay out sequential choices and chance events, and explicit consideration of base
+rates to counter the cognitive biases — anchoring, confirmation, sunk-cost — that
+systematically distort judgment. The sunk-cost fallacy in particular destroys value:
+money already spent is irrecoverable and should never influence a forward-looking
+choice.
+
+Change management addresses the human side of transformation, which is where most
+strategies fail. Kotter's model sequences change as establishing urgency, building a
+guiding coalition, forming a vision, communicating it relentlessly, removing
+obstacles, generating short-term wins, consolidating gains, and anchoring the change
+in the culture. The recurring lesson is that resistance is rarely irrational — it
+reflects real costs and uncertainties for the people affected — so change succeeds
+when leaders address those concerns directly rather than overpowering them.
+
+Q: A manager argues the team must continue a failing two-year project because
+"we've already invested $2M and can't waste it." This reasoning exhibits:
+A. Opportunity-cost thinking   B. The sunk-cost fallacy   C. Expected-value
+maximization   D. Base-rate neglect
+Reasoning: The $2M is already spent and unrecoverable; letting it justify further
+investment is the sunk-cost fallacy. The correct test is whether the remaining
+spend has positive expected value going forward, independent of past outlays.
+Answer: B.
+
+## Marketing (brand, pricing, and lifecycle)
+
+Brand equity is the premium a name commands beyond the functional product — the
+reason a customer pays more for, or chooses faster, a branded good over an identical
+generic. It is built from awareness, perceived quality, associations, and loyalty,
+and it compounds: a strong brand lowers customer acquisition cost, supports premium
+pricing, and creates resilience against competitors and missteps. Brands are managed
+through consistency of identity and experience over time, which is why the
+positioning, once chosen, must be defended against the constant temptation to chase
+every adjacent opportunity.
+
+Pricing strategy signals positioning and captures value. Cost-plus pricing marks up
+unit cost by a target margin — simple but blind to what customers will pay.
+Value-based pricing sets price by the worth delivered to the customer, capturing more
+of the surplus the product creates. Penetration pricing enters low to win share and
+build scale; price skimming enters high to capture early adopters' willingness to pay
+before lowering it. Psychological pricing ($9.99 vs $10) and price anchoring (showing
+a premium tier to make the middle look reasonable) exploit predictable quirks in how
+buyers perceive value.
+
+The product life cycle — introduction, growth, maturity, decline — implies different
+marketing priorities at each stage: build awareness at introduction, build share and
+differentiation during growth, defend share and optimize margin at maturity, and
+harvest or reposition in decline. Mismatching tactics to stage is a common error,
+such as spending heavily on awareness for a mature product whose buyers already know
+it and instead need a reason to prefer it.
+
+Q: A premium streaming service shows customers a $24.99 "Pro" plan beside its $14.99
+"Standard" plan, mainly to make Standard feel like the sensible choice. This tactic
+is:
+A. Penetration pricing   B. Price anchoring   C. Cost-plus pricing   D. Loss leader
+Reasoning: Presenting a high-priced option to reframe a lower option as reasonable is
+price anchoring — the expensive tier sets the reference point. Penetration pricing
+enters low; cost-plus marks up cost; a loss leader is sold below cost to drive other
+sales. Answer: B.
+
+[user] We sell project-management software at $12/seat (cost-plus). A competitor
+analysis says teams save ~6 hours/month/seat, worth ~$300. Recommend a pricing
+approach and a defensible number.
+[assistant] Switch from cost-plus to value-based pricing — $12 leaves almost all the
+value you create on the table. The product saves ~$300/seat/month in labor, so the
+ceiling is enormous; you don't need to capture all of it, just a credible fraction.
+A defensible target is roughly 10–15% of quantified value, i.e. $30–$45/seat/month,
+positioned with the savings as the explicit justification ("pays for itself in under
+a day of saved time"). Practically: introduce tiers to anchor — a $59 "Business" tier
+makes a $39 "Team" tier feel moderate — and migrate existing $12 customers gradually
+to avoid churn shock. The key shift is anchoring the price to the buyer's value, not
+to your cost.

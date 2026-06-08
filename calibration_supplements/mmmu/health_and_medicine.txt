@@ -1,0 +1,474 @@
+================================================================================
+MMMU DISCIPLINE: Health & Medicine
+Subjects: Basic Medical Science, Clinical Medicine, Diagnostics & Lab Medicine,
+          Pharmacy, Public Health
+Plain text; llama-imatrix treats the whole file as one continuous token stream.
+Samples are separated by a blank line. No raw special tokens.
+Educational reference content only — not medical advice.
+================================================================================
+
+## Basic Medical Science
+
+Physiology is the study of how the body's systems maintain life, and its master
+theme is homeostasis — the regulation of internal variables within narrow limits
+through feedback. The cardiovascular system circulates blood: the heart's left
+ventricle pumps oxygenated blood through the systemic arteries to the tissues, where
+capillaries exchange gases and nutrients, and veins return deoxygenated blood to the
+right heart, which sends it to the lungs. Cardiac output — the volume pumped per
+minute — equals heart rate times stroke volume, and blood pressure is the product of
+cardiac output and total peripheral resistance, the two levers the body adjusts to
+perfuse organs.
+
+The nervous system is the body's fast signaling network. Neurons transmit electrical
+impulses (action potentials) along axons and communicate across synapses by releasing
+neurotransmitters. The action potential is an all-or-nothing wave of membrane
+depolarization driven by voltage-gated sodium and potassium channels; the resting
+membrane potential it springs from is maintained by the sodium–potassium pump. The
+autonomic nervous system regulates involuntary functions through two opposing arms:
+the sympathetic ("fight or flight") raises heart rate and dilates airways, while the
+parasympathetic ("rest and digest") does the reverse.
+
+The endocrine system signals more slowly through hormones carried in the blood. Many
+hormones are governed by negative feedback loops centered on the hypothalamus and
+pituitary: the hypothalamus releases factors that drive pituitary hormones, which
+drive target glands, whose products feed back to suppress the upstream signals. Insulin
+and glucagon from the pancreas regulate blood glucose in opposition — insulin lowers it
+by promoting uptake and storage, glucagon raises it by mobilizing stored glycogen — a
+balance whose failure defines diabetes.
+
+The immune system defends against pathogens in two tiers. Innate immunity is fast and
+nonspecific — physical barriers, phagocytes, and inflammation. Adaptive immunity is
+slower but specific and remembering: B cells produce antibodies against particular
+antigens, and T cells kill infected cells or coordinate the response. Immunological
+memory — the basis of vaccination — lets a second exposure trigger a faster, stronger
+response, which is why a vaccine that presents a harmless piece of a pathogen can
+confer lasting protection.
+
+Figure: a graph of membrane potential versus time showing a rapid rise from −70 mV to
++30 mV, then a fall back below −70 mV before returning to baseline.
+Q: The rapid rise (depolarization) of the action potential is caused mainly by:
+A. Potassium leaving the cell   B. Sodium rushing into the cell through voltage-gated
+channels   C. The sodium-potassium pump   D. Chloride entering the cell
+Reasoning: The upstroke is driven by voltage-gated Na+ channels opening and Na+
+flooding in, reversing the membrane potential toward positive. The subsequent fall
+(repolarization) is K+ leaving; the pump restores gradients more slowly. Answer: B.
+
+Q: A hormone's blood level rises, which suppresses the release of the pituitary
+hormone that stimulated its gland. This regulatory pattern is:
+A. Positive feedback   B. Negative feedback   C. Feedforward control   D. A reflex arc
+Reasoning: A rising output that inhibits its own upstream stimulus is negative
+feedback, the dominant mode of endocrine regulation that keeps hormone levels stable.
+Answer: B.
+
+[user] Explain why someone hyperventilating into a paper bag is sometimes advised, in
+terms of blood chemistry.
+[assistant] Hyperventilation blows off CO2 faster than the body produces it, lowering
+arterial CO2 (hypocapnia). Since CO2 forms carbonic acid in blood, losing it raises
+blood pH — a respiratory alkalosis — which causes the classic symptoms (tingling,
+lightheadedness, carpopedal spasm) by lowering ionized calcium. Rebreathing exhaled
+air from a bag raises the inhaled CO2 back toward normal, correcting the pH. The
+important caveat: the paper-bag method is risky if the cause is actually a heart
+attack, asthma, or hypoxia rather than anxiety, because it also lowers available
+oxygen — which is why current guidance favors paced breathing over the bag. This is
+background physiology, not first-aid instruction.
+
+## Clinical Medicine
+
+Clinical reasoning moves from undifferentiated complaint to diagnosis to management,
+and its discipline is the differential diagnosis — a ranked list of conditions that
+could explain the findings, weighed by probability and by danger. The clinician
+gathers a history and examination, forms a prioritized differential, orders tests to
+confirm or exclude, and treats. A guiding maxim is to consider both the common
+("when you hear hoofbeats, think horses, not zebras") and the dangerous (the
+can't-miss diagnoses that kill if overlooked), because the cost of a missed
+myocardial infarction is not symmetric with the cost of a missed cold.
+
+Common chronic diseases illustrate the model. Hypertension, often asymptomatic, is
+diagnosed by repeated elevated blood-pressure readings and treated to prevent stroke,
+heart, and kidney damage. Type 2 diabetes is diagnosed by elevated fasting glucose or
+HbA1c (a measure of average glucose over ~3 months) and managed to prevent vascular
+and nerve complications. The recurring clinical logic is that many chronic diseases
+are silent, so they are found by screening and treated to prevent future harm rather
+than to relieve present symptoms.
+
+Acute presentations demand pattern recognition under time pressure. Chest pain
+triggers a rapid workup for life threats — heart attack, pulmonary embolism, aortic
+dissection — before benign causes are accepted. The "ABC" priorities (airway,
+breathing, circulation) order resuscitation so that the most rapidly fatal problem is
+addressed first. Evidence-based medicine grounds these decisions in clinical trials
+and systematic reviews rather than anecdote, while acknowledging that guidelines must
+be individualized to the patient in front of you.
+
+Q: A 58-year-old with crushing central chest pain radiating to the left arm, sweating,
+and nausea is most urgently being evaluated for:
+A. Muscle strain   B. Acute myocardial infarction (heart attack)   C. Anxiety
+D. Heartburn
+Reasoning: Crushing central chest pain with radiation, diaphoresis, and nausea is the
+classic presentation of acute coronary syndrome; it is the dangerous, can't-miss
+diagnosis that must be excluded first regardless of how likely benign causes are.
+Answer: B.
+
+Q: HbA1c reflects average blood glucose over approximately:
+A. 24 hours   B. 1 week   C. 3 months   D. 1 year
+Reasoning: HbA1c measures the fraction of glycated hemoglobin, and because red blood
+cells live about 120 days, it reflects average glucose over roughly the preceding 3
+months — which is why it's used to monitor long-term diabetic control. Answer: C.
+
+[user] A patient's chart lists a BP of 150/95 on three separate visits. Walk me
+through how this is interpreted in standard staging and what the numbers mean.
+[assistant] tool_call clinical.bp_stage({"systolic":150,"diastolic":95,"readings":3})
+[tool] {"systolic":150,"diastolic":95,"stage":"Stage 2 hypertension","note":"confirmed across 3 visits"}
+[assistant] The two numbers are systolic (150, the arterial pressure when the heart
+contracts) over diastolic (95, the pressure between beats). Sustained readings at this
+level across three visits fall into Stage 2 hypertension under common staging (systolic
+≥140 or diastolic ≥90 by the older threshold; many guidelines now use ≥130/80 for
+stage 1). The clinical point is that the diagnosis requires repeated elevated readings,
+not a single one, because anxiety and "white-coat" effects inflate isolated measures.
+Management combines lifestyle change with medication aimed at preventing downstream
+stroke and organ damage. This is general educational context, not a treatment plan for
+any individual.
+
+## Diagnostics & Laboratory Medicine
+
+Diagnostic testing is the quantitative backbone of medicine, and interpreting a test
+requires understanding its operating characteristics. Sensitivity is the proportion of
+truly diseased people the test correctly flags (few false negatives); specificity is
+the proportion of truly healthy people it correctly clears (few false positives). A
+highly sensitive test is good for ruling out disease when negative (SnNout); a highly
+specific test is good for ruling in disease when positive (SpPin). Crucially, the
+predictive value of a result depends on the disease's prevalence — a positive on a
+rare disease is often a false positive even with an excellent test, the base-rate
+effect that surprises clinicians and patients alike.
+
+Laboratory hematology and chemistry translate a blood sample into actionable numbers.
+The complete blood count reports red cells (and hemoglobin, low in anemia), white
+cells (high in infection), and platelets (clotting). The basic metabolic panel reports
+electrolytes (sodium, potassium), kidney markers (creatinine, urea), and glucose.
+Reference ranges are statistically defined as the central 95% of a healthy population,
+which means about 1 in 20 healthy people will fall outside any single range by chance —
+a reason not to over-react to a lone mildly abnormal value.
+
+Medical imaging visualizes anatomy and pathology by different physical principles.
+X-ray and CT use ionizing radiation and excel at bone and dense structures; ultrasound
+uses sound waves, is radiation-free, and is ideal for soft tissue and real-time
+guidance; MRI uses magnetic fields and radio waves for superb soft-tissue contrast
+without radiation but more slowly and expensively. Choosing a modality balances the
+diagnostic question, speed, cost, and the harm of radiation, especially in children
+and pregnancy.
+
+A reference-range readout (illustrative units):
+  Hemoglobin      9.8 g/dL     (ref 12.0-16.0)  LOW  -> anemia
+  WBC             13.5 x10^9/L  (ref 4.0-11.0)   HIGH -> possible infection
+  Platelets       250 x10^9/L   (ref 150-400)    normal
+  Sodium          139 mmol/L    (ref 135-145)    normal
+  Creatinine      1.6 mg/dL     (ref 0.7-1.3)    HIGH -> reduced kidney function
+
+Q: A screening test for a disease with 0.1% prevalence has 99% sensitivity and 95%
+specificity. A randomly screened person tests positive. The positive predictive value
+is approximately:
+A. 99%   B. 50%   C. 25%   D. 2%
+Reasoning: Per 100,000 people, ~100 have the disease (99 true positives) and 99,900
+don't (5% false positives ≈ 4,995). PPV = 99 / (99 + 4,995) ≈ 99/5,094 ≈ 1.9%. Low
+prevalence makes most positives false despite good test characteristics. Answer: D.
+
+Q: A test is described as highly sensitive. A negative result is most useful for:
+A. Confirming the disease   B. Ruling out the disease   C. Determining prognosis
+D. Nothing
+Reasoning: A highly sensitive test has few false negatives, so a negative result
+reliably excludes the disease (SnNout — Sensitive test, Negative, rules out).
+Answer: B.
+
+[user] A lab panel shows hemoglobin 9.8 (low), MCV 72 (low), ferritin 8 (low). What
+class of anemia does this pattern suggest and why?
+[assistant] tool_call lab.anemia_classify({"hb":9.8,"mcv":72,"ferritin":8})
+[tool] {"class":"microcytic","most_likely":"iron deficiency anemia","rationale":"low MCV + low ferritin"}
+[assistant] This is a microcytic anemia — the low MCV (mean corpuscular volume, 72)
+means the red cells are small. Combined with a low ferritin (8), which reflects
+depleted iron stores, the pattern points to iron-deficiency anemia: too little iron
+to build normal-sized, hemoglobin-rich red cells. Ferritin is the key discriminator
+here because it's the most specific marker of body iron stores; a low ferritin is
+essentially diagnostic of iron deficiency. The next clinical question is always the
+cause of the iron loss (e.g., bleeding), since the anemia is a symptom, not the root
+problem. Educational illustration only.
+
+## Pharmacy
+
+Pharmacology divides into pharmacokinetics — what the body does to a drug — and
+pharmacodynamics — what the drug does to the body. Pharmacokinetics is summarized by
+ADME: absorption (how the drug enters the bloodstream), distribution (how it spreads
+into tissues), metabolism (chemical transformation, mostly in the liver by cytochrome
+P450 enzymes), and excretion (removal, mostly by the kidneys). These determine the
+dose and dosing interval needed to keep the drug concentration in the therapeutic
+window — above the minimum effective level but below the toxic threshold.
+
+Pharmacodynamics describes the drug–target interaction. An agonist binds a receptor
+and activates it; an antagonist binds and blocks it without activating. Potency is the
+dose needed for an effect; efficacy is the maximum effect achievable. The therapeutic
+index — the ratio of the toxic dose to the effective dose — measures safety margin; a
+drug like warfarin with a narrow therapeutic index requires careful monitoring because
+the gap between helpful and harmful is small.
+
+Half-life — the time for the plasma concentration to fall by half — governs dosing.
+After about four to five half-lives a drug is essentially cleared, and with repeated
+dosing it reaches steady state in the same number of half-lives. Drug interactions are
+a major safety concern: one drug can inhibit or induce the enzymes that metabolize
+another, raising or lowering its levels, and additive effects (two sedatives) can be
+dangerous even when each alone is safe. Renal or hepatic impairment slows clearance,
+requiring dose adjustment.
+
+Q: A drug has a half-life of 6 hours. Approximately how long until it is essentially
+eliminated from the body (about 5 half-lives)?
+A. 6 hours   B. 12 hours   C. 30 hours   D. 60 hours
+Reasoning: Essentially complete elimination takes ~5 half-lives; 5 × 6 = 30 hours, by
+which point roughly 97% has been cleared. Answer: C.
+
+Q: A medication labeled as having a "narrow therapeutic index" implies that:
+A. It is very potent.   B. The toxic dose is close to the effective dose, so careful
+monitoring is needed.   C. It has no side effects.   D. It works for many conditions.
+Reasoning: A narrow therapeutic index means the toxic dose is only slightly above the
+effective dose, leaving little safety margin and requiring blood-level monitoring
+(e.g., warfarin, digoxin, lithium). Answer: B.
+
+[user] A drug is given at 200 mg every 12 hours and has a half-life of 12 hours.
+Roughly when does it reach steady state, and what's the relationship between dose
+interval and half-life here?
+[assistant] tool_call pharm.steady_state({"dose_mg":200,"interval_h":12,"half_life_h":12})
+[tool] {"time_to_steady_state_h":48,"intervals":4,"note":"dosing interval equals one half-life"}
+[assistant] Steady state is reached in about 4-5 half-lives regardless of how often you
+dose, so here that's roughly 48-60 hours (4-5 × 12 h). Because the dosing interval
+(12 h) equals the half-life (12 h), each dose is given as the previous one has fallen
+by half, producing moderate accumulation — the trough never fully clears before the
+next dose, so the average concentration climbs to its plateau over those first two-plus
+days. If a faster onset were needed, a loading dose could reach the steady-state level
+immediately rather than waiting four half-lives. Educational illustration only.
+
+## Public Health
+
+Public health protects and improves the health of populations rather than treating
+individuals one at a time, and epidemiology is its core science — the study of how
+disease distributes and what determines it. Incidence measures new cases over a
+period; prevalence measures existing cases at a point in time. A chronic disease can
+have low incidence yet high prevalence because cases accumulate, while a short, acute
+illness can have high incidence yet low prevalence — distinguishing the two is
+essential for planning services.
+
+Infectious-disease control hinges on transmission dynamics. The basic reproduction
+number R0 is the average number of secondary infections one case causes in a fully
+susceptible population; an epidemic grows when the effective reproduction number
+exceeds 1 and shrinks below it. Herd immunity is reached when a large enough fraction
+of the population is immune that chains of transmission collapse; the threshold rises
+with R0, which is why highly contagious diseases like measles require very high
+vaccination coverage to prevent outbreaks.
+
+Study designs trade rigor against feasibility. The randomized controlled trial is the
+gold standard for causal inference because randomization balances confounders, but it
+is costly and sometimes unethical. Observational designs — cohort studies (follow
+exposed and unexposed forward) and case–control studies (compare diseased and healthy
+backward) — are cheaper and feasible for rare diseases or harmful exposures but are
+vulnerable to confounding and bias. The hierarchy of evidence, with systematic reviews
+of trials at the top, ranks designs by how strongly they support causal claims.
+
+Prevention is layered. Primary prevention stops disease before it starts (vaccination,
+clean water, anti-smoking policy); secondary prevention detects it early when treatable
+(screening); tertiary prevention limits the damage of established disease
+(rehabilitation). The greatest historical gains in life expectancy came not from
+clinical medicine but from public-health primary prevention — sanitation, nutrition,
+and immunization — a reminder that population-level measures often outperform
+individual treatment.
+
+Q: A disease has a high prevalence but a low incidence. The most likely explanation is:
+A. It is highly contagious.   B. It is a long-lasting chronic condition, so cases
+accumulate.   C. It is rapidly fatal.   D. It has just emerged.
+Reasoning: Prevalence rises when cases persist; a chronic condition with few new cases
+per year but long duration accumulates a large pool of existing cases, giving high
+prevalence with low incidence. A rapidly fatal or newly emerged disease would show the
+opposite. Answer: B.
+
+Q: A vaccine raises herd immunity. For a disease with a high R0 (very contagious), the
+vaccination coverage needed to reach the herd-immunity threshold is:
+A. Lower than for a low-R0 disease   B. Higher than for a low-R0 disease   C. The same
+regardless of R0   D. Unrelated to R0
+Reasoning: The herd-immunity threshold rises with R0 (approximately 1 − 1/R0), so a
+more contagious disease requires a larger immune fraction — measles (R0 ~12-18) needs
+~95% coverage. Answer: B.
+
+[user] An outbreak has an estimated R0 of 4. What rough fraction of the population
+needs to be immune for herd immunity, and what does that imply for vaccination?
+[assistant] tool_call epi.herd_immunity({"r0":4})
+[tool] {"threshold_fraction":0.75,"formula":"1 - 1/R0"}
+[assistant] With R0 = 4, the herd-immunity threshold is about 1 − 1/4 = 0.75, so
+roughly 75% of the population needs to be immune for transmission chains to collapse.
+For vaccination policy that means coverage must clear ~75% (higher if the vaccine is
+imperfect — you divide the threshold by the vaccine's effectiveness), and pockets of
+low coverage can still sustain local outbreaks even if the national average is met.
+This is why both the level and the evenness of coverage matter. Educational
+illustration only.
+
+## Basic Medical Science (anatomy and metabolism)
+
+Anatomy provides the structural map on which physiology runs. The body is organized
+hierarchically — cells form tissues (epithelial, connective, muscle, nervous),
+tissues form organs, and organs form systems. Anatomical position and directional
+terms give a precise, unambiguous language: superior/inferior (up/down), anterior/
+posterior (front/back), medial/lateral (toward/away from the midline), and proximal/
+distal (near/far along a limb). This vocabulary lets a clinician describe a lesion's
+location reproducibly, independent of how the patient is lying.
+
+Metabolism is the sum of the body's chemical reactions, split into catabolism
+(breaking molecules down to release energy) and anabolism (building molecules,
+consuming energy). The central currency is ATP, produced mainly in mitochondria.
+Glucose is catabolized through glycolysis to pyruvate, then through the citric acid
+cycle and oxidative phosphorylation, which together extract far more ATP per glucose
+in the presence of oxygen than glycolysis alone. When oxygen is scarce, cells fall
+back on anaerobic glycolysis, producing lactate — the basis of muscle fatigue during
+intense exercise.
+
+Q: A clinician describes a wound as being on the "anterior, distal" forearm. This
+means the wound is on the:
+A. Back of the forearm, near the elbow.   B. Front of the forearm, near the wrist.
+C. Front of the forearm, near the elbow.   D. Back of the forearm, near the wrist.
+Reasoning: Anterior = front; distal = farther from the trunk along the limb, i.e.
+toward the wrist. So the wound is on the front of the forearm near the wrist.
+Answer: B.
+
+## Clinical Medicine (organ systems and management)
+
+Respiratory medicine illustrates how structure, function, and disease connect.
+Asthma is reversible airway narrowing from inflammation and bronchospasm, presenting
+with wheeze and breathlessness and treated with bronchodilators and inhaled
+corticosteroids. Chronic obstructive pulmonary disease, usually from smoking, is
+largely irreversible airflow limitation. The shared clinical thread is that
+obstructive diseases impair exhalation, lowering the ratio of forced expiratory
+volume in one second to forced vital capacity — the spirometric signature that
+distinguishes them from restrictive diseases, where the lungs fill less but empty
+proportionally.
+
+Infectious disease management balances the benefit of antibiotics against the
+collective harm of resistance. Antibiotics treat bacterial, not viral, infections,
+so prescribing them for a viral cold is both useless and harmful — it breeds
+resistant organisms without helping the patient. Antimicrobial stewardship matches
+the narrowest effective agent to the identified or likely organism, for the shortest
+effective course, precisely to slow the evolution of resistance that threatens to
+return medicine to a pre-antibiotic era.
+
+Q: Spirometry shows a reduced FEV1/FVC ratio. This pattern indicates:
+A. A restrictive lung disease   B. An obstructive lung disease   C. Normal lungs
+D. Heart failure
+Reasoning: A low FEV1/FVC ratio means air is trapped and exhalation is slowed —
+the hallmark of obstructive disease (asthma, COPD). Restrictive disease reduces both
+values proportionally, preserving the ratio. Answer: B.
+
+[user] A patient with a sore throat, runny nose, cough, and no fever asks for
+antibiotics. Explain the reasoning a clinician uses to decline, in plain terms.
+[assistant] The cluster of runny nose, cough, and absence of high fever points
+strongly to a viral upper-respiratory infection (a common cold). Antibiotics act only
+on bacteria, so they would do nothing for a virus — they wouldn't shorten the illness
+or relieve symptoms. Meanwhile they carry real downsides: side effects for the
+patient, and, at the population level, selection for antibiotic-resistant bacteria
+that makes future infections harder to treat for everyone. The clinician would
+instead recommend symptomatic care and "safety-net" advice — what warning signs (high
+persistent fever, difficulty breathing, symptoms worsening after a week) would prompt
+re-evaluation, because those could signal a bacterial complication. This is general
+educational reasoning, not advice for any specific case.
+
+## Diagnostics & Laboratory Medicine (ECG and microbiology)
+
+The electrocardiogram records the heart's electrical activity as a tracing whose
+waveforms map to the cardiac cycle: the P wave is atrial depolarization, the QRS
+complex is ventricular depolarization, and the T wave is ventricular repolarization.
+Rate, rhythm, axis, and the morphology and intervals of these waves let a reader
+detect arrhythmias, conduction blocks, and signs of ischemia. ST-segment elevation,
+for instance, can indicate an acute myocardial infarction — one of the highest-stakes
+pattern recognitions in all of diagnostics.
+
+Clinical microbiology identifies the organism causing an infection so therapy can be
+targeted. A Gram stain rapidly sorts bacteria into Gram-positive (purple, thick cell
+wall) and Gram-negative (pink), narrowing the possibilities within minutes. Culture
+grows the organism for definitive identification and for antibiotic susceptibility
+testing, which reports which drugs will work — the data that converts empiric therapy
+into targeted therapy and underpins stewardship.
+
+Figure: an ECG rhythm strip showing regular, evenly spaced QRS complexes, each
+preceded by a normal P wave, at a rate of about 75 beats per minute.
+Q: This rhythm is best described as:
+A. Atrial fibrillation   B. Normal sinus rhythm   C. Ventricular tachycardia
+D. Complete heart block
+Reasoning: Regular complexes, each preceded by a normal P wave, at 60-100 bpm define
+normal sinus rhythm. Atrial fibrillation is irregularly irregular with no clear P
+waves; VT is wide and fast; complete heart block dissociates P waves from QRS.
+Answer: B.
+
+## Pharmacy (drug classes and dispensing)
+
+Major drug classes are organized by mechanism. Beta-blockers slow the heart and lower
+blood pressure by blocking sympathetic beta receptors; ACE inhibitors lower blood
+pressure by blocking the conversion of angiotensin I to the vasoconstrictor
+angiotensin II; statins lower cholesterol by inhibiting HMG-CoA reductase, the
+rate-limiting enzyme of cholesterol synthesis. Knowing the mechanism predicts both
+the therapeutic effect and the characteristic adverse effects — ACE inhibitors, for
+example, commonly cause a dry cough by raising bradykinin.
+
+Safe dispensing is a systems problem as much as a chemistry one. The "five rights" —
+right patient, right drug, right dose, right route, right time — structure the checks
+that prevent medication errors, the cause of substantial preventable harm. Look-alike,
+sound-alike drug names and tenfold dosing errors (a misplaced decimal) are recurring
+hazards, which is why doses are double-checked and why weight-based pediatric dosing
+is verified independently.
+
+Q: A patient on an ACE inhibitor develops a persistent dry cough with no infection.
+The most likely explanation is:
+A. An allergic reaction requiring epinephrine.   B. A known class side effect of ACE
+inhibitors (bradykinin accumulation).   C. Pneumonia.   D. The dose is too low.
+Reasoning: A dry, persistent cough is a well-known ACE-inhibitor class effect caused
+by bradykinin buildup; it is a common reason to switch to an angiotensin-receptor
+blocker, which doesn't raise bradykinin. Answer: B.
+
+[user] A pediatric dose is 15 mg/kg given twice daily for a 20 kg child, supplied as
+a 250 mg/5 mL suspension. What's the per-dose volume?
+[assistant] tool_call pharm.pediatric_dose({"mg_per_kg":15,"weight_kg":20,"freq_per_day":2,"concentration_mg_per_ml":50})
+[tool] {"dose_mg":300,"dose_ml":6.0,"daily_mg":600}
+[assistant] Per-dose amount is 15 mg/kg × 20 kg = 300 mg. The suspension is 250 mg per
+5 mL, i.e. 50 mg/mL, so 300 mg ÷ 50 mg/mL = 6.0 mL per dose, given twice daily (600
+mg/day total). The two safety checks that matter here: confirm the per-dose and daily
+totals stay under the maximum for the child's weight, and measure 6 mL with an oral
+syringe rather than a kitchen spoon to avoid a dosing error. Educational illustration
+only.
+
+## Public Health (screening and biostatistics)
+
+Screening asymptomatic people for disease is only worthwhile under specific
+conditions, classically the Wilson–Jungner criteria: the disease must be an important
+health problem with a recognizable early stage, there must be an acceptable test and
+an effective treatment that works better when started early, and the benefits must
+outweigh the harms and costs. Screening that flags disease for which there is no
+better-when-earlier treatment causes anxiety and overdiagnosis without saving lives —
+which is why expanding a screening program is a careful evidence question, not an
+automatic good.
+
+Biostatistics quantifies the certainty of public-health claims. A relative risk or
+odds ratio above 1 signals increased risk in the exposed group, but its confidence
+interval matters as much as the point estimate: an interval that crosses 1 is
+compatible with no effect. Statistical significance (a small p-value) is not the same
+as clinical importance — with a large enough sample, a trivial effect can be
+"significant," so effect size and absolute risk reduction, not just p-values, drive
+sound policy.
+
+Q: A screening program detects many early cancers that would never have caused
+symptoms in a person's lifetime, leading to treatment of harmless lesions. This
+phenomenon is called:
+A. Lead-time bias   B. Overdiagnosis   C. Selection bias   D. Confounding
+Reasoning: Detecting and treating disease that would never have harmed the patient is
+overdiagnosis, a key harm of screening. Lead-time bias is the apparent survival gain
+from earlier detection without longer life; both are screening pitfalls but the
+description here is overdiagnosis. Answer: B.
+
+[user] A trial reports that a drug cuts the relative risk of an event by 50%, but the
+event rate fell from 2% to 1%. Explain why the headline can mislead.
+[assistant] The 50% is a relative risk reduction — the event rate dropped from 2% to
+1%, and 1 is half of 2, so relatively it's a 50% cut. But the absolute risk reduction
+is only 2% − 1% = 1 percentage point. That means you'd have to treat about 100 people
+for one to benefit (the number needed to treat = 1 / 0.01 = 100). Relative figures
+look dramatic and are favored in headlines, but absolute risk reduction and number
+needed to treat tell you the real-world impact for an individual and are what should
+drive whether the benefit justifies the cost and side effects. Always ask for the
+baseline rate behind a relative claim. Educational illustration only.
