@@ -93,7 +93,7 @@ benchmark-agnostic — anything that reduces to `dict[str, float]` plugs in.
 - `eval/server.py` — `running_server(model_path)` context manager spawns/health-checks
   /tears-down `llama-server` via `paths.llama_bin`. Used by every eval orchestrator.
 - `eval/toolcall.py` — tool-call benchmark. `Sampling` dataclass,
-  `eval_per_turn`/`eval_rollout`, and `run_toolcall_eval(holdout, model_path=… | base_url=…)`
+  `eval_per_turn`, and `run_toolcall_eval(holdout, model_path=… | base_url=…)`
   returning an `EvalSummary`. Sampling params (`T`, `top_p`, `top_k`, `min_p`,
   `presence`, `repeat_penalty`, `seed`) ride through `extra_body`.
 - `eval/scoring.py` — pure type-aware comparators for tool-call params

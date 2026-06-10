@@ -150,7 +150,8 @@ def calibrate(
     The dict keys depend on the method:
       * ``none`` — empty (no calibration)
       * ``imatrix`` — ``{"imatrix": <path>, "f16": <unchanged f16>}``
-      * ``awq`` — ``{"imatrix": <base imatrix>, "f16": <new f16 with scales folded>}``
+      * ``awq`` — ``{"imatrix": <imatrix collected on the folded F16, optionally
+        re-weighted via params.imatrix_variant>, "f16": <f16 with scales folded>}``
       * ``gptq`` — ``{"imatrix": <base imatrix>, "f16": <new f16 with rounded weights>}``
     """
     method = cfg.calibration.method
@@ -162,15 +163,16 @@ def calibrate(
     if method == "imatrix":
         return _calibrate_imatrix(cfg, ws, f16, train_corpus, logs)
 
-    # AWQ and GPTQ need a base imatrix too (for the final llama-quantize pass).
-    base_imatrix = ws.calibration_dir / "imatrix-base.gguf"
-    step("llama-imatrix (base)", base_imatrix,
-         lambda: llama_cpp.imatrix(f16, train_corpus, base_imatrix,
-                                   ctx=512, log=logs / "imatrix-base.log"))
-
     if method == "awq":
-        return _calibrate_awq(cfg, ws, f16, train_corpus, base_imatrix, logs)
+        # AWQ computes its imatrix AFTER the fold (see _calibrate_awq).
+        return _calibrate_awq(cfg, ws, f16, train_corpus, logs)
+
     if method == "gptq":
+        # GPTQ needs a base imatrix for the final llama-quantize pass.
+        base_imatrix = ws.calibration_dir / "imatrix-base.gguf"
+        step("llama-imatrix (base)", base_imatrix,
+             lambda: llama_cpp.imatrix(f16, train_corpus, base_imatrix,
+                                       ctx=512, log=logs / "imatrix-base.log"))
         return _calibrate_gptq(cfg, ws, f16, train_corpus, eval_corpus, base_imatrix, logs)
 
     raise ValueError(f"unknown calibration method: {method!r}")
@@ -199,9 +201,14 @@ def _calibrate_imatrix(
     return {"imatrix": tuned, "f16": f16}
 
 
+# Recipe params consumed by awq.apply() rather than awq.calibrate(). Routed
+# separately so recipes can configure the fold (e.g. rmsnorm_plus_one for
+# non-Qwen3.5 norms) without crashing the calibrate call.
+_AWQ_APPLY_PARAMS = ("rmsnorm_plus_one", "sanity_max_rel", "sanity_tokens")
+
+
 def _calibrate_awq(
-    cfg: RunConfig, ws: Workspace, f16: Path, train_corpus: Path,
-    base_imatrix: Path, logs: Path,
+    cfg: RunConfig, ws: Workspace, f16: Path, train_corpus: Path, logs: Path,
 ) -> dict[str, Path]:
     awq_bundle = ws.calibration_dir / "awq.pt"
     model_awq = ws.root / "model_awq"
@@ -211,16 +218,44 @@ def _calibrate_awq(
     if cfg.calibration.variant == "a050":
         params.setdefault("force_alpha", 0.5)
 
+    apply_params: dict[str, Any] = {
+        k: params.pop(k) for k in _AWQ_APPLY_PARAMS if k in params
+    }
+    for shared in ("device", "dtype"):
+        if shared in params:
+            apply_params[shared] = params[shared]
+    # Optional second-stage imatrix re-weighting on the folded model
+    # (e.g. "hybrid_custom" to stack the two winning calibrations).
+    imatrix_variant = params.pop("imatrix_variant", "default")
+
     step("AWQ calibrate (capture mean|x| + grid α)", awq_bundle,
          lambda: awq.calibrate(ws.model_extracted, train_corpus, awq_bundle, **params))
 
     step("AWQ apply (fold scales into RMSNorm)", model_awq / "config.json",
-         lambda: awq.apply(ws.model_extracted, awq_bundle, model_awq))
+         lambda: awq.apply(ws.model_extracted, awq_bundle, model_awq, **apply_params))
 
     step("convert AWQ-folded HF -> F16 GGUF", f16_awq,
          lambda: convert.hf_to_f16_gguf(model_awq, f16_awq, log=logs / "convert-awq.log"))
 
-    return {"imatrix": base_imatrix, "f16": f16_awq}
+    # The imatrix MUST be collected on the folded F16: AWQ rescales each input
+    # channel, so E[a^2] from the unfolded model would over-weight exactly the
+    # channels AWQ already boosted and under-protect the rest.
+    awq_imatrix = ws.calibration_dir / "imatrix-awq.gguf"
+    step("llama-imatrix (on AWQ-folded F16)", awq_imatrix,
+         lambda: llama_cpp.imatrix(f16_awq, train_corpus, awq_imatrix,
+                                   ctx=512, log=logs / "imatrix-awq.log"))
+
+    if imatrix_variant == "default":
+        return {"imatrix": awq_imatrix, "f16": f16_awq}
+
+    tuned = ws.calibration_dir / f"imatrix-awq-{imatrix_variant}.gguf"
+    step(f"build imatrix variant '{imatrix_variant}' (folded)", tuned,
+         lambda: imatrix.calibrate(
+             variant=imatrix_variant, f16_gguf=f16_awq,
+             base_imatrix=awq_imatrix, out_path=tuned,
+             model_dir=model_awq, calibration_text=train_corpus,
+             forward_stats_path=ws.calibration_dir / "forward-stats-awq.npz"))
+    return {"imatrix": tuned, "f16": f16_awq}
 
 
 def _calibrate_gptq(
@@ -246,16 +281,17 @@ def _calibrate_gptq(
 
     # Sanity-check: refuse to proceed if rounded F16 is too far from the reference.
     baseline_ppl_file = ws.eval_dir / "baseline-ppl.txt"
-    if not baseline_ppl_file.exists():
-        out = llama_cpp.perplexity_baseline(
-            f16, eval_corpus, ws.eval_dir / "baseline.kld",
-            ctx=cfg.bench.eval_ctx, log=logs / "baseline-ppl.log",
+    if baseline_ppl_file.exists():
+        reference_ppl = float(baseline_ppl_file.read_text())
+    else:
+        reference_ppl = gptq.verify_perplexity(
+            f16, eval_corpus, ctx=cfg.bench.eval_ctx, log=logs / "baseline-ppl.log",
         )
-        baseline_ppl_file.write_text(str(out))
+        baseline_ppl_file.write_text(str(reference_ppl))
     gptq.verify_perplexity(
         f16_gptq, eval_corpus,
-        reference_ppl=None, max_ratio=ppl_max_ratio,
-        log=logs / "gptq-verify-ppl.log",
+        reference_ppl=reference_ppl, max_ratio=ppl_max_ratio,
+        ctx=cfg.bench.eval_ctx, log=logs / "gptq-verify-ppl.log",
     )
 
     return {"imatrix": base_imatrix, "f16": f16_gptq}
@@ -273,6 +309,11 @@ def quantize_model(
     src_f16 = artifacts.get("f16", f16)
     imatrix_path = artifacts.get("imatrix")
     suffix = "" if imatrix_path is None else f"-{cfg.calibration.method}"
+    # Variant must be part of the filename: otherwise re-running the same
+    # workspace with a different variant finds the old GGUF, skips
+    # llama-quantize, and benches the stale file under the new label.
+    if imatrix_path is not None and cfg.calibration.variant != "default":
+        suffix += f"-{cfg.calibration.variant}"
     out_quant = ws.gguf_dir / f"{cfg.quantize.type}{suffix}.gguf"
     logs = ws.root / "logs"
 

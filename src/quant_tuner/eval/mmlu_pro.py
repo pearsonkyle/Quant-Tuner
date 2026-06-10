@@ -173,12 +173,16 @@ def build_messages(
 #   1. "Answer: X" / "Answer = (X)" — explicit, delimiter required
 #   2. "(X)" anywhere — lettered choice
 #   3. "answer is X" / "the answer is (X)"
-#   4. First standalone capital A-J letter
+#   4. Standalone capital letter — "A" and "I" excluded (ordinary English
+#      words: "A common approach…", "I think…"); they are only accepted by
+#      the letter-only-line pattern below.
+#   5. A line consisting solely of one letter ("B", "(A)", "I.")
 _ANSWER_PATTERNS = [
     re.compile(r"(?i)answer\s*[:=\-]\s*\(?([A-J])\)?(?=\W|$)"),
     re.compile(r"\(([A-J])\)"),
     re.compile(r"(?i)answer\s+is\s+\(?([A-J])\)?(?=\W|$)"),
-    re.compile(r"\b([A-J])\b"),
+    re.compile(r"\b([B-HJ])\b"),
+    re.compile(r"(?m)^\s*\(?([A-J])\)?\s*\.?\s*$"),
 ]
 
 
@@ -188,14 +192,19 @@ def parse_answer(text: str, n_options: int) -> str | None:
     ``n_options`` caps which letters are valid (so a 4-option question
     rejects an "F" prediction). Returns the predicted letter or ``None`` if
     no in-range letter could be extracted.
+
+    Within each pattern the LAST in-range match wins: reasoning models revise
+    themselves ("Answer: C? No, wait… Answer: B"), and the completion fed in
+    here includes the chain-of-thought, so the final occurrence is the
+    model's actual answer.
     """
     if not text:
         return None
     valid = set(_LETTERS[:n_options])
     for pat in _ANSWER_PATTERNS:
-        m = pat.search(text)
-        if m and m.group(1).upper() in valid:
-            return m.group(1).upper()
+        for m in reversed(list(pat.finditer(text))):
+            if m.group(1).upper() in valid:
+                return m.group(1).upper()
     return None
 
 

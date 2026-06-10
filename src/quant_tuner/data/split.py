@@ -10,7 +10,6 @@ from typing import Any
 
 from quant_tuner.data.ingest import (
     coerce_tool_call_arguments,
-    load_sessions,
     normalize_messages,
     session_fingerprint,
 )
@@ -206,7 +205,6 @@ def write_split_jsonl(sessions: list[dict], path: Path) -> None:
 __all__ = [
     "cap_session",
     "length_bucket",
-    "load_sessions",
     "session_tools",
     "split_sessions",
     "stratified_pack",

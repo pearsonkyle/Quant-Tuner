@@ -20,12 +20,24 @@ def free_port() -> int:
         return s.getsockname()[1]
 
 
-def wait_for_health(base_url: str, timeout: float = 120.0) -> None:
-    """Block until llama-server's ``/health`` returns 200, or raise ``TimeoutError``."""
+def wait_for_health(
+    base_url: str,
+    timeout: float = 120.0,
+    proc: subprocess.Popen | None = None,
+) -> None:
+    """Block until llama-server's ``/health`` returns 200, or raise ``TimeoutError``.
+
+    When ``proc`` is given, a server that exits before becoming healthy (bad
+    GGUF, port clash, OOM) raises immediately instead of burning the timeout.
+    """
     url = base_url.rstrip("/").removesuffix("/v1") + "/health"
     deadline = time.time() + timeout
     last_err: Exception | None = None
     while time.time() < deadline:
+        if proc is not None and proc.poll() is not None:
+            raise RuntimeError(
+                f"llama-server exited with code {proc.returncode} before becoming healthy"
+            )
         try:
             r = requests.get(url, timeout=2)
             if r.status_code == 200:
@@ -80,8 +92,8 @@ def spawn_server(
         cmd += ["--spec-draft-n-max", str(spec_draft_n_max)]
     if log_path is not None:
         log_path.parent.mkdir(parents=True, exist_ok=True)
-        log_fh = log_path.open("w")
-        return subprocess.Popen(cmd, stdout=log_fh, stderr=subprocess.STDOUT)
+        with log_path.open("w") as log_fh:  # child keeps its own dup'd fd
+            return subprocess.Popen(cmd, stdout=log_fh, stderr=subprocess.STDOUT)
     return subprocess.Popen(cmd)
 
 
@@ -110,7 +122,7 @@ def running_server(
     )
     base_url = f"http://127.0.0.1:{port}/v1"
     try:
-        wait_for_health(base_url, timeout=startup_timeout)
+        wait_for_health(base_url, timeout=startup_timeout, proc=proc)
         yield base_url
     finally:
         proc.terminate()

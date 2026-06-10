@@ -38,6 +38,8 @@ from typing import Literal
 
 import torch
 
+from quant_tuner.calibrate._device import resolve_device
+
 # --- Group discovery ------------------------------------------------------ #
 
 @dataclass(frozen=True)
@@ -317,7 +319,7 @@ def calibrate(
     # exp-024 hit this — proxy=1024 and proxy=2048 produced bit-identical
     # outputs because both got capped at ctx=1024.
     ctx: int = 4096,
-    device: str = "mps",
+    device: str = "auto",
     dtype: str = "bfloat16",
     alphas: tuple[float, ...] = (0.0, 0.25, 0.5, 0.75, 1.0),
     force_alpha: float | None = None,
@@ -356,16 +358,22 @@ def calibrate(
         ``proxy_loss(X_cal, α) + cv_weight · proxy_loss(X_ho, α)``. ``cv_weight``
         > 1 over-weights the held-out signal to push back against over-fit.
     """
+    # Validate cheap preconditions BEFORE the (expensive) model load + forward
+    # pass so misconfigured runs fail in milliseconds, not hours.
+    if cv_strategy != "off" and holdout_text is None:
+        raise ValueError(f"cv_strategy={cv_strategy!r} requires holdout_text to be set")
+    if proxy not in _PROXIES:
+        raise ValueError(f"unknown proxy {proxy!r}; choose one of {sorted(_PROXIES)}")
+
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
+    device = resolve_device(device)
     torch_dtype = {
         "bfloat16": torch.bfloat16,
         "float16": torch.float16,
         "float32": torch.float32,
     }[dtype]
 
-    if proxy not in _PROXIES:
-        raise ValueError(f"unknown proxy {proxy!r}; choose one of {sorted(_PROXIES)}")
     quantizer = _PROXIES[proxy]
     print(f"[awq] proxy={proxy}", file=sys.stderr)
 
@@ -428,12 +436,16 @@ def calibrate(
     # Held-out pass (exp-017/018): cache X_ho only. mean(|x|) stays from
     # calibration so the *scale vector itself* is calibration-driven; we use
     # held-out X only to evaluate which α generalizes.
+    if cv_strategy != "off" and not per_tensor_alpha:
+        # X_ho is only consumed by the per-tensor refinement loop — without it
+        # the held-out forward pass would be pure wasted compute.
+        print(
+            "[awq] WARN: cv_strategy set but per_tensor_alpha=False; cv has no effect "
+            "(skipping held-out pass)",
+            file=sys.stderr,
+        )
+        cv_strategy = "off"
     if cv_strategy != "off" and holdout_text is not None:
-        if not per_tensor_alpha:
-            print(
-                "[awq] WARN: cv_strategy set but per_tensor_alpha=False; cv has no effect",
-                file=sys.stderr,
-            )
         print(f"[awq] capturing held-out activations for cv_strategy={cv_strategy!r} "
               f"(cv_weight={cv_weight})", file=sys.stderr)
         ho_handles = [
@@ -457,19 +469,21 @@ def calibrate(
         finally:
             for h in ho_handles:
                 h.remove()
-    elif cv_strategy != "off" and holdout_text is None:
-        raise ValueError(
-            f"cv_strategy={cv_strategy!r} requires holdout_text to be set"
-        )
 
     bundle = ScaleBundle(proxy=proxy)
     for g in groups:
-        if sum_abs[g.group_id] is None or tok_count[g.group_id] == 0:
+        abs_sum = sum_abs[g.group_id]
+        x_cached = cached_X[g.group_id]
+        if abs_sum is None or x_cached is None or tok_count[g.group_id] == 0:
             print(f"[awq] WARN: no activations for {g.group_id}; skipping", file=sys.stderr)
             continue
-        s = (sum_abs[g.group_id] / tok_count[g.group_id]).clamp_min(1e-8)
-        X = cached_X[g.group_id]
-        Ws = [_get_module(model, m).weight.detach().float().cpu() for m in g.members]
+        s = (abs_sum / tok_count[g.group_id]).clamp_min(1e-8)
+        # Search on the model device — the proxy fake-quant over every member
+        # weight × α candidate dominates calibration time on CPU. ``s`` stays
+        # on CPU: it is what gets persisted in the bundle.
+        s_dev = s.to(device)
+        X = x_cached.to(device)
+        Ws = [_get_module(model, m).weight.detach().float() for m in g.members]
 
         if force_alpha is not None:
             best_alpha = force_alpha
@@ -477,7 +491,7 @@ def calibrate(
             best_alpha, best_loss = 0.0, float("inf")
             for a in alphas:
                 loss = sum(
-                    proxy_loss(W, X, scale_from_alpha(s, a), quantizer=quantizer)
+                    proxy_loss(W, X, scale_from_alpha(s_dev, a), quantizer=quantizer)
                     for W in Ws
                 )
                 if loss < best_loss:
@@ -491,6 +505,8 @@ def calibrate(
                 max(0.0, min(1.0, best_alpha + d)) for d in (-r, 0.0, r)
             })
             X_ho = cached_X_ho.get(g.group_id) if cv_strategy != "off" else None
+            if X_ho is not None:
+                X_ho = X_ho.to(device)
             member_alphas = {}
             member_scales = {}
             for m, W in zip(g.members, Ws, strict=True):
@@ -498,7 +514,7 @@ def calibrate(
                 cal_losses: dict[float, float] = {}
                 ho_losses: dict[float, float] = {}
                 for a in local:
-                    sa = scale_from_alpha(s, a)
+                    sa = scale_from_alpha(s_dev, a)
                     cal_losses[a] = proxy_loss(W, X, sa, quantizer=quantizer)
                     if X_ho is not None:
                         ho_losses[a] = proxy_loss(W, X_ho, sa, quantizer=quantizer)
@@ -663,7 +679,7 @@ def apply(
     scales: Path | ScaleBundle,
     out_dir: Path,
     *,
-    device: str = "mps",
+    device: str = "auto",
     dtype: str = "bfloat16",
     rmsnorm_plus_one: bool = True,
     sanity_tokens: int = 32,
@@ -678,6 +694,7 @@ def apply(
     """
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
+    device = resolve_device(device)
     torch_dtype = {
         "bfloat16": torch.bfloat16,
         "float16": torch.float16,

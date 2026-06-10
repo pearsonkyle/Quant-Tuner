@@ -26,6 +26,7 @@ from typing import Literal
 
 import numpy as np
 
+from quant_tuner.calibrate._device import resolve_device
 from quant_tuner.models.hf_gguf_map import is_ssm, map_hf_to_gguf
 from quant_tuner.paths import LLAMA_CPP_DIR
 
@@ -132,7 +133,7 @@ def collect_forward_stats(
     *,
     tokens: int = 4096,
     ctx: int = 1024,
-    device: str = "mps",
+    device: str = "auto",
     dtype: str = "bfloat16",
 ) -> ForwardStats:
     """Forward-only pass to record streaming E[a^4] and max|a| per input channel.
@@ -146,6 +147,7 @@ def collect_forward_stats(
     _ensure_gguf_py()
     from gguf import GGUFReader
 
+    device = resolve_device(device)
     torch_dtype = {"bfloat16": torch.bfloat16, "float16": torch.float16, "float32": torch.float32}[dtype]
 
     print(f"[forward_stats] load {model_dir} -> {device}/{dtype}", file=sys.stderr)
@@ -407,7 +409,7 @@ def calibrate(
     forward_stats_path: Path | None = None,
     forward_tokens: int = 4096,
     forward_ctx: int = 1024,
-    device: str = "mps",
+    device: str = "auto",
     dtype: str = "bfloat16",
 ) -> Path:
     """Build an output-aware imatrix GGUF.
