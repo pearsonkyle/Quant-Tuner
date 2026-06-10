@@ -123,6 +123,26 @@ class TestParseAnswer:
     def test_lowercase_letter_normalized(self):
         assert parse_answer("answer: b", n_options=4) == "B"
 
+    def test_last_explicit_answer_wins_over_revised_one(self):
+        # Reasoning models revise themselves; the final answer is the answer.
+        text = "Answer: C? Hmm, no — recomputing... Answer: B"
+        assert parse_answer(text, n_options=4) == "B"
+
+    def test_pronoun_i_is_not_an_answer(self):
+        # 9+-option questions make "I" a valid letter; the pronoun must not match.
+        assert parse_answer("I think this needs more work.", n_options=10) is None
+
+    def test_article_a_is_not_an_answer(self):
+        assert parse_answer("A common approach would fail here.", n_options=4) is None
+
+    def test_bare_a_or_i_on_own_line_is_an_answer(self):
+        assert parse_answer("A", n_options=4) == "A"
+        assert parse_answer("  I.  ", n_options=10) == "I"
+
+    def test_option_mentions_in_reasoning_do_not_mask_final_choice(self):
+        text = "Option (A) is wrong because of X. That leaves (C)."
+        assert parse_answer(text, n_options=4) == "C"
+
 
 class TestAggregate:
     def test_overall_and_per_subject(self):

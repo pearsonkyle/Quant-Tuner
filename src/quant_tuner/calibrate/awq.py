@@ -38,6 +38,9 @@ from typing import Literal
 
 import torch
 
+from quant_tuner.calibrate._device import resolve_device
+from quant_tuner.calibrate._hf import forward_no_logits
+
 # --- Group discovery ------------------------------------------------------ #
 
 @dataclass(frozen=True)
@@ -191,11 +194,197 @@ def fake_quant_q2k_block16(W: torch.Tensor, block_size: int = 16) -> torch.Tenso
     return Wq.view(out_f, -1)[:, :in_f]
 
 
+def fake_quant_q3k_block16(W: torch.Tensor, block_size: int = 16) -> torch.Tensor:
+    """Symmetric per-16-element-block 3-bit RTN (proxy for Q3_K / IQ3_*).
+
+    Mirrors Q3_K's shape: 16-element sub-blocks, 3-bit codes in ``[-4, 3]``
+    (llama.cpp stores ``q - 4``), per-block scale coarsely re-quantized to
+    6 bits relative to the per-row max — Q3_K's scale storage width — to
+    mimic the nested-quantization noise floor.
+
+    Use for IQ3_S / IQ3_M / Q3_K_* α search; the default INT4 proxy
+    under-estimates which channels fall off the coarser 3-bit grid.
+    """
+    out_f, in_f = W.shape
+    pad = (-in_f) % block_size
+    if pad:
+        W = torch.nn.functional.pad(W, (0, pad))
+    Wb = W.view(out_f, -1, block_size)
+    max_abs = Wb.abs().amax(dim=-1, keepdim=True)
+    scale = (max_abs / 4.0).clamp(min=1e-8)
+
+    # Nested quantization: per-row, re-quantize the scale to 6 bits.
+    s_range = scale.amax(dim=1, keepdim=True).clamp(min=1e-8)
+    scale = (scale / s_range * 63.0).round().clamp(1, 63) * (s_range / 63.0)
+
+    q = (Wb / scale).round().clamp(-4, 3)
+    Wq = q * scale
+    return Wq.view(out_f, -1)[:, :in_f]
+
+
+# --- IQ2_* codebook proxies ------------------------------------------------ #
+#
+# The IQ2 family does NOT round channels independently: each group of 8
+# contiguous weights is snapped to the nearest entry of a fixed E8-lattice
+# codebook (256/512/1024 entries for XXS/XS/S+M), signs are stored outside
+# the codebook (with an even-negatives-per-group parity constraint for
+# XXS/XS), and 4-bit block scales ride on a per-256 superblock fp16 scale.
+# A per-channel RTN proxy (q2k_b16) cannot see the resulting cross-channel
+# error coupling — which is exactly what distinguishes IQ2_XS from IQ2_M.
+# Grids are extracted bit-exact from llama.cpp by scripts/gen_iq2_grids.py.
+
+_IQ2_SUPERBLOCK = 256
+_IQ2_GRID_CACHE: dict[tuple[str, str], torch.Tensor] = {}
+
+
+def _iq2_grid(name: str, device) -> torch.Tensor:
+    key = (name, str(device))
+    t = _IQ2_GRID_CACHE.get(key)
+    if t is None:
+        from quant_tuner.calibrate._iq2_grids import grid_components
+        raw = grid_components(name)
+        t = torch.tensor(list(raw), dtype=torch.float32, device=device).view(-1, 8)
+        _IQ2_GRID_CACHE[key] = t
+    return t
+
+
+def _fake_quant_iq2(
+    W: torch.Tensor,
+    *,
+    grid_name: str,
+    scale_block: int,
+    parity_signs: bool,
+) -> torch.Tensor:
+    """Codebook-aware fake quant mirroring llama.cpp's IQ2_* structure.
+
+    Per row: pad to a 256 superblock; per ``scale_block``, search a small set
+    of candidate scales (mirroring llama.cpp's ``is = -9..9`` sweep, which
+    maps the block max into a window around the top grid magnitude) and keep
+    the one whose nearest-codebook reconstruction error is lowest; snap the
+    winning scales to the storage form ``db = d_super · (0.5 + q4) · 0.25``
+    (4-bit ``q4``, matching the dequant formula); then snap each group of 8
+    ``|w|/db`` to the nearest codebook entry. The search is unweighted L2 —
+    llama.cpp's imatrix-weighted variant is intentionally not reproduced; the
+    proxy mirrors the error *shape*.
+
+    With ``parity_signs`` the sign of the smallest-|w| element in a group is
+    flipped when the group has an odd number of negatives, since only
+    even-parity sign patterns are representable in IQ2_XXS/XS.
+    """
+    out_f, in_f = W.shape
+    pad = (-in_f) % _IQ2_SUPERBLOCK
+    if pad:
+        W = torch.nn.functional.pad(W, (0, pad))
+    n = W.shape[1]
+    grid = _iq2_grid(grid_name, W.device)
+    m = W.abs().float()
+    signs = torch.where(W < 0, -1.0, 1.0).float()
+    groups_per_block = scale_block // 8
+    m8 = m.view(out_f, -1, 8)
+
+    if parity_signs:
+        s8 = signs.view(out_f, -1, 8)
+        odd = (s8 < 0).sum(dim=-1) % 2 == 1          # [out, n/8]
+        idx = m8.argmin(dim=-1, keepdim=True)        # cheapest element to flip
+        flip = torch.where(odd, -1.0, 1.0).unsqueeze(-1)
+        s8 = s8.scatter(-1, idx, s8.gather(-1, idx) * flip)
+        signs = s8.view(out_f, n)
+
+    g2 = (grid * grid).sum(dim=1)
+    chunk = max(1024, (1 << 22) // grid.shape[0])
+
+    def codebook_fit(db_g: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """Snap each group to its nearest entry at per-group scale ``db_g``.
+
+        Returns ``(deq [out, G, 8], sse [out, G])``. The argmin distance
+        matrix is chunked to bound memory; ||u||² is constant per group so
+        only ``||g||² - 2 u·g`` is needed for the argmin itself.
+        """
+        u = (m8 / db_g.unsqueeze(-1)).reshape(-1, 8)
+        best = torch.empty(u.shape[0], dtype=torch.long, device=W.device)
+        for i0 in range(0, u.shape[0], chunk):
+            dist = g2.unsqueeze(0) - 2.0 * (u[i0:i0 + chunk] @ grid.T)
+            best[i0:i0 + chunk] = dist.argmin(dim=1)
+        deq = grid[best].view(out_f, -1, 8) * db_g.unsqueeze(-1)
+        return deq, ((deq - m8) ** 2).sum(dim=-1)
+
+    # Candidate-scale search per block: map the block max onto a few targets
+    # around the top grid magnitude (43); best block-level fit wins.
+    M = m.view(out_f, -1, scale_block).amax(dim=-1).clamp_min(1e-12)  # [out, B]
+
+    def block_sse(db_c: torch.Tensor) -> torch.Tensor:
+        sse_g = codebook_fit(db_c.repeat_interleave(groups_per_block, dim=1))[1]
+        return sse_g.view(out_f, -1, groups_per_block).sum(dim=-1)    # [out, B]
+
+    targets = (35.0, 39.0, 43.0, 47.0)
+    best_db = M / targets[0]
+    best_sse = block_sse(best_db)
+    for target in targets[1:]:
+        db_c = M / target
+        sse_b = block_sse(db_c)
+        better = sse_b < best_sse
+        best_db = torch.where(better, db_c, best_db)
+        best_sse = torch.where(better, sse_b, best_sse)
+
+    # Snap the winning scales to storage form: 4-bit block scale over a
+    # per-256-superblock d, db = d * (0.5 + q4) * 0.25.
+    blocks_per_super = _IQ2_SUPERBLOCK // scale_block
+    db_super = best_db.view(out_f, -1, blocks_per_super)
+    d = (db_super.amax(dim=-1, keepdim=True) / (15.5 * 0.25)).clamp_min(1e-12)
+    q4 = (db_super / (d * 0.25) - 0.5).round().clamp(0, 15)
+    db = (d * 0.25 * (0.5 + q4)).reshape(out_f, -1).clamp_min(1e-12)
+
+    deq = codebook_fit(db.repeat_interleave(groups_per_block, dim=1))[0]
+    Wq = deq.reshape(out_f, n) * signs
+    return Wq[:, :in_f].to(W.dtype)
+
+
+def fake_quant_iq2_xxs(W: torch.Tensor) -> torch.Tensor:
+    """IQ2_XXS proxy: 256-entry codebook, scales per 32, even-parity signs."""
+    return _fake_quant_iq2(W, grid_name="iq2xxs", scale_block=32, parity_signs=True)
+
+
+def fake_quant_iq2_xs(W: torch.Tensor) -> torch.Tensor:
+    """IQ2_XS proxy: 512-entry codebook, scales per 16, even-parity signs."""
+    return _fake_quant_iq2(W, grid_name="iq2xs", scale_block=16, parity_signs=True)
+
+
+def fake_quant_iq2_s(W: torch.Tensor) -> torch.Tensor:
+    """IQ2_S / IQ2_M proxy: 1024-entry codebook, scales per 16, free signs."""
+    return _fake_quant_iq2(W, grid_name="iq2s", scale_block=16, parity_signs=False)
+
+
 # Registry of available proxy quantizers. Keys are recipe-facing names.
 _PROXIES: dict[str, Callable[[torch.Tensor], torch.Tensor]] = {
     "int4_g128": fake_quant_int4_g128,
     "q2k_b16": fake_quant_q2k_block16,
+    "q3k_b16": fake_quant_q3k_block16,
+    "iq2_xxs": fake_quant_iq2_xxs,
+    "iq2_xs": fake_quant_iq2_xs,
+    "iq2_s": fake_quant_iq2_s,
 }
+
+
+def proxy_for_quant_type(quant_type: str) -> str:
+    """Pick the α-search proxy whose error shape matches a llama-quantize type.
+
+    IQ2_* targets get the codebook-aware proxies (exact llama.cpp E8-lattice
+    grids); other 2-bit targets the asymmetric per-16-block proxy; 3-bit
+    targets the symmetric per-16-block one; everything else keeps the INT4
+    g128 default.
+    """
+    qt = quant_type.upper()
+    if qt.startswith("IQ2_XXS"):
+        return "iq2_xxs"
+    if qt.startswith("IQ2_XS"):
+        return "iq2_xs"
+    if qt.startswith(("IQ2_S", "IQ2_M")):
+        return "iq2_s"
+    if qt.startswith(("IQ1", "Q2")):
+        return "q2k_b16"
+    if qt.startswith(("IQ3", "Q3")):
+        return "q3k_b16"
+    return "int4_g128"
 
 
 def proxy_loss(
@@ -317,7 +506,7 @@ def calibrate(
     # exp-024 hit this — proxy=1024 and proxy=2048 produced bit-identical
     # outputs because both got capped at ctx=1024.
     ctx: int = 4096,
-    device: str = "mps",
+    device: str = "auto",
     dtype: str = "bfloat16",
     alphas: tuple[float, ...] = (0.0, 0.25, 0.5, 0.75, 1.0),
     force_alpha: float | None = None,
@@ -356,16 +545,22 @@ def calibrate(
         ``proxy_loss(X_cal, α) + cv_weight · proxy_loss(X_ho, α)``. ``cv_weight``
         > 1 over-weights the held-out signal to push back against over-fit.
     """
+    # Validate cheap preconditions BEFORE the (expensive) model load + forward
+    # pass so misconfigured runs fail in milliseconds, not hours.
+    if cv_strategy != "off" and holdout_text is None:
+        raise ValueError(f"cv_strategy={cv_strategy!r} requires holdout_text to be set")
+    if proxy not in _PROXIES:
+        raise ValueError(f"unknown proxy {proxy!r}; choose one of {sorted(_PROXIES)}")
+
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
+    device = resolve_device(device)
     torch_dtype = {
         "bfloat16": torch.bfloat16,
         "float16": torch.float16,
         "float32": torch.float32,
     }[dtype]
 
-    if proxy not in _PROXIES:
-        raise ValueError(f"unknown proxy {proxy!r}; choose one of {sorted(_PROXIES)}")
     quantizer = _PROXIES[proxy]
     print(f"[awq] proxy={proxy}", file=sys.stderr)
 
@@ -419,7 +614,7 @@ def calibrate(
             for i, chunk in enumerate(chunks):
                 if chunk.numel() < 2:
                     continue
-                model(chunk.unsqueeze(0).to(device))
+                forward_no_logits(model, chunk.unsqueeze(0).to(device))
                 print(f"  chunk {i + 1}/{len(chunks)}", file=sys.stderr)
     finally:
         for h in handles:
@@ -428,12 +623,16 @@ def calibrate(
     # Held-out pass (exp-017/018): cache X_ho only. mean(|x|) stays from
     # calibration so the *scale vector itself* is calibration-driven; we use
     # held-out X only to evaluate which α generalizes.
+    if cv_strategy != "off" and not per_tensor_alpha:
+        # X_ho is only consumed by the per-tensor refinement loop — without it
+        # the held-out forward pass would be pure wasted compute.
+        print(
+            "[awq] WARN: cv_strategy set but per_tensor_alpha=False; cv has no effect "
+            "(skipping held-out pass)",
+            file=sys.stderr,
+        )
+        cv_strategy = "off"
     if cv_strategy != "off" and holdout_text is not None:
-        if not per_tensor_alpha:
-            print(
-                "[awq] WARN: cv_strategy set but per_tensor_alpha=False; cv has no effect",
-                file=sys.stderr,
-            )
         print(f"[awq] capturing held-out activations for cv_strategy={cv_strategy!r} "
               f"(cv_weight={cv_weight})", file=sys.stderr)
         ho_handles = [
@@ -452,24 +651,26 @@ def calibrate(
                 for i, chunk in enumerate(ho_chunks):
                     if chunk.numel() < 2:
                         continue
-                    model(chunk.unsqueeze(0).to(device))
+                    forward_no_logits(model, chunk.unsqueeze(0).to(device))
                     print(f"  ho chunk {i + 1}/{len(ho_chunks)}", file=sys.stderr)
         finally:
             for h in ho_handles:
                 h.remove()
-    elif cv_strategy != "off" and holdout_text is None:
-        raise ValueError(
-            f"cv_strategy={cv_strategy!r} requires holdout_text to be set"
-        )
 
     bundle = ScaleBundle(proxy=proxy)
     for g in groups:
-        if sum_abs[g.group_id] is None or tok_count[g.group_id] == 0:
+        abs_sum = sum_abs[g.group_id]
+        x_cached = cached_X[g.group_id]
+        if abs_sum is None or x_cached is None or tok_count[g.group_id] == 0:
             print(f"[awq] WARN: no activations for {g.group_id}; skipping", file=sys.stderr)
             continue
-        s = (sum_abs[g.group_id] / tok_count[g.group_id]).clamp_min(1e-8)
-        X = cached_X[g.group_id]
-        Ws = [_get_module(model, m).weight.detach().float().cpu() for m in g.members]
+        s = (abs_sum / tok_count[g.group_id]).clamp_min(1e-8)
+        # Search on the model device — the proxy fake-quant over every member
+        # weight × α candidate dominates calibration time on CPU. ``s`` stays
+        # on CPU: it is what gets persisted in the bundle.
+        s_dev = s.to(device)
+        X = x_cached.to(device)
+        Ws = [_get_module(model, m).weight.detach().float() for m in g.members]
 
         if force_alpha is not None:
             best_alpha = force_alpha
@@ -477,7 +678,7 @@ def calibrate(
             best_alpha, best_loss = 0.0, float("inf")
             for a in alphas:
                 loss = sum(
-                    proxy_loss(W, X, scale_from_alpha(s, a), quantizer=quantizer)
+                    proxy_loss(W, X, scale_from_alpha(s_dev, a), quantizer=quantizer)
                     for W in Ws
                 )
                 if loss < best_loss:
@@ -491,6 +692,8 @@ def calibrate(
                 max(0.0, min(1.0, best_alpha + d)) for d in (-r, 0.0, r)
             })
             X_ho = cached_X_ho.get(g.group_id) if cv_strategy != "off" else None
+            if X_ho is not None:
+                X_ho = X_ho.to(device)
             member_alphas = {}
             member_scales = {}
             for m, W in zip(g.members, Ws, strict=True):
@@ -498,7 +701,7 @@ def calibrate(
                 cal_losses: dict[float, float] = {}
                 ho_losses: dict[float, float] = {}
                 for a in local:
-                    sa = scale_from_alpha(s, a)
+                    sa = scale_from_alpha(s_dev, a)
                     cal_losses[a] = proxy_loss(W, X, sa, quantizer=quantizer)
                     if X_ho is not None:
                         ho_losses[a] = proxy_loss(W, X_ho, sa, quantizer=quantizer)
@@ -663,7 +866,7 @@ def apply(
     scales: Path | ScaleBundle,
     out_dir: Path,
     *,
-    device: str = "mps",
+    device: str = "auto",
     dtype: str = "bfloat16",
     rmsnorm_plus_one: bool = True,
     sanity_tokens: int = 32,
@@ -678,6 +881,7 @@ def apply(
     """
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
+    device = resolve_device(device)
     torch_dtype = {
         "bfloat16": torch.bfloat16,
         "float16": torch.float16,
@@ -856,8 +1060,13 @@ __all__ = [
     "calibrate",
     "discover_groups",
     "fake_quant_int4_g128",
+    "fake_quant_iq2_s",
+    "fake_quant_iq2_xs",
+    "fake_quant_iq2_xxs",
     "fake_quant_q2k_block16",
+    "fake_quant_q3k_block16",
     "fold_rmsnorm_gain",
+    "proxy_for_quant_type",
     "proxy_loss",
     "scale_from_alpha",
 ]
