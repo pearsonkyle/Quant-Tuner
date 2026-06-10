@@ -468,3 +468,149 @@ def test_scale_group_prev_norm_optional():
         prev_norm=None,
     )
     assert g.prev_norm is None
+
+
+# ----- DiffusionGemma / Gemma-4 MoE --------------------------------------- #
+
+
+def _build_moe_model(*, n_experts: int = 4, hidden: int = 8, inter: int = 6,
+                     diffusion_trunk: bool = False):
+    """Tiny stand-in with a Gemma-4 style MoE block: dense MLP + fused 3D
+    experts + router with its own internal norm (NOT a consumer of the
+    experts' pre-norm)."""
+    import torch.nn as nn
+
+    class RMSNorm(nn.Module):
+        def __init__(self, dim):
+            super().__init__()
+            self.weight = nn.Parameter(torch.zeros(dim))  # Gemma (1+γ) convention
+
+        def forward(self, x):
+            v = x / x.norm(dim=-1, keepdim=True).clamp_min(1e-6) * (x.shape[-1] ** 0.5)
+            return v * (1.0 + self.weight)
+
+    class Router(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.proj = nn.Linear(hidden, n_experts, bias=False)
+
+        def forward(self, x):
+            # internal norm omitted: the test only needs "router input is the
+            # raw residual", which the Block forward provides
+            return self.proj(x)
+
+    class Experts(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.gate_up_proj = nn.Parameter(torch.randn(n_experts, 2 * inter, hidden))
+            self.down_proj = nn.Parameter(torch.randn(n_experts, hidden, inter))
+
+        def forward(self, x):
+            gu = torch.einsum("eoh,th->teo", self.gate_up_proj, x)
+            gate, up = gu.chunk(2, dim=-1)
+            h = torch.nn.functional.silu(gate) * up
+            return torch.einsum("ehi,tei->teh", self.down_proj, h).mean(dim=1)
+
+    class Block(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.self_attn = nn.Module()
+            self.self_attn.q_proj = nn.Linear(hidden, hidden, bias=False)
+            self.self_attn.k_proj = nn.Linear(hidden, hidden, bias=False)
+            self.self_attn.v_proj = nn.Linear(hidden, hidden, bias=False)
+            self.input_layernorm = RMSNorm(hidden)
+            self.mlp = nn.Module()
+            self.mlp.gate_proj = nn.Linear(hidden, inter, bias=False)
+            self.mlp.up_proj = nn.Linear(hidden, inter, bias=False)
+            self.pre_feedforward_layernorm = RMSNorm(hidden)
+            self.post_attention_layernorm = RMSNorm(hidden)
+            self.router = Router()
+            self.experts = Experts()
+            self.pre_feedforward_layernorm_2 = RMSNorm(hidden)
+
+    class M(nn.Module):
+        def __init__(self):
+            super().__init__()
+            if diffusion_trunk:
+                # DiffusionGemma shape: model.encoder.language_model.layers
+                self.model = nn.Module()
+                self.model.encoder = nn.Module()
+                self.model.encoder.language_model = nn.Module()
+                self.model.encoder.language_model.layers = nn.ModuleList(
+                    [Block() for _ in range(2)]
+                )
+            else:
+                self.model = nn.Module()
+                self.model.layers = nn.ModuleList([Block() for _ in range(2)])
+
+    return M()
+
+
+def test_discover_groups_emits_moe_group():
+    m = _build_moe_model()
+    groups = {g.group_id: g for g in discover_groups(m)}
+    assert "L0_moe" in groups and "L1_moe" in groups
+    g = groups["L0_moe"]
+    # anchor = the experts module (sees every token's normed hidden state)
+    assert g.anchor == "model.layers.0.experts"
+    # the fused 3D gate_up stack is the only member: the router reads the raw
+    # residual through its own norm, so it must NOT be scaled
+    assert g.members == ("model.layers.0.experts.gate_up_proj",)
+    assert g.prev_norm == "model.layers.0.pre_feedforward_layernorm_2"
+    # the dense MLP group coexists in the same layer
+    assert "L0_mlp" in groups
+    assert groups["L0_mlp"].prev_norm == "model.layers.0.pre_feedforward_layernorm"
+
+
+def test_discover_groups_diffusiongemma_trunk():
+    m = _build_moe_model(diffusion_trunk=True)
+    groups = {g.group_id: g for g in discover_groups(m)}
+    assert groups["L0_moe"].members == (
+        "model.encoder.language_model.layers.0.experts.gate_up_proj",
+    )
+    assert groups["L0_attn"].anchor == (
+        "model.encoder.language_model.layers.0.self_attn.q_proj"
+    )
+
+
+def test_moe_fold_preserves_outputs_and_routing_in_f32():
+    """Folding 1/s into pre_feedforward_layernorm_2 ((1+γ) convention) and s
+    into every expert's input channels leaves (a) each expert's output and
+    (b) the routing logits exactly invariant in f32."""
+    torch.manual_seed(0)
+    m = _build_moe_model().float()
+    layer = m.model.layers[0]
+    x = torch.randn(5, 8)
+
+    norm_out = layer.pre_feedforward_layernorm_2(x)
+    ref_expert_out = layer.experts(norm_out)
+    ref_routing = layer.router(x)  # router input: raw residual, NOT norm_out
+
+    s = torch.rand(8) + 0.5
+    from quant_tuner.calibrate.awq import _in_channel_view, _member_weight
+
+    W = _member_weight(m, "model.layers.0.experts.gate_up_proj")
+    W.data.mul_(_in_channel_view(s, W))
+    gamma = layer.pre_feedforward_layernorm_2.weight
+    gamma.data.copy_(fold_rmsnorm_gain(gamma.data, 1.0 / s, plus_one=True))
+
+    new_expert_out = layer.experts(layer.pre_feedforward_layernorm_2(x))
+    new_routing = layer.router(x)
+
+    torch.testing.assert_close(new_expert_out, ref_expert_out, rtol=1e-4, atol=1e-5)
+    torch.testing.assert_close(new_routing, ref_routing)  # untouched, exact
+
+
+def test_scoring_weight_subsamples_experts_deterministically():
+    from quant_tuner.calibrate.awq import _scoring_weight
+
+    m = _build_moe_model(n_experts=4, hidden=8, inter=6)
+    member = "model.layers.0.experts.gate_up_proj"
+    full = _scoring_weight(m, member, 0)
+    assert full.shape == (4 * 12, 8)  # all experts flattened to rows
+    sub = _scoring_weight(m, member, 2)
+    assert sub.shape == (2 * 12, 8)
+    torch.testing.assert_close(sub, _scoring_weight(m, member, 2))  # deterministic
+    # 2D linears pass through unchanged
+    lin = _scoring_weight(m, "model.layers.0.mlp.gate_proj", 2)
+    assert lin.shape == (6, 8)

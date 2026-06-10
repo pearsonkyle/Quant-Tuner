@@ -39,7 +39,12 @@ from typing import Literal
 import torch
 
 from quant_tuner.calibrate._device import resolve_device
-from quant_tuner.calibrate._hf import forward_no_logits
+from quant_tuner.calibrate._hf import (
+    causal_logits,
+    forward_no_logits,
+    load_calibration_model,
+    resolve_text_trunk,
+)
 
 # --- Group discovery ------------------------------------------------------ #
 
@@ -54,27 +59,37 @@ class ScaleGroup:
     leaves untouched.
     """
 
-    group_id: str            # e.g. "L3_attn", "L3_mlp", "L3_attn_out", "L3_mlp_out"
-    anchor: str              # dotted module path; first member, used for the hook
-    members: tuple[str, ...] # dotted module paths to all sharing linears
+    group_id: str            # e.g. "L3_attn", "L3_mlp", "L3_moe", "L3_attn_out"
+    anchor: str              # dotted module path; used for the activation hook
+    members: tuple[str, ...] # dotted paths to all sharing linears (or fused
+                             # 3D expert parameters — input channels last axis)
     prev_norm: str | None    # dotted module path to the RMSNorm whose γ we fold, or None
 
 
 def discover_groups(model, *, include_output_proj: bool = False) -> list[ScaleGroup]:
-    """Find attention + MLP scale groups in a HuggingFace decoder model.
+    """Find attention + MLP (+ MoE expert) scale groups in a HuggingFace decoder model.
 
     With ``include_output_proj=True`` (exp-011), also emit per-layer
     ``L{i}_attn_out`` (``o_proj``) and ``L{i}_mlp_out`` (``down_proj``) groups.
     These have ``prev_norm=None`` since their input is not a normalized
     activation — scales apply to the weight only, no RMSNorm fold cancellation.
+
+    Gemma-4 / DiffusionGemma MoE blocks emit a ``L{i}_moe`` group: the fused
+    3D ``experts.gate_up_proj`` parameter under its dedicated pre-norm
+    (``pre_feedforward_layernorm_2``). The router is deliberately NOT a member:
+    its input is the *raw residual* through the router's own internal norm, not
+    this norm's output, so folding the scale here leaves routing logits exactly
+    invariant. The anchor is the ``experts`` module itself — its forward
+    receives every token's normed hidden state (experts see only routed subsets
+    *inside* that forward, so any single expert projection would give biased
+    ``mean(|x|)``).
     """
-    layers = getattr(model.model, "layers", None)
-    if layers is None:
-        raise RuntimeError("model.model.layers not found; unsupported architecture")
+    trunk_path, trunk = resolve_text_trunk(model)
+    layers = trunk.layers
 
     out: list[ScaleGroup] = []
     for i, layer in enumerate(layers):
-        prefix = f"model.layers.{i}"
+        prefix = f"{trunk_path}.layers.{i}"
 
         attn = getattr(layer, "self_attn", None)
         if attn is not None and isinstance(getattr(attn, "q_proj", None), torch.nn.Linear):
@@ -115,6 +130,18 @@ def discover_groups(model, *, include_output_proj: bool = False) -> list[ScaleGr
                     prev_norm=f"{prefix}.{norm_name}",
                 ))
 
+        experts = getattr(layer, "experts", None)
+        gate_up = getattr(experts, "gate_up_proj", None) if experts is not None else None
+        if experts is not None and torch.is_tensor(gate_up) and gate_up.ndim == 3:
+            moe_norm = getattr(layer, "pre_feedforward_layernorm_2", None)
+            if moe_norm is not None and hasattr(moe_norm, "weight"):
+                out.append(ScaleGroup(
+                    group_id=f"L{i}_moe",
+                    anchor=f"{prefix}.experts",
+                    members=(f"{prefix}.experts.gate_up_proj",),
+                    prev_norm=f"{prefix}.pre_feedforward_layernorm_2",
+                ))
+
         if include_output_proj:
             if attn is not None and isinstance(getattr(attn, "o_proj", None), torch.nn.Linear):
                 out.append(ScaleGroup(
@@ -131,6 +158,46 @@ def discover_groups(model, *, include_output_proj: bool = False) -> list[ScaleGr
                     prev_norm=None,
                 ))
     return out
+
+
+def _member_weight(model, dotted: str) -> torch.Tensor:
+    """Weight tensor of a group member.
+
+    A member is either an ``nn.Linear`` module path (weight ``[n_out, n_in]``)
+    or a direct parameter path for fused 3D expert stacks
+    (``[n_expert, n_out, n_in]``). Input channels are the LAST axis in both
+    cases, so a per-input-channel scale broadcasts as
+    ``mul.view((1,) * (W.ndim - 1) + (-1,))``.
+    """
+    obj = _get_module(model, dotted)
+    if isinstance(obj, torch.nn.Linear):
+        return obj.weight
+    if torch.is_tensor(obj):
+        return obj
+    raise TypeError(f"group member {dotted!r} is neither a Linear nor a weight tensor")
+
+
+def _in_channel_view(mul: torch.Tensor, w: torch.Tensor) -> torch.Tensor:
+    """Reshape a per-input-channel vector to broadcast over ``w``'s last axis."""
+    return mul.view((1,) * (w.ndim - 1) + (-1,))
+
+
+def _scoring_weight(model, member: str, moe_expert_sample: int) -> torch.Tensor:
+    """A member's weight as a 2D ``[rows, n_in]`` f32 tensor for proxy scoring.
+
+    Fused 3D expert stacks are subsampled to ``moe_expert_sample`` evenly
+    spaced experts (deterministic; ``0`` keeps all) and flattened — the
+    block/group fake-quantizers operate per row, so stacking experts' output
+    rows reproduces exactly how llama-quantize sees each expert slice.
+    """
+    w = _member_weight(model, member).detach()
+    if w.ndim == 3:
+        n_experts = w.shape[0]
+        if 0 < moe_expert_sample < n_experts:
+            idx = torch.linspace(0, n_experts - 1, moe_expert_sample).round().long()
+            w = w[idx.to(w.device)]
+        return w.reshape(-1, w.shape[-1]).float()
+    return w.float()
 
 
 def _get_module(model, dotted: str):
@@ -518,6 +585,7 @@ def calibrate(
     holdout_text: Path | None = None,
     cv_strategy: Literal["off", "gate", "mixed"] = "off",
     cv_weight: float = 1.0,
+    moe_expert_sample: int = 8,
 ) -> Path:
     """Calibrate per-group AWQ scales and write them to ``out_path``.
 
@@ -544,6 +612,11 @@ def calibrate(
       - ``"mixed"`` (exp-018): score each α candidate as
         ``proxy_loss(X_cal, α) + cv_weight · proxy_loss(X_ho, α)``. ``cv_weight``
         > 1 over-weights the held-out signal to push back against over-fit.
+
+    ``moe_expert_sample`` caps how many experts of a fused 3D stack are scored
+    in the α search (evenly-spaced, deterministic). The scale vector is shared
+    by every expert anyway; fake-quantizing all 128 experts of a 26B MoE per α
+    candidate is the cost driver, not a quality driver. ``0`` scores all.
     """
     # Validate cheap preconditions BEFORE the (expensive) model load + forward
     # pass so misconfigured runs fail in milliseconds, not hours.
@@ -552,7 +625,7 @@ def calibrate(
     if proxy not in _PROXIES:
         raise ValueError(f"unknown proxy {proxy!r}; choose one of {sorted(_PROXIES)}")
 
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from transformers import AutoTokenizer
 
     device = resolve_device(device)
     torch_dtype = {
@@ -566,9 +639,7 @@ def calibrate(
 
     print(f"[awq] load {model_dir} -> {device}/{dtype}", file=sys.stderr)
     tok = AutoTokenizer.from_pretrained(model_dir, fix_mistral_regex=True)
-    model = AutoModelForCausalLM.from_pretrained(
-        model_dir, torch_dtype=torch_dtype, trust_remote_code=True
-    ).to(device)
+    model = load_calibration_model(model_dir, torch_dtype=torch_dtype, device=device)
     model.eval()
     for p in model.parameters():
         p.requires_grad_(False)
@@ -576,7 +647,11 @@ def calibrate(
     groups = discover_groups(model, include_output_proj=include_output_proj)
     n_attn = sum(1 for g in groups if g.group_id.endswith("_attn"))
     n_mlp = sum(1 for g in groups if g.group_id.endswith("_mlp"))
-    print(f"[awq] groups: {len(groups)} total ({n_attn} attn, {n_mlp} mlp)", file=sys.stderr)
+    n_moe = sum(1 for g in groups if g.group_id.endswith("_moe"))
+    print(
+        f"[awq] groups: {len(groups)} total ({n_attn} attn, {n_mlp} mlp, {n_moe} moe)",
+        file=sys.stderr,
+    )
     if not groups:
         raise RuntimeError("no AWQ scale groups discovered")
 
@@ -670,7 +745,9 @@ def calibrate(
         # on CPU: it is what gets persisted in the bundle.
         s_dev = s.to(device)
         X = x_cached.to(device)
-        Ws = [_get_module(model, m).weight.detach().float() for m in g.members]
+        Ws = [
+            _scoring_weight(model, m, moe_expert_sample) for m in g.members
+        ]
 
         if force_alpha is not None:
             best_alpha = force_alpha
@@ -879,7 +956,7 @@ def apply(
     the round-trip injects ~0.8% relative drift per layer (mantissa noise);
     ``sanity_max_rel`` rejects anything well above that floor.
     """
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from transformers import AutoTokenizer
 
     device = resolve_device(device)
     torch_dtype = {
@@ -891,9 +968,7 @@ def apply(
 
     print(f"[awq.apply] load {model_dir} -> {device}/{dtype}", file=sys.stderr)
     tok = AutoTokenizer.from_pretrained(model_dir, fix_mistral_regex=True)
-    model = AutoModelForCausalLM.from_pretrained(
-        model_dir, torch_dtype=torch_dtype, trust_remote_code=True
-    ).to(device)
+    model = load_calibration_model(model_dir, torch_dtype=torch_dtype, device=device)
     model.eval()
 
     ref_logits = None
@@ -902,7 +977,8 @@ def apply(
         text = "def hello_world():\n    print('hi')\n" * 8
         ids = tok(text, return_tensors="pt", add_special_tokens=False).input_ids[0]
         sanity_ids = ids[:sanity_tokens].unsqueeze(0).to(device)
-        ref_logits = model(sanity_ids).logits.detach().float().cpu()
+        with torch.no_grad():
+            ref_logits = causal_logits(model, sanity_ids).detach().float().cpu()
 
     n_applied = 0
     for g in bundle.groups:
@@ -922,21 +998,22 @@ def apply(
         scaled_members: list[tuple[str, torch.Tensor]] = []
         skip_group = False
         for m in g.members:
-            W = _get_module(model, m).weight
+            W = _member_weight(model, m)
             mul = member_mul.get(m, scale)
-            if W.shape[1] != mul.shape[0]:
+            if W.shape[-1] != mul.shape[0]:
                 print(
-                    f"[awq.apply] WARN: {m} in={W.shape[1]} vs scale={mul.shape[0]}; "
+                    f"[awq.apply] WARN: {m} in={W.shape[-1]} vs scale={mul.shape[0]}; "
                     f"skipping group {g.group_id}",
                     file=sys.stderr,
                 )
                 skip_group = True
                 break
-            W.data.mul_(mul.unsqueeze(0))
+            W.data.mul_(_in_channel_view(mul, W))
             scaled_members.append((m, mul))
         if skip_group:
             for m, mul in scaled_members:  # revert any partial mutations
-                _get_module(model, m).weight.data.mul_((1.0 / mul).unsqueeze(0))
+                W = _member_weight(model, m)
+                W.data.mul_(_in_channel_view(1.0 / mul, W))
             continue
 
         if g.prev_norm is None:
@@ -957,7 +1034,8 @@ def apply(
                     file=sys.stderr,
                 )
                 for m, mul in scaled_members:
-                    _get_module(model, m).weight.data.mul_((1.0 / mul).unsqueeze(0))
+                    W = _member_weight(model, m)
+                    W.data.mul_(_in_channel_view(1.0 / mul, W))
             continue
 
         norm_w = _get_module(model, g.prev_norm).weight
@@ -967,7 +1045,8 @@ def apply(
                 file=sys.stderr,
             )
             for m, mul in scaled_members:
-                _get_module(model, m).weight.data.mul_((1.0 / mul).unsqueeze(0))
+                W = _member_weight(model, m)
+                W.data.mul_(_in_channel_view(1.0 / mul, W))
             continue
 
         new_gain = fold_rmsnorm_gain(norm_w.data, inv_f, plus_one=rmsnorm_plus_one)
@@ -977,7 +1056,7 @@ def apply(
     print(f"[awq.apply] {n_applied}/{len(bundle.groups)} groups folded", file=sys.stderr)
 
     if ref_logits is not None and sanity_ids is not None:
-        new_logits = model(sanity_ids).logits.detach().float().cpu()
+        new_logits = causal_logits(model, sanity_ids).detach().float().cpu()
         max_abs = (new_logits - ref_logits).abs().max().item()
         rel = max_abs / max(ref_logits.abs().max().item(), 1e-8)
         print(f"[awq.apply] sanity max|Δlogit|={max_abs:.3e} rel={rel:.3e}", file=sys.stderr)

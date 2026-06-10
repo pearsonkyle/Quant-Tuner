@@ -71,7 +71,12 @@ def extract_text_lm(
     with open(model_path / "config.json") as f:
         config = json.load(f)
     arch = (config.get("architectures") or [""])[0]
-    if "ForCausalLM" in arch and not config.get("text_config"):
+    # DiffusionGemma is pass-through despite its text_config nesting: the
+    # llama.cpp converter consumes the full checkpoint (root canvas_length,
+    # model.decoder.* backbone, tied encoder) and drops the vision tower
+    # itself — rebuilding a text-only CausalLM here would break it.
+    is_block_diffusion = "ForBlockDiffusion" in arch
+    if is_block_diffusion or ("ForCausalLM" in arch and not config.get("text_config")):
         # Pass-through: still materialize into output_dir (via symlinks, no
         # copy) so callers that reference output_dir — the pipeline points
         # conversion/calibration at ws.model_extracted — find a real model

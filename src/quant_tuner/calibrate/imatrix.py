@@ -28,7 +28,7 @@ import numpy as np
 
 from quant_tuner.calibrate._device import resolve_device
 from quant_tuner.calibrate._hf import forward_no_logits
-from quant_tuner.models.hf_gguf_map import is_ssm, map_hf_to_gguf
+from quant_tuner.models.hf_gguf_map import is_moe_expert, is_ssm, map_hf_to_gguf
 from quant_tuner.paths import LLAMA_CPP_DIR
 
 Variant = Literal["analytic", "mix_50", "hybrid_custom", "outlier_l4", "outlier_max"]
@@ -55,7 +55,15 @@ def _col_l2_sq(weight: np.ndarray) -> np.ndarray:
 
 
 def _load_base_imatrix(path: Path) -> dict[str, np.ndarray]:
-    """Read an existing imatrix GGUF as ``{tensor: E[a^2]}`` (sum_sq divided by count)."""
+    """Read an existing imatrix GGUF as ``{tensor: E[a^2]}`` (sum_sq divided by count).
+
+    Dense tensors yield a 1-D ``[n_in]`` vector. Stacked MoE expert tensors
+    (e.g. ``ffn_gate_up_exps``) carry one count *per expert*: llama-imatrix
+    stores ``in_sum2`` as ``[n_expert, n_in]`` (expert-major) and ``counts`` as
+    ``[n_expert, 1]``; these yield a 2-D ``[n_expert, n_in]`` array normalized
+    per expert. Experts the calibration corpus never routed to (count 0) get a
+    neutral all-ones row, mirroring llama-quantize's own fallback.
+    """
     _ensure_gguf_py()
     from gguf import GGUFReader
 
@@ -69,8 +77,22 @@ def _load_base_imatrix(path: Path) -> dict[str, np.ndarray]:
         cnt = raw.get(f"{base}.counts")
         if cnt is None:
             continue
-        c = max(int(cnt.flat[0]), 1)
-        out[base] = arr.astype(np.float32) / c
+        counts = cnt.astype(np.float64).reshape(-1)
+        if counts.size <= 1:
+            c = max(float(counts[0]) if counts.size else 1.0, 1.0)
+            out[base] = (arr.astype(np.float32) / c).reshape(-1)
+            continue
+        n_mat = counts.size
+        if arr.size % n_mat != 0:
+            raise ValueError(
+                f"imatrix entry {base}: in_sum2 size {arr.size} not divisible by "
+                f"counts size {n_mat} (unexpected llama-imatrix layout)"
+            )
+        mat = arr.astype(np.float32).reshape(n_mat, arr.size // n_mat)
+        ea2 = np.ones_like(mat)
+        seen = counts > 0
+        ea2[seen] = mat[seen] / counts[seen, None].astype(np.float32)
+        out[base] = ea2
     return out
 
 
@@ -92,6 +114,58 @@ def _l1_normalize(v: np.ndarray) -> np.ndarray:
     if s <= 0.0 or not np.isfinite(s):
         return v.astype(np.float32, copy=False)
     return (v.astype(np.float32) * (v.size / s)).astype(np.float32)
+
+
+def check_moe_coverage(base_imatrix: Path) -> dict[str, float]:
+    """Fraction of experts with nonzero activation mass, per stacked-expert tensor.
+
+    With 128 experts and a top-k router, a too-small calibration corpus leaves
+    some experts unobserved — llama-quantize then falls back to neutral
+    importance for those experts, leaving them unprotected at low bit-widths.
+    Returns ``{tensor: covered_fraction}`` for every multi-count imatrix entry.
+    """
+    _ensure_gguf_py()
+    from gguf import GGUFReader
+
+    reader = GGUFReader(str(base_imatrix))
+    out: dict[str, float] = {}
+    for t in reader.tensors:
+        if not t.name.endswith(".counts"):
+            continue
+        counts = np.array(t.data).reshape(-1)
+        if counts.size <= 1:
+            continue
+        out[t.name[: -len(".counts")]] = float((counts > 0).mean())
+    return out
+
+
+def warn_moe_coverage(base_imatrix: Path, threshold: float = 0.95) -> dict[str, float]:
+    """Log a warning for every expert tensor below ``threshold`` coverage.
+
+    Diagnostic only — an unreadable imatrix is reported, never fatal (the
+    quantize step will surface real corruption with a hard error).
+    """
+    try:
+        coverage = check_moe_coverage(base_imatrix)
+    except Exception as e:  # noqa: BLE001
+        print(f"[imatrix] coverage check skipped ({e!r})", file=sys.stderr)
+        return {}
+    low = {t: c for t, c in coverage.items() if c < threshold}
+    if low:
+        worst = min(low.values())
+        print(
+            f"[imatrix] WARN: {len(low)}/{len(coverage)} expert tensors below "
+            f"{threshold:.0%} expert coverage (worst {worst:.0%}). Unobserved "
+            f"experts quantize with neutral importance — increase the "
+            f"calibration corpus (data.train_max_tokens) for low-bit targets.",
+            file=sys.stderr,
+        )
+    elif coverage:
+        print(
+            f"[imatrix] MoE expert coverage OK ({len(coverage)} tensors >= {threshold:.0%})",
+            file=sys.stderr,
+        )
+    return coverage
 
 
 # --- Forward-pass stats (E[a^4], max|a|) --------------------------------- #
@@ -143,7 +217,9 @@ def collect_forward_stats(
     coverage matches what llama-quantize will actually consume.
     """
     import torch
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from transformers import AutoTokenizer
+
+    from quant_tuner.calibrate._hf import load_calibration_model
 
     _ensure_gguf_py()
     from gguf import GGUFReader
@@ -153,9 +229,7 @@ def collect_forward_stats(
 
     print(f"[forward_stats] load {model_dir} -> {device}/{dtype}", file=sys.stderr)
     tok = AutoTokenizer.from_pretrained(model_dir, fix_mistral_regex=True)
-    model = AutoModelForCausalLM.from_pretrained(
-        model_dir, torch_dtype=torch_dtype, trust_remote_code=True
-    ).to(device)
+    model = load_calibration_model(model_dir, torch_dtype=torch_dtype, device=device)
     model.eval()
     for p in model.parameters():
         p.requires_grad_(False)
@@ -229,6 +303,29 @@ def collect_forward_stats(
 # pass through the raw E[a^2] signal (memory note: don't rerank ``blk.*.ssm_*``).
 
 
+def _combine_moe(
+    weight3d: np.ndarray, ea2: np.ndarray, combiner, tname: str
+) -> np.ndarray:
+    """Apply ``combiner`` per expert and flatten back expert-major.
+
+    ``weight3d`` is ``[n_expert, n_out, n_in]`` (GGUF order); ``ea2`` is
+    ``[n_expert, n_in]`` from :func:`_load_base_imatrix`. Each expert's row is
+    combined against that expert's own ``||W_e[:, c]||^2`` — the L1
+    normalization inside mix_50/hybrid_custom must not bleed across experts,
+    since llama-quantize consumes each expert's imatrix slice independently.
+    """
+    if weight3d.ndim != 3 or ea2.ndim != 2 or weight3d.shape[0] != ea2.shape[0] or weight3d.shape[2] != ea2.shape[1]:
+        raise ValueError(
+            f"{tname}: expert weight {weight3d.shape} does not line up with "
+            f"imatrix rows {ea2.shape} as [n_expert, n_out, n_in] vs [n_expert, n_in] "
+            f"(llama.cpp imatrix layout change?)"
+        )
+    w = weight3d.astype(np.float32, copy=False)
+    wcol = (w * w).sum(axis=1)  # [n_expert, n_in]
+    rows = [combiner(wcol[e], ea2[e]).astype(np.float32) for e in range(ea2.shape[0])]
+    return np.stack(rows).reshape(-1)
+
+
 def _build_simple(
     f16: Path,
     base_imatrix: Path,
@@ -238,14 +335,24 @@ def _build_simple(
     base = _load_base_imatrix(base_imatrix)
     weights = _load_weights(f16)
     out: dict[str, np.ndarray] = {}
-    ssm = skipped = 0
+    ssm = moe = skipped = 0
     for tname, ea2 in base.items():
         if tname not in weights:
             skipped += 1
             continue
         if is_ssm(tname):
-            out[tname] = ea2.astype(np.float32)
+            out[tname] = ea2.astype(np.float32).reshape(-1)
             ssm += 1
+            continue
+        if ea2.ndim == 2:
+            if not is_moe_expert(tname):
+                # multi-count entry on a non-expert tensor: no per-mat weight
+                # slicing rule we trust — keep the raw signal rather than guess
+                out[tname] = ea2.astype(np.float32).reshape(-1)
+                skipped += 1
+                continue
+            out[tname] = _combine_moe(weights[tname], ea2, combiner, tname)
+            moe += 1
             continue
         wcol = _col_l2_sq(weights[tname])
         if wcol.shape != ea2.shape:
@@ -253,7 +360,8 @@ def _build_simple(
             continue
         out[tname] = combiner(wcol, ea2).astype(np.float32)
     print(
-        f"[{label}] {len(out)} tensors ({ssm} SSM passthrough, {skipped} skipped)",
+        f"[{label}] {len(out)} tensors ({ssm} SSM passthrough, {moe} MoE per-expert, "
+        f"{skipped} skipped)",
         file=sys.stderr,
     )
     return out
@@ -293,11 +401,17 @@ def build_outlier_l4(
     """
     base = _load_base_imatrix(base_imatrix)
     out: dict[str, np.ndarray] = {}
-    ssm = missing = mismatch = 0
+    ssm = moe = missing = mismatch = 0
     for tname, ea2 in base.items():
         if is_ssm(tname):
-            out[tname] = ea2.astype(np.float32)
+            out[tname] = ea2.astype(np.float32).reshape(-1)
             ssm += 1
+            continue
+        if ea2.ndim == 2:
+            # MoE experts: hooks see only routed token subsets, so per-expert
+            # outlier stats aren't collected — pass through E[a^2] per expert.
+            out[tname] = ea2.astype(np.float32).reshape(-1)
+            moe += 1
             continue
         e_a4 = forward_stats.e_a4.get(tname)
         if e_a4 is None:
@@ -310,8 +424,8 @@ def build_outlier_l4(
             continue
         out[tname] = np.sqrt(np.maximum(e_a4, 0.0)).astype(np.float32)
     print(
-        f"[outlier_l4] {len(out)} tensors ({ssm} SSM, {missing} no-stats, "
-        f"{mismatch} shape-mismatch fallback)",
+        f"[outlier_l4] {len(out)} tensors ({ssm} SSM, {moe} MoE passthrough, "
+        f"{missing} no-stats, {mismatch} shape-mismatch fallback)",
         file=sys.stderr,
     )
     return out
@@ -324,11 +438,16 @@ def build_outlier_max(
     """``s_c = E[a_c^2] * max|a_c|^2`` for non-SSM tensors; passthrough ``E[a^2]`` for SSM."""
     base = _load_base_imatrix(base_imatrix)
     out: dict[str, np.ndarray] = {}
-    ssm = missing = mismatch = 0
+    ssm = moe = missing = mismatch = 0
     for tname, ea2 in base.items():
         if is_ssm(tname):
-            out[tname] = ea2.astype(np.float32)
+            out[tname] = ea2.astype(np.float32).reshape(-1)
             ssm += 1
+            continue
+        if ea2.ndim == 2:
+            # MoE experts: see build_outlier_l4 — per-expert E[a^2] passthrough.
+            out[tname] = ea2.astype(np.float32).reshape(-1)
+            moe += 1
             continue
         mx = forward_stats.max_abs.get(tname)
         if mx is None:
@@ -341,8 +460,8 @@ def build_outlier_max(
             continue
         out[tname] = (ea2 * (mx**2)).astype(np.float32)
     print(
-        f"[outlier_max] {len(out)} tensors ({ssm} SSM, {missing} no-stats, "
-        f"{mismatch} shape-mismatch fallback)",
+        f"[outlier_max] {len(out)} tensors ({ssm} SSM, {moe} MoE passthrough, "
+        f"{missing} no-stats, {mismatch} shape-mismatch fallback)",
         file=sys.stderr,
     )
     return out
@@ -375,6 +494,7 @@ def write_imatrix(
             writer.add_array(key, [dataset_label])
 
     for tname, vec in importance.items():
+        vec = vec.reshape(-1)  # llama-quantize consumes flat [n_mat * n_in]
         if not np.all(np.isfinite(vec)):
             print(f"  WARN: non-finite values in {tname}; clamping", file=sys.stderr)
             vec = np.nan_to_num(vec, nan=0.0, posinf=0.0, neginf=0.0)
@@ -460,4 +580,11 @@ def calibrate(
     )
 
 
-__all__ = ["ForwardStats", "Variant", "calibrate", "collect_forward_stats"]
+__all__ = [
+    "ForwardStats",
+    "Variant",
+    "calibrate",
+    "check_moe_coverage",
+    "collect_forward_stats",
+    "warn_moe_coverage",
+]

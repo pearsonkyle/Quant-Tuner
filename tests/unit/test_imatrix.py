@@ -3,17 +3,20 @@
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from quant_tuner.calibrate import imatrix as imx
 from quant_tuner.calibrate.imatrix import (
     ForwardStats,
     _col_l2_sq,
+    _combine_moe,
     _l1_normalize,
     build_analytic,
+    build_hybrid_custom,
     build_outlier_l4,
 )
 from quant_tuner.models import llama_cpp
-from quant_tuner.models.hf_gguf_map import is_ssm, map_hf_to_gguf
+from quant_tuner.models.hf_gguf_map import is_moe_expert, is_ssm, map_hf_to_gguf
 
 
 def test_col_l2_sq_sums_over_rows():
@@ -58,6 +61,33 @@ def test_is_ssm():
     assert is_ssm("blk.3.ssm_dt.weight")
     assert not is_ssm("blk.3.attn_q.weight")
     assert not is_ssm("blk.3.ffn_down.weight")
+
+
+def test_map_hf_to_gguf_moe_and_router():
+    # Gemma-4 style fused 3D experts + router (a plain Linear).
+    assert map_hf_to_gguf("model.layers.5.experts.gate_up_proj") == "blk.5.ffn_gate_up_exps.weight"
+    assert map_hf_to_gguf("model.layers.5.experts.down_proj") == "blk.5.ffn_down_exps.weight"
+    assert map_hf_to_gguf("model.layers.5.mlp.experts.gate_up_proj") == "blk.5.ffn_gate_up_exps.weight"
+    assert map_hf_to_gguf("model.layers.5.router.proj") == "blk.5.ffn_gate_inp.weight"
+
+
+def test_map_hf_to_gguf_diffusiongemma_trunk_prefixes():
+    # DiffusionGemma: backbone under model.decoder.*; encoder stack is tied.
+    assert map_hf_to_gguf("model.decoder.layers.2.self_attn.q_proj") == "blk.2.attn_q.weight"
+    assert map_hf_to_gguf("model.decoder.layers.2.experts.gate_up_proj") == "blk.2.ffn_gate_up_exps.weight"
+    assert (
+        map_hf_to_gguf("model.encoder.language_model.layers.2.mlp.up_proj")
+        == "blk.2.ffn_up.weight"
+    )
+    assert map_hf_to_gguf("model.decoder.self_conditioning.gate_proj") == "self_cond_gate.weight"
+
+
+def test_is_moe_expert():
+    assert is_moe_expert("blk.0.ffn_gate_up_exps.weight")
+    assert is_moe_expert("blk.0.ffn_down_exps.weight")
+    assert is_moe_expert("blk.0.ffn_gate_exps.weight")
+    assert not is_moe_expert("blk.0.ffn_gate.weight")
+    assert not is_moe_expert("blk.0.ffn_gate_inp.weight")
 
 
 def test_forward_stats_roundtrip(tmp_path):
@@ -127,6 +157,109 @@ def test_build_outlier_l4_falls_back_when_stats_missing(monkeypatch):
     np.testing.assert_allclose(out["blk.0.attn_q.weight"], [1.0, 4.0, 9.0])
     np.testing.assert_allclose(out["blk.0.attn_k.weight"], [0.5, 0.5, 0.5])  # E[a^2] fallback
     np.testing.assert_allclose(out["blk.0.ssm_dt.weight"], [7.0, 7.0])  # SSM passthrough
+
+
+def test_build_analytic_moe_per_expert(monkeypatch):
+    """3D expert tensors are reranked per expert and flattened expert-major."""
+    tname = "blk.0.ffn_gate_up_exps.weight"
+    # 2 experts, n_out=2, n_in=3
+    w = np.array(
+        [
+            [[1.0, 0.0, 1.0], [0.0, 1.0, 1.0]],   # expert 0 col ssq: [1, 1, 2]
+            [[2.0, 0.0, 0.0], [0.0, 3.0, 0.0]],   # expert 1 col ssq: [4, 9, 0]
+        ],
+        dtype=np.float32,
+    )
+    ea2 = np.array([[1.0, 4.0, 9.0], [2.0, 2.0, 2.0]], dtype=np.float32)
+    monkeypatch.setattr(imx, "_load_base_imatrix", lambda _p: {tname: ea2})
+    monkeypatch.setattr(imx, "_load_weights", lambda _p: {tname: w})
+
+    out = build_analytic("dummy_f16", "dummy_base")
+
+    # expert 0: [1*1, 1*4, 2*9]; expert 1: [4*2, 9*2, 0*2], expert-major flat
+    np.testing.assert_allclose(out[tname], [1.0, 4.0, 18.0, 8.0, 18.0, 0.0])
+
+
+def test_build_hybrid_custom_moe_normalizes_per_expert(monkeypatch):
+    """L1 normalization must not bleed across experts with different scales."""
+    tname = "blk.0.ffn_down_exps.weight"
+    # Identical structure, expert 1's activations scaled 1000x: per-expert
+    # normalization makes both experts' outputs identical.
+    w = np.stack([np.eye(3, dtype=np.float32)] * 2)
+    ea2 = np.array([[1.0, 2.0, 3.0], [1000.0, 2000.0, 3000.0]], dtype=np.float32)
+    monkeypatch.setattr(imx, "_load_base_imatrix", lambda _p: {tname: ea2})
+    monkeypatch.setattr(imx, "_load_weights", lambda _p: {tname: w})
+
+    out = build_hybrid_custom("dummy_f16", "dummy_base")
+    flat = out[tname]
+    np.testing.assert_allclose(flat[:3], flat[3:], rtol=1e-6)
+
+
+def test_combine_moe_rejects_misaligned_shapes():
+    w = np.zeros((2, 4, 3), dtype=np.float32)
+    ea2 = np.zeros((3, 3), dtype=np.float32)  # wrong expert count
+    with pytest.raises(ValueError, match="does not line up"):
+        _combine_moe(w, ea2, lambda a, b: a * b, "blk.0.ffn_gate_up_exps.weight")
+
+
+def test_build_outlier_l4_moe_passthrough(monkeypatch):
+    """Expert tensors pass through per-expert E[a^2] in outlier variants."""
+    tname = "blk.0.ffn_gate_up_exps.weight"
+    ea2 = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
+    monkeypatch.setattr(imx, "_load_base_imatrix", lambda _p: {tname: ea2})
+
+    out = build_outlier_l4("dummy_base", ForwardStats(e_a4={}, max_abs={}))
+    np.testing.assert_allclose(out[tname], [1.0, 2.0, 3.0, 4.0])
+
+
+def _write_moe_imatrix_gguf(path):
+    """Write a minimal llama-imatrix-layout GGUF: one dense entry (scalar count)
+    and one stacked-expert entry (per-expert counts, one expert unobserved)."""
+    imx._ensure_gguf_py()
+    gguf = pytest.importorskip("gguf")
+
+    w = gguf.GGUFWriter(str(path), "imatrix")
+    w.add_uint32("imatrix.chunk_count", 2)
+    w.add_uint32("imatrix.chunk_size", 512)
+    w.add_array("imatrix.datasets", ["test"])
+    # dense: 1-D in_sum2, scalar count
+    w.add_tensor("blk.0.attn_q.weight.in_sum2", np.array([2.0, 4.0, 8.0], dtype=np.float32))
+    w.add_tensor("blk.0.attn_q.weight.counts", np.array([2.0], dtype=np.float32))
+    # MoE: [n_expert=3, n_in=2] sums, per-expert counts with expert 2 unseen
+    sums = np.array([[2.0, 4.0], [30.0, 60.0], [0.0, 0.0]], dtype=np.float32)
+    w.add_tensor("blk.0.ffn_gate_up_exps.weight.in_sum2", sums)
+    w.add_tensor(
+        "blk.0.ffn_gate_up_exps.weight.counts",
+        np.array([[2.0], [10.0], [0.0]], dtype=np.float32),
+    )
+    w.write_header_to_file()
+    w.write_kv_data_to_file()
+    w.write_tensors_to_file()
+    w.close()
+
+
+def test_load_base_imatrix_moe_per_expert_counts(tmp_path):
+    path = tmp_path / "imatrix.gguf"
+    _write_moe_imatrix_gguf(path)
+
+    base = imx._load_base_imatrix(path)
+
+    np.testing.assert_allclose(base["blk.0.attn_q.weight"], [1.0, 2.0, 4.0])
+    moe = base["blk.0.ffn_gate_up_exps.weight"]
+    assert moe.shape == (3, 2)
+    np.testing.assert_allclose(moe[0], [1.0, 2.0])   # / count 2
+    np.testing.assert_allclose(moe[1], [3.0, 6.0])   # / count 10
+    np.testing.assert_allclose(moe[2], [1.0, 1.0])   # unseen -> neutral ones
+
+
+def test_check_moe_coverage(tmp_path):
+    path = tmp_path / "imatrix.gguf"
+    _write_moe_imatrix_gguf(path)
+
+    cov = imx.check_moe_coverage(path)
+    # dense entries (single count) are not reported
+    assert list(cov) == ["blk.0.ffn_gate_up_exps.weight"]
+    np.testing.assert_allclose(cov["blk.0.ffn_gate_up_exps.weight"], 2 / 3)
 
 
 def _capture_imatrix_cmd(monkeypatch, **kwargs) -> list[str]:

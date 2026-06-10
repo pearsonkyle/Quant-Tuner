@@ -58,6 +58,12 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--ctx", type=int, default=8192)
     p.add_argument("--ngl", type=int, default=99)
     p.add_argument("--max-tokens", type=int, default=2048)
+    p.add_argument("--backend", choices=("server", "diffusion"), default="server",
+                   help="generation backend: llama-server (default) or the "
+                        "DiffusionGemma block-diffusion shim (requires --hf-dir)")
+    p.add_argument("--hf-dir", type=Path, default=None,
+                   help="HF snapshot dir with the tokenizer/chat template "
+                        "(required for --backend diffusion)")
     p.add_argument("--temperature", type=float, default=0.6,
                    help="Default 0.6 — reps only diverge at T>0. Set 0.0 for greedy.")
     p.add_argument("--top-p", type=float, default=0.95)
@@ -124,6 +130,16 @@ def main() -> int:
     print(f"holdout:   {args.holdout}", flush=True)
     print(f"results:   {args.results} / {args.aggregated}", flush=True)
 
+    server_factory = None
+    if args.backend == "diffusion":
+        if args.hf_dir is None:
+            raise SystemExit("--backend diffusion requires --hf-dir (tokenizer source)")
+        from functools import partial
+
+        from quant_tuner.eval.diffusion_server import running_diffusion_server
+
+        server_factory = partial(running_diffusion_server, hf_dir=args.hf_dir)
+
     t0 = time.time()
     by_model = run_reps_for_models(
         models=list(args.models),
@@ -137,6 +153,7 @@ def main() -> int:
         chat_template_kwargs=(args.chat_template_kwargs or None),
         per_rep_callback=on_rep,
         per_model_callback=on_model,
+        server_factory=server_factory,
     )
 
     write_csvs(

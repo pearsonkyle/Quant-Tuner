@@ -132,14 +132,21 @@ def run_reps_for_model(
     server_startup_timeout: float = 120.0,
     chat_template_kwargs: str | None = None,
     per_rep_callback: Callable[[RepResult], None] | None = None,
+    server_factory: Callable | None = None,
 ) -> ModelReps:
     """Spawn ``llama-server`` for ``model``, run ``eval_fn`` ``reps`` times.
 
     Each rep receives a fresh ``Sampling`` with ``seed = base_seed + rep_idx``.
     The server is torn down on exit (or on exception).
+
+    ``server_factory`` swaps the backend: any context manager with
+    ``running_server``'s signature that yields a ``base_url`` works — e.g.
+    ``functools.partial(running_diffusion_server, hf_dir=…)`` from
+    :mod:`quant_tuner.eval.diffusion_server` for DiffusionGemma GGUFs.
     """
+    factory = server_factory or running_server
     rep_results: list[RepResult] = []
-    with running_server(
+    with factory(
         model, ctx=ctx, ngl=ngl,
         log_path=server_log_path,
         startup_timeout=server_startup_timeout,
@@ -186,6 +193,7 @@ def run_reps_for_models(
     chat_template_kwargs: str | None = None,
     per_rep_callback: Callable[[str, RepResult], None] | None = None,
     per_model_callback: Callable[[ModelReps], None] | None = None,
+    server_factory: Callable | None = None,
 ) -> list[ModelReps]:
     """Run ``run_reps_for_model`` over a list of GGUFs, one server at a time."""
     results: list[ModelReps] = []
@@ -209,6 +217,7 @@ def run_reps_for_models(
             server_startup_timeout=server_startup_timeout,
             chat_template_kwargs=chat_template_kwargs,
             per_rep_callback=_cb,
+            server_factory=server_factory,
         )
         results.append(mr)
         if per_model_callback is not None:
