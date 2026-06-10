@@ -27,6 +27,7 @@ from typing import Literal
 import numpy as np
 
 from quant_tuner.calibrate._device import resolve_device
+from quant_tuner.calibrate._hf import forward_no_logits
 from quant_tuner.models.hf_gguf_map import is_ssm, map_hf_to_gguf
 from quant_tuner.paths import LLAMA_CPP_DIR
 
@@ -208,7 +209,7 @@ def collect_forward_stats(
             for i, chunk in enumerate(chunks):
                 if chunk.numel() < 2:
                     continue
-                model(chunk.unsqueeze(0).to(device))
+                forward_no_logits(model, chunk.unsqueeze(0).to(device))
                 print(f"  chunk {i + 1}/{len(chunks)}", file=sys.stderr)
     finally:
         for h in handles:

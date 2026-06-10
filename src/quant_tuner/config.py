@@ -42,6 +42,11 @@ class BenchConfig(BaseModel):
     suite: Literal["quick", "kld", "speed", "full", "leaderboard"] = "full"
     reference: Path | None = None
     eval_ctx: int = 8192
+    # Pre-built PPL/KLD eval corpus (e.g. scripts/build_corpora.py's external
+    # corpus.eval.txt). Strongly preferred over the default log-derived eval:
+    # llama-perplexity cannot --parse-special, so a chat-templated eval slice
+    # is tokenized differently from what the model sees at inference.
+    eval_corpus: Path | None = None
 
 
 class RunConfig(BaseModel):

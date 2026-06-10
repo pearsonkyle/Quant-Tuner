@@ -78,6 +78,13 @@ def prepare_corpora(cfg: RunConfig, ws: Workspace) -> tuple[Path, Path]:
         # Pre-built corpus path: copy the train side; eval is still derived from logs.
         train.write_text(Path(cfg.data.corpus).read_text())
 
+    if cfg.bench.eval_corpus is not None and not eval_.exists():
+        # Pre-built eval corpus (e.g. build_corpora.py's external
+        # corpus.eval.txt). Preferred for PPL/KLD: llama-perplexity has no
+        # --parse-special, so chat-templated eval text tokenizes control
+        # markers as plain BPE — a distribution the model never sees.
+        eval_.write_text(Path(cfg.bench.eval_corpus).read_text())
+
     if not (train.exists() and eval_.exists()):
         if cfg.data.logs is None:
             raise ValueError(
@@ -170,9 +177,10 @@ def calibrate(
     if method == "gptq":
         # GPTQ needs a base imatrix for the final llama-quantize pass.
         base_imatrix = ws.calibration_dir / "imatrix-base.gguf"
+        imatrix_ctx = int(cfg.calibration.params.get("imatrix_ctx", 512))
         step("llama-imatrix (base)", base_imatrix,
              lambda: llama_cpp.imatrix(f16, train_corpus, base_imatrix,
-                                       ctx=512, log=logs / "imatrix-base.log"))
+                                       ctx=imatrix_ctx, log=logs / "imatrix-base.log"))
         return _calibrate_gptq(cfg, ws, f16, train_corpus, eval_corpus, base_imatrix, logs)
 
     raise ValueError(f"unknown calibration method: {method!r}")
@@ -184,9 +192,12 @@ def _calibrate_imatrix(
     base_imatrix = ws.calibration_dir / "imatrix-base.gguf"
     tuned = ws.calibration_dir / f"imatrix-{cfg.calibration.variant}.gguf"
 
+    params: dict[str, Any] = dict(cfg.calibration.params)
+    imatrix_ctx = int(params.pop("imatrix_ctx", 512))
+
     step("llama-imatrix (base)", base_imatrix,
          lambda: llama_cpp.imatrix(f16, train_corpus, base_imatrix,
-                                   ctx=512, log=logs / "imatrix-base.log"))
+                                   ctx=imatrix_ctx, log=logs / "imatrix-base.log"))
 
     variant = cfg.calibration.variant
     if variant == "default":
@@ -197,7 +208,7 @@ def _calibrate_imatrix(
          lambda: imatrix.calibrate(
              variant=variant, f16_gguf=f16,
              base_imatrix=base_imatrix, out_path=tuned,
-             **cfg.calibration.params))
+             **params))
     return {"imatrix": tuned, "f16": f16}
 
 
@@ -230,6 +241,7 @@ def _calibrate_awq(
     # Optional second-stage imatrix re-weighting on the folded model
     # (e.g. "hybrid_custom" to stack the two winning calibrations).
     imatrix_variant = params.pop("imatrix_variant", "default")
+    imatrix_ctx = int(params.pop("imatrix_ctx", 512))
 
     step("AWQ calibrate (capture mean|x| + grid α)", awq_bundle,
          lambda: awq.calibrate(ws.model_extracted, train_corpus, awq_bundle, **params))
@@ -246,7 +258,7 @@ def _calibrate_awq(
     awq_imatrix = ws.calibration_dir / "imatrix-awq.gguf"
     step("llama-imatrix (on AWQ-folded F16)", awq_imatrix,
          lambda: llama_cpp.imatrix(f16_awq, train_corpus, awq_imatrix,
-                                   ctx=512, log=logs / "imatrix-awq.log"))
+                                   ctx=imatrix_ctx, log=logs / "imatrix-awq.log"))
 
     if imatrix_variant == "default":
         return {"imatrix": awq_imatrix, "f16": f16_awq}
@@ -283,6 +295,7 @@ def _calibrate_gptq(
     f16_gptq = ws.gguf_dir / "model-f16-gptq.gguf"
 
     params: dict[str, Any] = dict(cfg.calibration.params)
+    params.pop("imatrix_ctx", None)  # consumed by the base-imatrix step in calibrate()
     apply_params: dict[str, Any] = {
         k: params.pop(k) for k in _GPTQ_APPLY_PARAMS if k in params
     }

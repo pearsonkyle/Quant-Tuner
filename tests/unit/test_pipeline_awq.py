@@ -41,6 +41,7 @@ def _stub_awq_steps(monkeypatch, calls: dict) -> None:
 
     def fake_imatrix(model, corpus, out, ctx=512, log=None, **kw):
         calls["imatrix_model"] = Path(model)
+        calls["imatrix_ctx"] = ctx
         out.parent.mkdir(parents=True, exist_ok=True)
         out.touch()
         return out
@@ -147,6 +148,23 @@ def test_awq_proxy_auto_selected_for_low_bit_target(tmp_path, monkeypatch):
     _stub_awq_steps(monkeypatch, calls)
     pipeline.calibrate(cfg, ws, f16, train, ws.corpus_dir / "eval.txt")
     assert calls["calibrate"]["proxy"] == "iq2_s"  # codebook proxy for IQ2_M
+
+
+def test_awq_imatrix_ctx_routed_not_leaked(tmp_path, monkeypatch):
+    """params.imatrix_ctx must reach the folded-F16 llama-imatrix step and
+    must not be forwarded to awq.calibrate."""
+    cfg = _make_cfg(tmp_path, {"imatrix_ctx": 4096})
+    ws = pipeline.prepare_workspace(cfg)
+    f16 = ws.gguf_dir / "model-f16.gguf"
+    f16.touch()
+    train = ws.corpus_dir / "train.txt"
+    train.write_text("x")
+
+    calls: dict = {}
+    _stub_awq_steps(monkeypatch, calls)
+    pipeline.calibrate(cfg, ws, f16, train, ws.corpus_dir / "eval.txt")
+    assert calls["imatrix_ctx"] == 4096
+    assert "imatrix_ctx" not in calls["calibrate"]
 
 
 def test_awq_explicit_proxy_not_overridden(tmp_path, monkeypatch):

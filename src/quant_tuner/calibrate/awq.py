@@ -39,6 +39,7 @@ from typing import Literal
 import torch
 
 from quant_tuner.calibrate._device import resolve_device
+from quant_tuner.calibrate._hf import forward_no_logits
 
 # --- Group discovery ------------------------------------------------------ #
 
@@ -613,7 +614,7 @@ def calibrate(
             for i, chunk in enumerate(chunks):
                 if chunk.numel() < 2:
                     continue
-                model(chunk.unsqueeze(0).to(device))
+                forward_no_logits(model, chunk.unsqueeze(0).to(device))
                 print(f"  chunk {i + 1}/{len(chunks)}", file=sys.stderr)
     finally:
         for h in handles:
@@ -650,7 +651,7 @@ def calibrate(
                 for i, chunk in enumerate(ho_chunks):
                     if chunk.numel() < 2:
                         continue
-                    model(chunk.unsqueeze(0).to(device))
+                    forward_no_logits(model, chunk.unsqueeze(0).to(device))
                     print(f"  ho chunk {i + 1}/{len(ho_chunks)}", file=sys.stderr)
         finally:
             for h in ho_handles:

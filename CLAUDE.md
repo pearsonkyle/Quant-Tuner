@@ -171,10 +171,7 @@ The OmniCoder reproduction is here; the CLI handles ad-hoc runs.
 - `gen_iq2_grids.py` — regenerates `calibrate/_iq2_grids.py` (the IQ2 E8-lattice
   codebooks) from llama.cpp's `ggml-common.h`. Run after bumping the submodule pin;
   it asserts the ksigns parity convention and records the commit in the header.
-- `build_corpora.py` — **canonical text-corpus builder**. ⚠️ Described below by
-  design but **not yet checked in** (exists in no branch as of 2026-06) — the
-  description documents the intended slice/source contract; the older builders
-  listed at the end of this section are what actually exist. One pass, one seed (42),
+- `build_corpora.py` — **canonical text-corpus builder**. One pass, one seed (42),
   three corpora written to `--out`:
   - `corpus.cal.txt` — ALL of `wiki.test.raw` + ~500k tokens from the logtrain **train**
     split (stratified-packed). Feed to `llama-imatrix` and `awq.calibrate(cal_text=…)`.
@@ -256,6 +253,27 @@ adding recipes.
   generation time.
 - Device strings: pass `"auto"` (the default) unless a recipe must pin a backend;
   resolution lives in `calibrate/_device.resolve_device` (cuda → mps → cpu).
+- **Special-token consistency on chat-log corpora** (the corpus is chat-templated,
+  full of `<|im_start|>` etc.):
+  - *Calibration* parses them correctly on both stacks: `llama_cpp.imatrix`
+    defaults `--parse-special` on (never disable it for chat corpora), and the
+    HF-side passes (AWQ/GPTQ hooks, outlier forward stats) get the same behavior
+    because `transformers` encodes in-text special tokens as single special IDs
+    by default — never pass `split_special_tokens=True`.
+  - *PPL/KLD eval* cannot: llama-perplexity has **no** `--parse-special`
+    (verified against the pinned llama.cpp), so chat markers tokenize as plain
+    BPE. Quant-vs-quant comparisons on the same file stay valid, but absolute
+    numbers are off-distribution. Prefer a raw-text eval corpus —
+    `build_corpora.py`'s external `corpus.eval.txt`, wired into a recipe via
+    `bench.eval_corpus` — over the pipeline's default log-derived eval slice.
+- `calibration.params.imatrix_ctx` (default 512) sets the llama-imatrix context
+  length for all three methods; it is consumed by the pipeline and not forwarded
+  to the calibrators.
+- HF calibration forward passes go through `calibrate/_hf.forward_no_logits`,
+  which runs the decoder trunk only — hooks still fire, but the `[ctx, vocab]`
+  logits tensor and lm_head matmul are skipped. Keep using it for new
+  hook-based stat collection; the AWQ/GPTQ *sanity checks* intentionally call
+  `model(...)` because they compare logits.
 - Speed numbers have a known thermal artifact: rows that run later in a session drift
   lower. SQS (which weights speed equally with compression) is noisier than KLD; for
   "which imatrix is best?" read **KLD and tool-call** columns.

@@ -47,6 +47,15 @@ def perplexity_kld(
     n_tokens: int | None = None,
     log: Path | None = None,
 ) -> str:
+    """Run llama-perplexity in KLD mode against a saved baseline.
+
+    NOTE: unlike llama-imatrix, llama-perplexity has NO ``--parse-special`` —
+    chat-control markers in ``dataset`` (``<|im_start|>`` etc.) tokenize as
+    plain BPE text, a distribution the model never sees at inference. Prefer
+    raw-text eval corpora (``scripts/build_corpora.py``'s ``corpus.eval.txt``,
+    wired via ``bench.eval_corpus``) over chat-templated ones. Comparisons
+    between quants on the same file remain internally consistent either way.
+    """
     cmd: list[str | Path] = [
         llama_bin("llama-perplexity"),
         "-m", model,

@@ -39,6 +39,7 @@ from pathlib import Path
 import torch
 
 from quant_tuner.calibrate._device import resolve_device
+from quant_tuner.calibrate._hf import forward_no_logits
 
 # --- Target discovery ----------------------------------------------------- #
 
@@ -320,7 +321,7 @@ def calibrate(
         for i, chunk in enumerate(chunks):
             if chunk.numel() < 2:
                 continue
-            model(chunk.unsqueeze(0).to(device))
+            forward_no_logits(model, chunk.unsqueeze(0).to(device))
             if (i + 1) % save_every == 0:
                 print(f"  chunk {i + 1}/{len(chunks)}", file=sys.stderr)
                 snapshot()
