@@ -311,15 +311,21 @@ def calibrate(
     out_path: Path,
     *,
     tokens: int = 4096,
-    ctx: int = 1024,
+    # Default ctx aligned with the project-wide ctx=4096 convention. Also lifts
+    # the silent cap on proxy_tokens: target_X is populated from the first
+    # chunk only (see hook below), so proxy_tokens > ctx silently truncates.
+    # exp-024 hit this — proxy=1024 and proxy=2048 produced bit-identical
+    # outputs because both got capped at ctx=1024.
+    ctx: int = 4096,
     device: str = "mps",
     dtype: str = "bfloat16",
     alphas: tuple[float, ...] = (0.0, 0.25, 0.5, 0.75, 1.0),
     force_alpha: float | None = None,
-    proxy_tokens: int = 256,
+    proxy_tokens: int = 512,
     include_output_proj: bool = False,
     proxy: str = "int4_g128",
     per_tensor_alpha: bool = False,
+    per_tensor_grid_radius: float = 0.25,
     holdout_text: Path | None = None,
     cv_strategy: Literal["off", "gate", "mixed"] = "off",
     cv_weight: float = 1.0,
@@ -480,8 +486,9 @@ def calibrate(
         member_alphas: dict[str, float] | None = None
         member_scales: dict[str, torch.Tensor] | None = None
         if per_tensor_alpha and len(g.members) > 1:
+            r = per_tensor_grid_radius
             local = sorted({
-                max(0.0, min(1.0, best_alpha + d)) for d in (-0.25, 0.0, 0.25)
+                max(0.0, min(1.0, best_alpha + d)) for d in (-r, 0.0, r)
             })
             X_ho = cached_X_ho.get(g.group_id) if cv_strategy != "off" else None
             member_alphas = {}
