@@ -1,6 +1,6 @@
 """E8-lattice codebooks for the IQ2_* quants — GENERATED, do not edit.
 
-Extracted from llama.cpp ggml-common.h at commit 9e58d4d692ed3d350591cc86d06c73c61c122509
+Extracted from llama.cpp ggml-common.h at commit c84e85af61011f9fbfcf41479381d5ed1661a564
 by scripts/gen_iq2_grids.py. Each grid entry is 8 magnitude bytes
 (component order); signs live outside the codebook. For IQ2_XXS and
 IQ2_XS only sign patterns with an EVEN number of negatives per group

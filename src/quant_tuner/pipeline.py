@@ -198,6 +198,7 @@ def _calibrate_imatrix(
     step("llama-imatrix (base)", base_imatrix,
          lambda: llama_cpp.imatrix(f16, train_corpus, base_imatrix,
                                    ctx=imatrix_ctx, log=logs / "imatrix-base.log"))
+    imatrix.warn_moe_coverage(base_imatrix)
 
     variant = cfg.calibration.variant
     if variant == "default":
@@ -259,6 +260,7 @@ def _calibrate_awq(
     step("llama-imatrix (on AWQ-folded F16)", awq_imatrix,
          lambda: llama_cpp.imatrix(f16_awq, train_corpus, awq_imatrix,
                                    ctx=imatrix_ctx, log=logs / "imatrix-awq.log"))
+    imatrix.warn_moe_coverage(awq_imatrix)
 
     if imatrix_variant == "default":
         return {"imatrix": awq_imatrix, "f16": f16_awq}

@@ -1,0 +1,52 @@
+# DiffusionGemma 26B-A4B (Gemma-4 MoE block-diffusion) — hybrid_custom imatrix → Q2_K.
+#
+# The LOW-RESOURCE path for google/diffusiongemma-26B-A4B-it: no HF model
+# load at all. llama-imatrix streams the F16 GGUF (CPU is fine), and the
+# hybrid_custom re-weighting is closed-form — per-expert for the fused 3D
+# `ffn_gate_up_exps` / `ffn_down_exps` stacks, standard for the dense tensors.
+# Requires the llama.cpp pin with `diffusion-gemma` support (PR #24423).
+#
+# Why imatrix works here at all: llama-imatrix runs a standard forward, and
+# DiffusionGemma's encoder mode IS a causal forward over the exact weights
+# the diffusion decoder uses. Caveat: the UNIFIED graph treats the last
+# `canvas_length` (256) positions of each chunk as a bidirectional canvas —
+# with imatrix_ctx 2048 below, 87.5% of positions collect encoder-mode
+# (causal) statistics and the rest cover the decoder's operating mode.
+# Expert coverage is checked after llama-imatrix; raise train_max_tokens if
+# the WARN fires (unobserved experts quantize with neutral importance).
+#
+# Same bench/eval caveats as iq2_m_diffusiongemma_awq: KLD is quant-vs-quant
+# valid, absolute PPL is not deployment-faithful; decode tok/s from
+# llama-bench is meaningless for diffusion generation; task eval needs the
+# diffusion backend.
+name: q2_k_diffusiongemma_imatrix
+
+model: google/diffusiongemma-26B-A4B-it
+
+workspace: ./out/q2_k_diffusiongemma_imatrix
+
+data:
+  logs: PLACEHOLDER
+  train_frac: 0.8
+  test_frac: 0.1
+  holdout_frac: 0.1
+  # 128 experts x 8 active: expert coverage needs a larger corpus than dense
+  # models — the post-imatrix coverage check warns below 95%.
+  train_max_tokens: 500000
+  eval_max_tokens: 30000
+  supplement: ./calibration_supplement.txt
+  context_len: 16384
+
+calibration:
+  method: imatrix
+  variant: hybrid_custom
+  params:
+    # 2048 keeps the canvas region (fixed 256) a small fraction of each chunk.
+    imatrix_ctx: 2048
+
+quantize:
+  type: Q2_K
+
+bench:
+  suite: full
+  eval_ctx: 8192

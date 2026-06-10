@@ -91,6 +91,12 @@ def _build_arg_parser() -> argparse.ArgumentParser:
                    help="Override sampling.top_p")
     p.add_argument("--top-k", type=int, default=None,
                    help="Override sampling.top_k")
+    p.add_argument("--backend", choices=("server", "diffusion"), default="server",
+                   help="generation backend: llama-server (default) or the "
+                        "DiffusionGemma block-diffusion shim (requires --hf-dir)")
+    p.add_argument("--hf-dir", type=Path, default=None,
+                   help="HF snapshot dir with the tokenizer/chat template "
+                        "(required for --backend diffusion)")
     p.add_argument("--min-p", type=float, default=None,
                    help="Override sampling.min_p")
     return p
@@ -158,6 +164,16 @@ def main() -> int:
     print(f"results:     {args.results}  (per-rep) / {args.aggregated}  (aggregated)",
           flush=True)
 
+    server_factory = None
+    if args.backend == "diffusion":
+        if args.hf_dir is None:
+            raise SystemExit("--backend diffusion requires --hf-dir (tokenizer source)")
+        from functools import partial
+
+        from quant_tuner.eval.diffusion_server import running_diffusion_server
+
+        server_factory = partial(running_diffusion_server, hf_dir=args.hf_dir)
+
     t0 = time.time()
     by_model = run_reps_for_models(
         models=list(args.models),
@@ -170,6 +186,7 @@ def main() -> int:
         chat_template_kwargs=(args.chat_template_kwargs or None),
         per_rep_callback=on_rep,
         per_model_callback=on_model,
+        server_factory=server_factory,
     )
 
     write_csvs(

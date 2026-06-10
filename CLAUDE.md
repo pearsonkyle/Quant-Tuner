@@ -17,8 +17,16 @@ the canonical entry point for reproducing the published table.
 ## Setup and common commands
 
 ```bash
-# One-time: fetch + build vendored llama.cpp (pinned commit 9e58d4d6)
-git submodule update --init --recursive
+# One-time: fetch + build vendored llama.cpp.
+# Pinned commit c84e85af = head of llama.cpp PR #24423 (DiffusionGemma:
+# `diffusion-gemma` arch + converter + llama-diffusion-cli canvas mode +
+# llama-diffusion-gemma-server). NOT on master yet — if `submodule update`
+# can't resolve the gitlink, fetch the PR ref inside the submodule and retry.
+# Re-pin to master once the PR merges.
+git submodule update --init --recursive || (
+  git -C vendor/llama.cpp fetch origin pull/24423/head &&
+  git submodule update --recursive
+)
 cmake -S vendor/llama.cpp -B vendor/llama.cpp/build -DGGML_METAL=ON   # Linux+CUDA: -DGGML_CUDA=ON
 cmake --build vendor/llama.cpp/build -j
 
@@ -123,6 +131,62 @@ Pipeline behaviors worth knowing:
 ### Tensor naming
 `models/hf_gguf_map.py` maps HF parameter names to GGUF tensor names. Anything that
 crosses the HF↔GGUF boundary (imatrix variants, AWQ apply) goes through this mapping.
+MoE expert stacks map to fused 3D tensors (`ffn_gate_up_exps`/`ffn_down_exps`,
+`[n_expert, n_out, n_in]`); `is_moe_expert` gates per-expert handling the way
+`is_ssm` gates SSM passthrough. DiffusionGemma module paths (`model.decoder.*`,
+`model.encoder.language_model.*`) are prefix-normalized to `model.*` before
+matching — same rewrite llama.cpp's converter applies.
+
+### DiffusionGemma / Gemma-4 MoE (`diffusion-gemma` arch)
+`google/diffusiongemma-26B-A4B-it`: 128-expert (8 active) Gemma-4 MoE whose
+causal **encoder** (prompt prefill) and bidirectional diffusion **decoder**
+(256-token canvas denoising) share all backbone weights — only the attention
+mask differs. Requires the PR-#24423 llama.cpp pin (see Setup). Key facts the
+code depends on:
+- **Checkpoint shape**: arch `DiffusionGemmaForBlockDiffusion`, backbone under
+  `model.decoder.layers.N.*` (encoder tied via `_tied_weights_keys`), vision
+  tower on the encoder (the converter drops it), decoder-only
+  `self_conditioning` gated MLP, root-level `canvas_length`.
+  `extract_text_lm` passes the checkpoint through untouched (`ForBlockDiffusion`
+  predicate) — never rebuild a text-only CausalLM from it.
+- **Each layer has BOTH a dense MLP and an MoE block**, each behind its own
+  pre-norm (`pre_feedforward_layernorm` / `pre_feedforward_layernorm_2`).
+  Experts are ONE fused 3D param per projection (`experts.gate_up_proj`,
+  `experts.down_proj`); the router (`router.proj`) reads the **raw residual
+  through its own internal norm** — not the experts' pre-norm output.
+- **imatrix works** (encoder mode is a standard causal forward over the shared
+  weights) with two caveats: (1) llama-imatrix/llama-perplexity run the
+  UNIFIED graph, which treats the last `canvas_length` positions of every
+  chunk as a bidirectional canvas — quant-vs-quant KLD stays valid, absolute
+  PPL is not deployment-faithful; raise `imatrix_ctx` (recipes use 2048) to
+  keep the canvas fraction small. (2) MoE imatrix entries carry **per-expert
+  counts**; `_load_base_imatrix` normalizes per expert (zero-count experts →
+  neutral ones, mirroring llama-quantize), the analytic variants rerank **per
+  expert** (L1 normalization must not bleed across experts), and
+  `imatrix.warn_moe_coverage` flags expert tensors below 95% coverage — the
+  fix is more calibration tokens.
+- **AWQ works**: `discover_groups` emits `L{i}_moe` groups (the fused gate_up
+  stack under `pre_feedforward_layernorm_2`, anchored on the `experts` module
+  which sees every token pre-routing). Folding there leaves routing logits
+  exactly invariant because the router never consumes that norm's output —
+  do NOT add the router to the group. `moe_expert_sample` (default 8) caps the
+  α-search cost; `rmsnorm_plus_one: true` (Gemma `(1+γ)` convention). The HF
+  load goes through `_hf.load_calibration_model` (falls back to the concrete
+  arch class when `AutoModelForCausalLM` refuses) and sanity logits through
+  `_hf.causal_logits` (encoder + tied lm_head).
+- **GPTQ on the experts is unsupported** (deferred): 128 per-expert Hessians,
+  each seeing ~1/16 of tokens, is days of badly-conditioned CPU Cholesky.
+- **Task eval cannot use llama-server** (no diffusion decoding). Use
+  `eval/diffusion_server.py`: `running_diffusion_server(model_path, hf_dir=…)`
+  yields a `base_url` whose `/v1/chat/completions` runs the entropy-bound
+  block-diffusion sampler (numpy port of llama.cpp's reference, driven through
+  the persistent `llama-diffusion-gemma-server` — one model load per eval) and
+  parses Gemma-4 `<|tool_call>call:NAME{…}<tool_call|>` markup into OpenAI
+  `tool_calls`. Reps scripts take `--backend diffusion --hf-dir <snapshot>`.
+- **Speed**: llama-bench decode tok/s is meaningless for diffusion generation;
+  use `scripts/bench_diffusion_speed.py` (wraps llama-diffusion-cli).
+- Recipes: `q2_k_diffusiongemma_imatrix` (low-resource, no HF load),
+  `iq2_m_diffusiongemma_awq` (AWQ + hybrid_custom stacked).
 
 ### Bench
 `bench/runner.py` defines `BenchRow` and `CSV_COLUMNS`. Sub-modules:
@@ -233,7 +297,9 @@ creates `model_extracted/`, `corpus/`, `calibration/`, `gguf/`, `eval/` and rese
   `hybrid_custom` imatrix stacked, codebook proxies auto-selected),
   `q2_k_gptq`, `iq3_s_gptq` (asym grid + relaxed guardrails auto-derived).
 - Model-specific: `q4_k_m_qwen3_5_4b`, `{q4_k_m,q5_k_s}_qwen3_6_mtp{,_awq,_none}`,
-  `iq3_s_9b_mtp` (MTP heads kept via `extract.keep_mtp`).
+  `iq3_s_9b_mtp` (MTP heads kept via `extract.keep_mtp`),
+  `q2_k_diffusiongemma_imatrix` + `iq2_m_diffusiongemma_awq` (DiffusionGemma
+  26B-A4B MoE — see the DiffusionGemma section for the caveats).
 A unit test (`test_all_packaged_recipes_parse`) requires every shipped recipe to
 validate, and IQ1/IQ2 recipes to carry a calibration method — keep it green when
 adding recipes.
