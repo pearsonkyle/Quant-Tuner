@@ -11,7 +11,9 @@ from quant_tuner.calibrate.awq import (
     discover_groups,
     fake_quant_int4_g128,
     fake_quant_q2k_block16,
+    fake_quant_q3k_block16,
     fold_rmsnorm_gain,
+    proxy_for_quant_type,
     proxy_loss,
     scale_from_alpha,
 )
@@ -179,6 +181,48 @@ def test_q2k_block16_reconstruction_bounded():
     # Per-block max abs error should be small relative to the per-block range.
     err = (Wq - W).abs().max().item()
     assert err < W.abs().max().item()  # never exceeds the input range
+
+
+# ----- low-bit: q3k 3-bit proxy + quant-type proxy selection ---------------- #
+
+
+def test_q3k_block16_preserves_shape_with_padding():
+    W = torch.randn(8, 200)  # 200 not divisible by 16
+    Wq = fake_quant_q3k_block16(W)
+    assert Wq.shape == W.shape
+
+
+def test_q3k_block16_uses_at_most_8_levels_per_block():
+    W = torch.randn(4, 16) * 3.0
+    Wq = fake_quant_q3k_block16(W)
+    for row in Wq:
+        assert len(torch.unique(row)) <= 8  # 3-bit codes in [-4, 3]
+
+
+def test_q3k_block16_zero_in_zero_out():
+    Wq = fake_quant_q3k_block16(torch.zeros(4, 64))
+    assert torch.allclose(Wq, torch.zeros_like(Wq))
+
+
+def test_q3k_block16_error_between_q2k_and_int4():
+    """3-bit error must sit between the 2-bit and 4-bit proxies on the same W."""
+    torch.manual_seed(0)
+    W = torch.randn(16, 256)
+    err2 = (fake_quant_q2k_block16(W) - W).norm()
+    err3 = (fake_quant_q3k_block16(W) - W).norm()
+    err4 = (fake_quant_int4_g128(W) - W).norm()
+    assert err4 < err3 < err2
+
+
+def test_proxy_for_quant_type_mapping():
+    assert proxy_for_quant_type("Q2_K") == "q2k_b16"
+    assert proxy_for_quant_type("IQ2_M") == "q2k_b16"
+    assert proxy_for_quant_type("IQ1_S") == "q2k_b16"
+    assert proxy_for_quant_type("Q3_K_M") == "q3k_b16"
+    assert proxy_for_quant_type("iq3_s") == "q3k_b16"  # case-insensitive
+    assert proxy_for_quant_type("Q4_K_M") == "int4_g128"
+    assert proxy_for_quant_type("Q5_K_S") == "int4_g128"
+    assert proxy_for_quant_type("Q8_0") == "int4_g128"
 
 
 # ----- exp-011: include_output_proj ---------------------------------------- #

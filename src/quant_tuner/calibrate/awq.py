@@ -193,11 +193,54 @@ def fake_quant_q2k_block16(W: torch.Tensor, block_size: int = 16) -> torch.Tenso
     return Wq.view(out_f, -1)[:, :in_f]
 
 
+def fake_quant_q3k_block16(W: torch.Tensor, block_size: int = 16) -> torch.Tensor:
+    """Symmetric per-16-element-block 3-bit RTN (proxy for Q3_K / IQ3_*).
+
+    Mirrors Q3_K's shape: 16-element sub-blocks, 3-bit codes in ``[-4, 3]``
+    (llama.cpp stores ``q - 4``), per-block scale coarsely re-quantized to
+    6 bits relative to the per-row max — Q3_K's scale storage width — to
+    mimic the nested-quantization noise floor.
+
+    Use for IQ3_S / IQ3_M / Q3_K_* α search; the default INT4 proxy
+    under-estimates which channels fall off the coarser 3-bit grid.
+    """
+    out_f, in_f = W.shape
+    pad = (-in_f) % block_size
+    if pad:
+        W = torch.nn.functional.pad(W, (0, pad))
+    Wb = W.view(out_f, -1, block_size)
+    max_abs = Wb.abs().amax(dim=-1, keepdim=True)
+    scale = (max_abs / 4.0).clamp(min=1e-8)
+
+    # Nested quantization: per-row, re-quantize the scale to 6 bits.
+    s_range = scale.amax(dim=1, keepdim=True).clamp(min=1e-8)
+    scale = (scale / s_range * 63.0).round().clamp(1, 63) * (s_range / 63.0)
+
+    q = (Wb / scale).round().clamp(-4, 3)
+    Wq = q * scale
+    return Wq.view(out_f, -1)[:, :in_f]
+
+
 # Registry of available proxy quantizers. Keys are recipe-facing names.
 _PROXIES: dict[str, Callable[[torch.Tensor], torch.Tensor]] = {
     "int4_g128": fake_quant_int4_g128,
     "q2k_b16": fake_quant_q2k_block16,
+    "q3k_b16": fake_quant_q3k_block16,
 }
+
+
+def proxy_for_quant_type(quant_type: str) -> str:
+    """Pick the α-search proxy whose error shape matches a llama-quantize type.
+
+    2-bit targets get the asymmetric per-16-block proxy, 3-bit targets the
+    symmetric per-16-block one; everything else keeps the INT4 g128 default.
+    """
+    qt = quant_type.upper()
+    if qt.startswith(("IQ1", "IQ2", "Q2")):
+        return "q2k_b16"
+    if qt.startswith(("IQ3", "Q3")):
+        return "q3k_b16"
+    return "int4_g128"
 
 
 def proxy_loss(
@@ -874,7 +917,9 @@ __all__ = [
     "discover_groups",
     "fake_quant_int4_g128",
     "fake_quant_q2k_block16",
+    "fake_quant_q3k_block16",
     "fold_rmsnorm_gain",
+    "proxy_for_quant_type",
     "proxy_loss",
     "scale_from_alpha",
 ]

@@ -26,6 +26,9 @@ calibration:
   method: gptq
   variant: default
   params:
+    # tokens/ctx go to gptq.calibrate (Hessian accumulation); the rest are
+    # routed to gptq.apply. When n_bits/group_size/sym are omitted, they are
+    # auto-derived from quantize.type (see gptq.grid_for_quant_type).
     tokens: 32768          # larger than imatrix/AWQ — Hessians need more samples
     ctx: 2048
     n_bits: 4

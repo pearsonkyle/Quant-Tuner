@@ -217,6 +217,9 @@ def _calibrate_awq(
     params: dict[str, Any] = dict(cfg.calibration.params)
     if cfg.calibration.variant == "a050":
         params.setdefault("force_alpha", 0.5)
+    # Match the α-search proxy to the target quant's error shape (2-bit ->
+    # q2k_b16, 3-bit -> q3k_b16, else int4_g128). Recipes can still pin one.
+    params.setdefault("proxy", awq.proxy_for_quant_type(cfg.quantize.type))
 
     apply_params: dict[str, Any] = {
         k: params.pop(k) for k in _AWQ_APPLY_PARAMS if k in params
@@ -258,6 +261,19 @@ def _calibrate_awq(
     return {"imatrix": tuned, "f16": f16_awq}
 
 
+# Recipe params consumed by gptq.apply() rather than gptq.calibrate().
+_GPTQ_APPLY_PARAMS = (
+    "n_bits", "group_size", "dampen", "actorder", "sym",
+    "name_filter", "sanity_tokens", "sanity_max_rel",
+)
+
+# Bits-aware guardrail defaults: at 2-3 bits, substantially larger PPL/logit
+# drift is expected and legitimate; the 4-bit thresholds would abort runs
+# that are doing exactly what was asked.
+_GPTQ_PPL_MAX_RATIO = {2: 4.0, 3: 2.0}
+_GPTQ_SANITY_MAX_REL = {2: 1.0, 3: 0.75}
+
+
 def _calibrate_gptq(
     cfg: RunConfig, ws: Workspace, f16: Path, train_corpus: Path,
     eval_corpus: Path, base_imatrix: Path, logs: Path,
@@ -267,14 +283,26 @@ def _calibrate_gptq(
     f16_gptq = ws.gguf_dir / "model-f16-gptq.gguf"
 
     params: dict[str, Any] = dict(cfg.calibration.params)
-    ppl_max_ratio = params.pop("ppl_max_ratio", 1.5)
+    apply_params: dict[str, Any] = {
+        k: params.pop(k) for k in _GPTQ_APPLY_PARAMS if k in params
+    }
+    if "dtype" in params:
+        apply_params.setdefault("dtype", params["dtype"])
+    # Default the rounding grid to the target quant's shape (2-bit -> asym
+    # g16, 3-bit -> asym g16, else sym g32). Recipe params take precedence.
+    for k, v in gptq.grid_for_quant_type(cfg.quantize.type).items():
+        apply_params.setdefault(k, v)
+    n_bits = int(apply_params["n_bits"])
+    apply_params.setdefault("sanity_max_rel", _GPTQ_SANITY_MAX_REL.get(n_bits, 0.5))
+    ppl_max_ratio = params.pop(
+        "ppl_max_ratio", _GPTQ_PPL_MAX_RATIO.get(n_bits, 1.5))
 
     step("GPTQ calibrate (Hessians)", hessians / "_done",
          lambda: (gptq.calibrate(ws.model_extracted, train_corpus, hessians, **params)
                   or (hessians / "_done").touch()))
 
     step("GPTQ apply (round + error-compensate)", model_gptq / "config.json",
-         lambda: gptq.apply(ws.model_extracted, hessians, model_gptq))
+         lambda: gptq.apply(ws.model_extracted, hessians, model_gptq, **apply_params))
 
     step("convert GPTQ-rounded HF -> F16 GGUF", f16_gptq,
          lambda: convert.hf_to_f16_gguf(model_gptq, f16_gptq, log=logs / "convert-gptq.log"))
@@ -308,6 +336,12 @@ def quantize_model(
     """Produce the final quantized GGUF using the calibration artifacts."""
     src_f16 = artifacts.get("f16", f16)
     imatrix_path = artifacts.get("imatrix")
+    if imatrix_path is None and cfg.quantize.type.upper().startswith(("IQ1", "IQ2")):
+        raise ValueError(
+            f"quantize.type={cfg.quantize.type} requires an importance matrix — "
+            f"llama-quantize refuses IQ1/IQ2 without one. Use calibration.method "
+            f"imatrix/awq/gptq instead of {cfg.calibration.method!r}."
+        )
     suffix = "" if imatrix_path is None else f"-{cfg.calibration.method}"
     # Variant must be part of the filename: otherwise re-running the same
     # workspace with a different variant finds the old GGUF, skips

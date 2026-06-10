@@ -81,6 +81,7 @@ def test_awq_params_routed_to_apply_not_calibrate(tmp_path, monkeypatch):
         "force_alpha": 0.5,  # injected by variant=a050
         "proxy_tokens": 128,
         "device": "cpu",
+        "proxy": "int4_g128",  # auto-selected from quantize.type Q4_K_M
     }
     assert calls["apply"] == {
         "rmsnorm_plus_one": False,
@@ -128,6 +129,38 @@ def test_awq_imatrix_variant_stacks_on_folded_model(tmp_path, monkeypatch):
     assert v["f16_gguf"] == ws.gguf_dir / "model-f16-awq.gguf"
     assert v["base_imatrix"] == ws.calibration_dir / "imatrix-awq.gguf"
     assert artifacts["imatrix"] == ws.calibration_dir / "imatrix-awq-hybrid_custom.gguf"
+
+
+def test_awq_proxy_auto_selected_for_low_bit_target(tmp_path, monkeypatch):
+    """A 2-bit quantize.type must flip the α-search proxy to q2k_b16."""
+    from quant_tuner.config import QuantizeConfig
+
+    cfg = _make_cfg(tmp_path, {})
+    cfg = cfg.model_copy(update={"quantize": QuantizeConfig(type="IQ2_M")})
+    ws = pipeline.prepare_workspace(cfg)
+    f16 = ws.gguf_dir / "model-f16.gguf"
+    f16.touch()
+    train = ws.corpus_dir / "train.txt"
+    train.write_text("x")
+
+    calls: dict = {}
+    _stub_awq_steps(monkeypatch, calls)
+    pipeline.calibrate(cfg, ws, f16, train, ws.corpus_dir / "eval.txt")
+    assert calls["calibrate"]["proxy"] == "q2k_b16"
+
+
+def test_awq_explicit_proxy_not_overridden(tmp_path, monkeypatch):
+    cfg = _make_cfg(tmp_path, {"proxy": "int4_g128"})
+    ws = pipeline.prepare_workspace(cfg)
+    f16 = ws.gguf_dir / "model-f16.gguf"
+    f16.touch()
+    train = ws.corpus_dir / "train.txt"
+    train.write_text("x")
+
+    calls: dict = {}
+    _stub_awq_steps(monkeypatch, calls)
+    pipeline.calibrate(cfg, ws, f16, train, ws.corpus_dir / "eval.txt")
+    assert calls["calibrate"]["proxy"] == "int4_g128"
 
 
 def test_quantize_filename_includes_variant(tmp_path, monkeypatch):

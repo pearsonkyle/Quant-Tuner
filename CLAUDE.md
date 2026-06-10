@@ -68,9 +68,20 @@ HF model + usage-log JSONL
   - `outlier_l4`, `outlier_max` — require an HF forward pass to capture heavy-tail stats.
   - SSM tensors (Mamba etc.) always pass through with raw `E[a²]` — see
     `models.hf_gguf_map.is_ssm`; output-aware re-ranking is invalid for them.
-- **awq** (`calibrate/awq.py`): activation-aware scaling folded into RMSNorm.
+- **awq** (`calibrate/awq.py`): activation-aware scaling folded into RMSNorm. The α-search
+  proxy quantizer auto-matches `quantize.type` (`q2k_b16` for 2-bit targets, `q3k_b16` for
+  3-bit, else `int4_g128`); the final llama-quantize imatrix is collected on the **folded**
+  F16 and can be re-weighted with any imatrix variant via `params.imatrix_variant`.
 - **gptq** (`calibrate/gptq.py`): Hessian-based rounding with error compensation; has a
-  `verify_perplexity` guardrail.
+  `verify_perplexity` guardrail. The rounding grid auto-matches `quantize.type`
+  (2-3-bit targets → asymmetric min+scale per-16 block, mirroring K-quant inner blocks;
+  4-bit+ → symmetric g32), and the PPL/logit guardrails are auto-relaxed at 2-3 bits.
+- Fold/round-stage recipe params are routed by the pipeline (`_AWQ_APPLY_PARAMS`,
+  `_GPTQ_APPLY_PARAMS`) — calibrate-stage and apply-stage kwargs live in the same
+  `calibration.params` dict but go to different functions.
+- IQ1/IQ2 targets require an imatrix; `pipeline.quantize_model` rejects them under
+  `calibration.method: none`. Low-bit recipe presets: `q2_k_awq`, `iq2_m_awq`,
+  `q2_k_gptq`, `iq3_s_gptq`.
 
 ### Tensor naming
 `models/hf_gguf_map.py` maps HF parameter names to GGUF tensor names. Anything that
