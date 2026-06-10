@@ -1,0 +1,41 @@
+# Activation-aware weight scaling (AWQ) → IQ2_XS (~2.31 bpw).
+#
+# Low-bit preset. The α search auto-selects the codebook-aware `iq2_xs`
+# proxy: groups of 8 weights snap jointly to llama.cpp's exact 512-entry
+# E8-lattice grid, and sign patterns are parity-constrained (only an even
+# number of negatives per group is representable). Both constraints couple
+# neighboring channels — error behavior is structurally different from
+# IQ2_M (1024-entry grid, free signs; see iq2_m_awq). The folded-F16
+# imatrix is re-weighted with `hybrid_custom`; IQ2_* requires an imatrix.
+name: iq2_xs_awq
+
+model: PLACEHOLDER
+
+workspace: ./out/iq2_xs_awq
+
+data:
+  logs: PLACEHOLDER
+  train_frac: 0.8
+  test_frac: 0.1
+  holdout_frac: 0.1
+  train_max_tokens: 250000
+  eval_max_tokens: 50000
+  supplement: ./calibration_supplement.txt
+  context_len: 16384
+
+calibration:
+  method: awq
+  variant: best
+  params:
+    proxy_tokens: 256
+    # proxy: iq2_xs         # auto-selected from quantize.type; uncomment to pin
+    imatrix_variant: hybrid_custom
+    rmsnorm_plus_one: true  # true for Qwen3.5; false for Llama/Mistral/Qwen3
+    sanity_max_rel: 0.03
+
+quantize:
+  type: IQ2_XS
+
+bench:
+  suite: full
+  eval_ctx: 8192

@@ -69,9 +69,12 @@ HF model + usage-log JSONL
   - SSM tensors (Mamba etc.) always pass through with raw `E[a²]` — see
     `models.hf_gguf_map.is_ssm`; output-aware re-ranking is invalid for them.
 - **awq** (`calibrate/awq.py`): activation-aware scaling folded into RMSNorm. The α-search
-  proxy quantizer auto-matches `quantize.type` (`q2k_b16` for 2-bit targets, `q3k_b16` for
-  3-bit, else `int4_g128`); the final llama-quantize imatrix is collected on the **folded**
-  F16 and can be re-weighted with any imatrix variant via `params.imatrix_variant`.
+  proxy quantizer auto-matches `quantize.type`: codebook-aware `iq2_xxs`/`iq2_xs`/`iq2_s`
+  for IQ2_* targets (exact llama.cpp E8-lattice grids from the generated
+  `calibrate/_iq2_grids.py`; regenerate via `scripts/gen_iq2_grids.py` when bumping the
+  submodule), `q2k_b16` for Q2_K/IQ1, `q3k_b16` for 3-bit, else `int4_g128`. The final
+  llama-quantize imatrix is collected on the **folded** F16 and can be re-weighted with
+  any imatrix variant via `params.imatrix_variant`.
 - **gptq** (`calibrate/gptq.py`): Hessian-based rounding with error compensation; has a
   `verify_perplexity` guardrail. The rounding grid auto-matches `quantize.type`
   (2-3-bit targets → asymmetric min+scale per-16 block, mirroring K-quant inner blocks;

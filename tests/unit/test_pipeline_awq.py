@@ -146,7 +146,7 @@ def test_awq_proxy_auto_selected_for_low_bit_target(tmp_path, monkeypatch):
     calls: dict = {}
     _stub_awq_steps(monkeypatch, calls)
     pipeline.calibrate(cfg, ws, f16, train, ws.corpus_dir / "eval.txt")
-    assert calls["calibrate"]["proxy"] == "q2k_b16"
+    assert calls["calibrate"]["proxy"] == "iq2_s"  # codebook proxy for IQ2_M
 
 
 def test_awq_explicit_proxy_not_overridden(tmp_path, monkeypatch):
