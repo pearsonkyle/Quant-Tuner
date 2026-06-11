@@ -148,6 +148,34 @@ def test_awq_proxy_auto_selected_for_low_bit_target(tmp_path, monkeypatch):
     _stub_awq_steps(monkeypatch, calls)
     pipeline.calibrate(cfg, ws, f16, train, ws.corpus_dir / "eval.txt")
     assert calls["calibrate"]["proxy"] == "iq2_s"  # codebook proxy for IQ2_M
+    assert calls["calibrate"]["proxy_mix"] == "IQ2_M"  # per-member tensor mix
+
+
+def test_awq_proxy_mix_defaults(tmp_path, monkeypatch):
+    """IQ1/IQ2 targets get the per-member proxy mix by default; pinning
+    `proxy` opts out of it; non-IQ targets never get one."""
+    from quant_tuner.config import QuantizeConfig
+
+    cases = (
+        ({}, "IQ2_XS", "iq2_xs", "IQ2_XS"),
+        ({"proxy": "q2k_b16"}, "IQ2_M", "q2k_b16", None),
+        ({"proxy": "q2k_b16", "proxy_mix": "IQ2_M"}, "IQ2_M", "q2k_b16", "IQ2_M"),
+        ({}, "Q4_K_M", "int4_g128", None),
+    )
+    for i, (params, qtype, want_proxy, want_mix) in enumerate(cases):
+        cfg = _make_cfg(tmp_path / f"case{i}", dict(params))
+        cfg = cfg.model_copy(update={"quantize": QuantizeConfig(type=qtype)})
+        ws = pipeline.prepare_workspace(cfg)
+        (ws.gguf_dir / "model-f16.gguf").touch()
+        train = ws.corpus_dir / "train.txt"
+        train.write_text("x")
+
+        calls: dict = {}
+        _stub_awq_steps(monkeypatch, calls)
+        pipeline.calibrate(cfg, ws, ws.gguf_dir / "model-f16.gguf", train,
+                           ws.corpus_dir / "eval.txt")
+        assert calls["calibrate"]["proxy"] == want_proxy, qtype
+        assert calls["calibrate"].get("proxy_mix") == want_mix, qtype
 
 
 def test_awq_imatrix_ctx_routed_not_leaked(tmp_path, monkeypatch):

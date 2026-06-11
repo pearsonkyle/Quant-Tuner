@@ -7,6 +7,10 @@
 # neighboring channels — error behavior is structurally different from
 # IQ2_M (1024-entry grid, free signs; see iq2_m_awq). The folded-F16
 # imatrix is re-weighted with `hybrid_custom`; IQ2_* requires an imatrix.
+# Like all IQ1/IQ2 targets, the pipeline also enables the per-member proxy
+# mix (`proxy_mix: IQ2_XS`): v_proj is scored as Q4_K on GQA/MoE >= 4 models
+# and the first eighth of ffn_down as Q2_K, matching llama-quantize's actual
+# tensor assignment. Pin `proxy` to opt out.
 name: iq2_xs_awq
 
 model: PLACEHOLDER
@@ -28,7 +32,8 @@ calibration:
   variant: best
   params:
     proxy_tokens: 256
-    # proxy: iq2_xs         # auto-selected from quantize.type; uncomment to pin
+    # proxy: iq2_xs         # auto-selected from quantize.type; pinning also
+    #                       # disables the per-member proxy_mix
     imatrix_variant: hybrid_custom
     rmsnorm_plus_one: true  # true for Qwen3.5; false for Llama/Mistral/Qwen3
     sanity_max_rel: 0.03

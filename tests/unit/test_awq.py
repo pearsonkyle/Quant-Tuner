@@ -8,6 +8,7 @@ from quant_tuner.calibrate.awq import (
     GroupScale,
     ScaleBundle,
     ScaleGroup,
+    _gqa_or_moe_ge4,
     _iq2_grid,
     discover_groups,
     fake_quant_int4_g128,
@@ -17,6 +18,7 @@ from quant_tuner.calibrate.awq import (
     fake_quant_q2k_block16,
     fake_quant_q3k_block16,
     fold_rmsnorm_gain,
+    proxy_for_member,
     proxy_for_quant_type,
     proxy_loss,
     scale_from_alpha,
@@ -234,6 +236,65 @@ def test_proxy_for_quant_type_iq2_codebooks():
     assert proxy_for_quant_type("IQ2_S") == "iq2_s"
     assert proxy_for_quant_type("IQ2_M") == "iq2_s"  # M = S grid + IQ3 mix
     assert proxy_for_quant_type("iq2_m") == "iq2_s"
+
+
+# ----- per-member proxy mix (IQ1/IQ2 tensor mixes) -------------------------- #
+
+
+def test_proxy_for_member_iq2_m_mix():
+    """IQ2_M tensor mix per pinned llama.cpp: attn_v -> Q4_K (GQA>=4) / IQ3_S,
+    attn_output -> IQ3_S, first eighth of ffn_down -> IQ3_S, rest base grid."""
+    v = "model.layers.3.self_attn.v_proj"
+    assert proxy_for_member("IQ2_M", v, gqa_ge4=True, n_layers=32) == "int4_g128"
+    assert proxy_for_member("IQ2_M", v, gqa_ge4=False, n_layers=32) == "q3k_b16"
+    o = "model.layers.3.self_attn.o_proj"
+    assert proxy_for_member("IQ2_M", o, gqa_ge4=True, n_layers=32) == "q3k_b16"
+    # 32 layers -> layers 0..3 are the bumped eighth
+    down = "model.layers.{}.mlp.down_proj"
+    assert proxy_for_member("IQ2_M", down.format(3), gqa_ge4=True, n_layers=32) == "q3k_b16"
+    assert proxy_for_member("IQ2_M", down.format(4), gqa_ge4=True, n_layers=32) is None
+    for leaf in ("q_proj", "k_proj", "gate_proj", "up_proj"):
+        m = f"model.layers.3.self_attn.{leaf}"
+        assert proxy_for_member("IQ2_M", m, gqa_ge4=True, n_layers=32) is None
+
+
+def test_proxy_for_member_xs_iq1_and_non_iq():
+    v = "model.layers.3.self_attn.v_proj"
+    o = "model.layers.3.self_attn.o_proj"
+    down0 = "model.layers.0.mlp.down_proj"
+    # XS: v_proj -> Q2_K without GQA, Q4_K with; o_proj has no override
+    assert proxy_for_member("IQ2_XS", v, gqa_ge4=False, n_layers=32) == "q2k_b16"
+    assert proxy_for_member("IQ2_XS", v, gqa_ge4=True, n_layers=32) == "int4_g128"
+    assert proxy_for_member("IQ2_XS", o, gqa_ge4=True, n_layers=32) is None
+    assert proxy_for_member("IQ2_XS", down0, gqa_ge4=True, n_layers=32) == "q2k_b16"
+    # IQ1: o_proj -> IQ2_XXS
+    assert proxy_for_member("IQ1_S", o, gqa_ge4=True, n_layers=32) == "iq2_xxs"
+    # non-IQ ftypes have no mix table
+    assert proxy_for_member("Q4_K_M", v, gqa_ge4=True, n_layers=32) is None
+    assert proxy_for_member("Q2_K", v, gqa_ge4=True, n_layers=32) is None
+    # case-insensitive, like proxy_for_quant_type
+    assert proxy_for_member("iq2_m", v, gqa_ge4=True, n_layers=32) == "int4_g128"
+
+
+def test_gqa_or_moe_ge4_detection():
+    from types import SimpleNamespace
+
+    assert _gqa_or_moe_ge4(SimpleNamespace(num_attention_heads=32, num_key_value_heads=8))
+    assert not _gqa_or_moe_ge4(SimpleNamespace(num_attention_heads=32, num_key_value_heads=16))
+    assert not _gqa_or_moe_ge4(SimpleNamespace(num_attention_heads=32, num_key_value_heads=32))
+    assert not _gqa_or_moe_ge4(SimpleNamespace())  # unknown -> conservative False
+    assert _gqa_or_moe_ge4(SimpleNamespace(num_local_experts=8))
+
+
+def test_scale_bundle_roundtrip_preserves_proxy_mix(tmp_path):
+    p = ScaleBundle(proxy="iq2_s", proxy_mix="IQ2_M").save(tmp_path / "b.pt")
+    loaded = ScaleBundle.load(p)
+    assert loaded.proxy == "iq2_s"
+    assert loaded.proxy_mix == "IQ2_M"
+    # bundles saved before the field existed load as proxy_mix=None
+    legacy = tmp_path / "legacy.pt"
+    torch.save({"proxy": "q2k_b16", "groups": []}, legacy)
+    assert ScaleBundle.load(legacy).proxy_mix is None
 
 
 # ----- IQ2 codebook-aware proxies ------------------------------------------- #
