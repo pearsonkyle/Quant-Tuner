@@ -269,11 +269,37 @@ def test_proxy_for_member_xs_iq1_and_non_iq():
     assert proxy_for_member("IQ2_XS", down0, gqa_ge4=True, n_layers=32) == "q2k_b16"
     # IQ1: o_proj -> IQ2_XXS
     assert proxy_for_member("IQ1_S", o, gqa_ge4=True, n_layers=32) == "iq2_xxs"
-    # non-IQ ftypes have no mix table
+    # ftypes without a 2-bit mix table
     assert proxy_for_member("Q4_K_M", v, gqa_ge4=True, n_layers=32) is None
-    assert proxy_for_member("Q2_K", v, gqa_ge4=True, n_layers=32) is None
+    assert proxy_for_member("Q3_K_M", v, gqa_ge4=True, n_layers=32) is None
     # case-insensitive, like proxy_for_quant_type
     assert proxy_for_member("iq2_m", v, gqa_ge4=True, n_layers=32) == "int4_g128"
+
+
+def test_proxy_for_member_q2k_family():
+    """Q2_K mix per pinned llama.cpp: attn_v -> Q4_K (GQA) / Q3_K, ffn_down ->
+    Q3_K on EVERY layer, attn_output -> Q3_K. Q2_K_S: attn_v -> Q4_K only
+    under GQA, ffn_down -> Q4_K for the first eighth, attn_output base."""
+    v = "model.layers.3.self_attn.v_proj"
+    o = "model.layers.3.self_attn.o_proj"
+    down = "model.layers.{}.mlp.down_proj"
+    # Q2_K
+    assert proxy_for_member("Q2_K", v, gqa_ge4=True, n_layers=32) == "int4_g128"
+    assert proxy_for_member("Q2_K", v, gqa_ge4=False, n_layers=32) == "q3k_b16"
+    assert proxy_for_member("Q2_K", o, gqa_ge4=True, n_layers=32) == "q3k_b16"
+    assert proxy_for_member("Q2_K", down.format(3), gqa_ge4=True, n_layers=32) == "q3k_b16"
+    assert proxy_for_member("Q2_K", down.format(30), gqa_ge4=True, n_layers=32) == "q3k_b16"
+    # Q2_K_S
+    assert proxy_for_member("Q2_K_S", v, gqa_ge4=True, n_layers=32) == "int4_g128"
+    assert proxy_for_member("Q2_K_S", v, gqa_ge4=False, n_layers=32) is None
+    assert proxy_for_member("Q2_K_S", o, gqa_ge4=True, n_layers=32) is None
+    assert proxy_for_member("Q2_K_S", down.format(3), gqa_ge4=True, n_layers=32) == "int4_g128"
+    assert proxy_for_member("Q2_K_S", down.format(4), gqa_ge4=True, n_layers=32) is None
+    # q/k/gate/up keep the base grid in both
+    for qt in ("Q2_K", "Q2_K_S"):
+        for leaf in ("q_proj", "k_proj", "gate_proj", "up_proj"):
+            m = f"model.layers.3.self_attn.{leaf}"
+            assert proxy_for_member(qt, m, gqa_ge4=True, n_layers=32) is None
 
 
 def test_gqa_or_moe_ge4_detection():

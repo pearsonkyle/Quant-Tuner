@@ -158,9 +158,12 @@ def test_awq_proxy_mix_defaults(tmp_path, monkeypatch):
 
     cases = (
         ({}, "IQ2_XS", "iq2_xs", "IQ2_XS"),
+        ({}, "Q2_K", "q2k_b16", "Q2_K"),
+        ({}, "Q2_K_S", "q2k_b16", "Q2_K_S"),
         ({"proxy": "q2k_b16"}, "IQ2_M", "q2k_b16", None),
         ({"proxy": "q2k_b16", "proxy_mix": "IQ2_M"}, "IQ2_M", "q2k_b16", "IQ2_M"),
         ({}, "Q4_K_M", "int4_g128", None),
+        ({}, "Q3_K_M", "q3k_b16", None),
     )
     for i, (params, qtype, want_proxy, want_mix) in enumerate(cases):
         cfg = _make_cfg(tmp_path / f"case{i}", dict(params))

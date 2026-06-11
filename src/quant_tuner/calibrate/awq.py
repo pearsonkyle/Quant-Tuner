@@ -411,14 +411,20 @@ def proxy_for_member(
     gqa_ge4: bool,
     n_layers: int | None = None,
 ) -> str | None:
-    """Per-member proxy override mirroring llama-quantize's IQ1/IQ2 tensor mix.
+    """Per-member proxy override mirroring llama-quantize's 2-bit tensor mixes.
 
-    The IQ1/IQ2 ftypes are *mixed* quants — ``llama_tensor_get_type`` (pinned
-    llama.cpp 9e58d4d6) bumps some tensors above the ftype's base grid:
+    The IQ1/IQ2 and Q2_K ftypes are *mixed* quants — ``llama_tensor_get_type``
+    (pinned llama.cpp 9e58d4d6) bumps some tensors above the ftype's base grid:
 
-    - ``attn_v``     → Q4_K when GQA or MoE ≥ 4, else IQ3_S (S/M) / Q2_K (rest)
-    - ``attn_output``→ IQ3_S for IQ2_S/IQ2_M, IQ2_XXS for IQ1_*
-    - ``ffn_down``   → one tier up for the first eighth of layers
+    - IQ1/IQ2 branch:
+        ``attn_v``     → Q4_K when GQA or MoE ≥ 4, else IQ3_S (S/M) / Q2_K (rest)
+        ``attn_output``→ IQ3_S for IQ2_S/IQ2_M, IQ2_XXS for IQ1_*
+        ``ffn_down``   → one tier up for the first eighth of layers
+    - Q2_K:   ``attn_v`` → Q4_K (GQA/MoE ≥ 4) else Q3_K; ``ffn_down`` → Q3_K on
+      *every* layer; ``attn_output`` → Q3_K (the 8-expert-MoE Q5_K special case
+      is not modeled — o_proj groups are off by default anyway)
+    - Q2_K_S: ``attn_v`` → Q4_K only under GQA/MoE ≥ 4; ``ffn_down`` → Q4_K for
+      the first eighth; ``attn_output`` keeps the base grid
 
     Scoring those members with the ftype's base proxy optimizes α against an
     error the real quantization does not have — under IQ2_M the v_proj term
@@ -427,23 +433,41 @@ def proxy_for_member(
     target type, or ``None`` when the member keeps the ftype's base grid.
     """
     qt = quant_type.upper()
-    if not qt.startswith(("IQ1", "IQ2")):
+    if not qt.startswith(("IQ1", "IQ2", "Q2")):
         return None
     s_or_m = qt.startswith(("IQ2_S", "IQ2_M"))
     leaf = member.rsplit(".", 1)[-1]
+
+    def first_eighth() -> bool:
+        if not n_layers:
+            return False
+        m = _LAYER_RE.search(member)
+        return m is not None and int(m.group(1)) < max(1, n_layers // 8)
+
     if leaf == "v_proj":
         if gqa_ge4:
             return "int4_g128"  # Q4_K
+        if qt == "Q2_K":
+            return "q3k_b16"  # Q3_K
+        if qt == "Q2_K_S":
+            return None
         return "q3k_b16" if s_or_m else "q2k_b16"  # IQ3_S : Q2_K
     if leaf == "o_proj":
+        if qt == "Q2_K":
+            return "q3k_b16"  # Q3_K
+        if qt == "Q2_K_S":
+            return None
         if s_or_m:
             return "q3k_b16"  # IQ3_S
         if qt.startswith("IQ1"):
             return "iq2_xxs"
         return None
-    if leaf == "down_proj" and n_layers:
-        m = _LAYER_RE.search(member)
-        if m is not None and int(m.group(1)) < max(1, n_layers // 8):
+    if leaf == "down_proj":
+        if qt == "Q2_K":
+            return "q3k_b16"  # Q3_K, every layer
+        if qt == "Q2_K_S":
+            return "int4_g128" if first_eighth() else None  # Q4_K
+        if first_eighth():
             return "q3k_b16" if s_or_m else "q2k_b16"
     return None
 
@@ -600,11 +624,12 @@ def calibrate(
     ``proxy_mix`` (set to a llama-quantize type, e.g. ``"IQ2_M"``) scores each
     group member with the proxy matching the tensor type llama-quantize will
     actually assign under that ftype (see ``proxy_for_member``): the IQ1/IQ2
-    ftypes are mixes — attn_v lands on Q4_K under GQA/MoE ≥ 4, attn_output on
-    IQ3_S for IQ2_S/M, the first eighth of ffn_down a tier up — and scoring
-    them all with the ftype's base 2-bit proxy lets error terms that don't
-    exist in the real quantization steer the shared group α. Members without
-    an override keep ``proxy``. ``per_tensor_alpha`` (exp-013) runs
+    and Q2_K ftypes are mixes — attn_v lands on Q4_K under GQA/MoE ≥ 4,
+    attn_output on IQ3_S for IQ2_S/M (Q3_K for Q2_K), the first eighth of
+    ffn_down a tier up (every layer for Q2_K) — and scoring them all with the
+    ftype's base 2-bit proxy lets error terms that don't exist in the real
+    quantization steer the shared group α. Members without an override keep
+    ``proxy``. ``per_tensor_alpha`` (exp-013) runs
     a second refinement pass that picks each member's own α from a local grid
     around the group α; the per-member scales are stored alongside the shared
     group scale and applied separately at fold time.

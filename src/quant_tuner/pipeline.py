@@ -230,14 +230,15 @@ def _calibrate_awq(
         params.setdefault("force_alpha", 0.5)
     # Match the α-search proxy to the target quant's error shape (2-bit ->
     # q2k_b16, 3-bit -> q3k_b16, IQ2_* -> codebook proxies, else int4_g128).
-    # IQ1/IQ2 ftypes are tensor *mixes* (attn_v -> Q4_K under GQA/MoE >= 4,
-    # attn_output -> IQ3_S for S/M, first eighth of ffn_down a tier up), so
+    # IQ1/IQ2/Q2_K ftypes are tensor *mixes* (attn_v -> Q4_K under GQA/MoE
+    # >= 4, attn_output -> IQ3_S for IQ2_S/M / Q3_K for Q2_K, ffn_down a tier
+    # up for the first eighth of layers — every layer for Q2_K), so
     # additionally score each member against its real target type. Pinning
     # `params.proxy` in a recipe opts out of both; set `params.proxy_mix`
     # explicitly to combine a pinned base proxy with the mix.
     if "proxy" not in params:
         params["proxy"] = awq.proxy_for_quant_type(cfg.quantize.type)
-        if cfg.quantize.type.upper().startswith(("IQ1", "IQ2")):
+        if cfg.quantize.type.upper().startswith(("IQ1", "IQ2", "Q2")):
             params.setdefault("proxy_mix", cfg.quantize.type)
 
     apply_params: dict[str, Any] = {
