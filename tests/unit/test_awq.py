@@ -269,11 +269,40 @@ def test_proxy_for_member_xs_iq1_and_non_iq():
     assert proxy_for_member("IQ2_XS", down0, gqa_ge4=True, n_layers=32) == "q2k_b16"
     # IQ1: o_proj -> IQ2_XXS
     assert proxy_for_member("IQ1_S", o, gqa_ge4=True, n_layers=32) == "iq2_xxs"
-    # ftypes without a 2-bit mix table
+    # ftypes without a mix table
     assert proxy_for_member("Q4_K_M", v, gqa_ge4=True, n_layers=32) is None
-    assert proxy_for_member("Q3_K_M", v, gqa_ge4=True, n_layers=32) is None
+    assert proxy_for_member("Q8_0", v, gqa_ge4=True, n_layers=32) is None
     # case-insensitive, like proxy_for_quant_type
     assert proxy_for_member("iq2_m", v, gqa_ge4=True, n_layers=32) == "int4_g128"
+
+
+def test_proxy_for_member_q3k_and_iq3_families():
+    """Q3_K_M/L bump v/o/down to Q4_K-Q5_K (no GQA condition in their branch);
+    IQ3_M bumps attn_output + first-eighth ffn_down to Q4_K; Q3_K_S and IQ3_S
+    are pure — every member keeps the base grid."""
+    v = "model.layers.3.self_attn.v_proj"
+    o = "model.layers.3.self_attn.o_proj"
+    down = "model.layers.{}.mlp.down_proj"
+    for qt in ("Q3_K_M", "Q3_K_L"):
+        # no GQA clause at 3 bits: same override either way
+        assert proxy_for_member(qt, v, gqa_ge4=False, n_layers=32) == "int4_g128"
+        assert proxy_for_member(qt, v, gqa_ge4=True, n_layers=32) == "int4_g128"
+        assert proxy_for_member(qt, o, gqa_ge4=True, n_layers=32) == "int4_g128"
+        assert proxy_for_member(qt, down.format(30), gqa_ge4=True, n_layers=32) == "int4_g128"
+    # IQ3_M: only attn_output + first eighth of ffn_down
+    assert proxy_for_member("IQ3_M", o, gqa_ge4=True, n_layers=32) == "int4_g128"
+    assert proxy_for_member("IQ3_M", down.format(3), gqa_ge4=True, n_layers=32) == "int4_g128"
+    assert proxy_for_member("IQ3_M", down.format(4), gqa_ge4=True, n_layers=32) is None
+    assert proxy_for_member("IQ3_M", v, gqa_ge4=True, n_layers=32) is None
+    # pure ftypes: no overrides anywhere, even under GQA
+    for qt in ("Q3_K_S", "IQ3_S"):
+        for m in (v, o, down.format(0)):
+            assert proxy_for_member(qt, m, gqa_ge4=True, n_layers=32) is None
+    # q/k/gate/up keep the base grid across the 3-bit family
+    for qt in ("Q3_K_M", "Q3_K_L", "IQ3_M"):
+        for leaf in ("q_proj", "k_proj", "gate_proj", "up_proj"):
+            m = f"model.layers.3.self_attn.{leaf}"
+            assert proxy_for_member(qt, m, gqa_ge4=True, n_layers=32) is None
 
 
 def test_proxy_for_member_q2k_family():

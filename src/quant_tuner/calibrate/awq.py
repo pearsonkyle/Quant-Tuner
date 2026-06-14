@@ -536,8 +536,8 @@ def proxy_for_member(
 ) -> str | None:
     """Per-member proxy override mirroring llama-quantize's 2-bit tensor mixes.
 
-    The IQ1/IQ2 and Q2_K ftypes are *mixed* quants — ``llama_tensor_get_type``
-    (pinned llama.cpp 9e58d4d6) bumps some tensors above the ftype's base grid:
+    The low-bit ftypes are *mixed* quants — ``llama_tensor_get_type`` (pinned
+    llama.cpp 9e58d4d6) bumps some tensors above the ftype's base grid:
 
     - IQ1/IQ2 branch:
         ``attn_v``     → Q4_K when GQA or MoE ≥ 4, else IQ3_S (S/M) / Q2_K (rest)
@@ -548,6 +548,14 @@ def proxy_for_member(
       is not modeled — o_proj groups are off by default anyway)
     - Q2_K_S: ``attn_v`` → Q4_K only under GQA/MoE ≥ 4; ``ffn_down`` → Q4_K for
       the first eighth; ``attn_output`` keeps the base grid
+    - Q3_K_M/Q3_K_L: ``attn_v``, ``attn_output`` and ``ffn_down`` (every layer,
+      non-Falcon) all land on Q4_K–Q5_K → scored with ``int4_g128``
+    - IQ3_M: ``ffn_down`` → Q4_K for the first eighth, ``attn_output`` → Q4_K
+    - Q3_K_S and IQ3_S have *no* overrides — every member keeps the base grid
+
+    Not modeled: the 70B attn_v → Q5_K special case, the 8-expert-MoE
+    variations, and IQ3_XS/IQ3_XXS (which bump attn_q/attn_k *down* a tier;
+    no shipped recipe targets them).
 
     Scoring those members with the ftype's base proxy optimizes α against an
     error the real quantization does not have — under IQ2_M the v_proj term
@@ -556,9 +564,6 @@ def proxy_for_member(
     target type, or ``None`` when the member keeps the ftype's base grid.
     """
     qt = quant_type.upper()
-    if not qt.startswith(("IQ1", "IQ2", "Q2")):
-        return None
-    s_or_m = qt.startswith(("IQ2_S", "IQ2_M"))
     leaf = member.rsplit(".", 1)[-1]
 
     def first_eighth() -> bool:
@@ -566,6 +571,21 @@ def proxy_for_member(
             return False
         m = _LAYER_RE.search(member)
         return m is not None and int(m.group(1)) < max(1, n_layers // 8)
+
+    # --- 3-bit families (no GQA conditions in their branches) -------------- #
+    if qt.startswith("Q3"):
+        if qt in ("Q3_K_M", "Q3_K_L") and leaf in ("v_proj", "o_proj", "down_proj"):
+            return "int4_g128"  # Q4_K/Q5_K
+        return None  # Q3_K_S: base grid everywhere
+    if qt.startswith("IQ3"):
+        if qt == "IQ3_M" and (leaf == "o_proj" or (leaf == "down_proj" and first_eighth())):
+            return "int4_g128"  # Q4_K
+        return None  # IQ3_S: base grid everywhere; XS/XXS down-bumps unmodeled
+
+    # --- 2-bit families ----------------------------------------------------- #
+    if not qt.startswith(("IQ1", "IQ2", "Q2")):
+        return None
+    s_or_m = qt.startswith(("IQ2_S", "IQ2_M"))
 
     if leaf == "v_proj":
         if gqa_ge4:
@@ -746,13 +766,13 @@ def calibrate(
 
     ``proxy_mix`` (set to a llama-quantize type, e.g. ``"IQ2_M"``) scores each
     group member with the proxy matching the tensor type llama-quantize will
-    actually assign under that ftype (see ``proxy_for_member``): the IQ1/IQ2
-    and Q2_K ftypes are mixes — attn_v lands on Q4_K under GQA/MoE ≥ 4,
-    attn_output on IQ3_S for IQ2_S/M (Q3_K for Q2_K), the first eighth of
-    ffn_down a tier up (every layer for Q2_K) — and scoring them all with the
-    ftype's base 2-bit proxy lets error terms that don't exist in the real
-    quantization steer the shared group α. Members without an override keep
-    ``proxy``. ``per_tensor_alpha`` (exp-013) runs
+    actually assign under that ftype (see ``proxy_for_member``): the low-bit
+    ftypes (IQ1/IQ2/Q2_K, and the Q3_K_M/L + IQ3_M tiers) are mixes — e.g.
+    attn_v lands on Q4_K under GQA/MoE ≥ 4 at 2 bits and on Q4_K–Q5_K under
+    Q3_K_M/L outright — and scoring them all with the ftype's base proxy lets
+    error terms that don't exist in the real quantization steer the shared
+    group α. Members without an override keep ``proxy``; for pure ftypes
+    (Q3_K_S, IQ3_S) the mix resolves to zero overrides. ``per_tensor_alpha`` (exp-013) runs
     a second refinement pass that picks each member's own α from a local grid
     around the group α; the per-member scales are stored alongside the shared
     group scale and applied separately at fold time.
