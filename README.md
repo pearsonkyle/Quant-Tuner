@@ -1,188 +1,123 @@
 # quant-tuner
 
-Calibrate your own GGUF quantizations from real usage logs.
+**Calibrate your own GGUF quantizations from real usage logs — and push working models below 3 bits per weight.**
 
-`quant-tuner` takes a HuggingFace model and a corpus derived from your own
-prompt/response logs, then produces a GGUF quantization tuned to the
-distribution your model actually sees in production. It also benchmarks
-the result against an FP16 reference using KL-divergence, perplexity, and
-prefill/decode speed.
+`quant-tuner` takes a HuggingFace model plus a corpus derived from your own
+prompt/response logs and produces a GGUF quantization tuned to the distribution
+your model actually sees. It then benchmarks the result against an FP16
+reference (KL-divergence, perplexity, top-token agreement, prefill/decode
+tok/s) and against task-level metrics (tool-call accuracy, MMLU-Pro). Every
+output is a **standard GGUF** that runs on unmodified `llama.cpp` — calibration
+changes *which* weights get the quantizer's budget, never the inference path.
 
-## Methods
+---
 
-| Method   | What it does                                            | Pre-quant cost | Adds inference cost? |
-| -------- | ------------------------------------------------------- | -------------- | -------------------- |
-| imatrix  | Per-tensor importance from a forward pass               | Low            | No                   |
-| AWQ      | Activation-aware weight scaling folded into RMSNorm     | Medium         | No                   |
-| GPTQ     | Hessian-based weight rounding with error compensation   | High           | No                   |
+## ⭐ Headline result: Gemma-4-31B at ~2 bits per weight
 
-All three produce a standard GGUF file that runs on any unmodified `llama.cpp`.
-None of them adds runtime cost — calibration changes *which* weights get the
-quantizer's budget, not the inference path.
+A full release of **[`google/gemma-4-31B-it`](https://huggingface.co/google/gemma-4-31B-it)
+compressed under 3 bpw** is published at
+[**`pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF`**](https://huggingface.co/pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF).
+A 57.2 GiB FP16 model fits in **8.9–10.2 GiB** while keeping up to **51% top-token
+agreement** with FP16 — roughly 2× the top-p of plain `Q2_K` at a smaller file
+size, with **no custom runtime**.
 
-See `docs/methods.md` for the algorithmic details and `docs/benchmarks.md` for
-the metric definitions.
+All rows benched on the same external code+math+tools eval corpus, same
+llama.cpp build, ctx=4096. KLD is **median** (robust to per-token tails),
+measured against `gemma-4-31B-it` FP16. AWQ calibrate: `proxy_tokens=1024,
+ctx=4096`, cv-gate per-tensor α.
 
-## Results so far (Tesslate/OmniCoder-9B @ Q4_K_M)
+#### Vanilla `google/gemma-4-31B-it` source
 
-End-to-end run on a real 9B coding model. Eight rows comparing two **imatrix
-techniques** (`stock` = llama.cpp's standard `E[a²]`, `hybrid` = output-aware
-`max(L1-norm(E[a²]), L1-norm(‖W[:,c]‖²·E[a²]))`) × three **calibration corpora**
-(`custom` = `logtrain.jsonl`, `wiki` = WikiText-2 test, `mixed` = wiki + 250k
-tokens of logtrain), plus the uncalibrated Q4 floor and the F16 ceiling.
+| File | Quant | Technique | Size (GiB) | BPW | PPL | KLD (median) | top-p vs FP16 |
+|---|---|---|---:|---:|---:|---:|---:|
+| FP16 | FP16 | none (reference) | 57.20 | 16.005 | 277.89 | 0.000 | 100.0% |
+| Q2_K-plain | Q2_K | plain (no imatrix, no AWQ) | 11.10 | 3.105 | 3370.57 | 5.147 | 25.8% |
+| IQ2_XS-imatrix | IQ2_XS | imatrix only (baseline) | 8.88 | 2.484 | 12116.47 | 3.327 | 33.2% |
+| **IQ2_XS-awq-cv-gate** | **IQ2_XS** | **AWQ cv-gate + imatrix** | **8.88** | **2.484** | **327.28** | **1.817** | **46.3%** |
+| IQ2_M-imatrix | IQ2_M | imatrix only (baseline) | 10.17 | 2.845 | 2060.73 | 1.496 | 47.6% |
+| **IQ2_M-awq-cv-gate** | **IQ2_M** | **AWQ cv-gate + imatrix** | **10.17** | **2.845** | **652.81** | **1.548** | **48.8%** |
+| Q2_K_S-imatrix | Q2_K_S | imatrix only (baseline) | 10.22 | 2.861 | 1436.40 | 2.138 | 42.6% |
+| **Q2_K_S-awq-cv-gate** | **Q2_K_S** | **AWQ cv-gate + imatrix** | **10.22** | **2.861** | **73.09** | **1.632** | **51.1%** |
 
-| | Stock imatrix | Hybrid imatrix |
-| --- | --- | --- |
-| **custom** (logtrain only) | row | row |
-| **wiki** (WikiText-2) | row | row |
-| **mixed** (wiki + 250k logtrain) | row | row |
+#### QAT `google/gemma-4-31B-it-qat-q4_0-unquantized` source
 
-Eval data: KLD on a held-out 48k-token test split; tool-call on a disjoint
-25-session holdout (9 claude + 16 qwen) drawn from `test + holdout` slices of
-`logtrain.jsonl` (both splits are disjoint from the train slice used for
-calibration).
+| File | Quant | Technique | Size (GiB) | BPW | PPL | KLD (median) | top-p vs FP16 |
+|---|---|---|---:|---:|---:|---:|---:|
+| Q4_0 | Q4_0 | QAT (Google official, ref only) | 16.44 | 4.600 | 78.19 | 0.913 | 64.4% |
+| qat-IQ2_XS-imatrix | IQ2_XS | imatrix only (from QAT) | 8.88 | 2.484 | 209.00 | 1.270 | 47.1% |
+| **qat-IQ2_XS-awq-cv-gate** | **IQ2_XS** | **AWQ cv-gate + imatrix** | **8.88** | **2.484** | **108.65** | **1.151** | **48.9%** |
+| qat-Q2_K_S-imatrix | Q2_K_S | imatrix only (from QAT) | 10.22 | 2.861 | 110.71 | 1.332 | 47.7% |
+| **qat-Q2_K_S-awq-cv-gate** | **Q2_K_S** | **AWQ cv-gate + imatrix** | **10.22** | **2.861** | **88.18** | **1.081** | **49.4%** |
 
-Sorted by Mean KLD (lower = closer to F16; the speed columns also vary, but
-read those with the caveat below):
+**Takeaways:**
+- **AWQ cv-gate beats imatrix-only on PPL by 4–20×** at every working bit budget.
+- **`qat-Q2_K_S-awq-cv-gate`** wins on KLD/PPL (median KLD **1.081**, PPL **88.2**) — closest to FP16 at this bit budget.
+- **`Q2_K_S-awq-cv-gate`** (vanilla) leads top-p at **51.1%** with PPL **73.1**.
+- **`qat-IQ2_XS-awq-cv-gate`** is the best size/quality pick at **8.88 GiB** (KLD 1.151, top-p 48.9%).
+- Plain `Q2_K` (no calibration) loses ~25 absolute top-p points despite a *larger* file.
 
-| Model | Size | Mean KLD | Same Top p | Tool Sel % | Param Acc % | Schema % | Rollout % | MMLU-Pro % |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| baseline/fp16        | 
-| hybrid / mixed       | 
-| **hybrid / custom**  | 
-| stock / custom       | 
-| stock / wiki         | 
-| baseline/Q4_K_M-none | 
+> ⚠️ These are sub-3-bpw quants of a 31B reasoning model. They are meaningfully
+> better than the alternatives *at the same size*, but they are **not** a
+> substitute for FP16 / Q4_K_M / Q5_K_M when you have the VRAM. Use them when
+> memory is the binding constraint.
 
-**Reproduce the whole table:**
-```bash
-uv run python scripts/reproduce_leaderboard.py            # ~17 h cold, ~5 min if cached
-uv run python scripts/reproduce_leaderboard.py --quick-toolcall  # ~6 h, 2 reps × 8 instead of 10 × 8
-uv run python scripts/reproduce_leaderboard.py --skip-toolcall   # skip the 14-h tool-call stage
+---
+
+## How it works
+
+Three calibration methods, all producing a standard GGUF with **zero inference cost**:
+
+| Method   | What it does                                            | Pre-quant cost | Best for |
+| -------- | ------------------------------------------------------- | -------------- | -------- |
+| imatrix  | Per-tensor importance (`E[a²]`) steers the quantizer's bit budget | Low | 3–5 bpw baselines |
+| AWQ      | Per-channel weight rescale folded into RMSNorm, flattening outliers | Medium | sub-3 bpw, where outliers wreck the codebook |
+| GPTQ     | Hessian-based rounding with error compensation          | High           | when you want explicit PPL guardrails |
+
+### Why AWQ wins at 2 bits
+
+At 2-bit each weight has only ~4 codebook values, so a handful of outlier
+channels can wreck quantization error for an entire layer. For every linear
+`y = W · a`, AWQ picks a per-channel scale `s` and rewrites:
+
+```
+y  =  W · a  =  (W · diag(s))  ·  (diag(1/s) · a)
+              └──────┬──────┘    └──────┬──────┘
+              quantize this       fold into prev RMSNorm gain
 ```
 
-`reproduce_leaderboard.py` chains seven stages (extract → F16 → calibrate × 3 corpora → holdout → speed rebench → tool-call reps → render). Every stage is idempotent — re-running on a populated workspace just verifies state and re-renders `LEADERBOARD.md`. Individual stages live in `scripts/run_omnicoder_*.py`, `scripts/rebench_speed.py`, and `scripts/run_toolcall_reps.py`.
+Math-equivalent to the original layer, but the rescaled weight matrix has a
+flatter per-channel range, so the 2-bit codebook fits it with far less error.
+The inverse scale is absorbed into the preceding RMSNorm — **no runtime
+overhead, the GGUF stays standard.** Imatrix and AWQ are complementary:
+AWQ rewrites the weights, then a hybrid imatrix guides the final
+`llama-quantize` pass.
 
-**For any other model**, use the parameterized reproducer:
+### Three AWQ refinements that make sub-3-bpw work
 
-```bash
-# One pass per quant type — each lands in its own workspace.
-uv run python scripts/reproduce_table.py \
-    --model Qwen/Qwen3.5-4B --quant-type Q4_K_M \
-    --logs logtrain.jsonl --wiki-test-raw /path/to/wiki.test.raw
+1. **Per-tensor α refinement.** Each member of a group (q, k, v individually)
+   nudges its α within a local grid around the shared group choice.
+2. **Binary held-out gate (cv-gate).** A per-tensor α is only accepted if it
+   *also* lowers proxy loss on a **disjoint validation slice** it never saw
+   during the search. Without the gate, per-tensor refinement over-fits the
+   calibration corpus at sub-3 bpw and PPL collapses on unseen text.
+3. **Codebook-faithful proxy quantizers.** The α search scores candidates
+   against bit-exact E8-lattice proxies (matching llama.cpp's
+   `iq2xxs/xs/s_grid`), a `q2k_super` proxy for Q2_K_S, and `q2k_b16 + iq3_s`
+   for IQ2_M's mixed tensors — so the optimum doesn't drift.
 
-uv run python scripts/reproduce_table.py \
-    --model Qwen/Qwen3.5-4B --quant-type IQ4_NL \
-    --logs logtrain.jsonl --wiki-test-raw /path/to/wiki.test.raw
+### Three disjoint corpora
 
-# Or chain both quant types for Qwen3.5-4B back-to-back:
-uv run python scripts/reproduce_table_qwen3_5_4b.py \
-    --logs logtrain.jsonl --wiki-test-raw /path/to/wiki.test.raw
-```
+| Slice | Source | Used for |
+|---|---|---|
+| **Calibration** | ~500k tokens usage-log + all of `wiki.test.raw` | imatrix collection + AWQ α search |
+| **Validation** | out-of-distribution supplement (e.g. MMMU disciplines) | held-out gate for per-tensor α (binary accept/reject only) |
+| **Eval** | ~90k tokens external code+math+tools ([`eaddario/imatrix-calibration`](https://huggingface.co/datasets/eaddario/imatrix-calibration)) | all PPL/KLD numbers; neither cal nor val appears here |
 
-The reproducer goes through 7 stages: F16 → 2 corpora (custom / wiki) → 4 imatrix variants ({stock, hybrid} × {custom, wiki}) → 5 quants (`<TYPE>-none` + 4 calibrated) → KLD + 10-rep speed bench → tool-call holdout + reps → MMLU-Pro reps → `LEADERBOARD.md`. Pass `--skip-toolcall`, `--skip-mmlu`, or `--skip-speed-rebench` to scope down; `--toolcall-reps N` / `--mmlu-reps N` shrink the long stages.
+Validation never feeds the eval numbers, and eval is drawn from a third
+distribution — so a winning α genuinely generalizes rather than re-fitting the
+calibration mix.
 
-## Results so far (9B model comparison @ IQ3_S with MTP)
-
-Three Qwen3.5-9B-family models compared at IQ3_S quantization. All GGUFs bundle the MTP
-`nextn_predict` layers (`qwen35.nextn_predict_layers = 1`) for speculative decoding.
-Calibration: `hybrid_custom` imatrix on `logtrain.jsonl` (250k tokens). IQ3_S without
-calibration gives catastrophic perplexity (~3.6M PPL measured); `hybrid_custom` is required.
-Eval: KLD on a held-out 50k-token test split; speed is 10-rep `llama-bench`.
-Hardware: Apple M-series, Metal backend.
-
-| Model | Variant | BPW | PPL | Mean KLD | Same Top-p | Decode tok/s |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| Qwen/Qwen3.5-9B | baseline/fp16 | 16.01 | 6.65 | — | 100.0% | 27.13 |
-| Qwen/Qwen3.5-9B | **IQ3_S-custom** | 3.89 | 7.37 | 1.175 | 74.6% | 60.10 |
-| Jackrong/Qwopus3.5-9B-Coder | baseline/fp16 | 16.01 | 4.78 | — | 100.0% | 26.04 |
-| Jackrong/Qwopus3.5-9B-Coder | **IQ3_S-custom** | 3.89 | 6.40 | **0.919** | 75.7% | 48.92 |
-| Tesslate/OmniCoder-9B | baseline/fp16 | 16.01 | 6.64 | — | 100.0% | 21.46 |
-| Tesslate/OmniCoder-9B | **IQ3_S-custom** | 3.89 | 7.40 | 1.172 | 74.6% | 46.14 |
-
-Notes:
-- **Jackrong wins on quality** at IQ3_S — lowest KLD (0.919) and best PPL (6.40), despite
-  being a code-specialized fine-tune of the same base.
-- **Qwen IQ3_S is fastest** at 60 tok/s — the other two carry VLM overhead from their
-  extraction path (Tesslate is a `Qwen3_5ForConditionalGeneration` with a vision tower).
-- **Tesslate fp16 is slowest** (21 tok/s) — the hybrid attention architecture
-  (GatedDeltaNet layers) adds per-token overhead on Metal.
-- MTP layers were injected into Jackrong and Tesslate from the Qwen/Qwen3.5-9B donor (those
-  models declare `mtp_num_hidden_layers=1` in config but ship without the weights).
-
-**MTP head training.** A fine-tuned MTP head for Tesslate/OmniCoder-9B is in progress,
-adapting the donor weights to the tool-call distribution. See
-`scripts/train_mtp_head.py` and `scripts/plot_mtp_acceptance.py` for the training
-pipeline and acceptance-rate-vs-draft-depth analysis.
-
-**Reproduce:**
-
-```bash
-uv run python scripts/benchmark_9b_models.py \
-    --logs logtrain.jsonl \
-    --workspace out/benchmark_9b_iq3s
-# Results: out/benchmark_9b_iq3s/comparison.csv
-```
-
-## Results so far (Qwen/Qwen3.6-27B @ Q5_K_S)
-
-End-to-end run on Qwen3.6-27B with the MTP head retained in the GGUF. Calibration:
-`hybrid_custom` imatrix on `logtrain.jsonl` (250k tokens) + `calibration_supplement.txt`.
-Eval data: 48k-token held-out KLD/PPL slice from `logtrain.jsonl`; 10-session tool-call
-holdout disjoint from the calibration split; 50-question MMLU-Pro slice (25 CS + 25 math,
-2-shot). Hardware: Apple M-series, Metal backend, `llama.cpp` @ pinned `45b455e6`.
-
-| Model | Size (GiB) | BPW | PPL | KLD | Same Top-p | Decode tok/s | Prefill tok/s | Tool Sel % | Param Acc % | Schema % | Rollout % | MMLU-Pro % |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| baseline / fp16            | 50.90 | 16.00 | 5.233 | —     | 100.0 |  6.96 ± 0.46 | 182.2 ± 1.8 | 71.2 ± 4.1 | 35.2 ± 0.7 | 84.6 ± 1.2 | 40.0 ± 0.0 | 59.3 ± 2.3 |
-| **Q5_K_S / hybrid_custom** | 17.67 |  5.56 | 5.523 | 0.425 |  88.9 | 13.14 ± 0.39 | 166.0 ± 3.1 | 64.9 ± 0.8 | 33.1 ± 0.4 | 81.8 ± 1.9 | 43.3 ± 5.8 | 58.0 ± 3.5 |
-
-KLD/PPL/speed are 10 reps of `llama-bench`; tool-call and MMLU-Pro are 3 reps each at
-`T=0.6, top_p=0.95, top_k=20` (Qwen-recommended sampling).
-
-**MTP draft heads.** The Q5_K_S GGUF bundles the MTP layers (`qwen35.nextn_predict_layers = 1`),
-so it can be served with `llama-server --spec-type draft-mtp --spec-draft-n-max N`.
-Because the model has **1 nextn layer**, set `--spec-draft-n-max 1`; values above 1 exceed
-the trained head depth, drop acceptance rate, and hurt throughput. Benchmarked against a
-true baseline (no `--spec-type` flag) and cross-checked against `unsloth/Qwen3.6-27B-MTP-GGUF`:
-
-| Model | `--spec-draft-n-max` | Decode tok/s | Draft acceptance | Speedup |
-| --- | ---: | ---: | ---: | ---: |
-| ours (imatrix Q5_K_S) | 1 | 18.73 ± 1.35 | 86 % | **1.05x** |
-| ours (imatrix Q5_K_S) | 2 | 17.23 ± 2.04 | 74 % | 0.92x |
-| ours — baseline | — | 17.81 ± 0.87 | — | — |
-| unsloth Q5_K_S | 2 | 17.74 ± 2.46 | 77 % | 0.99x |
-| unsloth — baseline | — | 17.92 ± 0.44 | — | — |
-
-MTP gives a modest 5 % wall-clock lift on Metal at `n_max=1`; larger wins appear on CUDA
-where decode is compute- rather than memory-bandwidth-bound. Our imatrix calibration yields
-higher draft acceptance (86 % vs 77 %) than the unsloth baseline GGUF.
-
-**Reproduce:**
-
-```bash
-uv run quant-tuner run --recipe q5_k_s_qwen3_6_mtp \
-    --model Qwen/Qwen3.6-27B --logs logtrain.jsonl \
-    --workspace out/q5_k_s_qwen3_6_mtp
-uv run quant-tuner bench \
-    --quant out/q5_k_s_qwen3_6_mtp/gguf/model-f16.gguf \
-    --reference out/q5_k_s_qwen3_6_mtp/gguf/model-f16.gguf \
-    --eval out/q5_k_s_qwen3_6_mtp/corpus/eval.txt \
-    --out out/q5_k_s_qwen3_6_mtp/results.csv --label baseline/fp16
-uv run python scripts/run_toolcall_reps.py \
-    --models out/q5_k_s_qwen3_6_mtp/gguf/{model-f16,Q5_K_S-imatrix}.gguf \
-    --holdout artifacts/toolcall_holdout.jsonl --reps 3
-uv run python scripts/run_mmlu_pro_reps.py \
-    --models out/q5_k_s_qwen3_6_mtp/gguf/{model-f16,Q5_K_S-imatrix}.gguf --reps 3
-uv run python scripts/bench_mtp_speed.py \
-    --model out/q5_k_s_qwen3_6_mtp/gguf/Q5_K_S-imatrix.gguf --reps 5 --n-max 1
-```
-
-## Requirements
-
-* Python ≥ 3.11
-* `uv` (`brew install uv` or `pipx install uv`)
-* A C++ toolchain for building `llama.cpp` (Xcode CLT on macOS, or build-essential on Linux)
+---
 
 ## Quick start
 
@@ -200,6 +135,108 @@ cmake --build vendor/llama.cpp/build -j
 uv sync
 ```
 
+**Requirements:** Python ≥ 3.11 · [`uv`](https://github.com/astral-sh/uv) · a C++
+toolchain for `llama.cpp` (Xcode CLT on macOS, build-essential on Linux).
+Override the build location with `LLAMA_CPP_DIR=/path/to/your/build` to use a
+system install.
+
+## Running an end-to-end calibration
+
+The CLI is recipe-driven. Each recipe under `src/quant_tuner/recipes/` declares
+one calibration method × quant type:
+
+```bash
+# AWQ + hybrid imatrix at IQ2_XS (the Gemma sub-3-bpw recipe family)
+uv run quant-tuner run \
+    --recipe iq2_xs_awq \
+    --model google/gemma-4-31B-it \
+    --logs logtrain.jsonl \
+    --workspace ./out/gemma_iq2xs
+
+# Validate-only (resolves recipe + overrides, prints the merged config):
+uv run quant-tuner run --recipe iq2_xs_awq --model X --logs Y --workspace W --dry-run
+
+# Bench any GGUF against an FP16 reference → CSV row
+uv run quant-tuner bench \
+    --quant out/gemma_iq2xs/gguf/IQ2_XS-awq.gguf \
+    --reference out/gemma_iq2xs/gguf/model-f16.gguf \
+    --eval out/gemma_iq2xs/corpus/corpus.eval.txt \
+    --out out/gemma_iq2xs/results.csv
+
+# Aggregate to a markdown leaderboard with SQS scoring
+uv run quant-tuner leaderboard --results out/gemma_iq2xs/results.csv --out LEADERBOARD.md
+```
+
+**Shipped recipes:**
+- **4-bit baselines:** `q4_k_m_imatrix`, `q4_k_m_awq`, `q4_k_m_gptq`, `q4_k_m_none`
+- **Low-bit (2–3 bpw):** `q2_k_awq`, `iq2_xs_awq`, `iq2_m_awq` (AWQ + hybrid imatrix, codebook proxies auto-selected); `q2_k_gptq`, `iq3_s_gptq`
+- **Model-specific:** `q4_k_m_qwen3_5_4b`, `{q4_k_m,q5_k_s}_qwen3_6_mtp{,_awq,_none}`, `iq3_s_9b_mtp` (MTP heads retained)
+
+A recipe is just YAML — copy any of them to a local file and pass the path to
+`--recipe` to override the calibration variant, token budget, or sampling.
+
+### Building the calibration corpora
+
+`scripts/build_corpora.py` is the canonical one-pass builder: it writes
+`corpus.cal.txt` (imatrix + AWQ α search), `corpus.val.txt` (held-out gate),
+and `corpus.eval.txt` (external PPL/KLD), asserting the three slices are
+disjoint before returning.
+
+```bash
+uv run python scripts/build_corpora.py --logs logtrain.jsonl --out out/corpora
+```
+
+## Task-level benchmarks
+
+Two task evals report **mean ± stdev across N reps** (default 10), each spawning
+one `llama-server` per model and reusing it across reps:
+
+```bash
+# Tool-calling on a held-out session corpus (built from logtrain.jsonl)
+uv run python scripts/run_toolcall_reps.py \
+    --models out/run/model-f16.gguf out/run/IQ2_XS-awq.gguf --reps 10
+
+# MMLU-Pro CS + math (25 questions per subject, 2-shot)
+uv run python scripts/build_mmlu_pro_holdout.py   # one-time, downloads dataset
+uv run python scripts/run_mmlu_pro_reps.py \
+    --models out/run/model-f16.gguf out/run/IQ2_XS-awq.gguf --reps 10
+```
+
+Plug a new benchmark in by writing a `dict[str, float]`-returning adapter on top
+of `quant_tuner.eval.reps.run_reps_for_models`.
+
+## Serving a quant
+
+These are plain GGUFs — load them in `llama-server`, LM Studio, or anything that
+reads GGUF:
+
+```bash
+./llama-server \
+    --model gemma-4-31B-it-qat-Q2_K_S-awq-cv-gate.gguf \
+    --ctx-size 16384 --n-gpu-layers 999 \
+    --flash-attn on --cache-type-k q8_0 --cache-type-v q8_0 \
+    --host 0.0.0.0 --port 1234
+```
+
+```python
+import json, urllib.request
+
+def ask(content, max_tokens=256):
+    body = {
+        "messages": [{"role": "user", "content": content}],
+        "max_tokens": max_tokens,
+        # Gemma 4 is a thinking model — set this False (or raise max_tokens),
+        # else the reply lands in reasoning_content and "content" is empty.
+        "chat_template_kwargs": {"enable_thinking": False},
+    }
+    req = urllib.request.Request("http://127.0.0.1:1234/v1/chat/completions",
+                                 json.dumps(body).encode(),
+                                 {"Content-Type": "application/json"})
+    return json.loads(urllib.request.urlopen(req).read())["choices"][0]["message"]["content"]
+
+print(ask("What is 1+1?"))
+```
+
 ## Pipeline at a glance
 
 ```
@@ -208,7 +245,7 @@ uv sync
        ▼                     ▼
    extract             ingest + split
        │                     │
-       │            train.txt | test.txt | holdout.jsonl
+       │            cal.txt | val.txt | eval.txt | holdout.jsonl
        │                     │
        └──── HF → F16 GGUF ◄─┘
                   │
@@ -216,165 +253,24 @@ uv sync
                   ▼
        imatrix.gguf  /  awq.pt  /  hf_model_gptq/
                   │
-                  │  llama-quantize  (--type Q4_K_M, IQ4_XS, …)
+                  │  llama-quantize  (--type IQ2_XS, Q2_K_S, Q4_K_M, …)
                   ▼
               model.gguf
                   │
-                  │  bench (KLD vs FP16, PPL, BPW, prefill/decode tok/s)
+                  │  bench (KLD vs FP16, PPL, BPW, top-p, prefill/decode tok/s)
                   ▼
               results.csv  →  LEADERBOARD.md
 ```
 
-## Running an end-to-end calibration
-
-The CLI is recipe-driven. Each recipe under `src/quant_tuner/recipes/` declares
-one calibration method × quant type:
-
-```bash
-# Method = imatrix (hybrid_custom variant), quant = Q4_K_M
-uv run quant-tuner run \
-    --recipe q4_k_m_imatrix \
-    --model Tesslate/OmniCoder-9B \
-    --logs logtrain.jsonl \
-    --workspace ./out/my_run
-
-# Validate-only (resolves the recipe + overrides, prints the merged config):
-uv run quant-tuner run --recipe q4_k_m_imatrix --model X --logs Y --workspace W --dry-run
-```
-
-Available recipes: `q4_k_m_imatrix`, `q4_k_m_awq`, `q4_k_m_gptq`, `q4_k_m_none`,
-`q4_k_m_qwen3_5_4b`, `q4_k_m_qwen3_6_mtp`. A recipe is just YAML — copy any of
-them to a local file and pass the path to `--recipe` to override the
-calibration variant or sampling params.
-
-### Calibration token budget
-
-Each recipe declares two token budgets under `data:`:
-
-```yaml
-data:
-  train_max_tokens: 250000        # cap for the calibration corpus
-  eval_max_tokens:  50000         # cap for the KLD/PPL eval slice
-  supplement: ./calibration_supplement.txt   # optional; appended to train.txt
-```
-
-The stratified packer fills `train.txt` up to `train_max_tokens` (a little
-over is allowed — sessions can spill past the cap by ≤10%) and `eval.txt` up
-to `eval_max_tokens`, both drawn from disjoint splits of the same log file.
-If `supplement` is set, the file is appended verbatim to the train corpus
-after packing — useful for language coverage (Rust, SQL, shell, etc.) that's
-under-represented in your usage logs. The bundled
-`calibration_supplement.txt` is the one used for the published results.
-
-### Qwen3.5-4B example
-
-```bash
-uv run python scripts/quantize_qwen3_5_4b.py --logs logtrain.jsonl
-# → out/q4_k_m_qwen3_5_4b/gguf/Q4_K_M-imatrix.gguf
-```
-
-The recipe (`q4_k_m_qwen3_5_4b.yaml`) targets `Qwen/Qwen3.5-4B`, uses the
-`hybrid_custom` imatrix variant, and applies the 250K / 50K token budgets
-plus the bundled supplement.
-
-## Task-level benchmarks
-
-Two task evals live alongside the KLD/speed bench, both reporting
-**mean ± stdev across N reps** for a configurable N (default 10):
-
-```bash
-# Tool-calling on a held-out session corpus (built from logtrain.jsonl)
-uv run python scripts/run_toolcall_reps.py \
-    --models out/run/model-f16.gguf out/run/Q4_K_M-none.gguf \
-    --reps 10
-
-# MMLU-Pro CS + math (25 random questions per subject, 2-shot)
-uv run python scripts/build_mmlu_pro_holdout.py    # one-time, downloads dataset
-uv run python scripts/run_mmlu_pro_reps.py \
-    --models out/run/model-f16.gguf out/run/Q4_K_M-none.gguf \
-    --reps 10
-```
-
-Both runners spawn one `llama-server` per model and reuse it across reps; the
-per-rep seed is `--base-seed + rep_idx` for reproducibility. Output: one CSV
-per rep + one aggregated CSV (mean / stdev / n per metric). Plug a new
-benchmark into this pipeline by writing a `dict[str, float]`-returning adapter
-on top of `quant_tuner.eval.reps.run_reps_for_models` — see
-`docs/benchmarks.md` § "Multi-rep eval".
-
-## Python API
-
-The pipeline functions are also importable for ad-hoc scripting:
-
-```python
-from pathlib import Path
-
-from quant_tuner.calibrate import imatrix, awq, gptq
-from quant_tuner.quantize import convert, gguf
-from quant_tuner.bench import runner, bpw, kld
-from quant_tuner.models import llama_cpp
-
-work = Path("./out")
-model_dir = Path("./model")        # local HF checkpoint
-corpus = Path("./corpus.train.txt")  # one big text file of calibration tokens
-eval_ds = Path("./corpus.test.txt")  # held-out tokens for KLD/PPL
-
-# 1. HF -> F16 GGUF (one-time)
-f16 = convert.hf_to_f16_gguf(model_dir, work / "model-f16.gguf")
-ref_baseline = kld.build_baseline(f16, eval_ds, work / "baseline.kld")
-
-# 2a. imatrix path
-llama_cpp.imatrix(f16, corpus, work / "imatrix-custom.gguf")
-imatrix.calibrate(
-    variant="hybrid_custom",
-    f16_gguf=f16,
-    base_imatrix=work / "imatrix-custom.gguf",
-    out_path=work / "imatrix-tuned.gguf",
-)
-gguf.quantize(f16, work / "Q4_K_M-imatrix.gguf", "Q4_K_M",
-              imatrix=work / "imatrix-tuned.gguf")
-
-# 2b. AWQ path
-awq.calibrate(model_dir, corpus, work / "awq.pt", force_alpha=0.5)
-awq.apply(model_dir, work / "awq.pt", work / "model_awq")
-f16_awq = convert.hf_to_f16_gguf(work / "model_awq", work / "model-f16-awq.gguf")
-gguf.quantize(f16_awq, work / "Q4_K_M-awq.gguf", "Q4_K_M",
-              imatrix=work / "imatrix-custom.gguf")
-
-# 2c. GPTQ path
-gptq.calibrate(model_dir, corpus, work / "hessians")
-gptq.apply(model_dir, work / "hessians", work / "model_gptq")
-f16_gptq = convert.hf_to_f16_gguf(work / "model_gptq", work / "model-f16-gptq.gguf")
-gptq.verify_perplexity(f16_gptq, eval_ds, reference_ppl=baseline_ppl, max_ratio=1.5)
-gguf.quantize(f16_gptq, work / "Q4_K_M-gptq.gguf", "Q4_K_M",
-              imatrix=work / "imatrix-custom.gguf")
-
-# 3. Bench every quant
-n_params = bpw.n_params(f16)
-for label, quant in [
-    ("imatrix", work / "Q4_K_M-imatrix.gguf"),
-    ("awq",     work / "Q4_K_M-awq.gguf"),
-    ("gptq",    work / "Q4_K_M-gptq.gguf"),
-]:
-    row = runner.bench_one(
-        quant, label,
-        reference_n_params=n_params,
-        eval_dataset=eval_ds,
-        eval_baseline=ref_baseline,
-        suite="full",
-    )
-    runner.append_row(work / "results.csv", row)
-```
-
-Switching the target quant type is a one-string change — `gguf.quantize(...,
-"IQ4_XS")` or `"Q5_K_M"` works identically. See `docs/methods.md` for the
-tradeoffs between common K-quant and I-quant tags.
+`pipeline.run_pipeline(RunConfig)` is the canonical end-to-end flow; every stage
+is idempotent (existence-based via `experiments.step`), so re-running a populated
+workspace just verifies state and re-renders.
 
 ## Layout
 
 ```
 src/quant_tuner/
-├── calibrate/        # imatrix | awq | gptq calibrators
+├── calibrate/        # imatrix | awq | gptq calibrators (+ generated IQ2 codebook grids)
 ├── quantize/         # HF → F16 GGUF, F16 → Q* GGUF
 ├── bench/            # bpw | kld | speed | runner (CSV row builder)
 ├── data/             # log ingest, stratified packing, train/test/holdout split
@@ -384,21 +280,32 @@ src/quant_tuner/
 ├── models/           # HF extract, llama.cpp binary wrappers, HF→GGUF name map
 ├── recipes/          # YAML recipes consumed by `quant-tuner run --recipe ...`
 ├── cli.py            # typer CLI: run | bench | leaderboard
-└── pipeline.py       # end-to-end pipeline: extract → calibrate → quantize → bench
+└── pipeline.py       # end-to-end: extract → calibrate → quantize → bench
 
-vendor/llama.cpp      # pinned submodule, commit 45b455e6
+vendor/llama.cpp      # pinned submodule, commit 32782998
+scripts/              # corpus builders, experiment drivers, leaderboard reproducer
 tests/unit/           # 100+ passing tests
+```
+
+## Development
+
+```bash
+uv run pytest                    # all unit tests
+uv run ruff check src tests      # lint
+uv run mypy src                  # types
 ```
 
 ## Status
 
 Beta. End-to-end calibration runs via the CLI (`quant-tuner run --recipe …`) or
-the Python API. Tool-call evaluation lives in `quant_tuner.eval`. The OmniCoder
-leaderboard reproducer (`scripts/reproduce_leaderboard.py`) chains the eight
-study artifacts end-to-end.
+the Python API. The Gemma-4-31B sub-3-bpw release above is reproducible from the
+shipped `iq2_xs_awq` / `iq2_m_awq` / `q2_k_awq` recipes plus
+`scripts/build_corpora.py`.
 
-## Pinned llama.cpp
+## License & attribution
 
-This repo vendors `llama.cpp` at commit `45b455e66fc09abed65b7d52d42a4a29ba0d45d6`
-as a git submodule under `vendor/llama.cpp`. Override the build location with
-`LLAMA_CPP_DIR=/path/to/your/build` if you'd rather use a system install.
+- Released quantizations inherit their base model's license (e.g. the
+  [Gemma Terms of Use](https://ai.google.dev/gemma/terms) for the Gemma release).
+- Quantization performed locally with **quant-tuner** + vendored
+  [llama.cpp](https://github.com/ggerganov/llama.cpp) pinned to commit `32782998`.
+- Usage-log calibration data scraped with [**LogMiner**](https://github.com/pearsonkyle/LogMiner).

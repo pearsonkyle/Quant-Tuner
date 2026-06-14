@@ -457,102 +457,6 @@ def eval_per_turn(
     return results
 
 
-def eval_rollout(
-    client: OpenAI,
-    session: dict,
-    sampling: Sampling,
-    *,
-    max_turns: int,
-    log_fh: IO[str] | None = None,
-    system_prompt: str | None = DEFAULT_SYSTEM_PROMPT,
-    model_name: str = "local",
-) -> dict:
-    """Run a single rollout, splicing in recorded tool results by call order per tool.
-
-    Currently unwired from :func:`run_toolcall_eval` — kept for future
-    agentic-loop benchmarks. Per-turn replay is the canonical eval path.
-    """
-    msgs = maybe_inject_system(session["messages"], system_prompt)
-    tools = session["tools"]
-    sid = session.get("session_id")
-
-    # Index recorded tool results by tool name, in order.
-    truth_results_by_tool: dict[str, list[str]] = {}
-    for m in msgs:
-        if m.get("role") == "tool":
-            name = m.get("name")
-            if name:
-                truth_results_by_tool.setdefault(name, []).append(m.get("content", ""))
-
-    # Start with system + first user turn(s) before any assistant turn.
-    convo: list[dict] = []
-    for m in msgs:
-        if m.get("role") in ("system", "user"):
-            convo.append({"role": m["role"], "content": m.get("content", "") or ""})
-        else:
-            break
-    if not convo:
-        return {"session": sid, "completed": False, "reason": "no user turn"}
-
-    consumed: dict[str, int] = {}
-    tools_called: list[str] = []
-    completed_reason = "max_turns"
-    completed = False
-
-    for _ in range(max_turns):
-        try:
-            resp = call_model(client, convo, tools, sampling,
-                              model_name=model_name)
-            choice = resp.choices[0].message
-        except Exception as e:
-            completed_reason = f"error: {e}"
-            break
-
-        tcs = choice.tool_calls or []
-        if not tcs:
-            completed = True
-            completed_reason = "model stopped"
-            convo.append({"role": "assistant", "content": choice.content or ""})
-            break
-
-        api_tcs = [
-            {
-                "id": tc.id,
-                "type": "function",
-                "function": {"name": tc.function.name, "arguments": tc.function.arguments},
-            }
-            for tc in tcs
-        ]
-        convo.append({"role": "assistant", "content": choice.content or None, "tool_calls": api_tcs})
-
-        for tc in tcs:
-            name = tc.function.name
-            tools_called.append(name)
-            idx = consumed.get(name, 0)
-            results_for = truth_results_by_tool.get(name) or []
-            content = (
-                results_for[idx] if idx < len(results_for)
-                else f"(no recorded result for {name} call #{idx + 1})"
-            )
-            consumed[name] = idx + 1
-            convo.append({"role": "tool", "tool_call_id": tc.id, "content": content})
-
-    truth_set = set(session.get("tools_used") or [])
-    pred_set = {n.lower() for n in tools_called}
-    truth_set_l = {n.lower() for n in truth_set}
-    tool_set_match = bool(truth_set_l) and pred_set == truth_set_l
-
-    rec = {
-        "session": sid, "source": session.get("source"),
-        "completed": completed, "reason": completed_reason,
-        "n_tool_calls": len(tools_called), "tools_called": tools_called,
-        "truth_tools_used": list(truth_set), "tool_set_match": tool_set_match,
-    }
-    if log_fh is not None:
-        log_fh.write(json.dumps({"rollout": rec}) + "\n")
-    return rec
-
-
 # ---------------------------------------------------------------------------
 # Orchestrator: server lifecycle + both eval passes + summary
 # ---------------------------------------------------------------------------
@@ -762,7 +666,17 @@ def run_toolcall_eval(
                 model_name=model_name,
             )
             all_turns.extend(turns)
-        return _aggregate(label, len(sessions), all_turns)
+        summary = _aggregate(label, len(sessions), all_turns)
+        # A dead/unreachable server errors every API call, leaving zero scored
+        # turns and all-zero accuracies. Fail loudly instead of returning a
+        # "clean" 0.0 summary that an N-rep runner would average into the mean.
+        if summary.n_total > 0 and summary.n_scored == 0:
+            raise RuntimeError(
+                f"toolcall eval produced 0 scored turns out of {summary.n_total} "
+                f"({summary.truth_quality.get('api_errors', 0)} API errors) — "
+                f"server down or misconfigured; refusing to report all-zero metrics"
+            )
+        return summary
 
     try:
         if base_url is not None:

@@ -72,7 +72,18 @@ def extract_text_lm(
         config = json.load(f)
     arch = (config.get("architectures") or [""])[0]
     if "ForCausalLM" in arch and not config.get("text_config"):
-        return model_path
+        # Pass-through: still materialize into output_dir (via symlinks, no
+        # copy) so callers that reference output_dir — the pipeline points
+        # conversion/calibration at ws.model_extracted — find a real model
+        # there instead of an empty directory.
+        if model_path.resolve() == output_dir.resolve():
+            return output_dir
+        output_dir.mkdir(parents=True, exist_ok=True)
+        for item in model_path.iterdir():
+            dst = output_dir / item.name
+            if not (dst.exists() or dst.is_symlink()):
+                dst.symlink_to(item.resolve())
+        return output_dir
 
     output_dir.mkdir(parents=True, exist_ok=True)
     new_config = _build_text_config(config)

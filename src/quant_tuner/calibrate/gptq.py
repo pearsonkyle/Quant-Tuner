@@ -38,6 +38,9 @@ from pathlib import Path
 
 import torch
 
+from quant_tuner.calibrate._device import resolve_device
+from quant_tuner.calibrate._hf import forward_no_logits
+
 # --- Target discovery ----------------------------------------------------- #
 
 def discover_targets(model) -> list[tuple[str, torch.nn.Linear]]:
@@ -114,6 +117,7 @@ def gptq_round_tensor(
     group_size: int = 32,
     dampen: float = 0.01,
     actorder: bool = True,
+    sym: bool | None = None,
 ) -> tuple[torch.Tensor, GPTQStats]:
     """Round ``W`` ([out, in]) toward an INT-``n_bits`` grid using GPTQ.
 
@@ -126,9 +130,18 @@ def gptq_round_tensor(
       3. Compute upper-Cholesky ``U`` of ``H⁻¹``: ``U[j,j]`` is the per-column
          step size that scales the rounding error before spreading it onward.
       4. Sweep columns left→right in blocks of ``group_size``: per row, per
-         group, pick a symmetric INT-``n_bits`` scale (``max(|w|) / qmax``),
-         round each column inside the group, then propagate its residual
-         within the group AND across to columns past the group.
+         group, pick an INT-``n_bits`` grid, round each column inside the
+         group, then propagate its residual within the group AND across to
+         columns past the group.
+
+    ``sym`` selects the grid; ``None`` (default) auto-selects:
+      * ``True`` (>= 4 bits) — symmetric: ``scale = max|w| / qmax``, codes in
+        ``[-qmax, qmax]``. Matches the original implementation.
+      * ``False`` (2-3 bits) — asymmetric min+scale, all ``2^n`` codes used.
+        A symmetric 2-bit grid has only three usable levels {-s, 0, +s} pinned
+        to the group max and destroys the weight distribution; K-quants at
+        2 bits (Q2_K, IQ2_*) are asymmetric for the same reason. The range is
+        widened to include 0 so dead/zero weights stay exactly representable.
     """
     out_features, in_features = W.shape
     if H.shape != (in_features, in_features):
@@ -163,8 +176,11 @@ def gptq_round_tensor(
     U = torch.linalg.cholesky(Hinv, upper=True)
 
     # 4) Column-wise sweep in blocks.
+    if sym is None:
+        sym = n_bits >= 4
     Q = torch.zeros_like(W)
-    qmax = 2 ** (n_bits - 1) - 1  # INT4 -> 7, INT3 -> 3, INT2 -> 1
+    qmax = 2 ** (n_bits - 1) - 1   # symmetric:  INT4 -> 7, INT3 -> 3, INT2 -> 1
+    q_levels = 2**n_bits - 1       # asymmetric: INT4 -> 15, INT3 -> 7, INT2 -> 3
     total_sse = 0.0
 
     for i1 in range(0, in_features, group_size):
@@ -175,13 +191,23 @@ def gptq_round_tensor(
         Qg = torch.zeros_like(Wg)
         Eg = torch.zeros_like(Wg)
 
-        max_abs = Wg.abs().amax(dim=1, keepdim=True).clamp_min(1e-8)
-        scale = max_abs / qmax  # per-row, per-group
+        if sym:
+            max_abs = Wg.abs().amax(dim=1).clamp_min(1e-8)
+            scale = max_abs / qmax  # per-row, per-group
+            zero = torch.zeros_like(scale)
+        else:
+            wmin = Wg.amin(dim=1).clamp_max(0.0)  # widen to include 0 so dead
+            wmax = Wg.amax(dim=1).clamp_min(0.0)  # weights stay representable
+            scale = ((wmax - wmin) / q_levels).clamp_min(1e-8)
+            zero = torch.round(-wmin / scale)
 
         for j in range(gs):
             w = Wg[:, j]
             d = Ug[j, j]
-            q = torch.round(w / scale.squeeze(1)).clamp(-qmax, qmax) * scale.squeeze(1)
+            if sym:
+                q = torch.round(w / scale).clamp(-qmax, qmax) * scale
+            else:
+                q = (torch.round(w / scale + zero).clamp(0, q_levels) - zero) * scale
             Qg[:, j] = q
             err = (w - q) / d
             if j + 1 < gs:
@@ -205,6 +231,22 @@ def gptq_round_tensor(
     )
 
 
+def grid_for_quant_type(quant_type: str) -> dict[str, int | bool]:
+    """Map a llama-quantize type tag to the GPTQ grid that matches its shape.
+
+    Low-bit K-quants use 16-element inner blocks with asymmetric (min+scale)
+    grids; rounding toward the same shape keeps GPTQ's error compensation
+    aligned with what llama-quantize will re-snap to. 4-bit and above keeps
+    the original symmetric g32 default.
+    """
+    qt = quant_type.upper()
+    if qt.startswith(("IQ1", "IQ2", "Q2")):
+        return {"n_bits": 2, "group_size": 16, "sym": False}
+    if qt.startswith(("IQ3", "Q3")):
+        return {"n_bits": 3, "group_size": 16, "sym": False}
+    return {"n_bits": 4, "group_size": 32, "sym": True}
+
+
 # --- Calibration: accumulate Hessians ----------------------------------- #
 
 @torch.no_grad()
@@ -215,7 +257,7 @@ def calibrate(
     *,
     tokens: int = 32_768,
     ctx: int = 2_048,
-    device: str = "mps",
+    device: str = "auto",
     dtype: str = "bfloat16",
     save_every: int = 8,
 ) -> Path:
@@ -226,6 +268,7 @@ def calibrate(
     """
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
+    device = resolve_device(device)
     torch_dtype = {
         "bfloat16": torch.bfloat16,
         "float16": torch.float16,
@@ -278,7 +321,7 @@ def calibrate(
         for i, chunk in enumerate(chunks):
             if chunk.numel() < 2:
                 continue
-            model(chunk.unsqueeze(0).to(device))
+            forward_no_logits(model, chunk.unsqueeze(0).to(device))
             if (i + 1) % save_every == 0:
                 print(f"  chunk {i + 1}/{len(chunks)}", file=sys.stderr)
                 snapshot()
@@ -302,6 +345,7 @@ def apply(
     group_size: int = 32,
     dampen: float = 0.01,
     actorder: bool = True,
+    sym: bool | None = None,
     device: str = "cpu",
     dtype: str = "bfloat16",
     name_filter: str | None = None,
@@ -314,9 +358,16 @@ def apply(
     ``apply`` raises (default 0.5 = 50%). Set to ``float("inf")`` to disable.
     The original experiment's catastrophic ``IQ3_S`` row exceeded this by orders
     of magnitude, so catching it here avoids wasting time on a doomed quantize.
+    Note the default targets 4-bit; at 2-3 bits substantially larger drift is
+    expected and legitimate — the pipeline relaxes it per ``n_bits``.
+
+    ``sym=None`` auto-selects per :func:`gptq_round_tensor` (asymmetric below
+    4 bits). ``device`` stays ``"cpu"`` by default: the Cholesky path is
+    numerically safest there and rounding is not the bottleneck.
     """
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
+    device = resolve_device(device)
     torch_dtype = {
         "bfloat16": torch.bfloat16,
         "float16": torch.float16,
@@ -359,7 +410,7 @@ def apply(
         try:
             Q, stats = gptq_round_tensor(
                 W, h.H, n_bits=n_bits, group_size=group_size,
-                dampen=dampen, actorder=actorder,
+                dampen=dampen, actorder=actorder, sym=sym,
             )
         except Exception as e:
             print(f"[gptq.apply] WARN: GPTQ failed on {h.name}: {e}", file=sys.stderr)
@@ -463,5 +514,6 @@ __all__ = [
     "calibrate",
     "discover_targets",
     "gptq_round_tensor",
+    "grid_for_quant_type",
     "verify_perplexity",
 ]

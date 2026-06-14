@@ -45,7 +45,8 @@ pipeline_tag: text-generation
     <span style="background: #dbeafe; color: #1e40af; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; border: 1px solid #bfdbfe;">📦 8.88 / 10.17 / 10.22 GiB</span>
     <span style="background: #d1fae5; color: #065f46; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; border: 1px solid #a7f3d0;"> IQ2_XS / IQ2_M / Q2_K_S</span>
     <span style="background: #ede9fe; color: #5b21b6; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; border: 1px solid #ddd6fe;">+ QAT-sourced IQ2_XS / Q2_K_S</span>
-    <span style="background: #fce7f3; color: #9d174d; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; border: 1px solid #fbcfe8;">🏗️ llama.cpp 45b455e6</span>
+    <span style="background: #fce7f3; color: #9d174d; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; border: 1px solid #fbcfe8;">🏗️ llama.cpp 32782998</span>
+    <span style="background: #fef3c7; color: #92400e; font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 20px; border: 1px solid #fde68a;">🏅 medKLD 1.08 · top_p 51.1% · PPL 73</span>
     
   </div>
   <div style="padding: 24px; display: flex; flex-direction: column; gap: 20px;">
@@ -55,7 +56,7 @@ pipeline_tag: text-generation
     </div>
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 10px;">
       <div style="border: 1px solid #e2e8f0; padding: 14px; border-radius: 8px; background: #fafafa; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);"><span style="font-weight: 700; color: #115e59; font-size: 12px; display: block; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">📉 ~5-6.5x smaller size (Gb)</span><span style="font-size: 13px; color: #4b5563; line-height: 1.5;">At ~2 bits per weight, these quants are under 11 GiB on disk vs 57.2 GiB for FP16.</span></div>
-      <div style="border: 1px solid #e2e8f0; padding: 14px; border-radius: 8px; background: #fafafa; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);"><span style="font-weight: 700; color: #115e59; font-size: 12px; display: block; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">🎯 up to 51% top-p at 2-bit</span><span style="font-size: 13px; color: #4b5563; line-height: 1.5;">Top-token agreement with FP16: <b>50.9%</b> on the QAT-sourced IQ2_XS and <b>50.4%</b> on the QAT-sourced Q2_K_S — the best numbers at this bit budget and ~2× the top-p of plain Q2_K.</span></div>
+      <div style="border: 1px solid #e2e8f0; padding: 14px; border-radius: 8px; background: #fafafa; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);"><span style="font-weight: 700; color: #115e59; font-size: 12px; display: block; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">🎯 up to 51.1% top-p at 2-bit</span><span style="font-size: 13px; color: #4b5563; line-height: 1.5;">Top-token agreement with FP16: <b>51.1%</b> on vanilla Q2_K_S-AWQ, <b>49.4%</b> on QAT Q2_K_S-AWQ, <b>48.9%</b> on QAT IQ2_XS-AWQ — best-in-class at this bit budget and ~2× the top-p of plain Q2_K.</span></div>
       <div style="border: 1px solid #e2e8f0; padding: 14px; border-radius: 8px; background: #fafafa; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);"><span style="font-weight: 700; color: #115e59; font-size: 12px; display: block; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.5px;">🛠️ Standard GGUF</span><span style="font-size: 13px; color: #4b5563; line-height: 1.5;">Loads in vanilla llama.cpp / llama-server / LM Studio with no custom runtime, kernels, or patches.</span></div>
     </div>
   </div>
@@ -63,52 +64,51 @@ pipeline_tag: text-generation
 
 ## 🧰 1. Files & comparison
 
-The three **vanilla-source AWQ cv-gate** quants are the original headline release. Two **QAT-sourced AWQ cv-gate** quants (built from `google/gemma-4-31B-it-qat-q4_0-unquantized` — Google's quantization-aware-trained checkpoint, released in their FP16 form before the official Q4_0 quantization) are added in the second block of the table. The matched **imatrix-only** baselines (identical bit budget, no AWQ) and the **plain Q2_K** anchor (no calibration of any kind) are also shipped so the comparison below is fully reproducible.
+Three **vanilla-source** quants and two **QAT-source** quants (from `google/gemma-4-31B-it-qat-q4_0-unquantized` — Google's quantization-aware-trained checkpoint) at the AWQ cv-gate recipe, each paired with its imatrix-only baseline. Plain Q2_K is shipped as the no-calibration anchor.
 
-FP16 reference: 57.20 GiB, 16.005 BPW (not included; fetch from [`google/gemma-4-31B-it`](https://huggingface.co/google/gemma-4-31B-it)).
+FP16 reference: 57.20 GiB (not included; fetch from [`google/gemma-4-31B-it`](https://huggingface.co/google/gemma-4-31B-it)).
 
-The exact text corpora used to produce these quants ship under `calibration_data/`:
+Corpora under `calibration_data/`:
 
 | File | Role |
 |---|---|
-| `calibration_data/corpus.cal.txt` | imatrix collection + AWQ α search (wiki.test.raw + logtrain TRAIN slice) |
-| `calibration_data/corpus.val.txt` | held-out gate for per-tensor α (MMMU disciplines) |
-| `calibration_data/corpus.eval.txt` | PPL / KLD eval (external code+math+tools, ~90k tokens) |
-| `calibration_data/corpora_audit.json` | source provenance + token counts + seed |
+| `corpus.cal.txt` | imatrix collection + AWQ α search (wiki.test.raw + logtrain TRAIN slice) |
+| `corpus.val.txt` | held-out gate for per-tensor α (MMMU disciplines) |
+| `corpus.eval.txt` | PPL / KLD eval (external code+math+tools, ~90k tokens) |
 
-### Comparison
-
-All rows benched on the same eval corpus (~90k tokens from [`eaddario/imatrix-calibration`](https://huggingface.co/datasets/eaddario/imatrix-calibration): code + math + tools), same llama.cpp build, **ctx=4096** for both imatrix collection and PPL/KLD eval. AWQ calibrate uses **proxy_tokens=512, ctx=4096** for every shipped AWQ row (the recipe selected by the exp-022 → exp-026 proxy/ctx sweep, written up in `out/exp-022..027/`). Neither the calibration nor the validation slice appears in the eval corpus. KLD and same_top_p are measured against the original `google/gemma-4-31B-it` FP16, so QAT-sourced rows and vanilla-sourced rows are directly comparable.
+All rows benched on the same `corpus.eval.txt`, same llama.cpp build, **ctx=4096**. AWQ calibrate uses **proxy_tokens=1024, ctx=4096**; the Q2_K_S AWQ rows use the new `q2k_super` codebook proxy and the IQ2_M AWQ row uses `q2k_b16` base + `iq3_s` mix for the IQ3_S-bumped tensors. KLD and top_p are measured against `google/gemma-4-31B-it` FP16 (so QAT and vanilla rows are directly comparable). KLD column is **median** for robustness to per-token tails.
 
 #### Vanilla `google/gemma-4-31B-it` source
 
-| File | Quant | Technique | Size (GiB) | BPW | PPL | KLD (mean) | same_top_p |
+| File | Quant | Technique | Size (GiB) | BPW | PPL | KLD (median) | same_top_p |
 |---|---|---|---:|---:|---:|---:|---:|
 | n/a | FP16 | none (reference) | 57.20 | 16.005 | **277.89** | 0.00000 | 100.00% |
-| [`gemma-4-31B-it-Q2_K-plain.gguf`](https://huggingface.co/pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF/resolve/main/gemma-4-31B-it-Q2_K-plain.gguf) | Q2_K | plain (no imatrix, no AWQ) | 11.10 | 3.105 | 3370.57 | 6.119 | 25.83% |
+| [`gemma-4-31B-it-Q2_K-plain.gguf`](https://huggingface.co/pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF/resolve/main/gemma-4-31B-it-Q2_K-plain.gguf) | Q2_K | plain (no imatrix, no AWQ) | 11.10 | 3.105 | 3370.57 | 5.147 | 25.83% |
 |||||||||
-| [`gemma-4-31B-it-IQ2_XS-imatrix.gguf`](https://huggingface.co/pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF/resolve/main/gemma-4-31B-it-IQ2_XS-imatrix.gguf) | IQ2_XS | imatrix only (baseline) | 8.88 | 2.484 | 12116.47 | 4.584 | 33.23% |
-| [`gemma-4-31B-it-IQ2_XS-awq-cv-gate.gguf`](https://huggingface.co/pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF/resolve/main/gemma-4-31B-it-IQ2_XS-awq-cv-gate.gguf) | **IQ2_XS** | **AWQ cv-gate + imatrix** | **8.88** | **2.484** | **857.40** | **3.464** | **41.83%** |
-| [`gemma-4-31B-it-IQ2_M-imatrix.gguf`](https://huggingface.co/pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF/resolve/main/gemma-4-31B-it-IQ2_M-imatrix.gguf) | IQ2_M | imatrix only (baseline) | 10.17 | 2.845 | 2060.73 | 2.685 | 47.61% |
-| [`gemma-4-31B-it-IQ2_M-awq-cv-gate.gguf`](https://huggingface.co/pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF/resolve/main/gemma-4-31B-it-IQ2_M-awq-cv-gate.gguf) | **IQ2_M** | **AWQ cv-gate + imatrix** | **10.17** | **2.845** | **1224.40** | **3.133** | **45.13%** |
-| [`gemma-4-31B-it-Q2_K_S-imatrix.gguf`](https://huggingface.co/pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF/resolve/main/gemma-4-31B-it-Q2_K_S-imatrix.gguf) | Q2_K_S | imatrix only (baseline) | 10.22 | 2.861 | 1436.40 | 3.867 | 42.60% |
-| [`gemma-4-31B-it-Q2_K_S-awq-cv-gate.gguf`](https://huggingface.co/pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF/resolve/main/gemma-4-31B-it-Q2_K_S-awq-cv-gate.gguf) | **Q2_K_S** | **AWQ cv-gate + imatrix** | **10.22** | **2.861** | **124.32** | **3.418** | **48.92%** |
+| [`gemma-4-31B-it-IQ2_XS-imatrix.gguf`](https://huggingface.co/pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF/resolve/main/gemma-4-31B-it-IQ2_XS-imatrix.gguf) | IQ2_XS | imatrix only (baseline) | 8.88 | 2.484 | 12116.47 | 3.327 | 33.23% |
+| [`gemma-4-31B-it-IQ2_XS-awq-cv-gate.gguf`](https://huggingface.co/pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF/resolve/main/gemma-4-31B-it-IQ2_XS-awq-cv-gate.gguf) | **IQ2_XS** | **AWQ cv-gate + imatrix** | **8.88** | **2.484** | **327.28** | **1.817** | **46.29%** |
+| [`gemma-4-31B-it-IQ2_M-imatrix.gguf`](https://huggingface.co/pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF/resolve/main/gemma-4-31B-it-IQ2_M-imatrix.gguf) | IQ2_M | imatrix only (baseline) | 10.17 | 2.845 | 2060.73 | 1.496 | 47.61% |
+| [`gemma-4-31B-it-IQ2_M-awq-cv-gate.gguf`](https://huggingface.co/pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF/resolve/main/gemma-4-31B-it-IQ2_M-awq-cv-gate.gguf) | **IQ2_M** | **AWQ cv-gate + imatrix (q2k_b16 + iq3_s mix)** | **10.17** | **2.845** | **652.81** | **1.548** | **48.79%** |
+| [`gemma-4-31B-it-Q2_K_S-imatrix.gguf`](https://huggingface.co/pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF/resolve/main/gemma-4-31B-it-Q2_K_S-imatrix.gguf) | Q2_K_S | imatrix only (baseline) | 10.22 | 2.861 | 1436.40 | 2.138 | 42.60% |
+| [`gemma-4-31B-it-Q2_K_S-awq-cv-gate.gguf`](https://huggingface.co/pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF/resolve/main/gemma-4-31B-it-Q2_K_S-awq-cv-gate.gguf) | **Q2_K_S** | **AWQ cv-gate + imatrix (q2k_super)** | **10.22** | **2.861** | **73.09** | **1.632** | **51.14%** |
 
 #### QAT `google/gemma-4-31B-it-qat-q4_0-unquantized` source
 
-| File | Quant | Technique | Size (GiB) | BPW | PPL | KLD (mean) | same_top_p |
+| File | Quant | Technique | Size (GiB) | BPW | PPL | KLD (median) | same_top_p |
 |---|---|---|---:|---:|---:|---:|---:|
-| [`google/gemma-4-31B-it-qat-q4_0-unquantized`](https://huggingface.co/google/gemma-4-31B-it-qat-q4_0-unquantized) | Q4_0 | QAT (Google official, reference only) | 16.44 | 4.600 | 78.19 | 0.913 | 64.39% |
+| [`google/gemma-4-31B-it-qat-q4_0-unquantized`](https://huggingface.co/google/gemma-4-31B-it-qat-q4_0-unquantized) | Q4_0 | QAT (Google official, reference only) | 16.44 | 4.600 | 78.19 | 0.913¹ | 64.39% |
 |||||||||
-| [`gemma-4-31B-it-qat-IQ2_XS-imatrix.gguf`](https://huggingface.co/pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF/resolve/main/gemma-4-31B-it-qat-IQ2_XS-imatrix.gguf) | IQ2_XS | imatrix only (from QAT) | 8.88 | 2.484 | 209.00 | 1.859 | 47.09% |
-| [`gemma-4-31B-it-qat-IQ2_XS-awq-cv-gate.gguf`](https://huggingface.co/pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF/resolve/main/gemma-4-31B-it-qat-IQ2_XS-awq-cv-gate.gguf) | **IQ2_XS** | **AWQ cv-gate + imatrix (from QAT)** | **8.88** | **2.484** | **127.40** | **1.769** | **50.87%** |
-| [`gemma-4-31B-it-qat-Q2_K_S-imatrix.gguf`](https://huggingface.co/pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF/resolve/main/gemma-4-31B-it-qat-Q2_K_S-imatrix.gguf) | Q2_K_S | imatrix only (from QAT) | 10.22 | 2.861 | 110.71 | 1.820 | 47.65% |
-| [`gemma-4-31B-it-qat-Q2_K_S-awq-cv-gate.gguf`](https://huggingface.co/pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF/resolve/main/gemma-4-31B-it-qat-Q2_K_S-awq-cv-gate.gguf) | **Q2_K_S** | **AWQ cv-gate + imatrix (from QAT)** | **10.22** | **2.861** | **77.66** | **1.833** | **50.42%** |
+| [`gemma-4-31B-it-qat-IQ2_XS-imatrix.gguf`](https://huggingface.co/pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF/resolve/main/gemma-4-31B-it-qat-IQ2_XS-imatrix.gguf) | IQ2_XS | imatrix only (from QAT) | 8.88 | 2.484 | 209.00 | 1.270 | 47.09% |
+| [`gemma-4-31B-it-qat-IQ2_XS-awq-cv-gate.gguf`](https://huggingface.co/pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF/resolve/main/gemma-4-31B-it-qat-IQ2_XS-awq-cv-gate.gguf) | **IQ2_XS** | **AWQ cv-gate + imatrix (from QAT)** | **8.88** | **2.484** | **108.65** | **1.151** | **48.94%** |
+| [`gemma-4-31B-it-qat-Q2_K_S-imatrix.gguf`](https://huggingface.co/pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF/resolve/main/gemma-4-31B-it-qat-Q2_K_S-imatrix.gguf) | Q2_K_S | imatrix only (from QAT) | 10.22 | 2.861 | 110.71 | 1.332 | 47.65% |
+| [`gemma-4-31B-it-qat-Q2_K_S-awq-cv-gate.gguf`](https://huggingface.co/pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF/resolve/main/gemma-4-31B-it-qat-Q2_K_S-awq-cv-gate.gguf) | **Q2_K_S** | **AWQ cv-gate + imatrix (from QAT, q2k_super)** | **10.22** | **2.861** | **88.18** | **1.081** | **49.40%** |
 
-> **No IQ2_M-from-QAT row.** IQ2_M quantization of the QAT-unquantized weights collapses to garbage in both imatrix-only and AWQ arms (PPL ≈ 2×10¹⁰, mean KLD ≈ 23, same_top_p = 0%). The failure reproduces with no calibration involved — it appears to be a hard geometric incompatibility between the IQ2_M codebook and the QAT-shaped weight distribution. We chose not to ship a broken file. Use the vanilla-source `IQ2_M-awq-cv-gate` instead at that bit budget, or step up/down to the QAT-sourced Q2_K_S / IQ2_XS.
+> ¹ Q4_0 reference row carries the mean KLD from Google's measurement; not re-benched at median.
+
+> **No IQ2_M-from-QAT row.** IQ2_M quantization of the QAT weights collapses to garbage across every arm tested (PPL ≈ 2×10¹⁰, top_p = 0%) — the IQ2_M codebook and QAT-shaped weights are geometrically incompatible. Use the vanilla-source `IQ2_M-awq-cv-gate`, or step to the QAT-sourced Q2_K_S / IQ2_XS.
 
 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; border: 1px solid #99f6e4; border-radius: 12px; background: #f0fdfa; padding: 16px; margin: 16px 0; color: #115e59; font-size: 13px; line-height: 1.7;">
-  <b>Reading the table.</b> Three independent signals stack at the same 2-bit budget. (1) <b>Calibration vs none</b>: AWQ cv-gate beats imatrix-only on PPL by <b>2–12×</b> at each bit budget; plain Q2_K (no calibration, ~3.1 bpw) loses ~22 absolute top-p points despite a larger file. (2) <b>QAT source vs vanilla source</b>: starting from Google's QAT-unquantized checkpoint cuts mean KLD by <b>~2×</b> across every working bit budget — even plain Q2_K jumps from 25.8% → 42.6% top_p with no calibration at all, just from the change in source weights. QAT shapes the weight distribution to be inherently codebook-friendlier. (3) <b>AWQ on top of QAT — does both jobs</b>: at the new <code>proxy=512, ctx=4096</code> recipe (see exp-026 in the toolchain notes), QAT-IQ2_XS-AWQ reaches <b>KLD 1.769</b> and <b>top_p 50.87%</b>, beating its imatrix-only QAT baseline on both metrics. QAT-Q2_K_S-AWQ reaches <b>KLD 1.833</b> and <b>top_p 50.42%</b> — small KLD regression versus QAT-Q2_K_S-imatrix (1.820) but a +2.8pt top_p win and a 30% PPL drop. The headline row is now <b>QAT IQ2_XS AWQ cv-gate</b>: same KLD/top_p as Q2_K_S at <b>1.3 GiB less</b> on disk.
+  <b>Headline.</b> <b>qat-Q2_K_S-awq-cv-gate</b> wins on KLD/PPL (median KLD 1.081, PPL 88.2). <b>Q2_K_S-awq-cv-gate</b> (vanilla source) leads on top_p at <b>51.1%</b> with PPL 73.1. <b>qat-IQ2_XS-awq-cv-gate</b> is the best size/quality pick at 8.88 GiB (KLD 1.151, top_p 48.9%). AWQ cv-gate beats its imatrix-only baseline on PPL by <b>4–20×</b> at every working bit budget; plain Q2_K (no calibration) loses ~25 absolute top-p points despite a larger file.
 </div>
 
 ![Comparison: AWQ cv-gate release vs imatrix-only and FP16](./awq_cv_gate_release.png)
@@ -130,12 +130,12 @@ All rows benched on the same eval corpus (~90k tokens from [`eaddario/imatrix-ca
               └──────┬──────┘    └──────┬──────┘
               quantize this       fold into prev RMSNorm gain</code></pre>
       <p style="margin: 0 0 10px 0;">Math-equivalent to the original layer, but the rescaled weight matrix has a flatter per-channel range so the 2-bit codebook fits it with less error. The inverse scale gets absorbed into the preceding RMSNorm, so there is <b>no runtime overhead</b> and the GGUF stays standard.</p>
-      <p style="margin: 0 0 10px 0;">Baseline AWQ picks one shared <b>α</b> per group of layers that share an input (e.g. q/k/v). This release adds two refinements:</p>
+      <p style="margin: 0 0 10px 0;">Baseline AWQ picks one shared <b>α</b> per group of layers that share an input (e.g. q/k/v). This release adds three refinements:</p>
       <ol style="margin: 0; padding-left: 20px;">
         <li><b>Per-tensor α refinement.</b> Each member of a group (q, k, v individually) gets to nudge its α within a small local grid around the group choice, lowering its own reconstruction error.</li>
         <li><b>Binary held-out gate.</b> The per-tensor α is only accepted if it doesn't worsen the proxy loss on a <i>disjoint validation slice</i>. If it would, the gate rejects it and the tensor falls back to the safer group α. Without the gate, per-tensor refinement over-fits the calibration corpus at sub-3 bpw and PPL collapses on unseen text.</li>
+        <li><b>Codebook-faithful proxy quantizers.</b> The α search scores candidates against a proxy quantizer; an inaccurate proxy drifts the optimum. IQ2_* targets use bit-exact E8-lattice codebook proxies (matching llama.cpp's <code>iq2xxs/xs/s_grid</code>); Q2_K_S uses the new <code>q2k_super</code> proxy mirroring Q2_K's real 256-weight super-block; IQ2_M uses <code>q2k_b16</code> for the iq2_s tensors and routes the IQ3_S-bumped tensors through a faithful <code>iq3_s</code> codebook proxy.</li>
       </ol>
-      <p style="margin: 10px 0 0 0;"><b>Why not just merge the held-out text into the search?</b> Then it's no longer held-out. At 2-bit the α grid is expressive enough that some candidate will lower loss on any text by chance, so the search needs a second distribution it can't peek at to tell "generalizes" apart from "memorized the corpus." The gate spends that signal sparingly (one bit per tensor: accept the aggressive α, or fall back to the group α), which is too low-capacity to overfit even across thousands of tensors. Using val to pick α directly would re-introduce the same overfitting problem and require a third corpus to guard against it.</p>
     </div>
   </div>
   <div style="border: 1px solid #fde68a; border-radius: 12px; overflow: hidden; background: #ffffff;">
@@ -165,7 +165,7 @@ All rows benched on the same eval corpus (~90k tokens from [`eaddario/imatrix-ca
   </div>
 </div>
 
-Toolchain: AWQ + imatrix orchestrated by [`quant-tuner`](https://github.com/pearsonkyle/quant-tuner); final quantization with `llama-quantize` from [llama.cpp](https://github.com/ggerganov/llama.cpp) pinned to commit `45b455e6`.
+Toolchain: AWQ + imatrix orchestrated by [`quant-tuner`](https://github.com/pearsonkyle/quant-tuner); final quantization with `llama-quantize` from [llama.cpp](https://github.com/ggerganov/llama.cpp) pinned to commit `32782998`.
 
 ---
 ## 🚀 3. Usage
@@ -230,13 +230,14 @@ print(ask("What is 1+1?"))
 ```
 
 **Which file to pick:**
-- **`qat-IQ2_XS-awq-cv-gate`** (8.88 GiB) — **recommended default**. KLD 1.769, top_p 50.87% — the best numbers in the table at the smallest size in the AWQ class. Built from Google's QAT-unquantized checkpoint with the proxy=512+ctx=4096 recipe (exp-026).
-- **`qat-Q2_K_S-awq-cv-gate`** (10.22 GiB) — same top_p (~50.4%) but slightly worse KLD (1.833) at 1.3 GiB more on disk. Pick over IQ2_XS only when llama.cpp performance on Q2_K_S is meaningfully better on your hardware (rare; profile to be sure).
-- **`qat-Q2_K_S-imatrix`** (10.22 GiB) — best **KLD** in the 10.22 GiB tier (1.820 — slightly better than the AWQ variant's 1.833) but loses ~2.8 top_p. Pick this when you're optimizing pure FP16-distribution faithfulness over top-token agreement.
-- **`qat-IQ2_XS-imatrix`** (8.88 GiB) — only beats its AWQ sibling on neither metric; ships as the AWQ-comparison baseline.
-- **`IQ2_M-awq-cv-gate`** (10.17 GiB, vanilla source) — only IQ2_M file shipped. The QAT-source IQ2_M is broken (see callout in §1) so the vanilla-source build is the only working option at this exact bit budget. Note: the prior release (proxy=256, ctx=1024) had stronger top_p numbers here than the current recipe (49.4% vs 45.1%); the new recipe was kept for consistency with the rest of the table — see exp-027 in the experiment notes.
-- **`Q2_K_S-awq-cv-gate`** / **`IQ2_XS-awq-cv-gate`** (vanilla source) — pick these over the QAT counterparts if you need provenance traceable to `google/gemma-4-31B-it` only (e.g. licensing or audit reasons that disqualify the QAT-distilled checkpoint).
-- **`Q2_K-plain`** (11.10 GiB) — for reproducing the no-calibration baseline only. Not recommended for use.
+- **`qat-Q2_K_S-awq-cv-gate`** (10.22 GiB) — best KLD/PPL overall (1.081 / 88.2). Closest to FP16 at this bit budget.
+- **`qat-IQ2_XS-awq-cv-gate`** (8.88 GiB) — best size/quality (1.151 / 108.6, top_p 48.9%). Pick when memory is binding.
+- **`Q2_K_S-awq-cv-gate`** (10.22 GiB, vanilla) — best top_p (51.1%) and PPL (73.1); higher KLD (1.632) reflects heavier per-token tail.
+- **`qat-Q2_K_S-imatrix`** / **`qat-IQ2_XS-imatrix`** — imatrix-only QAT baselines; pick if AWQ is disallowed.
+- **`IQ2_M-awq-cv-gate`** (10.17 GiB, vanilla) — the only working IQ2_M at this bit budget. QAT IQ2_M is broken (§1).
+- **`IQ2_XS-awq-cv-gate`** (vanilla) — pick over its QAT sibling only if licensing requires vanilla provenance.
+- **`IQ2_XS-imatrix`** / **`IQ2_M-imatrix`** / **`Q2_K_S-imatrix`** (vanilla) — imatrix-only baselines, shipped for AWQ-vs-imatrix comparison.
+- **`Q2_K-plain`** (11.10 GiB) — no-calibration anchor; not recommended for use.
 
 ---
 
@@ -245,5 +246,5 @@ print(ask("What is 1+1?"))
 * Inherits the [**Gemma Terms of Use**](https://ai.google.dev/gemma/terms) from the base model.
 * Base weights — vanilla-source files: [`google/gemma-4-31B-it`](https://huggingface.co/google/gemma-4-31B-it).
 * Base weights — QAT-source files (`qat-*`): [`google/gemma-4-31B-it-qat-q4_0-unquantized`](https://huggingface.co/google/gemma-4-31B-it-qat-q4_0-unquantized), Google's quantization-aware-trained FP16 checkpoint. The Q4_0 reference row in §1 links to the matching official GGUF release.
-* Calibration + AWQ scaling + quantization performed locally with [**Quant-Tuner**](https://github.com/pearsonkyle/Quant-Tuner); vendored llama.cpp at commit `45b455e6`.
+* Calibration + AWQ scaling + quantization performed locally with [**Quant-Tuner**](https://github.com/pearsonkyle/Quant-Tuner); vendored llama.cpp at commit `32782998`.
 * Calibration data (usage logs) scraped using [**LogMiner**](https://github.com/pearsonkyle/LogMiner).

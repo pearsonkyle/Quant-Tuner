@@ -1,0 +1,47 @@
+# Hessian-based weight rounding (GPTQ) → Q2_K (~2.6 bpw).
+#
+# Low-bit preset. With n_bits/group_size/sym omitted, the rounding grid is
+# auto-derived from quantize.type: 2-bit asymmetric (min+scale, all 4 levels)
+# per-16-element block — matching Q2_K's inner-block shape, so GPTQ's error
+# compensation is aligned with what llama-quantize re-snaps to. A symmetric
+# 2-bit grid would have only three usable levels and destroys the model.
+#
+# Guardrails are auto-relaxed for 2-bit (sanity_max_rel 1.0, ppl_max_ratio
+# 4.0) — substantial drift is expected and legitimate at this bpw; the
+# guards only catch catastrophic blowups.
+name: q2_k_gptq
+
+model: PLACEHOLDER
+
+workspace: ./out/q2_k_gptq
+
+data:
+  logs: PLACEHOLDER
+  train_frac: 0.8
+  test_frac: 0.1
+  holdout_frac: 0.1
+  train_max_tokens: 250000
+  eval_max_tokens: 50000
+  supplement: ./calibration_supplement.txt
+  context_len: 16384
+
+calibration:
+  method: gptq
+  variant: default
+  params:
+    tokens: 32768
+    ctx: 2048
+    dampen: 0.01
+    actorder: true
+    # n_bits: 2             # auto from quantize.type (Q2 -> 2-bit asym g16)
+    # group_size: 16
+    # sym: false
+    # sanity_max_rel: 1.0   # auto-relaxed for 2-bit
+    # ppl_max_ratio: 4.0    # auto-relaxed for 2-bit
+
+quantize:
+  type: Q2_K
+
+bench:
+  suite: full
+  eval_ctx: 8192

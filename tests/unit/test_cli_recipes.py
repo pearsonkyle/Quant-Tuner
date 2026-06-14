@@ -18,6 +18,19 @@ from quant_tuner.config import RunConfig
 PACKAGED = Path(__file__).resolve().parents[2] / "src" / "quant_tuner" / "recipes"
 
 
+def test_all_packaged_recipes_parse():
+    """Every shipped recipe must round-trip through RunConfig validation."""
+    recipes = sorted(PACKAGED.glob("*.yaml"))
+    assert recipes, "no packaged recipes found"
+    for p in recipes:
+        cfg = RunConfig.from_yaml(p)
+        assert cfg.quantize.type, p.name
+        # IQ1/IQ2 targets must ship with a calibration method (llama-quantize
+        # requires an imatrix for them; the pipeline rejects method=none).
+        if cfg.quantize.type.upper().startswith(("IQ1", "IQ2")):
+            assert cfg.calibration.method != "none", p.name
+
+
 def test_resolve_bare_name_finds_packaged_recipe():
     p = _resolve_recipe(Path("q4_k_m_imatrix"))
     assert p == PACKAGED / "q4_k_m_imatrix.yaml"
