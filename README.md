@@ -12,21 +12,15 @@ changes *which* weights get the quantizer's budget, never the inference path.
 
 ---
 
-## ⭐ Headline result: Gemma-4-31B at ~2 bits per weight
+## ⭐ Gemma-4-31B at ~2 bits per weight
 
-A full release of **[`google/gemma-4-31B-it`](https://huggingface.co/google/gemma-4-31B-it)
-compressed under 3 bpw** is published at
-[**`pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF`**](https://huggingface.co/pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF).
-A 57.2 GiB FP16 model fits in **8.9–10.2 GiB** while keeping up to **51% top-token
-agreement** with FP16 — roughly 2× the top-p of plain `Q2_K` at a smaller file
-size, with **no custom runtime**.
+| Feature | Details |
+|---|---|
+| **Base Model** | [`google/gemma-4-31B-it`](https://huggingface.co/google/gemma-4-31B-it) |
+| **QAT Base Model** | [`google/gemma-4-31B-it-qat-q4_0-unquantized`](https://huggingface.co/google/gemma-4-31B-it-qat-q4_0-unquantized) |
+| **Hugging Face** | [`pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF`](https://huggingface.co/pearsonkyle/gemma-4-31B-it-awq-2bit-GGUF) |
 
-All rows benched on the same external code+math+tools eval corpus, same
-llama.cpp build, ctx=4096. KLD is **median** (robust to per-token tails),
-measured against `gemma-4-31B-it` FP16. AWQ calibrate: `proxy_tokens=1024,
-ctx=4096`, cv-gate per-tensor α.
-
-#### Vanilla `google/gemma-4-31B-it` source
+### Benchmarks
 
 | File | Quant | Technique | Size (GiB) | BPW | PPL | KLD (median) | top-p vs FP16 |
 |---|---|---|---:|---:|---:|---:|---:|
@@ -43,7 +37,7 @@ ctx=4096`, cv-gate per-tensor α.
 
 | File | Quant | Technique | Size (GiB) | BPW | PPL | KLD (median) | top-p vs FP16 |
 |---|---|---|---:|---:|---:|---:|---:|
-| Q4_0 | Q4_0 | QAT (Google official, ref only) | 16.44 | 4.600 | 78.19 | 0.913 | 64.4% |
+| [Q4_0](https://huggingface.co/google/gemma-4-31B-it-qat-q4_0-gguf) | [Q4_0](https://huggingface.co/google/gemma-4-31B-it-qat-q4_0-gguf) | QAT (Google official, ref only) | 16.44 | 4.600 | 78.19 | 0.913 | 64.4% |
 | qat-IQ2_XS-imatrix | IQ2_XS | imatrix only (from QAT) | 8.88 | 2.484 | 209.00 | 1.270 | 47.1% |
 | **qat-IQ2_XS-awq-cv-gate** | **IQ2_XS** | **AWQ cv-gate + imatrix** | **8.88** | **2.484** | **108.65** | **1.151** | **48.9%** |
 | qat-Q2_K_S-imatrix | Q2_K_S | imatrix only (from QAT) | 10.22 | 2.861 | 110.71 | 1.332 | 47.7% |
@@ -51,8 +45,6 @@ ctx=4096`, cv-gate per-tensor α.
 
 **Takeaways:**
 - **AWQ cv-gate beats imatrix-only on PPL by 4–20×** at every working bit budget.
-- **`qat-Q2_K_S-awq-cv-gate`** wins on KLD/PPL (median KLD **1.081**, PPL **88.2**) — closest to FP16 at this bit budget.
-- **`Q2_K_S-awq-cv-gate`** (vanilla) leads top-p at **51.1%** with PPL **73.1**.
 - **`qat-IQ2_XS-awq-cv-gate`** is the best size/quality pick at **8.88 GiB** (KLD 1.151, top-p 48.9%).
 - Plain `Q2_K` (no calibration) loses ~25 absolute top-p points despite a *larger* file.
 
