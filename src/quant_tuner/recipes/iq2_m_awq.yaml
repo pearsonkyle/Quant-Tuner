@@ -1,13 +1,19 @@
 # Activation-aware weight scaling (AWQ) → IQ2_M (~2.7 bpw).
 #
-# Low-bit preset. The α search auto-selects the codebook-aware `iq2_s` proxy
-# (IQ2_M = the IQ2_S 1024-entry E8-lattice grid + IQ3 mix): groups of 8
-# weights snap jointly to llama.cpp's exact codebook, free signs. This is
-# structurally different from IQ2_XS (512-entry grid, parity-constrained
-# signs) — compare with the iq2_xs_awq recipe. The folded-F16 imatrix is
-# re-weighted with `hybrid_custom`. IQ2_* REQUIRES an imatrix —
-# llama-quantize refuses without one, and the pipeline rejects method `none`
-# for IQ1/IQ2 up front.
+# Low-bit preset. IQ2_M is a *mixed* quant: llama-quantize keeps most tensors
+# on the IQ2_S grid (1024-entry E8-lattice, free signs) but bumps attn_v to
+# Q4_K (GQA/MoE >= 4) and attn_output + the first eighth of ffn_down to
+# IQ3_S. Scoring every group member with the pure `iq2_s` codebook proxy
+# regressed top_p vs the older q2k_b16 build: the codebook's steep α penalty
+# plus v_proj's fictitious 2-bit error (really Q4_K, far smaller and nearly
+# α-insensitive) dragged the shared group α down. `proxy` is therefore PINNED
+# to q2k_b16 — the empirically better build. Removing the pin re-enables the
+# pipeline default of `iq2_s` base proxy + per-member mix (`proxy_mix:
+# IQ2_M`), which scores each member against the type llama-quantize actually
+# assigns — not yet validated on the leaderboard; compare before adopting.
+# The folded-F16 imatrix is re-weighted with `hybrid_custom`. IQ2_* REQUIRES
+# an imatrix — llama-quantize refuses without one, and the pipeline rejects
+# method `none` for IQ1/IQ2 up front.
 name: iq2_m_awq
 
 model: PLACEHOLDER
@@ -29,7 +35,8 @@ calibration:
   variant: best
   params:
     proxy_tokens: 256
-    # proxy: iq2_s          # auto-selected from quantize.type; uncomment to pin
+    proxy: q2k_b16          # pinned (see header); delete this line for the
+                            # iq2_s + proxy_mix per-member default
     imatrix_variant: hybrid_custom
     rmsnorm_plus_one: true  # true for Qwen3.5; false for Llama/Mistral/Qwen3
     sanity_max_rel: 0.03

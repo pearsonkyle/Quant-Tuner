@@ -3,10 +3,15 @@
 # Low-bit preset. The α grid search automatically uses the `q2k_b16` proxy
 # (asymmetric per-16-element-block 2-bit RTN, the shape of Q2_K's error) —
 # the default INT4 proxy systematically over-rewards channels that a 2-bit
-# grid actually loses. The final llama-quantize imatrix is collected on the
-# AWQ-folded F16 and re-weighted with the `hybrid_custom` variant: at 2 bits
-# an uncalibrated or weakly calibrated quant degrades catastrophically, so
-# both calibrations are stacked by default.
+# grid actually loses. Q2_K is itself a *mixed* quant (llama-quantize bumps
+# attn_v to Q4_K on GQA/MoE >= 4 models, else Q3_K, and ffn_down to Q3_K on
+# every layer), so the pipeline also enables the per-member proxy mix
+# (`proxy_mix: Q2_K`): v_proj is scored with the proxy matching its real
+# target type instead of the 2-bit one. Pin `proxy` to opt out. The final
+# llama-quantize imatrix is collected on the AWQ-folded F16 and re-weighted
+# with the `hybrid_custom` variant: at 2 bits an uncalibrated or weakly
+# calibrated quant degrades catastrophically, so both calibrations are
+# stacked by default.
 name: q2_k_awq
 
 model: PLACEHOLDER

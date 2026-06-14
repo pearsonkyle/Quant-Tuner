@@ -29,6 +29,7 @@ The RMSNorm fold has two forms (controlled by ``rmsnorm_plus_one``):
 
 from __future__ import annotations
 
+import re
 import shutil
 import sys
 from collections.abc import Callable
@@ -194,6 +195,47 @@ def fake_quant_q2k_block16(W: torch.Tensor, block_size: int = 16) -> torch.Tenso
     return Wq.view(out_f, -1)[:, :in_f]
 
 
+def fake_quant_q2k_superblock(W: torch.Tensor) -> torch.Tensor:
+    """Bit-faithful Q2_K proxy: 256-weight super-block of 16 × 16-weight sub-blocks.
+
+    Mirrors llama.cpp's ``block_q2_K``: per-sub-block (scale, min) stored as
+    4-bit uints relative to per-super-block fp16 (d, dmin); weights are
+    2-bit unsigned in [0, 3]. Dequant: ``w = d·scale_i·q − dmin·min_i``.
+
+    Versus ``q2k_b16``, this matches Q2_K's *normalization scope*: the (scale,
+    min) re-quantization range is shared across each 256-weight super-block,
+    not the whole row. The shape of the resulting error pattern is what AWQ's
+    α search picks against — using the wrong scope (full row) over-rewards
+    channels that would actually be lost to super-block-local quantization.
+    """
+    SUPER = 256
+    SUB = 16
+    out_f, in_f = W.shape
+    pad = (-in_f) % SUPER
+    if pad:
+        W = torch.nn.functional.pad(W, (0, pad))
+    # [out_f, n_super, 16 sub-blocks, 16 weights]
+    Wb = W.view(out_f, -1, SUB, SUB)
+
+    # Per-sub-block ideal (scale, min); min is signed (Q2_K stores it via dmin)
+    wmin = Wb.amin(dim=-1, keepdim=True)
+    wmax = Wb.amax(dim=-1, keepdim=True)
+    scale = ((wmax - wmin) / 3.0).clamp(min=1e-8)
+
+    # Per-super-block normalization: 4-bit scales (1..15, nonzero) and
+    # 4-bit positive mins (0..15) relative to per-super-block fp16 (d, dmin).
+    s_range = scale.amax(dim=2, keepdim=True).clamp(min=1e-8)   # [out_f, n_super, 1, 1]
+    m_range = (-wmin).amax(dim=2, keepdim=True).clamp(min=1e-8)  # ymin = -wmin >= 0 in Q2_K
+    scale = (scale / s_range * 15.0).round().clamp(1, 15) * (s_range / 15.0)
+    ymin = ((-wmin) / m_range * 15.0).round().clamp(0, 15) * (m_range / 15.0)
+    # Q2_K dequant: w = d·scale·q − dmin·ymin → effective additive min = −ymin
+    wmin_q = -ymin
+
+    q = ((Wb - wmin_q) / scale).round().clamp(0, 3)
+    Wq = q * scale + wmin_q
+    return Wq.view(out_f, -1)[:, :in_f]
+
+
 def fake_quant_q3k_block16(W: torch.Tensor, block_size: int = 16) -> torch.Tensor:
     """Symmetric per-16-element-block 3-bit RTN (proxy for Q3_K / IQ3_*).
 
@@ -344,6 +386,86 @@ def fake_quant_iq2_xxs(W: torch.Tensor) -> torch.Tensor:
     return _fake_quant_iq2(W, grid_name="iq2xxs", scale_block=32, parity_signs=True)
 
 
+_IQ3S_SUPERBLOCK = 256
+_IQ3S_GROUP = 4
+_IQ3S_SCALE_BLOCK = 32
+_IQ3S_GRID_CACHE: dict[str, torch.Tensor] = {}
+
+
+def _iq3s_grid(device) -> torch.Tensor:
+    key = str(device)
+    t = _IQ3S_GRID_CACHE.get(key)
+    if t is None:
+        from quant_tuner.calibrate._iq3_grids import grid_components
+        raw = grid_components()
+        t = torch.tensor(list(raw), dtype=torch.float32, device=device).view(-1, 4)
+        _IQ3S_GRID_CACHE[key] = t
+    return t
+
+
+def fake_quant_iq3_s(W: torch.Tensor) -> torch.Tensor:
+    """Codebook-aware IQ3_S proxy mirroring llama.cpp's block_iq3_s.
+
+    Per row: pad to 256-weight super-blocks; each super-block has 8 sub-blocks
+    of 32 weights, each sub-block carries a 4-bit scale ``q4`` shared across
+    a per-super-block fp16 ``d``; dequant ``db = d · (1 + 2·q4)`` (not the
+    IQ2 form). Each group of 4 weights is snapped to one of 512 entries in
+    the IQ3_S codebook (magnitudes ∈ {1,3,5,7,9,11,13,15}, signs free).
+    Per-sub-block scale search mirrors the IQ2 proxy's small target sweep,
+    just retargeted around IQ3_S's top magnitude (15).
+    """
+    out_f, in_f = W.shape
+    pad = (-in_f) % _IQ3S_SUPERBLOCK
+    if pad:
+        W = torch.nn.functional.pad(W, (0, pad))
+    n = W.shape[1]
+    grid = _iq3s_grid(W.device)
+    m = W.abs().float()
+    signs = torch.where(W < 0, -1.0, 1.0).float()
+    m4 = m.view(out_f, -1, _IQ3S_GROUP)
+    groups_per_block = _IQ3S_SCALE_BLOCK // _IQ3S_GROUP  # 8
+
+    g2 = (grid * grid).sum(dim=1)
+    chunk = max(1024, (1 << 22) // grid.shape[0])
+
+    def codebook_fit(db_g: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        u = (m4 / db_g.unsqueeze(-1)).reshape(-1, _IQ3S_GROUP)
+        best = torch.empty(u.shape[0], dtype=torch.long, device=W.device)
+        for i0 in range(0, u.shape[0], chunk):
+            dist = g2.unsqueeze(0) - 2.0 * (u[i0:i0 + chunk] @ grid.T)
+            best[i0:i0 + chunk] = dist.argmin(dim=1)
+        deq = grid[best].view(out_f, -1, _IQ3S_GROUP) * db_g.unsqueeze(-1)
+        return deq, ((deq - m4) ** 2).sum(dim=-1)
+
+    M = m.view(out_f, -1, _IQ3S_SCALE_BLOCK).amax(dim=-1).clamp_min(1e-12)  # [out, B]
+
+    def block_sse(db_c: torch.Tensor) -> torch.Tensor:
+        sse_g = codebook_fit(db_c.repeat_interleave(groups_per_block, dim=1))[1]
+        return sse_g.view(out_f, -1, groups_per_block).sum(dim=-1)
+
+    targets = (12.0, 14.0, 15.0, 16.0)
+    best_db = M / targets[0]
+    best_sse = block_sse(best_db)
+    for target in targets[1:]:
+        db_c = M / target
+        sse_b = block_sse(db_c)
+        better = sse_b < best_sse
+        best_db = torch.where(better, db_c, best_db)
+        best_sse = torch.where(better, sse_b, best_sse)
+
+    # Snap winning scales to storage form: 4-bit q4 over per-super-block d,
+    # db = d * (1 + 2·q4), q4 ∈ [0, 15]. Top db per super = d * 31.
+    blocks_per_super = _IQ3S_SUPERBLOCK // _IQ3S_SCALE_BLOCK  # 8
+    db_super = best_db.view(out_f, -1, blocks_per_super)
+    d = (db_super.amax(dim=-1, keepdim=True) / 31.0).clamp_min(1e-12)
+    q4 = ((db_super / d - 1.0) * 0.5).round().clamp(0, 15)
+    db = (d * (1.0 + 2.0 * q4)).reshape(out_f, -1).clamp_min(1e-12)
+
+    deq = codebook_fit(db.repeat_interleave(groups_per_block, dim=1))[0]
+    Wq = deq.reshape(out_f, n) * signs
+    return Wq[:, :in_f].to(W.dtype)
+
+
 def fake_quant_iq2_xs(W: torch.Tensor) -> torch.Tensor:
     """IQ2_XS proxy: 512-entry codebook, scales per 16, even-parity signs."""
     return _fake_quant_iq2(W, grid_name="iq2xs", scale_block=16, parity_signs=True)
@@ -358,10 +480,12 @@ def fake_quant_iq2_s(W: torch.Tensor) -> torch.Tensor:
 _PROXIES: dict[str, Callable[[torch.Tensor], torch.Tensor]] = {
     "int4_g128": fake_quant_int4_g128,
     "q2k_b16": fake_quant_q2k_block16,
+    "q2k_super": fake_quant_q2k_superblock,
     "q3k_b16": fake_quant_q3k_block16,
     "iq2_xxs": fake_quant_iq2_xxs,
     "iq2_xs": fake_quant_iq2_xs,
     "iq2_s": fake_quant_iq2_s,
+    "iq3_s": fake_quant_iq3_s,
 }
 
 
@@ -385,6 +509,110 @@ def proxy_for_quant_type(quant_type: str) -> str:
     if qt.startswith(("IQ3", "Q3")):
         return "q3k_b16"
     return "int4_g128"
+
+
+_LAYER_RE = re.compile(r"\.layers\.(\d+)\.")
+
+
+def _gqa_or_moe_ge4(config) -> bool:
+    """Mirror llama.cpp's ``n_gqa() >= 4 || n_expert >= 4`` tensor-mix predicate."""
+    heads = getattr(config, "num_attention_heads", None) or 0
+    kv = getattr(config, "num_key_value_heads", None) or 0
+    if kv and heads // kv >= 4:
+        return True
+    experts = max(
+        getattr(config, "num_local_experts", None) or 0,
+        getattr(config, "num_experts", None) or 0,
+    )
+    return experts >= 4
+
+
+def proxy_for_member(
+    quant_type: str,
+    member: str,
+    *,
+    gqa_ge4: bool,
+    n_layers: int | None = None,
+) -> str | None:
+    """Per-member proxy override mirroring llama-quantize's 2-bit tensor mixes.
+
+    The low-bit ftypes are *mixed* quants — ``llama_tensor_get_type`` (pinned
+    llama.cpp 9e58d4d6) bumps some tensors above the ftype's base grid:
+
+    - IQ1/IQ2 branch:
+        ``attn_v``     → Q4_K when GQA or MoE ≥ 4, else IQ3_S (S/M) / Q2_K (rest)
+        ``attn_output``→ IQ3_S for IQ2_S/IQ2_M, IQ2_XXS for IQ1_*
+        ``ffn_down``   → one tier up for the first eighth of layers
+    - Q2_K:   ``attn_v`` → Q4_K (GQA/MoE ≥ 4) else Q3_K; ``ffn_down`` → Q3_K on
+      *every* layer; ``attn_output`` → Q3_K (the 8-expert-MoE Q5_K special case
+      is not modeled — o_proj groups are off by default anyway)
+    - Q2_K_S: ``attn_v`` → Q4_K only under GQA/MoE ≥ 4; ``ffn_down`` → Q4_K for
+      the first eighth; ``attn_output`` keeps the base grid
+    - Q3_K_M/Q3_K_L: ``attn_v``, ``attn_output`` and ``ffn_down`` (every layer,
+      non-Falcon) all land on Q4_K–Q5_K → scored with ``int4_g128``
+    - IQ3_M: ``ffn_down`` → Q4_K for the first eighth, ``attn_output`` → Q4_K
+    - Q3_K_S and IQ3_S have *no* overrides — every member keeps the base grid
+
+    Not modeled: the 70B attn_v → Q5_K special case, the 8-expert-MoE
+    variations, and IQ3_XS/IQ3_XXS (which bump attn_q/attn_k *down* a tier;
+    no shipped recipe targets them).
+
+    Scoring those members with the ftype's base proxy optimizes α against an
+    error the real quantization does not have — under IQ2_M the v_proj term
+    (really Q4_K, ~30× smaller error and nearly α-insensitive) steers the
+    shared attn-group α. Returns the proxy name matching the member's real
+    target type, or ``None`` when the member keeps the ftype's base grid.
+    """
+    qt = quant_type.upper()
+    leaf = member.rsplit(".", 1)[-1]
+
+    def first_eighth() -> bool:
+        if not n_layers:
+            return False
+        m = _LAYER_RE.search(member)
+        return m is not None and int(m.group(1)) < max(1, n_layers // 8)
+
+    # --- 3-bit families (no GQA conditions in their branches) -------------- #
+    if qt.startswith("Q3"):
+        if qt in ("Q3_K_M", "Q3_K_L") and leaf in ("v_proj", "o_proj", "down_proj"):
+            return "int4_g128"  # Q4_K/Q5_K
+        return None  # Q3_K_S: base grid everywhere
+    if qt.startswith("IQ3"):
+        if qt == "IQ3_M" and (leaf == "o_proj" or (leaf == "down_proj" and first_eighth())):
+            return "int4_g128"  # Q4_K
+        return None  # IQ3_S: base grid everywhere; XS/XXS down-bumps unmodeled
+
+    # --- 2-bit families ----------------------------------------------------- #
+    if not qt.startswith(("IQ1", "IQ2", "Q2")):
+        return None
+    s_or_m = qt.startswith(("IQ2_S", "IQ2_M"))
+
+    if leaf == "v_proj":
+        if gqa_ge4:
+            return "int4_g128"  # Q4_K
+        if qt == "Q2_K":
+            return "q3k_b16"  # Q3_K
+        if qt == "Q2_K_S":
+            return None
+        return "iq3_s" if s_or_m else "q2k_b16"  # IQ3_S : Q2_K
+    if leaf == "o_proj":
+        if qt == "Q2_K":
+            return "q3k_b16"  # Q3_K
+        if qt == "Q2_K_S":
+            return None
+        if s_or_m:
+            return "iq3_s"  # IQ3_S
+        if qt.startswith("IQ1"):
+            return "iq2_xxs"
+        return None
+    if leaf == "down_proj":
+        if qt == "Q2_K":
+            return "q3k_b16"  # Q3_K, every layer
+        if qt == "Q2_K_S":
+            return "int4_g128" if first_eighth() else None  # Q4_K
+        if first_eighth():
+            return "iq3_s" if s_or_m else "q2k_b16"
+    return None
 
 
 def proxy_loss(
@@ -442,12 +670,14 @@ class GroupScale:
 class ScaleBundle:
     groups: list[GroupScale] = field(default_factory=list)
     proxy: str = "int4_g128"  # name of the proxy quantizer used during calibration
+    proxy_mix: str | None = None  # quant type whose tensor mix drove per-member proxies
 
     def save(self, path: Path) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
         torch.save(
             {
                 "proxy": self.proxy,
+                "proxy_mix": self.proxy_mix,
                 "groups": [
                     {
                         "group_id": g.group_id,
@@ -489,7 +719,11 @@ class ScaleBundle:
                 member_alphas=({k: float(v) for k, v in ma.items()} if ma else None),
                 member_scales=({k: v.float() for k, v in ms.items()} if ms else None),
             ))
-        return cls(groups=groups, proxy=raw.get("proxy", "int4_g128"))
+        return cls(
+            groups=groups,
+            proxy=raw.get("proxy", "int4_g128"),
+            proxy_mix=raw.get("proxy_mix"),
+        )
 
 
 # --- Calibration --------------------------------------------------------- #
@@ -513,6 +747,7 @@ def calibrate(
     proxy_tokens: int = 512,
     include_output_proj: bool = False,
     proxy: str = "int4_g128",
+    proxy_mix: str | None = None,
     per_tensor_alpha: bool = False,
     per_tensor_grid_radius: float = 0.25,
     holdout_text: Path | None = None,
@@ -527,7 +762,17 @@ def calibrate(
     ``include_output_proj`` (exp-011) additionally scales ``o_proj`` and
     ``down_proj``. ``proxy`` (exp-012) selects the proxy quantizer used inside
     the α search — ``"int4_g128"`` (default) or ``"q2k_b16"`` (asymmetric 2-bit
-    per-16-block, for IQ2_*/Q2_K targets). ``per_tensor_alpha`` (exp-013) runs
+    per-16-block, for IQ2_*/Q2_K targets).
+
+    ``proxy_mix`` (set to a llama-quantize type, e.g. ``"IQ2_M"``) scores each
+    group member with the proxy matching the tensor type llama-quantize will
+    actually assign under that ftype (see ``proxy_for_member``): the low-bit
+    ftypes (IQ1/IQ2/Q2_K, and the Q3_K_M/L + IQ3_M tiers) are mixes — e.g.
+    attn_v lands on Q4_K under GQA/MoE ≥ 4 at 2 bits and on Q4_K–Q5_K under
+    Q3_K_M/L outright — and scoring them all with the ftype's base proxy lets
+    error terms that don't exist in the real quantization steer the shared
+    group α. Members without an override keep ``proxy``; for pure ftypes
+    (Q3_K_S, IQ3_S) the mix resolves to zero overrides. ``per_tensor_alpha`` (exp-013) runs
     a second refinement pass that picks each member's own α from a local grid
     around the group α; the per-member scales are stored alongside the shared
     group scale and applied separately at fold time.
@@ -561,8 +806,7 @@ def calibrate(
         "float32": torch.float32,
     }[dtype]
 
-    quantizer = _PROXIES[proxy]
-    print(f"[awq] proxy={proxy}", file=sys.stderr)
+    print(f"[awq] proxy={proxy} proxy_mix={proxy_mix}", file=sys.stderr)
 
     print(f"[awq] load {model_dir} -> {device}/{dtype}", file=sys.stderr)
     tok = AutoTokenizer.from_pretrained(model_dir, fix_mistral_regex=True)
@@ -579,6 +823,25 @@ def calibrate(
     print(f"[awq] groups: {len(groups)} total ({n_attn} attn, {n_mlp} mlp)", file=sys.stderr)
     if not groups:
         raise RuntimeError("no AWQ scale groups discovered")
+
+    # Per-member proxy overrides from the target ftype's tensor mix. Members
+    # without an override keep the group-level `proxy`.
+    member_proxies: dict[str, str] = {}
+    if proxy_mix is not None:
+        gqa_ge4 = _gqa_or_moe_ge4(model.config)
+        n_layers = getattr(model.config, "num_hidden_layers", None)
+        for g in groups:
+            for m in g.members:
+                override = proxy_for_member(
+                    proxy_mix, m, gqa_ge4=gqa_ge4, n_layers=n_layers)
+                if override is not None and override != proxy:
+                    member_proxies[m] = override
+        counts: dict[str, int] = {}
+        for name in member_proxies.values():
+            counts[name] = counts.get(name, 0) + 1
+        summary = ", ".join(f"{k}×{v}" for k, v in sorted(counts.items())) or "none"
+        print(f"[awq] proxy_mix={proxy_mix}: member overrides {summary} "
+              f"(gqa_or_moe_ge4={gqa_ge4})", file=sys.stderr)
 
     sum_abs: dict[str, torch.Tensor | None] = {g.group_id: None for g in groups}
     tok_count: dict[str, int] = {g.group_id: 0 for g in groups}
@@ -657,7 +920,7 @@ def calibrate(
             for h in ho_handles:
                 h.remove()
 
-    bundle = ScaleBundle(proxy=proxy)
+    bundle = ScaleBundle(proxy=proxy, proxy_mix=proxy_mix)
     for g in groups:
         abs_sum = sum_abs[g.group_id]
         x_cached = cached_X[g.group_id]
@@ -671,6 +934,7 @@ def calibrate(
         s_dev = s.to(device)
         X = x_cached.to(device)
         Ws = [_get_module(model, m).weight.detach().float() for m in g.members]
+        Qs = [_PROXIES[member_proxies.get(m, proxy)] for m in g.members]
 
         if force_alpha is not None:
             best_alpha = force_alpha
@@ -678,8 +942,8 @@ def calibrate(
             best_alpha, best_loss = 0.0, float("inf")
             for a in alphas:
                 loss = sum(
-                    proxy_loss(W, X, scale_from_alpha(s_dev, a), quantizer=quantizer)
-                    for W in Ws
+                    proxy_loss(W, X, scale_from_alpha(s_dev, a), quantizer=q)
+                    for W, q in zip(Ws, Qs, strict=True)
                 )
                 if loss < best_loss:
                     best_loss, best_alpha = loss, a
@@ -696,15 +960,15 @@ def calibrate(
                 X_ho = X_ho.to(device)
             member_alphas = {}
             member_scales = {}
-            for m, W in zip(g.members, Ws, strict=True):
+            for m, W, q in zip(g.members, Ws, Qs, strict=True):
                 # Score every candidate on X_cal (and X_ho if cv_strategy="mixed").
                 cal_losses: dict[float, float] = {}
                 ho_losses: dict[float, float] = {}
                 for a in local:
                     sa = scale_from_alpha(s_dev, a)
-                    cal_losses[a] = proxy_loss(W, X, sa, quantizer=quantizer)
+                    cal_losses[a] = proxy_loss(W, X, sa, quantizer=q)
                     if X_ho is not None:
-                        ho_losses[a] = proxy_loss(W, X_ho, sa, quantizer=quantizer)
+                        ho_losses[a] = proxy_loss(W, X_ho, sa, quantizer=q)
 
                 if cv_strategy == "mixed" and X_ho is not None:
                     scores = {
@@ -1066,6 +1330,7 @@ __all__ = [
     "fake_quant_q2k_block16",
     "fake_quant_q3k_block16",
     "fold_rmsnorm_gain",
+    "proxy_for_member",
     "proxy_for_quant_type",
     "proxy_loss",
     "scale_from_alpha",

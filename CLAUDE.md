@@ -97,6 +97,19 @@ Pipeline behaviors worth knowing:
     regenerate with `scripts/gen_iq2_grids.py` when bumping the llama.cpp pin.
     IQ2_M selects the `iq2_s` proxy (M = the S grid + an IQ3 tensor mix that
     llama-quantize decides per-tensor; the α search can't influence the mix).
+  - Low-bit targets (IQ1/IQ2/IQ3/Q2_K/Q3_K) additionally get a **per-member
+    proxy mix** (`params.proxy_mix`, pipeline-defaulted to `quantize.type`):
+    llama-quantize bumps members above the ftype's base grid — at 2 bits
+    attn_v → Q4_K (GQA/MoE ≥ 4), attn_output → IQ3_S (IQ2_S/M) / Q3_K (Q2_K),
+    ffn_down a tier up for the first eighth of layers (every layer for Q2_K);
+    under Q3_K_M/L attn_v/attn_output/ffn_down all land on Q4_K–Q5_K; under
+    IQ3_M attn_output + first-eighth ffn_down → Q4_K — so `proxy_for_member`
+    scores those members with the proxy matching their *real* target. Pure
+    ftypes (Q3_K_S, IQ3_S) resolve to zero overrides. Pinning `params.proxy`
+    disables both the auto-selection and the mix (set `proxy_mix` explicitly
+    to stack them). `iq2_m_awq` pins `proxy: q2k_b16`: pure-`iq2_s` scoring
+    regressed IQ2_M top_p — the codebook's steep α penalty plus v_proj's
+    fictitious 2-bit error (really Q4_K) dragged the shared group α down.
   - The α grid search runs **on the model device** (weights are not copied to
     CPU); cheap precondition checks (`cv_strategy` needs `holdout_text` and
     `per_tensor_alpha`, unknown `proxy`) fail before the model load.

@@ -229,8 +229,18 @@ def _calibrate_awq(
     if cfg.calibration.variant == "a050":
         params.setdefault("force_alpha", 0.5)
     # Match the α-search proxy to the target quant's error shape (2-bit ->
-    # q2k_b16, 3-bit -> q3k_b16, else int4_g128). Recipes can still pin one.
-    params.setdefault("proxy", awq.proxy_for_quant_type(cfg.quantize.type))
+    # q2k_b16, 3-bit -> q3k_b16, IQ2_* -> codebook proxies, else int4_g128).
+    # Low-bit ftypes (IQ1/IQ2/IQ3/Q2_K/Q3_K) are tensor *mixes* — llama-quantize
+    # bumps attn_v/attn_output/ffn_down to higher types per ftype (see
+    # awq.proxy_for_member) — so additionally score each member against its
+    # real target type. For pure ftypes in those families (Q3_K_S, IQ3_S) the
+    # mix resolves to zero overrides. Pinning `params.proxy` in a recipe opts
+    # out of both; set `params.proxy_mix` explicitly to combine a pinned base
+    # proxy with the mix.
+    if "proxy" not in params:
+        params["proxy"] = awq.proxy_for_quant_type(cfg.quantize.type)
+        if cfg.quantize.type.upper().startswith(("IQ1", "IQ2", "IQ3", "Q2", "Q3")):
+            params.setdefault("proxy_mix", cfg.quantize.type)
 
     apply_params: dict[str, Any] = {
         k: params.pop(k) for k in _AWQ_APPLY_PARAMS if k in params
