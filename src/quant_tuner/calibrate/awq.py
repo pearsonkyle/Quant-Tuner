@@ -195,6 +195,47 @@ def fake_quant_q2k_block16(W: torch.Tensor, block_size: int = 16) -> torch.Tenso
     return Wq.view(out_f, -1)[:, :in_f]
 
 
+def fake_quant_q2k_superblock(W: torch.Tensor) -> torch.Tensor:
+    """Bit-faithful Q2_K proxy: 256-weight super-block of 16 × 16-weight sub-blocks.
+
+    Mirrors llama.cpp's ``block_q2_K``: per-sub-block (scale, min) stored as
+    4-bit uints relative to per-super-block fp16 (d, dmin); weights are
+    2-bit unsigned in [0, 3]. Dequant: ``w = d·scale_i·q − dmin·min_i``.
+
+    Versus ``q2k_b16``, this matches Q2_K's *normalization scope*: the (scale,
+    min) re-quantization range is shared across each 256-weight super-block,
+    not the whole row. The shape of the resulting error pattern is what AWQ's
+    α search picks against — using the wrong scope (full row) over-rewards
+    channels that would actually be lost to super-block-local quantization.
+    """
+    SUPER = 256
+    SUB = 16
+    out_f, in_f = W.shape
+    pad = (-in_f) % SUPER
+    if pad:
+        W = torch.nn.functional.pad(W, (0, pad))
+    # [out_f, n_super, 16 sub-blocks, 16 weights]
+    Wb = W.view(out_f, -1, SUB, SUB)
+
+    # Per-sub-block ideal (scale, min); min is signed (Q2_K stores it via dmin)
+    wmin = Wb.amin(dim=-1, keepdim=True)
+    wmax = Wb.amax(dim=-1, keepdim=True)
+    scale = ((wmax - wmin) / 3.0).clamp(min=1e-8)
+
+    # Per-super-block normalization: 4-bit scales (1..15, nonzero) and
+    # 4-bit positive mins (0..15) relative to per-super-block fp16 (d, dmin).
+    s_range = scale.amax(dim=2, keepdim=True).clamp(min=1e-8)   # [out_f, n_super, 1, 1]
+    m_range = (-wmin).amax(dim=2, keepdim=True).clamp(min=1e-8)  # ymin = -wmin >= 0 in Q2_K
+    scale = (scale / s_range * 15.0).round().clamp(1, 15) * (s_range / 15.0)
+    ymin = ((-wmin) / m_range * 15.0).round().clamp(0, 15) * (m_range / 15.0)
+    # Q2_K dequant: w = d·scale·q − dmin·ymin → effective additive min = −ymin
+    wmin_q = -ymin
+
+    q = ((Wb - wmin_q) / scale).round().clamp(0, 3)
+    Wq = q * scale + wmin_q
+    return Wq.view(out_f, -1)[:, :in_f]
+
+
 def fake_quant_q3k_block16(W: torch.Tensor, block_size: int = 16) -> torch.Tensor:
     """Symmetric per-16-element-block 3-bit RTN (proxy for Q3_K / IQ3_*).
 
@@ -345,6 +386,86 @@ def fake_quant_iq2_xxs(W: torch.Tensor) -> torch.Tensor:
     return _fake_quant_iq2(W, grid_name="iq2xxs", scale_block=32, parity_signs=True)
 
 
+_IQ3S_SUPERBLOCK = 256
+_IQ3S_GROUP = 4
+_IQ3S_SCALE_BLOCK = 32
+_IQ3S_GRID_CACHE: dict[str, torch.Tensor] = {}
+
+
+def _iq3s_grid(device) -> torch.Tensor:
+    key = str(device)
+    t = _IQ3S_GRID_CACHE.get(key)
+    if t is None:
+        from quant_tuner.calibrate._iq3_grids import grid_components
+        raw = grid_components()
+        t = torch.tensor(list(raw), dtype=torch.float32, device=device).view(-1, 4)
+        _IQ3S_GRID_CACHE[key] = t
+    return t
+
+
+def fake_quant_iq3_s(W: torch.Tensor) -> torch.Tensor:
+    """Codebook-aware IQ3_S proxy mirroring llama.cpp's block_iq3_s.
+
+    Per row: pad to 256-weight super-blocks; each super-block has 8 sub-blocks
+    of 32 weights, each sub-block carries a 4-bit scale ``q4`` shared across
+    a per-super-block fp16 ``d``; dequant ``db = d · (1 + 2·q4)`` (not the
+    IQ2 form). Each group of 4 weights is snapped to one of 512 entries in
+    the IQ3_S codebook (magnitudes ∈ {1,3,5,7,9,11,13,15}, signs free).
+    Per-sub-block scale search mirrors the IQ2 proxy's small target sweep,
+    just retargeted around IQ3_S's top magnitude (15).
+    """
+    out_f, in_f = W.shape
+    pad = (-in_f) % _IQ3S_SUPERBLOCK
+    if pad:
+        W = torch.nn.functional.pad(W, (0, pad))
+    n = W.shape[1]
+    grid = _iq3s_grid(W.device)
+    m = W.abs().float()
+    signs = torch.where(W < 0, -1.0, 1.0).float()
+    m4 = m.view(out_f, -1, _IQ3S_GROUP)
+    groups_per_block = _IQ3S_SCALE_BLOCK // _IQ3S_GROUP  # 8
+
+    g2 = (grid * grid).sum(dim=1)
+    chunk = max(1024, (1 << 22) // grid.shape[0])
+
+    def codebook_fit(db_g: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        u = (m4 / db_g.unsqueeze(-1)).reshape(-1, _IQ3S_GROUP)
+        best = torch.empty(u.shape[0], dtype=torch.long, device=W.device)
+        for i0 in range(0, u.shape[0], chunk):
+            dist = g2.unsqueeze(0) - 2.0 * (u[i0:i0 + chunk] @ grid.T)
+            best[i0:i0 + chunk] = dist.argmin(dim=1)
+        deq = grid[best].view(out_f, -1, _IQ3S_GROUP) * db_g.unsqueeze(-1)
+        return deq, ((deq - m4) ** 2).sum(dim=-1)
+
+    M = m.view(out_f, -1, _IQ3S_SCALE_BLOCK).amax(dim=-1).clamp_min(1e-12)  # [out, B]
+
+    def block_sse(db_c: torch.Tensor) -> torch.Tensor:
+        sse_g = codebook_fit(db_c.repeat_interleave(groups_per_block, dim=1))[1]
+        return sse_g.view(out_f, -1, groups_per_block).sum(dim=-1)
+
+    targets = (12.0, 14.0, 15.0, 16.0)
+    best_db = M / targets[0]
+    best_sse = block_sse(best_db)
+    for target in targets[1:]:
+        db_c = M / target
+        sse_b = block_sse(db_c)
+        better = sse_b < best_sse
+        best_db = torch.where(better, db_c, best_db)
+        best_sse = torch.where(better, sse_b, best_sse)
+
+    # Snap winning scales to storage form: 4-bit q4 over per-super-block d,
+    # db = d * (1 + 2·q4), q4 ∈ [0, 15]. Top db per super = d * 31.
+    blocks_per_super = _IQ3S_SUPERBLOCK // _IQ3S_SCALE_BLOCK  # 8
+    db_super = best_db.view(out_f, -1, blocks_per_super)
+    d = (db_super.amax(dim=-1, keepdim=True) / 31.0).clamp_min(1e-12)
+    q4 = ((db_super / d - 1.0) * 0.5).round().clamp(0, 15)
+    db = (d * (1.0 + 2.0 * q4)).reshape(out_f, -1).clamp_min(1e-12)
+
+    deq = codebook_fit(db.repeat_interleave(groups_per_block, dim=1))[0]
+    Wq = deq.reshape(out_f, n) * signs
+    return Wq[:, :in_f].to(W.dtype)
+
+
 def fake_quant_iq2_xs(W: torch.Tensor) -> torch.Tensor:
     """IQ2_XS proxy: 512-entry codebook, scales per 16, even-parity signs."""
     return _fake_quant_iq2(W, grid_name="iq2xs", scale_block=16, parity_signs=True)
@@ -359,10 +480,12 @@ def fake_quant_iq2_s(W: torch.Tensor) -> torch.Tensor:
 _PROXIES: dict[str, Callable[[torch.Tensor], torch.Tensor]] = {
     "int4_g128": fake_quant_int4_g128,
     "q2k_b16": fake_quant_q2k_block16,
+    "q2k_super": fake_quant_q2k_superblock,
     "q3k_b16": fake_quant_q3k_block16,
     "iq2_xxs": fake_quant_iq2_xxs,
     "iq2_xs": fake_quant_iq2_xs,
     "iq2_s": fake_quant_iq2_s,
+    "iq3_s": fake_quant_iq3_s,
 }
 
 
@@ -451,14 +574,14 @@ def proxy_for_member(
             return "q3k_b16"  # Q3_K
         if qt == "Q2_K_S":
             return None
-        return "q3k_b16" if s_or_m else "q2k_b16"  # IQ3_S : Q2_K
+        return "iq3_s" if s_or_m else "q2k_b16"  # IQ3_S : Q2_K
     if leaf == "o_proj":
         if qt == "Q2_K":
             return "q3k_b16"  # Q3_K
         if qt == "Q2_K_S":
             return None
         if s_or_m:
-            return "q3k_b16"  # IQ3_S
+            return "iq3_s"  # IQ3_S
         if qt.startswith("IQ1"):
             return "iq2_xxs"
         return None
@@ -468,7 +591,7 @@ def proxy_for_member(
         if qt == "Q2_K_S":
             return "int4_g128" if first_eighth() else None  # Q4_K
         if first_eighth():
-            return "q3k_b16" if s_or_m else "q2k_b16"
+            return "iq3_s" if s_or_m else "q2k_b16"
     return None
 
 
