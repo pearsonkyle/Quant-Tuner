@@ -37,6 +37,13 @@ redteam = [
     "hydra-core>=1.3",
     "omegaconf>=2.3",
 ]
+# Agentic SWE-rebench benchmark (eval/swebench.py). mini-swe-agent drives the
+# model over the OpenAI-compatible llama-server endpoint inside a per-instance
+# Docker container; grading runs the instance's FAIL_TO_PASS/PASS_TO_PASS tests.
+# Requires a running Docker daemon — see CLAUDE.md for the Apple-Silicon caveat.
+swebench = [
+    "mini-swe-agent==2.4.1",  # pin: DefaultAgent/LitellmModel/DockerEnvironment API is version-sensitive
+]
 
 [project.scripts]
 quant-tuner = "quant_tuner.cli:app"

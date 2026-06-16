@@ -30,10 +30,16 @@ def quantize(
     quant_type: str,
     imatrix: Path | None = None,
     log: Path | None = None,
+    tensor_types: dict[str, str] | None = None,
 ) -> Path:
     cmd: list[str | Path] = [llama_bin("llama-quantize")]
     if imatrix is not None:
         cmd += ["--imatrix", imatrix]
+    # Per-tensor type overrides (e.g. keep MTP/nextn near-lossless at q8_0 while
+    # the trunk goes to a 2-bit type). llama-quantize matches by tensor-name
+    # substring: ``--tensor-type nextn=q8_0``. Options precede the positionals.
+    for name, ttype in (tensor_types or {}).items():
+        cmd += ["--tensor-type", f"{name}={ttype}"]
     cmd += [f16_gguf, out_gguf, quant_type]
     run(cmd, log=log)
     return out_gguf

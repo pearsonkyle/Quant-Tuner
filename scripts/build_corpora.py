@@ -128,6 +128,10 @@ def build(
     eval_tokens_per_domain: int,
     seed: int,
     val_supplement_override: Path | None = None,
+    per_session_cap: int = 3_500,
+    system_prose_budget: int = 256,
+    full_prose_quota: int = 1,
+    max_windows_per_session: int = 8,
 ) -> None:
     from transformers import AutoTokenizer
 
@@ -174,7 +178,10 @@ def build(
     # --- 1) Calibration: ALL of wiki + ~500k logtrain (train slice) ----------
     cal_chunks, _kept, cal_total, cal_pack = split.stratified_pack(
         splits["train"], tok,
-        target_tokens=cal_tokens, per_session_cap=6_000, seed=seed,
+        target_tokens=cal_tokens, per_session_cap=per_session_cap, seed=seed,
+        system_prose_budget=system_prose_budget,
+        full_prose_quota=full_prose_quota,
+        max_windows_per_session=max_windows_per_session,
     )
     cal_logtrain = out_dir / "corpus.cal.logtrain.txt"
     split.write_corpus(cal_chunks, cal_logtrain)
@@ -201,7 +208,10 @@ def build(
     if val_tokens > 0:
         val_chunks, _kept2, val_total, val_pack = split.stratified_pack(
             splits["test"], tok,
-            target_tokens=val_tokens, per_session_cap=3_000, seed=seed,
+            target_tokens=val_tokens, per_session_cap=per_session_cap, seed=seed,
+            system_prose_budget=system_prose_budget,
+            full_prose_quota=full_prose_quota,
+            max_windows_per_session=max_windows_per_session,
         )
         split.write_corpus(
             val_chunks, val_corpus,
@@ -317,6 +327,17 @@ def main() -> int:
     p.add_argument("--eval-tokens-per-domain", type=int, default=30_000,
                    help="target tokens per external eval domain (default 30k)")
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--per-session-cap", type=int, default=3_500,
+                   help="max tokens per emitted window; keep < imatrix ctx (4096) "
+                        "so no window straddles a context boundary (default 3500)")
+    p.add_argument("--system-prose-budget", type=int, default=256,
+                   help="stub the system-message prose to this many tokens (schemas "
+                        "ride the tools= arg and are untouched); default 256")
+    p.add_argument("--full-prose-quota", type=int, default=1,
+                   help="render the FULL system prose in this many sessions per unique "
+                        "system prompt; the rest get the stub (default 1)")
+    p.add_argument("--max-windows-per-session", type=int, default=8,
+                   help="cap windows emitted per long session (default 8)")
     p.add_argument("--val-supplement", type=Path, default=None,
                    help="override the val supplement path (e.g. an MMMU file); "
                         "combine with --val-tokens 0 for a supplement-only val "
@@ -331,6 +352,10 @@ def main() -> int:
         eval_tokens_per_domain=a.eval_tokens_per_domain,
         seed=a.seed,
         val_supplement_override=a.val_supplement,
+        per_session_cap=a.per_session_cap,
+        system_prose_budget=a.system_prose_budget,
+        full_prose_quota=a.full_prose_quota,
+        max_windows_per_session=a.max_windows_per_session,
     )
     return 0
 

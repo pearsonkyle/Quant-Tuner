@@ -197,6 +197,78 @@ uv run python scripts/run_mmlu_pro_reps.py \
 Plug a new benchmark in by writing a `dict[str, float]`-returning adapter on top
 of `quant_tuner.eval.reps.run_reps_for_models`.
 
+## Agentic benchmark (SWE-rebench)
+
+KLD and tool-call accuracy tell you a quant *emits valid tokens*; they don't tell
+you it can **read a repo, run commands, edit code, and land a working patch**.
+This benchmark drives [`mini-swe-agent`](https://github.com/SWE-agent/mini-swe-agent)
+against real GitHub issues from
+[`nebius/SWE-rebench`](https://huggingface.co/datasets/nebius/SWE-rebench), each in
+a **clean per-instance Docker container**, with the quant served by your local
+`llama-server`. It grades a true **pass rate** by running each instance's gold
+`FAIL_TO_PASS` / `PASS_TO_PASS` tests, and saves every conversation trajectory to
+disk for inspection (loops, hallucinations) and future training data.
+
+**Per-run metrics:** token usage · tool (bash) calls · tool errors · **patch
+rate** (produced a non-empty diff) · **pass rate** (patch resolved the issue).
+
+### Requirements
+
+- **The `swebench` extra:** `uv sync --extra swebench` (installs `mini-swe-agent`).
+- **A running Docker daemon.** SWE-rebench ships per-instance linux/amd64 images
+  (`swerebench/sweb.eval.x86_64.*` on Docker Hub). On Apple Silicon they run under
+  emulation — correct but slow, so give Docker Desktop plenty of memory and expect
+  the first run of each instance to pull a multi-GB image. The runner fails fast
+  with a clear message if Docker isn't reachable.
+
+### Run it
+
+```bash
+# 1. Build a holdout (default: 10 "lite", low-difficulty instances, seed 42).
+#    Pages HF's datasets-server API — no multi-GB dataset download.
+PYTHONPATH=src .venv/bin/python scripts/build_swebench_holdout.py --n 10
+#    → out/external/swe-rebench/holdout.jsonl
+
+# 2. Start Docker (e.g. `open -a Docker` on macOS), then run the benchmark.
+#    Defaults to the gemma-4-31B qat-Q2_K_S-imatrix quant.
+PYTHONPATH=src .venv/bin/python scripts/run_swebench_eval.py --progress
+
+# Evaluate several quants in one go (one llama-server per model, instances serial):
+PYTHONPATH=src .venv/bin/python scripts/run_swebench_eval.py --progress \
+    --models uploads/.../gemma-4-31B-it-qat-Q2_K_S-imatrix.gguf \
+             uploads/.../gemma-4-31B-it-qat-Q2_K_S-awq-cv-gate.gguf
+```
+
+> **Note on the interpreter.** The `swebench` deps live in the uv-managed `.venv`,
+> so the *scripts* run via `PYTHONPATH=src .venv/bin/python …` (not `uv run`).
+
+### Output
+
+Everything lands under `--workspace` (default `out/swe-rebench/run-<timestamp>/`):
+
+```
+results.csv                          one row per (model, instance) — all metrics
+aggregated.csv                       one row per model — pass_rate, patch_rate, …
+summary.json                         machine-readable everything
+trajectories/<model>/<id>.traj.json  full agent conversation (for debugging)
+trajectories/<model>/<id>.result.json  the patch + grade + per-instance metrics
+```
+
+### Useful flags
+
+| Flag | Purpose |
+|---|---|
+| `--max-steps 50` | Cap agent steps per instance (default 50). |
+| `--instance-timeout 2400` | Wall-clock seconds per instance. |
+| `--ctx 32768` | `llama-server` context length. |
+| `--temperature 0.0` | Greedy/deterministic (default). |
+| `--model-class litellm_textbased` | Parse bash from text instead of tool-calls — often more robust on weak 2-bit models. |
+| `--skip-docker-check` | Bypass the Docker-up guard. |
+
+The grader covers the common **pytest** case (the bulk of SWE-rebench's Python
+repos), preferring each instance's own `install_config.test_cmd`; a non-pytest
+runner surfaces as a *grade error*, never a silent pass.
+
 ## Serving a quant
 
 These are plain GGUFs — load them in `llama-server`, LM Studio, or anything that
@@ -266,7 +338,7 @@ src/quant_tuner/
 ├── quantize/         # HF → F16 GGUF, F16 → Q* GGUF
 ├── bench/            # bpw | kld | speed | runner (CSV row builder)
 ├── data/             # log ingest, stratified packing, train/test/holdout split
-├── eval/             # task-level evals (toolcall, mmlu_pro) + generic N-rep runner
+├── eval/             # task-level evals (toolcall, mmlu_pro, swebench) + generic N-rep runner
 ├── experiments/      # shared log/phase/step helpers for driver scripts
 ├── leaderboard/      # CSV → markdown aggregation with SQS scoring
 ├── models/           # HF extract, llama.cpp binary wrappers, HF→GGUF name map

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import random
 from collections import Counter, defaultdict
@@ -13,6 +14,12 @@ from quant_tuner.data.ingest import (
     normalize_messages,
     session_fingerprint,
 )
+
+# A window body may begin on a user or assistant turn, but never on a `tool`
+# message: a `tool` role only makes sense as the response to a preceding
+# assistant `tool_calls`, so starting a window there orphans it and most chat
+# templates either error or render off-distribution output.
+_BODY_START_ROLES = ("user", "assistant")
 
 
 def length_bucket(n_msgs: int) -> str:
@@ -67,15 +74,124 @@ def cap_session(tokenizer, messages: list[dict], tools, cap_tokens: int) -> tupl
     return best_text, best_ntok
 
 
+def stub_system_content(content: str, tokenizer, budget_tokens: int) -> str:
+    """Trim system-message *prose* to ~budget_tokens (keeping the head).
+
+    Tool/function schemas are rendered from the separate ``tools=`` argument of
+    ``apply_chat_template`` — they do NOT live in this prose — so trimming here
+    frees window budget without touching the tool-calling conditioning the model
+    actually attends to. Non-string content (rare multimodal parts) is returned
+    unchanged since we can't safely truncate it.
+    """
+    if not isinstance(content, str):
+        return content
+    ids = tokenizer(content, add_special_tokens=False)["input_ids"]
+    if len(ids) <= budget_tokens:
+        return content
+    return tokenizer.decode(ids[:budget_tokens], skip_special_tokens=True)
+
+
+def session_windows(
+    tokenizer,
+    messages: list[dict],
+    tools,
+    cap_tokens: int,
+    *,
+    system_content: str | None = None,
+    max_windows: int = 8,
+) -> list[tuple[str, int]]:
+    """Slice one session into ≤max_windows chat-templated windows of ≤cap_tokens.
+
+    Each window = an optional system message (with ``system_content`` substituted
+    when given — typically a trimmed stub) + a contiguous run of body messages.
+    Windows are non-overlapping and walk the session in order, so a long agentic
+    trajectory yields several windows that each contain real tool-call turns and
+    a clean termination — instead of one head-anchored prefix dominated by the
+    system prompt. A window body never starts on a `tool` message.
+
+    Returns a list of (text, ntok). A window whose first body message alone
+    exceeds ``cap_tokens`` is still emitted (ntok > cap_tokens) so nothing is
+    silently dropped; callers can detect it by comparing ntok to the cap.
+    """
+    coerce_tool_call_arguments(messages)
+    if messages and messages[0].get("role") == "system":
+        sys_msg = dict(messages[0])
+        if system_content is not None:
+            sys_msg["content"] = system_content
+        prefix = [sys_msg]
+        body = messages[1:]
+    else:
+        prefix = []
+        body = messages
+
+    def render(run: list[dict]) -> tuple[str, int]:
+        text = tokenizer.apply_chat_template(prefix + run, tools=tools, tokenize=False)
+        ntok = len(tokenizer(text, add_special_tokens=False)["input_ids"])
+        return text, ntok
+
+    windows: list[tuple[str, int]] = []
+    i, n = 0, len(body)
+    while i < n and len(windows) < max_windows:
+        # Snap the window start to a non-orphan boundary.
+        while i < n and body[i].get("role") not in _BODY_START_ROLES:
+            i += 1
+        if i >= n:
+            break
+        # Binary-search the largest j>i such that body[i:j] fits the cap.
+        lo, hi, best_j = i + 1, n, None
+        while lo <= hi:
+            mid = (lo + hi) // 2
+            _, ntok = render(body[i:mid])
+            if ntok <= cap_tokens:
+                best_j = mid
+                lo = mid + 1
+            else:
+                hi = mid - 1
+        if best_j is None:  # single message larger than the cap — keep it anyway
+            best_j = i + 1
+        text, ntok = render(body[i:best_j])
+        if ntok > 0:
+            windows.append((text.strip(), ntok))
+        i = best_j
+    return windows
+
+
 def stratified_pack(
     sessions: list[dict],
     tokenizer,
     target_tokens: int,
     per_session_cap: int = 6_000,
     seed: int = 42,
+    *,
+    system_prose_budget: int | None = None,
+    full_prose_quota: int = 1,
+    max_windows_per_session: int = 8,
 ) -> tuple[list[str], list[dict], int, dict[str, Any]]:
-    """Round-robin across (source, length_bucket) strata. Returns (chunks, kept, total, audit)."""
+    """Round-robin across (source, length_bucket) strata. Returns (chunks, kept, total, audit).
+
+    Default behavior (``system_prose_budget=None``) is unchanged: one
+    head-anchored ``cap_session`` chunk per session.
+
+    When ``system_prose_budget`` is set, the calibration-tuned path kicks in:
+      * Each session is sliced into multiple ≤``per_session_cap`` windows via
+        ``session_windows`` (so later tool-call turns + terminations survive,
+        instead of being truncated off the tail).
+      * The system *prose* is replaced with a ≤``system_prose_budget``-token stub
+        for all but the first ``full_prose_quota`` sessions sharing an identical
+        system prompt — schemas (rendered from ``tools=``) are untouched. This
+        deduplicates the giant repeated boilerplate that otherwise dominates the
+        imatrix, freeing the budget for diverse tool-call signal.
+    """
     rng = random.Random(seed)
+    windowed = system_prose_budget is not None
+    prose_budget = system_prose_budget if system_prose_budget is not None else 0
+    full_prose_counts: Counter = Counter()
+    full_prose_sessions = 0
+    stub_sessions = 0
+    windows_emitted = 0
+    system_tokens_total = 0
+    oversize_windows = 0
+    unique_system_prompts: set[str] = set()
 
     strata: dict[tuple[str, str], list[dict]] = defaultdict(list)
     for s in sessions:
@@ -112,36 +228,107 @@ def stratified_pack(
             if not messages:
                 continue
             tools = session_tools(s, messages)
+
+            if not windowed:
+                # --- legacy single-chunk path (unchanged) --------------------
+                try:
+                    text, ntok = cap_session(tokenizer, messages, tools, per_session_cap)
+                except Exception:
+                    continue
+                if ntok == 0:
+                    continue
+                try:
+                    _, full_ntok = template_session(tokenizer, messages, tools)
+                except Exception:
+                    full_ntok = ntok
+                if ntok < full_ntok:
+                    truncations += 1
+
+                remaining = target_tokens - total
+                if ntok > remaining * 1.10:
+                    continue
+
+                chunks.append(text.strip())
+                kept.append(s)
+                total += ntok
+                per_source[key[0]] += ntok
+                per_bucket[key[1]] += ntok
+                per_stratum[f"{key[0]}/{key[1]}"] += ntok
+
+                if total >= target_tokens:
+                    break
+                continue
+
+            # --- stub + multi-window path -----------------------------------
+            # Decide full vs. stub system prose, deduplicating the boilerplate.
+            sys_content: str | None = None
+            is_full = False
+            sys_raw = messages[0].get("content") if messages[0].get("role") == "system" else None
+            if isinstance(sys_raw, str):
+                h = hashlib.sha256(sys_raw.encode()).hexdigest()
+                unique_system_prompts.add(h)
+                if full_prose_counts[h] < full_prose_quota:
+                    full_prose_counts[h] += 1
+                    sys_content = None  # render the full prose
+                    is_full = True
+                else:
+                    sys_content = stub_system_content(sys_raw, tokenizer, prose_budget)
+
+            # A full-prose session emits a SINGLE window: the prose is huge and
+            # identical across windows, so multi-windowing it would just replay
+            # the boilerplate. One window keeps the real long-prompt activations
+            # represented once; the stub sessions carry the tool-turn signal.
             try:
-                text, ntok = cap_session(tokenizer, messages, tools, per_session_cap)
+                wins = session_windows(
+                    tokenizer, messages, tools, per_session_cap,
+                    system_content=sys_content,
+                    max_windows=1 if is_full else max_windows_per_session,
+                )
             except Exception:
                 continue
-            if ntok == 0:
-                continue
-            try:
-                _, full_ntok = template_session(tokenizer, messages, tools)
-            except Exception:
-                full_ntok = ntok
-            if ntok < full_ntok:
-                truncations += 1
-
-            remaining = target_tokens - total
-            if ntok > remaining * 1.10:
+            if not wins:
                 continue
 
-            chunks.append(text.strip())
-            kept.append(s)
-            total += ntok
-            per_source[key[0]] += ntok
-            per_bucket[key[1]] += ntok
-            per_stratum[f"{key[0]}/{key[1]}"] += ntok
+            # System-prose token count (for the body/tool-turn share in the audit).
+            # Estimate from the content actually rendered (full vs. stub); the
+            # template wrapper is small relative to the prose so we ignore it.
+            used_sys = sys_content if sys_content is not None else sys_raw
+            sys_only_tokens = (
+                len(tokenizer(used_sys, add_special_tokens=False)["input_ids"])
+                if isinstance(used_sys, str)
+                else 0
+            )
 
+            kept_any = False
+            for text, ntok in wins:
+                remaining = target_tokens - total
+                if remaining <= 0:
+                    break
+                if ntok > remaining * 1.10:
+                    continue
+                if ntok > per_session_cap:
+                    oversize_windows += 1
+                chunks.append(text)
+                total += ntok
+                windows_emitted += 1
+                system_tokens_total += min(sys_only_tokens, ntok)
+                per_source[key[0]] += ntok
+                per_bucket[key[1]] += ntok
+                per_stratum[f"{key[0]}/{key[1]}"] += ntok
+                kept_any = True
+            if kept_any:
+                kept.append(s)
+                if is_full:
+                    full_prose_sessions += 1
+                else:
+                    stub_sessions += 1
             if total >= target_tokens:
                 break
 
     audit = {
         "total_tokens": total,
-        "session_count": len(chunks),
+        "chunk_count": len(chunks),
+        "session_count": len(kept),
         "truncated_sessions": truncations,
         "per_session_cap": per_session_cap,
         "tokens_per_source": dict(per_source),
@@ -150,6 +337,23 @@ def stratified_pack(
         "sessions_available_per_stratum": {f"{k[0]}/{k[1]}": len(v) for k, v in strata.items()},
         "sessions_consumed_per_stratum": {f"{k[0]}/{k[1]}": cursors[k] for k in stratum_keys},
     }
+    if windowed:
+        body_tokens = total - system_tokens_total
+        audit["windowing"] = {
+            "system_prose_budget": system_prose_budget,
+            "full_prose_quota": full_prose_quota,
+            "max_windows_per_session": max_windows_per_session,
+            "windows_emitted": windows_emitted,
+            "sessions_kept": len(kept),
+            "avg_windows_per_session": round(windows_emitted / max(1, len(kept)), 2),
+            "unique_system_prompts": len(unique_system_prompts),
+            "full_prose_sessions": full_prose_sessions,
+            "stub_sessions": stub_sessions,
+            "oversize_windows": oversize_windows,
+            "system_prose_tokens": system_tokens_total,
+            "body_tokens": body_tokens,
+            "tool_turn_token_share": round(body_tokens / max(1, total), 4),
+        }
     return chunks, kept, total, audit
 
 
@@ -206,8 +410,10 @@ __all__ = [
     "cap_session",
     "length_bucket",
     "session_tools",
+    "session_windows",
     "split_sessions",
     "stratified_pack",
+    "stub_system_content",
     "template_session",
     "write_corpus",
     "write_split_jsonl",

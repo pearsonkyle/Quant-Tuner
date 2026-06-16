@@ -25,6 +25,12 @@ cmake --build vendor/llama.cpp/build -j
 # Python env
 uv sync
 
+# Agentic SWE-rebench benchmark (optional): mini-swe-agent + a running Docker daemon.
+uv sync --extra swebench
+# SWE-rebench ships linux/amd64 instance images on Docker Hub (swerebench/sweb.eval.*).
+# On Apple Silicon they run under emulation — correct but slow; give Docker Desktop
+# ample memory and pre-pull images. run_swebench_eval.py fails fast if Docker is down.
+
 # Tests / lint / types
 uv run pytest                                   # all unit tests
 uv run pytest tests/unit/test_imatrix.py        # single file
@@ -178,6 +184,23 @@ benchmark-agnostic — anything that reduces to `dict[str, float]` plugs in.
   `base_seed + rep_idx`), aggregates mean ± stdev across reps. CSV writers
   emit one row per (model, rep) and one row per model. Used by both
   `scripts/run_toolcall_reps.py` and `scripts/run_mmlu_pro_reps.py`.
+- `eval/swebench.py` + `eval/swebench_grade.py` — **agentic** SWE-rebench
+  benchmark (does the quant actually solve real GitHub issues?). Same shape as
+  the others: `SweSummary` float-metrics dataclass + `run_swebench_eval(holdout,
+  model_path=… | base_url=…)` + a `swebench_rep` adapter for `reps`. It drives
+  `mini-swe-agent` (the `swebench` extra) over the local OpenAI-compatible
+  `llama-server`, **one clean Docker container per instance** (the SWE-rebench
+  image), and grades a real **pass_rate** by running the gold
+  `FAIL_TO_PASS`/`PASS_TO_PASS` tests in the container (preferring the
+  instance's `install_config.test_cmd`). Curated metrics: token usage, tool
+  (bash) calls, tool errors, `patch_rate` (non-empty diff), `pass_rate`
+  (resolved). Full conversation trajectories are saved to
+  `<workspace>/trajectories/<model>/<id>.traj.json` (+ `.result.json`) for
+  debugging loops/hallucinations and as future training data. The agent uses
+  litellm tool-calling by default; weak local models may do better with
+  `--model-class litellm_textbased` (parses bash from text). `grade_instance`
+  is the pragmatic pytest path — non-pytest runners surface as a grade error,
+  not a silent pass. Requires a running Docker daemon (see setup caveat).
 
 ### Experiment scripts (`scripts/`)
 The OmniCoder reproduction is here; the CLI handles ad-hoc runs.
@@ -230,6 +253,16 @@ The OmniCoder reproduction is here; the CLI handles ad-hoc runs.
   greedy + deterministic.
 - `rebench_speed.py` — re-runs speed bench only (decode tok/s drifts with thermal state
   across long sessions — see README caveat).
+- `build_swebench_holdout.py` — samples the agentic SWE-rebench holdout
+  (`out/external/swe-rebench/holdout.jsonl`). Pages Hugging Face's
+  datasets-server `/rows` API (the full `test` split is multi-GB and the
+  streaming reader stalls). Default: 10 `is_lite` instances, seeded shuffle
+  (seed 42) over the first `--scan-limit` rows; `--no-lite-only` /
+  `--max-difficulty` widen the pool.
+- `run_swebench_eval.py` — runs `eval.run_swebench_eval` over one or more GGUFs
+  (default = gemma-4-31B `qat-Q2_K_S-imatrix`). Fails fast if the Docker daemon
+  is down. Writes `results.csv` (per-instance), `aggregated.csv` (per-model),
+  `summary.json`, and the trajectory tree under `<workspace>/`.
 
 ### Workspace layout
 `paths.Workspace(root)` is the canonical per-run output directory; `workspace.ensure()`
@@ -303,4 +336,8 @@ adding recipes.
     appear in cal and would conflate fit with generalization.
   - logtrain `holdout` (10%) → tool-call eval sessions (via `pipeline.py` /
     `build_toolcall_holdout.py`). Untouched by `build_corpora.py`.
+  - external `nebius/SWE-rebench` `test` split → **agentic** eval holdout (via
+    `build_swebench_holdout.py`). A wholly separate source from the
+    calibration/eval corpora — its issues never touch logtrain/wiki, so a quant
+    solving them is genuine generalization, not fit.
   Don't repurpose a slice or source without re-checking every eval that touches it.

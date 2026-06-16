@@ -119,13 +119,20 @@ def _build_corpora(cfg: RunConfig, ws: Workspace, train: Path, eval_: Path) -> N
         chunks, _kept, total, audit = split.stratified_pack(
             splits["train"], tok,
             target_tokens=cfg.data.train_max_tokens,
-            per_session_cap=6_000, seed=42,
+            per_session_cap=cfg.data.per_session_cap, seed=42,
+            system_prose_budget=cfg.data.system_prose_budget,
+            full_prose_quota=cfg.data.full_prose_quota,
+            max_windows_per_session=cfg.data.max_windows_per_session,
         )
         split.write_corpus(chunks, train, supplement=cfg.data.supplement)
         (ws.corpus_dir / "train_audit.json").write_text(
             json.dumps(audit, indent=2, default=str))
         suffix = f" (+ supplement {cfg.data.supplement.name})" if cfg.data.supplement else ""
         log(f"  train: {total:,} tokens -> {train.name}{suffix}")
+        w = audit.get("windowing")
+        if w:
+            log(f"         {w['windows_emitted']} windows / {w['sessions_kept']} sessions, "
+                f"tool-turn token share {w['tool_turn_token_share']:.0%}")
 
     if not eval_.exists():
         ev_chunks, _ek, ev_total, ev_audit = split.stratified_pack(

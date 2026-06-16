@@ -17,7 +17,16 @@ def quantize(
     quant_type: str,
     imatrix: Path | None = None,
     log: Path | None = None,
+    tensor_types: dict[str, str] | None = None,
 ) -> Path:
-    """Quantize an F16 GGUF to `quant_type`, optionally guided by an imatrix."""
+    """Quantize an F16 GGUF to `quant_type`, optionally guided by an imatrix.
+
+    ``tensor_types`` pins matching tensors to a different ggml type (by name
+    substring) — e.g. ``{"nextn": "q8_0"}`` keeps the MTP draft head
+    near-lossless while the trunk goes to a 2-bit type.
+    """
     out_gguf.parent.mkdir(parents=True, exist_ok=True)
-    return llama_cpp.quantize(f16_gguf, out_gguf, quant_type, imatrix=imatrix, log=log)
+    return llama_cpp.quantize(
+        f16_gguf, out_gguf, quant_type,
+        imatrix=imatrix, log=log, tensor_types=tensor_types,
+    )

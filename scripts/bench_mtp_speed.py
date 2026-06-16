@@ -76,6 +76,15 @@ def _load_holdout_prompts(jsonl_path: Path, max_prompts: int = 20) -> list[str]:
     prompts: list[str] = []
     for messages in holdout_sessions:
         for msg in messages:
+            # logtrain.jsonl stores each message as a JSON-encoded string;
+            # decode those before treating them as {role, content} dicts.
+            if isinstance(msg, str):
+                try:
+                    msg = json.loads(msg)
+                except json.JSONDecodeError:
+                    continue
+            if not isinstance(msg, dict):
+                continue
             if msg.get("role") == "user":
                 content = msg.get("content", "")
                 if isinstance(content, list):

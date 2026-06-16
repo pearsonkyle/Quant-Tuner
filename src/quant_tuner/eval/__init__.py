@@ -20,6 +20,7 @@ from quant_tuner.eval.scoring import (
     parse_arguments,
     schema_for,
 )
+from quant_tuner.eval.swebench import SweSummary, run_swebench_eval
 from quant_tuner.eval.toolcall import EvalSummary, run_toolcall_eval
 
 __all__ = [
@@ -27,11 +28,13 @@ __all__ = [
     "MmluProHoldout",
     "MmluProSample",
     "MmluProSummary",
+    "SweSummary",
     "compare_value",
     "is_schema_valid",
     "param_score",
     "parse_arguments",
     "run_mmlu_pro_eval",
+    "run_swebench_eval",
     "run_toolcall_eval",
     "schema_for",
 ]

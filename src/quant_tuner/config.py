@@ -21,6 +21,18 @@ class DataConfig(BaseModel):
     train_max_tokens: int = 250_000
     eval_max_tokens: int = 50_000
     context_len: int = 16_384
+    # Calibration-corpus packing. With system_prose_budget set (the default),
+    # the calibration (train) corpus is built with the stub + multi-window
+    # packer: each session is sliced into <=per_session_cap windows whose system
+    # prose is trimmed to system_prose_budget tokens (schemas, rendered from
+    # tools=, are kept), and the full prose is rendered in only full_prose_quota
+    # sessions per unique system prompt. Keep per_session_cap < the imatrix ctx
+    # so no window straddles a context boundary. Set system_prose_budget: null
+    # to fall back to the legacy head-truncated single-chunk packer.
+    per_session_cap: int = 3_500
+    system_prose_budget: int | None = 256
+    full_prose_quota: int = 1
+    max_windows_per_session: int = 8
 
 
 class CalibrationConfig(BaseModel):
