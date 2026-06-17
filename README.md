@@ -258,9 +258,10 @@ trajectories/<model>/<id>.result.json  the patch + grade + per-instance metrics
 
 | Flag | Purpose |
 |---|---|
-| `--max-steps 50` | Cap agent steps per instance (default 50). |
-| `--instance-timeout 2400` | Wall-clock seconds per instance. |
-| `--ctx 32768` | `llama-server` context length. |
+| `--max-steps 100` | Cap agent steps per instance (default 100). |
+| `--instance-timeout 7200` | Wall-clock seconds per instance (2 h for 100-step runs). |
+| `--ctx 131072` | `llama-server` context length (default 131072). |
+| `--max-tokens 8096` | Max tokens per model call (default 8096). |
 | `--temperature 0.0` | Greedy/deterministic (default). |
 | `--model-class litellm_textbased` | Parse bash from text instead of tool-calls — often more robust on weak 2-bit models. |
 | `--skip-docker-check` | Bypass the Docker-up guard. |

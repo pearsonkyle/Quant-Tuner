@@ -208,7 +208,7 @@ The OmniCoder reproduction is here; the CLI handles ad-hoc runs.
   codebooks) from llama.cpp's `ggml-common.h`. Run after bumping the submodule pin;
   it asserts the ksigns parity convention and records the commit in the header.
 - `build_corpora.py` — **canonical text-corpus builder**. One pass, one seed (42),
-  three corpora written to `--out`:
+  five corpora written to `--out`:
   - `corpus.cal.txt` — ALL of `wiki.test.raw` + ~500k tokens from the logtrain **train**
     split (stratified-packed). Feed to `llama-imatrix` and `awq.calibrate(cal_text=…)`.
   - `corpus.val.txt` — ~10k tokens from the logtrain **test** split + `calibration_supplement.txt`.
@@ -222,13 +222,25 @@ The OmniCoder reproduction is here; the CLI handles ad-hoc runs.
     `eval_dataset` for PPL/KLD vs FP16. **Eval is intentionally not derived from logtrain
     or wiki** — both appear in the calibration corpus, so PPL on them would conflate fit
     with generalization. External code/math/tools text gives a clean third distribution.
+  - `corpus.eval.general.txt` — ~30k tokens from the external `combined_en_tiny` parquet
+    (`GENERAL_EVAL_DOMAIN`); a broad-English eval distribution. **Separate** from
+    `corpus.eval.txt` — give it its own `baseline.kld` and bench it independently.
+  - `corpus.eval.tools.txt` — ~30k tokens windowed-packed (same stub+multi-window packer
+    as `corpus.cal.txt`) from the logtrain **holdout** split. This is the *in-distribution*
+    PPL/KLD eval — it measures fit to the real tool-call text, which `corpus.eval.txt`
+    cannot. It is disjoint from the train (cal) slice, so it doesn't contaminate against
+    calibration. ⚠️ llama-perplexity has no `--parse-special`, so its chat markers tokenize
+    as plain BPE: use it for **quant-vs-quant** comparison (e.g. the windowed-packer A/B),
+    not absolute PPL. Also **separate** — its own `baseline.kld`, benched independently.
   Also writes per-domain intermediates (`corpus.cal.logtrain.txt`,
   `corpus.eval.{code,math,tools}_small.txt`) and `corpora_audit.json` (token counts,
   session counts, per-source breakdown). Asserts logtrain `train`/`test`/`holdout`
   fingerprints are disjoint before returning.
 
-  The logtrain `holdout` slice (10%) is *not* used by this script — it remains reserved
-  for the tool-call eval sessions written by `pipeline.py`/`build_toolcall_holdout.py`.
+  The logtrain `holdout` slice (10%) now feeds `corpus.eval.tools.txt` here **and**
+  remains the source for the agentic tool-call eval sessions
+  (`pipeline.py`/`build_toolcall_holdout.py`) — both uses stay out of the calibration
+  (train) slice, so neither contaminates calibration.
 
   **Prefer this over the older one-off corpus builders** (`run_omnicoder_mixed_corpus.py`,
   `build_holdout_chunk.py`) when standing up a new model — those scripts predate this
@@ -332,10 +344,14 @@ adding recipes.
     cv-mixed / cv-gate α scoring. The supplement injects under-represented content so
     val is a genuine distribution shift from cal, not a re-draw of the same sessions.
   - external `eaddario/imatrix-calibration` {code_small, math_small, tools_small} →
-    **eval** corpus (PPL/KLD). Eval is **not** drawn from logtrain or wiki — those
-    appear in cal and would conflate fit with generalization.
-  - logtrain `holdout` (10%) → tool-call eval sessions (via `pipeline.py` /
-    `build_toolcall_holdout.py`). Untouched by `build_corpora.py`.
+    **eval** corpus (`corpus.eval.txt`, PPL/KLD). Eval is **not** drawn from logtrain
+    or wiki — those appear in cal and would conflate fit with generalization.
+  - external `eaddario/imatrix-calibration` `combined_en_tiny` → **general** eval holdout
+    (`corpus.eval.general.txt`, separate baseline.kld, benched independently).
+  - logtrain `holdout` (10%) → BOTH (a) the **tools** PPL/KLD eval holdout
+    (`corpus.eval.tools.txt`, windowed by `build_corpora.py` — in-distribution but
+    disjoint from cal-train) AND (b) the agentic tool-call eval sessions (via
+    `pipeline.py` / `build_toolcall_holdout.py`). Both stay out of the cal (train) slice.
   - external `nebius/SWE-rebench` `test` split → **agentic** eval holdout (via
     `build_swebench_holdout.py`). A wholly separate source from the
     calibration/eval corpora — its issues never touch logtrain/wiki, so a quant

@@ -41,10 +41,10 @@ from quant_tuner.eval.server import running_server
 from quant_tuner.eval.swebench_grade import grade_instance
 from quant_tuner.eval.toolcall import Sampling
 
-DEFAULT_MAX_STEPS = 50
-DEFAULT_INSTANCE_TIMEOUT = 2400  # wall-clock seconds per instance
+DEFAULT_MAX_STEPS = 100
+DEFAULT_INSTANCE_TIMEOUT = 7200  # wall-clock seconds per instance (2 h for 100-step runs)
 DEFAULT_STEP_TIMEOUT = 120  # seconds for a single bash command in the container
-DEFAULT_MAX_TOKENS = 4096  # per model call (agent reasoning + tool call)
+DEFAULT_MAX_TOKENS = 8096  # per model call (agent reasoning + tool call)
 
 
 # ---------------------------------------------------------------------------
@@ -159,7 +159,14 @@ def _build_base_config(
             "model_kwargs": model_kwargs,
             "cost_tracking": "ignore_errors",
         },
-        "environment": {"timeout": step_timeout},
+        "environment": {
+            "timeout": step_timeout,
+            # Suppress Python warnings so they don't appear before the
+            # COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT sentinel on line 1.
+            # mini-swe-agent checks lines[0].strip() == sentinel exactly —
+            # a conda RequestsDependencyWarning prefix causes 65+ missed submissions.
+            "env": {"PYTHONWARNINGS": "ignore"},
+        },
     }
     if model_class:
         overrides["model"]["model_class"] = model_class
@@ -288,6 +295,9 @@ def run_instance(
         record["n_pass_to_pass"] = grade.get("n_pass_to_pass", 0)
         record["n_pass_to_pass_passed"] = grade.get("n_pass_to_pass_passed", 0)
 
+        # Snapshot wall time before writing (finally updates it too, but the
+        # file would be written with 0.0 otherwise since finally runs after).
+        record["wall_sec"] = time.time() - t0
         # Persist a human-readable per-instance result alongside the trajectory.
         result_path = trajectory_dir / f"{instance_id}.result.json"
         result_path.write_text(

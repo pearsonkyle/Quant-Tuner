@@ -152,12 +152,17 @@ def test_command(instance: dict, node_ids: list[str]) -> str:
     runner + flags, e.g. ``pytest --no-header -rA -p no:cacheprovider …``) so
     the ``-rA`` summary we parse matches what the harness used. Fall back to a
     generic pytest invocation when no test_cmd is recorded.
+
+    Always wraps the command in ``conda run --no-capture-output -n testbed``
+    so the testbed env is active.  The SWE-rebench images activate conda via
+    ``~/.bashrc``, but the bashrc guard (``case $-``) skips activation for
+    non-interactive shells, making ``pytest`` not found under plain ``bash -c``.
+    ``conda run`` sidesteps this entirely.
     """
     test_cmd = ((instance.get("install_config") or {}).get("test_cmd") or "").strip()
     quoted = " ".join(shlex.quote(n) for n in node_ids)
-    if test_cmd:
-        return f"{test_cmd} {quoted}"
-    return _pytest_command(node_ids)
+    inner = f"{test_cmd} {quoted}" if test_cmd else _pytest_command(node_ids)
+    return f"conda run --no-capture-output -n testbed bash -c {shlex.quote(inner)}"
 
 
 # ---------------------------------------------------------------------------

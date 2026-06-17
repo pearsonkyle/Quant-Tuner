@@ -4,10 +4,12 @@ Three corpora, one deterministic seed-42 session split for the logtrain
 sources, and a separate external eval source so the reported PPL/KLD
 numbers are not contaminated by anything the calibration loop saw.
 
-  corpus.cal.txt   = ALL of wiki.test.raw + ~500k logtrain TRAIN-slice tokens
-  corpus.val.txt   = ~10k logtrain TEST-slice tokens  +  calibration_supplement.txt
-  corpus.eval.txt  = ~30k tokens each from external `eaddario/imatrix-calibration`
-                     {code_small, math_small, tools_small} parquet files
+  corpus.cal.txt          = ALL of wiki.test.raw + ~500k logtrain TRAIN-slice tokens
+  corpus.val.txt          = ~10k logtrain TEST-slice tokens  +  calibration_supplement.txt
+  corpus.eval.txt         = ~30k tokens each from external `eaddario/imatrix-calibration`
+                            {code_small, math_small, tools_small} parquet files
+  corpus.eval.general.txt = ~30k tokens from external `combined_en_tiny` (general English)
+  corpus.eval.tools.txt   = ~30k tokens windowed-packed from the logtrain HOLDOUT slice
 
 Rationale: previously eval was wiki.test + a slice of logtrain — but both
 appear in the calibration corpus, so PPL on that mix was partially measuring
@@ -17,8 +19,20 @@ never sees. The validation slice still pairs in-domain logtrain with the
 under-represented `calibration_supplement.txt` so that cv-scored α
 candidates are penalized when they overfit to logtrain's content mix.
 
-The holdout slice (10%) of logtrain is unused here — it remains available
-for tool-call eval sessions via the existing pipeline.
+Two extra *holdout* eval corpora are written as SEPARATE files (each meant to
+get its own baseline.kld and be benched independently, not folded into
+corpus.eval.txt):
+  * corpus.eval.general.txt — external `combined_en_tiny`, a broad-English
+    distribution distinct from code/math/tools.
+  * corpus.eval.tools.txt   — the logtrain HOLDOUT slice (10%), windowed with
+    the SAME stub+multi-window packer as the calibration corpus. It is disjoint
+    from the train slice that feeds calibration, so PPL/KLD on it measures fit
+    to the real tool-call distribution without contaminating against cal. (The
+    holdout slice is still also the source for the agentic tool-call eval
+    sessions — both uses stay out of calibration.) Caveat: llama-perplexity has
+    no --parse-special, so the chat markers tokenize as plain BPE; absolute PPL
+    is off-distribution but quant-vs-quant comparisons on this same file are
+    valid — which is exactly the windowed-packer A/B we want.
 
 Usage:
   uv run python scripts/build_corpora.py \\
@@ -44,6 +58,7 @@ SUPPLEMENT = REPO / "calibration_supplement.txt"
 
 EAD_REPO = "eaddario/imatrix-calibration"
 EVAL_DOMAINS = ("code_small", "math_small", "tools_small")
+GENERAL_EVAL_DOMAIN = "combined_en_tiny"
 EAD_CACHE = REPO / "out" / "external" / "imatrix-calibration"
 
 
@@ -127,6 +142,8 @@ def build(
     val_tokens: int,
     eval_tokens_per_domain: int,
     seed: int,
+    general_eval_tokens: int = 30_000,
+    tools_eval_tokens: int = 30_000,
     val_supplement_override: Path | None = None,
     per_session_cap: int = 3_500,
     system_prose_budget: int = 256,
@@ -157,7 +174,7 @@ def build(
     )
     print(
         f"sessions: train={len(splits['train'])}  "
-        f"test={len(splits['test'])}  holdout={len(splits['holdout'])} (unused)",
+        f"test={len(splits['test'])}  holdout={len(splits['holdout'])} (→ tools eval)",
         file=sys.stderr,
     )
 
@@ -291,6 +308,62 @@ def build(
         file=sys.stderr,
     )
 
+    # --- 4) General holdout eval: external combined_en_tiny (separate corpus) -
+    general_corpus = out_dir / "corpus.eval.general.txt"
+    gpq = _download_parquet(GENERAL_EVAL_DOMAIN)
+    # Seed past the per-domain eval seeds (seed..seed+len-1) so the draw is
+    # independent of the code/math/tools sampling.
+    gtext, gtok, grows = _sample_parquet_text(
+        gpq, tok,
+        target_tokens=general_eval_tokens,
+        seed=seed + len(EVAL_DOMAINS),
+    )
+    general_corpus.write_text(gtext)
+    audit["eval_general"] = {
+        "path": str(general_corpus.relative_to(REPO)),
+        "domain": GENERAL_EVAL_DOMAIN,
+        "target_tokens": general_eval_tokens,
+        "actual_tokens": gtok,
+        "n_rows": grows,
+        "source_parquet": str(gpq.relative_to(REPO)),
+    }
+    print(
+        f"  eval(gen):   {general_corpus.relative_to(REPO)}  "
+        f"({gtok:,} tokens from {GENERAL_EVAL_DOMAIN})",
+        file=sys.stderr,
+    )
+
+    # --- 5) Tools holdout eval: logtrain HOLDOUT slice, windowed packer -------
+    # Same stub+multi-window packer as the calibration corpus, but drawn from
+    # the holdout slice (disjoint from train → not in calibration). See module
+    # docstring for the --parse-special caveat (quant-vs-quant only).
+    tools_corpus = out_dir / "corpus.eval.tools.txt"
+    tools_chunks, _keptt, tools_total, tools_pack = split.stratified_pack(
+        splits["holdout"], tok,
+        target_tokens=tools_eval_tokens, per_session_cap=per_session_cap, seed=seed,
+        system_prose_budget=system_prose_budget,
+        full_prose_quota=full_prose_quota,
+        max_windows_per_session=max_windows_per_session,
+    )
+    split.write_corpus(tools_chunks, tools_corpus)
+    audit["eval_tools"] = {
+        "path": str(tools_corpus.relative_to(REPO)),
+        "source_slice": "logtrain.holdout",
+        "target_tokens": tools_eval_tokens,
+        "actual_tokens": tools_total,
+        "n_logtrain_sessions": len(tools_chunks),
+        "pack_audit": tools_pack,
+        "parse_special_caveat": (
+            "llama-perplexity lacks --parse-special; chat markers tokenize as "
+            "plain BPE. Use for quant-vs-quant comparison only, not absolute PPL."
+        ),
+    }
+    print(
+        f"  eval(tools): {tools_corpus.relative_to(REPO)}  "
+        f"({tools_total:,} tokens from {len(tools_chunks)} holdout windows)",
+        file=sys.stderr,
+    )
+
     # --- Disjointness on logtrain ------------------------------------------
     fp = ingest.session_fingerprint
     train_fp = {fp(s) for s in splits["train"]}
@@ -299,7 +372,10 @@ def build(
     assert not (train_fp & test_fp), "train ∩ test non-empty"
     assert not (train_fp & hold_fp), "train ∩ holdout non-empty"
     assert not (test_fp & hold_fp), "test ∩ holdout non-empty"
-    print("  disjointness: OK (logtrain train/test/holdout share no sessions)",
+    # corpus.eval.tools.txt is built from splits["holdout"]; the assert above
+    # (train ∩ holdout == ∅) is what guarantees the tools eval is not in cal.
+    print("  disjointness: OK (train/test/holdout share no sessions; "
+          "tools-eval ⊂ holdout ⟂ cal-train)",
           file=sys.stderr)
 
     (out_dir / "corpora_audit.json").write_text(
@@ -326,6 +402,12 @@ def main() -> int:
                    help="target logtrain tokens in validation corpus (default 10k)")
     p.add_argument("--eval-tokens-per-domain", type=int, default=30_000,
                    help="target tokens per external eval domain (default 30k)")
+    p.add_argument("--general-eval-tokens", type=int, default=30_000,
+                   help="target tokens for corpus.eval.general.txt from "
+                        f"external {GENERAL_EVAL_DOMAIN} (default 30k)")
+    p.add_argument("--tools-eval-tokens", type=int, default=30_000,
+                   help="target tokens for corpus.eval.tools.txt, windowed from "
+                        "the logtrain HOLDOUT slice (default 30k)")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--per-session-cap", type=int, default=3_500,
                    help="max tokens per emitted window; keep < imatrix ctx (4096) "
@@ -351,6 +433,8 @@ def main() -> int:
         val_tokens=a.val_tokens,
         eval_tokens_per_domain=a.eval_tokens_per_domain,
         seed=a.seed,
+        general_eval_tokens=a.general_eval_tokens,
+        tools_eval_tokens=a.tools_eval_tokens,
         val_supplement_override=a.val_supplement,
         per_session_cap=a.per_session_cap,
         system_prose_budget=a.system_prose_budget,

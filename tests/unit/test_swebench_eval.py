@@ -147,12 +147,14 @@ def test_pytest_command_quotes_node_ids():
 def test_test_command_prefers_install_config_test_cmd():
     instance = {"install_config": {"test_cmd": "pytest --no-header -rA -p no:cacheprovider"}}
     cmd = G.test_command(instance, ["a/b.py::t1"])
-    assert cmd.startswith("pytest --no-header -rA -p no:cacheprovider ")
+    assert cmd.startswith("conda run --no-capture-output -n testbed bash -c ")
+    assert "pytest --no-header -rA -p no:cacheprovider" in cmd
     assert "a/b.py::t1" in cmd
 
 
 def test_test_command_falls_back_to_generic_pytest():
     cmd = G.test_command({}, ["a/b.py::t1"])
+    assert cmd.startswith("conda run --no-capture-output -n testbed bash -c ")
     assert "python -m pytest" in cmd
     assert "a/b.py::t1" in cmd
 
