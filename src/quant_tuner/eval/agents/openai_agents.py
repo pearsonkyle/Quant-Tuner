@@ -1,0 +1,236 @@
+"""OpenAI Agents SDK backend.
+
+Drives the `OpenAI Agents SDK <https://openai.github.io/openai-agents-python/>`_
+against the same local ``llama-server`` (OpenAI-compatible Chat Completions) and
+the same per-instance Docker container as the mini-swe-agent backend, but with
+the Agents SDK's own planning loop. The agent is given a single ``bash`` tool
+that shells into the instance's container (``env.execute``); after the loop ends
+(submission, max-turns, or wall-timeout) the patch is read back as
+``git diff`` of ``/testbed`` — no submit sentinel, which is also the contract the
+future CLI-in-container backends (Qwen Code, Claude Code) will use.
+
+Requires the ``swebench`` extra (``openai-agents``). All SDK imports are lazy so
+``get_backend('openai-agents')`` resolves without the extra installed; the
+SDK-free helpers below carry the testable logic.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import contextlib
+import json
+from typing import Any
+
+from quant_tuner.eval.agents.base import AgentRunContext, AgentRunResult
+
+# Cap a single tool observation so a runaway command can't blow the context.
+_MAX_TOOL_OUTPUT_CHARS = 16000
+
+_SYSTEM_PROMPT = """\
+You are an autonomous software engineer fixing a real bug in a Python \
+repository already checked out at /testbed (the current working directory).
+
+You have one tool: bash(command). Use it to explore the code, reproduce the \
+issue, edit files, and run the project's tests. Make all edits directly on the \
+files under /testbed with shell commands (e.g. python, sed, or writing files \
+via heredocs). Work in small steps and inspect command output before \
+continuing.
+
+Your job is to FIX THE BUG IN THE LIBRARY/SOURCE CODE — the modules under \
+/testbed that implement the behavior, not the test suite. Find the function or \
+class responsible and change its implementation. Writing a new test, or only \
+editing files under tests/, is never a valid fix on its own: the grader runs \
+the project's own hidden tests against your SOURCE changes, and it reverts any \
+edits you make to test files before grading — so changing tests/ wastes your \
+budget. First reproduce the failure, then edit the source, then re-run to \
+confirm your source change actually makes the failing behavior pass.
+
+Do NOT run `git commit`, `git checkout`, or `git reset` — your final patch is \
+collected automatically from the working tree as a git diff. When the source \
+fix is complete and you have verified it, stop and give a short summary of what \
+you changed.
+"""
+
+# Command that snapshots the working tree as a patch to grade. Stages new files
+# too (`add -A`) so brand-new modules show up in the diff.
+_SUBMISSION_CMD = "git -C /testbed add -A && git -C /testbed diff --cached HEAD"
+
+
+def _truncate_output(text: str, limit: int = _MAX_TOOL_OUTPUT_CHARS) -> str:
+    """Clip an over-long tool observation, keeping head and tail."""
+    if text is None:
+        return ""
+    if len(text) <= limit:
+        return text
+    head = text[: limit // 2]
+    tail = text[-limit // 2 :]
+    return f"{head}\n...[{len(text) - limit} chars truncated]...\n{tail}"
+
+
+def _run_bash_tool(env: Any, command: str, *, step_timeout: int, counters: dict[str, int]) -> str:
+    """Execute one bash command in the container, tally use/errors, return output.
+
+    Mirrors the mini-swe ``_MetricsAgent`` bookkeeping: every call bumps
+    ``used``; a non-zero return code bumps ``errors``.
+    """
+    out = env.execute({"command": command}, cwd="/testbed", timeout=step_timeout)
+    counters["used"] = counters.get("used", 0) + 1
+    if int(out.get("returncode", 0) or 0) != 0:
+        counters["errors"] = counters.get("errors", 0) + 1
+    return _truncate_output(out.get("output", ""))
+
+
+def _extract_submission(env: Any, *, step_timeout: int) -> str:
+    """Read the working-tree patch from the container as a git diff."""
+    out = env.execute({"command": _SUBMISSION_CMD}, cwd="/testbed", timeout=step_timeout)
+    return out.get("output", "") or ""
+
+
+def _usage_tuple(usage: Any) -> tuple[int, int, int]:
+    """(input, output, total) tokens from an SDK ``Usage`` (zeros if ``None``)."""
+    if usage is None:
+        return 0, 0, 0
+    inp = int(getattr(usage, "input_tokens", 0) or 0)
+    out = int(getattr(usage, "output_tokens", 0) or 0)
+    tot = int(getattr(usage, "total_tokens", 0) or (inp + out))
+    return inp, out, tot
+
+
+def _item_to_dict(item: Any) -> dict:
+    """Best-effort JSON-able dict for an SDK output item (pydantic model or dict)."""
+    for attr in ("model_dump", "dict"):
+        fn = getattr(item, attr, None)
+        if callable(fn):
+            try:
+                return fn()
+            except Exception:
+                pass
+    if isinstance(item, dict):
+        return item
+    return {"repr": str(item)}
+
+
+class OpenAIAgentsBackend:
+    """Drives the OpenAI Agents SDK over one instance."""
+
+    name = "openai-agents"
+
+    def run(self, ctx: AgentRunContext) -> AgentRunResult:
+        return asyncio.run(self._run(ctx))
+
+    async def _run(self, ctx: AgentRunContext) -> AgentRunResult:
+        from agents import (
+            Agent,
+            ModelSettings,
+            OpenAIChatCompletionsModel,
+            RunHooks,
+            Runner,
+            function_tool,
+            set_tracing_disabled,
+        )
+        from agents.exceptions import MaxTurnsExceeded
+        from openai import AsyncOpenAI
+
+        # No OpenAI API key here — disable the SDK's hosted tracing exporter.
+        set_tracing_disabled(True)
+        client = AsyncOpenAI(base_url=ctx.base_url, api_key=ctx.api_key)
+        model = OpenAIChatCompletionsModel(model=ctx.served_model, openai_client=client)
+
+        counters: dict[str, int] = {"used": 0, "errors": 0}
+
+        @function_tool
+        def bash(command: str) -> str:
+            """Run a bash command in the repository checkout at /testbed and return its combined output."""
+            return _run_bash_tool(ctx.env, command, step_timeout=ctx.step_timeout, counters=counters)
+
+        # Accumulate call count, cumulative token usage, and model-output items
+        # via hooks so they survive a MaxTurnsExceeded / wall-timeout — otherwise
+        # those metrics (and the trajectory) live only on the RunResult we never
+        # get when the run raises. A weak local model that never emits a clean
+        # "done" hits max_turns routinely, so this path is the common case.
+        class _MetricsHooks(RunHooks):  # type: ignore[misc]
+            def __init__(self) -> None:
+                self.n_calls = 0
+                self.usage: Any = None
+                self.items: list[Any] = []
+
+            async def on_llm_end(self, context: Any, agent: Any, response: Any) -> None:
+                self.n_calls += 1
+                self.usage = getattr(context, "usage", None)  # cumulative across the run
+                out = getattr(response, "output", None)
+                if out:
+                    self.items.extend(out)
+
+        hooks = _MetricsHooks()
+
+        # llama.cpp-only sampling extensions (top_k/min_p/repeat_penalty) are not
+        # forwarded: the SDK's ModelSettings exposes temperature/top_p as the
+        # first-class knobs, which are the ones that matter for SWE agents.
+        settings = ModelSettings(
+            temperature=ctx.sampling.temperature,
+            top_p=ctx.sampling.top_p,
+            max_tokens=ctx.max_tokens,
+        )
+        agent = Agent(
+            name="swe-agent",
+            instructions=_SYSTEM_PROMPT,
+            model=model,
+            tools=[bash],
+            model_settings=settings,
+        )
+
+        # to_input_list() yields the SDK's typed input-item TypedDicts (plain
+        # dicts at runtime); keep the local loose so they flow into the result.
+        messages: list[Any] = []
+        exit_status = "completed"
+        try:
+            result = await asyncio.wait_for(
+                Runner.run(
+                    agent,
+                    ctx.instance["problem_statement"],
+                    max_turns=ctx.max_steps,
+                    hooks=hooks,
+                ),
+                timeout=ctx.instance_timeout,
+            )
+            messages = list(result.to_input_list())
+        except TimeoutError:
+            exit_status = "wall_timeout"
+        except MaxTurnsExceeded:
+            exit_status = "max_turns"
+        except Exception as e:  # keep the suite going; the diff (if any) is still graded
+            exit_status = f"error:{type(e).__name__}"
+
+        # Metrics from the hooks so they survive the exception paths above.
+        n_calls = hooks.n_calls
+        prompt_tokens, completion_tokens, total_tokens = _usage_tuple(hooks.usage)
+        # Trajectory: prefer the complete to_input_list(); else fall back to the
+        # accumulated model-output items (assistant text + tool calls — tool
+        # outputs aren't in this fallback, but it beats an empty trajectory).
+        if not messages and hooks.items:
+            messages = [_item_to_dict(it) for it in hooks.items]
+
+        # Read the patch regardless of how the loop ended — the agent may have
+        # made edits before hitting the step/wall limit.
+        submission = _extract_submission(ctx.env, step_timeout=ctx.step_timeout)
+
+        with contextlib.suppress(Exception):
+            ctx.trajectory_path.write_text(
+                json.dumps(
+                    {"messages": messages, "exit_status": exit_status, "n_model_calls": n_calls},
+                    indent=2,
+                    default=str,
+                )
+            )
+
+        return AgentRunResult(
+            submission=submission,
+            messages=messages,
+            n_model_calls=n_calls,
+            tools_used=counters["used"],
+            tool_errors=counters["errors"],
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=total_tokens,
+            exit_status=exit_status,
+        )

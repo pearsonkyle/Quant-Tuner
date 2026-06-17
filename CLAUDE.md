@@ -201,6 +201,44 @@ benchmark-agnostic — anything that reduces to `dict[str, float]` plugs in.
   `--model-class litellm_textbased` (parses bash from text). `grade_instance`
   is the pragmatic pytest path — non-pytest runners surface as a grade error,
   not a silent pass. Requires a running Docker daemon (see setup caveat).
+- `eval/agents/` — **pluggable agent scaffolds** behind the SWE-rebench eval.
+  `run_swebench_eval(..., agent=…)` / `--agent {mini-swe,openai-agents}` selects
+  the loop; everything else (Docker container creation via mini-swe-agent's
+  `get_sb_environment`, `grade_instance`, `SweSummary` aggregation, `reps`) is
+  backend-agnostic. A backend implements `AgentBackend.run(AgentRunContext) ->
+  AgentRunResult` (a git-diff `submission` + trajectory + tool/token counts) and
+  owns persisting its own `*.traj.json`; `swebench.run_instance` creates the
+  shared env, calls the backend, then grades. `get_backend(name)` (in
+  `agents/__init__.py`) resolves a registry with **lazy SDK imports**, so
+  resolving a backend never needs the SDK installed — only running it does (the
+  registry test stays green in the conda env that lacks both SDKs). Backends:
+  - `agents/miniswe.py` `MiniSweBackend` — the default; wraps mini-swe-agent's
+    `DefaultAgent` (the relocated `_build_model_config` + metrics-agent subclass).
+    `model_class` is forwarded only here.
+  - `agents/openai_agents.py` `OpenAIAgentsBackend` — OpenAI Agents SDK
+    (`openai-agents` extra) pointed at the same llama-server via
+    `OpenAIChatCompletionsModel` + `AsyncOpenAI(base_url=…)` (Chat Completions,
+    **not** Responses — llama-server only implements the former);
+    `set_tracing_disabled(True)` (no OpenAI key). A single `bash` tool shells
+    into the container; the patch is read back as `git -C /testbed diff` rather
+    than a submit sentinel (the same contract future CLI-in-container backends —
+    Qwen Code, Claude Code — will use). Token/call counts **and the trajectory
+    accumulate via a `RunHooks` (`on_llm_end`)**, so they survive a
+    `MaxTurnsExceeded`/wall-timeout (a weak local model that never emits a clean
+    "done" hits `max_turns` routinely; sourcing metrics only from the `RunResult`
+    would zero them out on that common path). `exit_status` records how the loop
+    ended (`completed`/`max_turns`/`wall_timeout`/`error:*`); `patch_produced` is
+    separate. llama.cpp-only sampling extensions
+    (top_k/min_p/repeat_penalty) are **not** forwarded by this backend
+    (ModelSettings exposes temperature/top_p as the first-class knobs).
+- `run_swebench_eval` / `run_swebench_eval.py` knobs: `--agent` selects the
+  backend; `--temperature` defaults to **0.25** (`DEFAULT_TEMPERATURE`);
+  `--spec-type`/`--spec-draft-n-max` forward to llama-server speculative
+  decoding — use `--spec-type draft-mtp --spec-draft-n-max 1` for a GGUF with a
+  bundled MTP head (e.g. the Qwopus3.6 2-bit-MTP release; that Coder variant
+  emits `<think>`, so also pass `--chat-template-kwargs '{"enable_thinking":
+  false}'`). **`_build_env_config` must keep `cwd: /testbed`** — the grader and
+  the mini-swe agent call `env.execute` without a cwd and rely on it.
 
 ### Experiment scripts (`scripts/`)
 The OmniCoder reproduction is here; the CLI handles ad-hoc runs.

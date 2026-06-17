@@ -43,6 +43,11 @@ redteam = [
 # Requires a running Docker daemon — see CLAUDE.md for the Apple-Silicon caveat.
 swebench = [
     "mini-swe-agent==2.4.1",  # pin: DefaultAgent/LitellmModel/DockerEnvironment API is version-sensitive
+    # OpenAI Agents SDK backend (eval/agents/openai_agents.py). Reuses
+    # mini-swe-agent's Docker env layer; drives its own planning loop against the
+    # same OpenAI-compatible llama-server. Pin verified against the SDK surface
+    # OpenAIChatCompletionsModel / Runner.run / result.context_wrapper.usage.
+    "openai-agents>=0.2",
 ]
 
 [project.scripts]

@@ -13,9 +13,18 @@ from pathlib import Path
 import pytest
 
 from quant_tuner.eval import swebench_grade as G
+from quant_tuner.eval.agents import available_backends, get_backend
+from quant_tuner.eval.agents.openai_agents import (
+    _extract_submission,
+    _item_to_dict,
+    _run_bash_tool,
+    _truncate_output,
+    _usage_tuple,
+)
 from quant_tuner.eval.swebench import (
     SweSummary,
     _aggregate,
+    _build_env_config,
     _sampling_to_model_kwargs,
     _token_usage,
     load_holdout,
@@ -334,3 +343,95 @@ def test_load_holdout_roundtrip(tmp_path: Path):
     p.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
     loaded = load_holdout(p)
     assert [r["instance_id"] for r in loaded] == ["a-1", "b-2"]
+
+
+# ---------------------------------------------------------------------------
+# pluggable agent backends — registry (resolves without the SDKs installed)
+# ---------------------------------------------------------------------------
+
+
+def test_get_backend_resolves_known_names():
+    assert get_backend("mini-swe").name == "mini-swe"
+    assert get_backend("openai-agents").name == "openai-agents"
+
+
+def test_get_backend_unknown_raises():
+    with pytest.raises(ValueError, match="unknown agent backend"):
+        get_backend("does-not-exist")
+
+
+def test_available_backends_lists_both():
+    assert available_backends() == ["mini-swe", "openai-agents"]
+
+
+def test_build_env_config_sets_testbed_cwd():
+    # Load-bearing: the grader and the mini-swe agent call env.execute without an
+    # explicit cwd and rely on this default; dropping it runs git outside the repo.
+    cfg = _build_env_config(90)["environment"]
+    assert cfg["cwd"] == "/testbed"
+    assert cfg["timeout"] == 90
+    assert cfg["interpreter"] == ["bash", "-c"]
+    assert cfg["env"]["PYTHONWARNINGS"] == "ignore"
+
+
+# ---------------------------------------------------------------------------
+# OpenAI Agents backend — SDK-free helpers (no Docker, no openai-agents)
+# ---------------------------------------------------------------------------
+
+
+def test_truncate_output_passthrough_and_clip():
+    assert _truncate_output("short") == "short"
+    assert _truncate_output(None) == ""
+    big = "x" * 40000
+    out = _truncate_output(big, limit=1000)
+    assert len(out) < len(big)
+    assert "truncated" in out
+
+
+def test_run_bash_tool_tallies_use_and_errors():
+    env = _FakeEnv([("ls", _ok("a\nb")), ("boom", {"output": "err", "returncode": 1})])
+    counters: dict = {"used": 0, "errors": 0}  # seeded as the backend does
+    out1 = _run_bash_tool(env, "ls", step_timeout=5, counters=counters)
+    assert out1 == "a\nb"
+    assert counters == {"used": 1, "errors": 0}
+    _run_bash_tool(env, "boom", step_timeout=5, counters=counters)
+    assert counters == {"used": 2, "errors": 1}
+
+
+def test_run_bash_tool_executes_in_testbed():
+    env = _FakeEnv([])
+    _run_bash_tool(env, "pwd", step_timeout=5, counters={"used": 0, "errors": 0})
+    # the command is shelled into the repo checkout
+    assert env.commands == ["pwd"]
+
+
+def test_extract_submission_reads_git_diff():
+    diff = "diff --git a/x b/x\n+code\n"
+    env = _FakeEnv([("diff --cached", _ok(diff))])
+    assert _extract_submission(env, step_timeout=5) == diff
+    # it stages everything first so new files show up in the patch
+    assert any("add -A" in c for c in env.commands)
+
+
+def test_usage_tuple_none_and_object():
+    assert _usage_tuple(None) == (0, 0, 0)
+
+    class _U:
+        input_tokens, output_tokens, total_tokens = 100, 20, 120
+
+    assert _usage_tuple(_U()) == (100, 20, 120)
+
+    class _UNoTotal:  # total falls back to input+output
+        input_tokens, output_tokens, total_tokens = 100, 20, 0
+
+    assert _usage_tuple(_UNoTotal()) == (100, 20, 120)
+
+
+def test_item_to_dict_pydantic_dict_and_fallback():
+    class _M:
+        def model_dump(self):
+            return {"a": 1}
+
+    assert _item_to_dict(_M()) == {"a": 1}
+    assert _item_to_dict({"b": 2}) == {"b": 2}
+    assert "repr" in _item_to_dict(object())  # opaque object → str fallback

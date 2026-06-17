@@ -49,7 +49,7 @@ _DEFAULT_MODEL = (
 )
 
 _INSTANCE_COLUMNS = [
-    "model", "rep", "instance_id", "repo",
+    "model", "rep", "agent", "instance_id", "repo",
     "resolved", "patch_produced", "patch_chars",
     "tools_used", "tool_errors", "n_model_calls",
     "prompt_tokens", "completion_tokens", "total_tokens",
@@ -91,13 +91,21 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--max-tokens", type=int, default=8096, help="Max tokens per model call")
     p.add_argument("--ctx", type=int, default=131072, help="llama-server context length")
     p.add_argument("--ngl", type=int, default=99)
-    p.add_argument("--temperature", type=float, default=0.0)
+    p.add_argument("--temperature", type=float, default=0.25,
+                   help="sampling temperature (default 0.25; a little sampling beats greedy in agent loops)")
     p.add_argument("--top-p", type=float, default=None)
     p.add_argument("--top-k", type=int, default=None)
+    p.add_argument("--spec-type", default=None,
+                   help="llama-server speculative decoding, e.g. 'draft-mtp' for a GGUF with a bundled MTP head")
+    p.add_argument("--spec-draft-n-max", type=int, default=None,
+                   help="max draft tokens per step for --spec-type (Qwen3.6 MTP: 1 is optimal)")
     p.add_argument("--served-model", default="local", help="Model id litellm sends to llama-server")
+    p.add_argument("--agent", default="mini-swe", choices=["mini-swe", "openai-agents"],
+                   help="agent scaffold driving the local model (default: mini-swe)")
     p.add_argument("--model-class", default=None,
-                   help="mini-swe-agent model class: 'litellm' (default, tool-calling) or "
-                        "'litellm_textbased' (parses bash from text; safer for weak local models)")
+                   help="mini-swe-agent model class (only with --agent mini-swe): 'litellm' "
+                        "(default, tool-calling) or 'litellm_textbased' (parses bash from text; "
+                        "safer for weak local models)")
     p.add_argument("--chat-template-kwargs", default=None,
                    help="JSON forwarded to llama-server --chat-template-kwargs")
     p.add_argument("--progress", action="store_true")
@@ -160,11 +168,14 @@ def main() -> int:
                     instance_timeout=args.instance_timeout,
                     step_timeout=args.step_timeout,
                     max_tokens=args.max_tokens,
+                    agent=args.agent,
                     model_class=args.model_class,
                     ctx=args.ctx,
                     ngl=args.ngl,
                     server_log_path=args.workspace / f"server_{model.stem}_rep{rep}.log",
                     chat_template_kwargs=args.chat_template_kwargs,
+                    spec_type=args.spec_type,
+                    spec_draft_n_max=args.spec_draft_n_max,
                     progress=args.progress,
                 )
             for rec in s.per_instance:
