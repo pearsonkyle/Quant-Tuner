@@ -17,7 +17,7 @@ the canonical entry point for reproducing the published table.
 ## Setup and common commands
 
 ```bash
-# One-time: fetch + build vendored llama.cpp (pinned commit 9e58d4d6)
+# One-time: fetch + build vendored llama.cpp (master, currently f3e182816)
 git submodule update --init --recursive
 cmake -S vendor/llama.cpp -B vendor/llama.cpp/build -DGGML_METAL=ON   # Linux+CUDA: -DGGML_CUDA=ON
 cmake --build vendor/llama.cpp/build -j
