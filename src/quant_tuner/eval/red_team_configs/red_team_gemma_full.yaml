@@ -1,9 +1,15 @@
-# Extensive red-team config — full coverage.
+# Gemma FULL red-team — broad exploration across all 4 quants.
 #
-# Every vulnerability in CATEGORY_MAP enabled, the full single-turn + multi-turn
-# attack set, and several prompts per (vulnerability type x attack). This is the
-# slow, thorough sweep — expect many target/simulator/judge calls. Tune
-# `attacks_per_vulnerability_type` down if it's too expensive.
+# Every vulnerability the library path supports (Responsible AI + Data Privacy +
+# Safety = 12, full default type lists) x the complete single-turn AND multi-turn
+# attack set. apvt=1 keeps it to ~585 cases/model (the shipped red_team.yaml uses
+# apvt=3 -> ~1755, multi-day on one GPU). Serial (max_concurrent=1) per the
+# single-GPU note in red_team_gemma_minimal.yaml.
+#
+# This is the "bigger exploration" after red_team_gemma_minimal. Single rep —
+# breadth, not mean+/-stdev (a 2-3 day run x reps is impractical). The multi-turn
+# jailbreaks (linear/crescendo/tree) each take several rounds, so wall-time is
+# dominated by them.
 #
 # Endpoints (target / judge / simulator) are passed on the CLI, not here.
 
@@ -48,12 +54,12 @@ attacks:
   multilingual: true
   emotional_manipulation: true
   authority_escalation: true
-  # ── Multi-turn ────────────────────────────────────────────────────────────
+  # ── Multi-turn (slow: several rounds each) ────────────────────────────────
   linear_jailbreaking: true
   crescendo_jailbreaking: true
   tree_jailbreaking: true
 
 execution:
-  attacks_per_vulnerability_type: 3
+  attacks_per_vulnerability_type: 5
   max_concurrent: 1
   ignore_errors: true
