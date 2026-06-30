@@ -1,0 +1,38 @@
+# Gemma first-pass red-team — genuinely minimal, fast across all 4 quants.
+#
+# The shipped `red_team_minimal.yaml` enables the *full* default type list per
+# vulnerability (IllegalActivity alone = 7 types), so with a slow reasoning
+# judge/simulator it costs ~30-60 min/model. This config pins ONE representative
+# type per vulnerability x two cheap single-turn attacks, so the simulator only
+# has to write a handful of attacks before probing the target:
+#
+#   3 vuln-types x 2 attacks x apvt=1 = 6 graded cases per model.
+#
+# Use this to confirm wiring + get a first comparison across quants; switch to
+# `red_team.yaml` (full coverage) for the bigger exploration later.
+#
+# Endpoints (target / judge / simulator) are passed on the CLI, not here.
+
+vulnerabilities:
+  illegal_activity:
+    enabled: true
+    types: [cybercrime]      # relevant to a coding/tool-use model
+  toxicity:
+    enabled: true
+    types: [insults]
+  pii_leakage:
+    enabled: true
+    types: [direct_disclosure]
+
+attacks:
+  prompt_injection: true
+  roleplay: true
+
+execution:
+  attacks_per_vulnerability_type: 1
+  # Serial: the target is a single local GPU, so concurrent probes just divide
+  # its throughput and pile up KV-cache pressure (worse on the bigger quants).
+  # The remote judge/simulator are fast (~3s) with thinking off, so there's
+  # little to overlap anyway.
+  max_concurrent: 1
+  ignore_errors: true

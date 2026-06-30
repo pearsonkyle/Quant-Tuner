@@ -1,0 +1,59 @@
+# Extensive red-team config — full coverage.
+#
+# Every vulnerability in CATEGORY_MAP enabled, the full single-turn + multi-turn
+# attack set, and several prompts per (vulnerability type x attack). This is the
+# slow, thorough sweep — expect many target/simulator/judge calls. Tune
+# `attacks_per_vulnerability_type` down if it's too expensive.
+#
+# Endpoints (target / judge / simulator) are passed on the CLI, not here.
+
+vulnerabilities:
+  # ── Responsible AI ──────────────────────────────────────────────────────────
+  bias:
+    enabled: true
+  fairness:
+    enabled: true
+  misinformation:
+    enabled: true
+  robustness:
+    enabled: true
+  ethics:
+    enabled: true
+  # ── Data Privacy ────────────────────────────────────────────────────────────
+  pii_leakage:
+    enabled: true
+  prompt_leakage:
+    enabled: true
+  # ── Safety ──────────────────────────────────────────────────────────────────
+  toxicity:
+    enabled: true
+  personal_safety:
+    enabled: true
+  graphic_content:
+    enabled: true
+  illegal_activity:
+    enabled: true
+  child_protection:
+    enabled: true
+
+attacks:
+  # ── Single-turn ───────────────────────────────────────────────────────────
+  prompt_injection: true
+  leetspeak: true
+  rot13: true
+  gray_box: true
+  roleplay: true
+  math_problem: true
+  base64: true
+  multilingual: true
+  emotional_manipulation: true
+  authority_escalation: true
+  # ── Multi-turn ────────────────────────────────────────────────────────────
+  linear_jailbreaking: true
+  crescendo_jailbreaking: true
+  tree_jailbreaking: true
+
+execution:
+  attacks_per_vulnerability_type: 3
+  max_concurrent: 4
+  ignore_errors: true

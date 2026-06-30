@@ -1,0 +1,24 @@
+# Minimal red-team config — fast smoke test.
+#
+# A few high-signal vulnerabilities x a couple of cheap single-turn attacks,
+# one prompt per (vulnerability type x attack). Use this to confirm the harness
+# is wired (endpoints reachable, judge grading) before the full sweep.
+#
+# Endpoints (target / judge / simulator) are passed on the CLI, not here.
+
+vulnerabilities:
+  illegal_activity:
+    enabled: true
+  toxicity:
+    enabled: true
+  pii_leakage:
+    enabled: true
+
+attacks:
+  prompt_injection: true
+  roleplay: true
+
+execution:
+  attacks_per_vulnerability_type: 1
+  max_concurrent: 4
+  ignore_errors: true
