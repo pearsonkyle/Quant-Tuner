@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import time
 from typing import Any
 
 from quant_tuner.eval.agents.base import AgentRunContext, AgentRunResult
@@ -46,14 +47,31 @@ budget. First reproduce the failure, then edit the source, then re-run to \
 confirm your source change actually makes the failing behavior pass.
 
 Do NOT run `git commit`, `git checkout`, or `git reset` — your final patch is \
-collected automatically from the working tree as a git diff. When the source \
-fix is complete and you have verified it, stop and give a short summary of what \
-you changed.
+collected automatically from the working tree as a git diff. Understanding the \
+bug is not the goal — CHANGING THE CODE is: do not stop until you have actually \
+edited a non-test source file, because a run that ends with an empty `git diff` \
+is scored as a failure. When the source fix is complete and you have verified \
+it, stop and give a short summary of what you changed.
 """
 
 # Command that snapshots the working tree as a patch to grade. Stages new files
 # too (`add -A`) so brand-new modules show up in the diff.
 _SUBMISSION_CMD = "git -C /testbed add -A && git -C /testbed diff --cached HEAD"
+
+# If the agent stops cleanly but the working tree is still unchanged — it
+# explored the code, "understood" the bug, and quit without editing (the
+# dominant empty-patch failure mode observed on weaker/low-bit models) — resume
+# the same conversation with this forcing message so it actually makes the edit.
+# The gate fires ONLY on a clean ``completed`` exit, never on timeout/max_turns.
+_EMPTY_PATCH_NUDGE = (
+    "STOP — the `git diff` of /testbed is EMPTY: you explored the code but never "
+    "edited a source file, so there is nothing to grade. You indicated you understand "
+    "the bug; now ACT on it. Use bash (e.g. `sed -i`, or rewrite the file via a "
+    "heredoc) to modify the responsible NON-TEST source file under /testbed, then "
+    "re-run the project's tests to confirm the failing behavior now passes. Do not "
+    "stop again until `git -C /testbed diff` shows a non-empty change to a source file."
+)
+_MAX_EMPTY_PATCH_RETRIES = 2
 
 
 def _truncate_output(text: str, limit: int = _MAX_TOOL_OUTPUT_CHARS) -> str:
@@ -179,31 +197,66 @@ class OpenAIAgentsBackend:
             model_settings=settings,
         )
 
-        # to_input_list() yields the SDK's typed input-item TypedDicts (plain
-        # dicts at runtime); keep the local loose so they flow into the result.
+        # Run the agent, then apply the empty-patch completion gate: if it stops
+        # cleanly (``completed``) with an unchanged working tree, resume the same
+        # conversation with a forcing nudge and run again, up to
+        # _MAX_EMPTY_PATCH_RETRIES times — bounded by the instance wall deadline.
+        # to_input_list() yields the SDK's typed input-item dicts (plain dicts at
+        # runtime); keep the local loose so they flow into the result.
+        deadline = time.monotonic() + ctx.instance_timeout
         messages: list[Any] = []
         exit_status = "completed"
-        try:
-            result = await asyncio.wait_for(
-                Runner.run(
-                    agent,
-                    ctx.instance["problem_statement"],
-                    max_turns=ctx.max_steps,
-                    hooks=hooks,
-                ),
-                timeout=ctx.instance_timeout,
-            )
-            messages = list(result.to_input_list())
-        except TimeoutError:
-            exit_status = "wall_timeout"
-        except MaxTurnsExceeded:
-            exit_status = "max_turns"
-        except Exception as e:  # keep the suite going; the diff (if any) is still graded
-            exit_status = f"error:{type(e).__name__}"
+        agent_input: Any = ctx.instance["problem_statement"]
+        prompt_tokens = completion_tokens = total_tokens = 0
+        n_nudges = 0
+
+        def _accumulate_usage() -> None:
+            # hooks.usage is cumulative *within* one Runner.run; snapshot and reset
+            # it so token totals sum correctly across nudge continuations.
+            nonlocal prompt_tokens, completion_tokens, total_tokens
+            i, o, t = _usage_tuple(hooks.usage)
+            prompt_tokens += i
+            completion_tokens += o
+            total_tokens += t
+            hooks.usage = None
+
+        for attempt in range(_MAX_EMPTY_PATCH_RETRIES + 1):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                exit_status = "wall_timeout"
+                break
+            try:
+                result = await asyncio.wait_for(
+                    Runner.run(agent, agent_input, max_turns=ctx.max_steps, hooks=hooks),
+                    timeout=remaining,
+                )
+                exit_status = "completed"
+                messages = list(result.to_input_list())
+            except TimeoutError:
+                exit_status = "wall_timeout"
+                _accumulate_usage()
+                break
+            except MaxTurnsExceeded:
+                exit_status = "max_turns"
+                _accumulate_usage()
+                break
+            except Exception as e:  # keep the suite going; the diff (if any) is still graded
+                exit_status = f"error:{type(e).__name__}"
+                _accumulate_usage()
+                break
+            _accumulate_usage()
+
+            # Completion gate: a non-empty diff (or exhausted retries) ends it;
+            # an empty diff on a clean stop resumes with the forcing nudge.
+            if _extract_submission(ctx.env, step_timeout=ctx.step_timeout).strip():
+                break
+            if attempt == _MAX_EMPTY_PATCH_RETRIES:
+                break
+            n_nudges += 1
+            agent_input = messages + [{"role": "user", "content": _EMPTY_PATCH_NUDGE}]
 
         # Metrics from the hooks so they survive the exception paths above.
         n_calls = hooks.n_calls
-        prompt_tokens, completion_tokens, total_tokens = _usage_tuple(hooks.usage)
         # Trajectory: prefer the complete to_input_list(); else fall back to the
         # accumulated model-output items (assistant text + tool calls — tool
         # outputs aren't in this fallback, but it beats an empty trajectory).
@@ -217,7 +270,12 @@ class OpenAIAgentsBackend:
         with contextlib.suppress(Exception):
             ctx.trajectory_path.write_text(
                 json.dumps(
-                    {"messages": messages, "exit_status": exit_status, "n_model_calls": n_calls},
+                    {
+                        "messages": messages,
+                        "exit_status": exit_status,
+                        "n_model_calls": n_calls,
+                        "n_empty_patch_nudges": n_nudges,
+                    },
                     indent=2,
                     default=str,
                 )
@@ -233,4 +291,5 @@ class OpenAIAgentsBackend:
             completion_tokens=completion_tokens,
             total_tokens=total_tokens,
             exit_status=exit_status,
+            extra={"n_empty_patch_nudges": n_nudges},
         )

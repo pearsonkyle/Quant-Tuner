@@ -393,9 +393,18 @@ def _make_target_callback(
     model: str,
     api_key: str,
     sampling: TargetSampling | None = None,
+    timeout: float = 600.0,
 ):
-    """Return an async callback that queries the target model at ``base_url``."""
-    client = openai.AsyncOpenAI(api_key=api_key, base_url=base_url.rstrip("/"), timeout=120.0)
+    """Return an async callback that queries the target model at ``base_url``.
+
+    ``timeout`` defaults to 600s (was 120s): a slow / GPU-contended local target
+    answering an attack that elicits a long generation can blow past a tight
+    timeout, and deepteam then records the case as an error (``score=None``) —
+    which drops it from the denominator and breaks cross-quant comparability.
+    Pair a generous timeout with a ``TargetSampling.max_tokens`` cap so no single
+    generation can run away.
+    """
+    client = openai.AsyncOpenAI(api_key=api_key, base_url=base_url.rstrip("/"), timeout=timeout)
     sampling = sampling or TargetSampling()
     native = sampling.native_kwargs()
     extra_body = sampling.extra_body()
@@ -432,58 +441,76 @@ class RedTeamSummary:
     failed_cases: list[dict] = field(default_factory=list)
 
 
+def _vt_value(tc: Any) -> str:
+    vt = getattr(tc, "vulnerability_type", None)
+    return vt.value if hasattr(vt, "value") else str(vt)
+
+
 def build_summary(risk_assessment: Any, model: str) -> RedTeamSummary:
-    """Convert a deepteam ``risk_assessment`` into a :class:`RedTeamSummary`."""
-    category_stats: dict[str, dict[str, int]] = {}
-    vuln_results = risk_assessment.overview.vulnerability_type_results
-    for vr in vuln_results:
-        cat = CATEGORY_MAP.get(vr.vulnerability, "Other")
-        category_stats.setdefault(cat, {"passing": 0, "failing": 0, "errored": 0})
-        category_stats[cat]["passing"] += vr.passing
-        category_stats[cat]["failing"] += vr.failing
-        category_stats[cat]["errored"] += vr.errored
+    """Convert a deepteam ``risk_assessment`` into a :class:`RedTeamSummary`.
+
+    Counts are derived from ``risk_assessment.test_cases`` (the source of truth),
+    NOT from ``overview.vulnerability_type_results`` — the overview aggregates
+    silently DROP cases whose ``score is None`` (target-generation errors, judge
+    parse failures), so summing them undercounts ``n_tests`` and reports
+    ``n_errored == 0`` even when a target timed out on half the bank. Here a case
+    with ``score == 1`` is a pass, ``score == 0`` a fail, and ``score is None``
+    an error — so ``n_tests`` always equals the full attempted case count and the
+    denominator is explicit (essential for a fair cross-quant comparison).
+    """
+    # ── Per-case rollups (include errored so the denominator is honest) ──────
+    def _blank() -> dict[str, int]:
+        return {"passing": 0, "failing": 0, "errored": 0}
+
+    cat_stats: dict[str, dict[str, int]] = {}
+    vuln_stats: dict[tuple[str, str], dict[str, int]] = {}
+    attack_stats: dict[str, dict[str, int]] = {}
+    n_passing = n_failing = n_errored = 0
+
+    for tc in risk_assessment.test_cases:
+        bucket = "errored" if tc.score is None else ("passing" if tc.score == 1 else "failing")
+        if bucket == "passing":
+            n_passing += 1
+        elif bucket == "failing":
+            n_failing += 1
+        else:
+            n_errored += 1
+        cat = CATEGORY_MAP.get(tc.vulnerability, "Other")
+        cat_stats.setdefault(cat, _blank())[bucket] += 1
+        vkey = (tc.vulnerability, _vt_value(tc))
+        vuln_stats.setdefault(vkey, _blank())[bucket] += 1
+        am = tc.attack_method or "N/A"
+        attack_stats.setdefault(am, _blank())[bucket] += 1
+
+    def _rate(s: dict[str, int]) -> float:
+        valid = s["passing"] + s["failing"]
+        return round(s["passing"] / valid, 4) if valid else 0.0
 
     by_category: dict[str, dict] = {}
-    for cat, stats in category_stats.items():
-        total = stats["passing"] + stats["failing"] + stats["errored"]
-        valid = stats["passing"] + stats["failing"]
+    for cat, s in cat_stats.items():
         by_category[cat] = {
-            "total_tests": total,
-            "passing": stats["passing"],
-            "failing": stats["failing"],
-            "errored": stats["errored"],
-            "pass_rate": round(stats["passing"] / valid, 4) if valid else 0.0,
+            "total_tests": s["passing"] + s["failing"] + s["errored"],
+            "passing": s["passing"], "failing": s["failing"], "errored": s["errored"],
+            "pass_rate": _rate(s),
         }
 
-    by_vulnerability: list[dict] = []
-    for vr in vuln_results:
-        by_vulnerability.append(
-            {
-                "vulnerability": vr.vulnerability,
-                "type": (
-                    vr.vulnerability_type.value
-                    if hasattr(vr.vulnerability_type, "value")
-                    else str(vr.vulnerability_type)
-                ),
-                "category": CATEGORY_MAP.get(vr.vulnerability, "Other"),
-                "pass_rate": round(vr.pass_rate, 4),
-                "passing": vr.passing,
-                "failing": vr.failing,
-                "errored": vr.errored,
-            }
-        )
+    by_vulnerability: list[dict] = [
+        {
+            "vulnerability": v, "type": t,
+            "category": CATEGORY_MAP.get(v, "Other"),
+            "pass_rate": _rate(s),
+            "passing": s["passing"], "failing": s["failing"], "errored": s["errored"],
+        }
+        for (v, t), s in vuln_stats.items()
+    ]
 
-    by_attack: list[dict] = []
-    for ar in risk_assessment.overview.attack_method_results:
-        by_attack.append(
-            {
-                "attack_method": ar.attack_method,
-                "pass_rate": round(ar.pass_rate, 4),
-                "passing": ar.passing,
-                "failing": ar.failing,
-                "errored": ar.errored,
-            }
-        )
+    by_attack: list[dict] = [
+        {
+            "attack_method": am, "pass_rate": _rate(s),
+            "passing": s["passing"], "failing": s["failing"], "errored": s["errored"],
+        }
+        for am, s in attack_stats.items()
+    ]
 
     failed_cases: list[dict] = []
     for tc in risk_assessment.test_cases:
@@ -491,11 +518,7 @@ def build_summary(risk_assessment: Any, model: str) -> RedTeamSummary:
             failed_cases.append(
                 {
                     "vulnerability": tc.vulnerability,
-                    "vulnerability_type": (
-                        tc.vulnerability_type.value
-                        if hasattr(tc.vulnerability_type, "value")
-                        else str(tc.vulnerability_type)
-                    ),
+                    "vulnerability_type": _vt_value(tc),
                     "category": CATEGORY_MAP.get(tc.vulnerability, "Other"),
                     "attack_method": tc.attack_method,
                     "input": tc.input,
@@ -504,9 +527,6 @@ def build_summary(risk_assessment: Any, model: str) -> RedTeamSummary:
                 }
             )
 
-    n_passing = sum(s["passing"] for s in category_stats.values())
-    n_failing = sum(s["failing"] for s in category_stats.values())
-    n_errored = sum(s["errored"] for s in category_stats.values())
     n_tests = n_passing + n_failing + n_errored
     valid = n_passing + n_failing
     pass_rate = round(n_passing / valid, 4) if valid else 0.0
@@ -555,12 +575,24 @@ def run_red_team_eval(
     server_startup_timeout: float = 120.0,
     chat_template_kwargs: str | None = None,
     api_key: str = "sk-no-key-required",
+    red_teamer: Any | None = None,
+    reuse_simulated_test_cases: bool = False,
+    bank_path: Path | None = None,
 ) -> RedTeamSummary:
     """Run the deepteam red-team suite against a target model.
 
     Provide exactly one of ``model_path`` (a GGUF — spawned via
     :func:`running_server`) or ``base_url`` (a target already served). The judge
     and simulator are *separate* OpenAI-compatible endpoints.
+
+    **Frozen-bank mode.** Pass a shared :class:`~deepteam.red_teamer.RedTeamer`
+    as ``red_teamer`` to reuse one attack bank across many targets: the first
+    call (``reuse_simulated_test_cases=False``) simulates + stores the attacks on
+    the instance; later calls (``reuse_simulated_test_cases=True``) replay the
+    *identical* prompts, so every quant sees the same cases and every category
+    gets the same denominator. ``bank_path`` (JSON) dumps the simulated cases
+    after the run for inspection / curation. When ``red_teamer`` is ``None`` the
+    old behavior holds — a throwaway ``RedTeamer`` per call (fresh attacks).
     """
     if (model_path is None) == (base_url is None):
         raise ValueError("provide exactly one of model_path or base_url")
@@ -595,17 +627,42 @@ def run_red_team_eval(
         target_callback = _make_target_callback(
             url, target_model_name, api_key, sampling=target_sampling
         )
-        risk_assessment = red_team(
-            model_callback=target_callback,
-            vulnerabilities=vulnerabilities,
-            attacks=attacks,
-            simulator_model=sim_model,
-            evaluation_model=eval_model,
-            attacks_per_vulnerability_type=apvt,
-            max_concurrent=mc,
-            ignore_errors=ie,
-            target_purpose=target_purpose,
-        )
+        if red_teamer is not None:
+            # Frozen-bank path: drive the *instance* so its simulated_test_cases
+            # persist across targets. red_team()'s own simulator/eval kwargs
+            # default to the ones set on the constructor.
+            if reuse_simulated_test_cases:
+                # deepteam's _a_attack early-returns on a case whose .error is
+                # already set — so a case that errored on the SEED target would be
+                # permanently skipped for every later target (the monotonic
+                # 113→100→97→94 pruning we hit). Reset per-run evaluation state so
+                # each target re-probes the *full* frozen bank from scratch; only
+                # the simulated .input / .turns (the frozen prompts) are kept.
+                _reset_bank_for_reuse(red_teamer)
+            risk_assessment = red_teamer.red_team(
+                model_callback=target_callback,
+                vulnerabilities=vulnerabilities,
+                attacks=attacks,
+                simulator_model=sim_model,
+                evaluation_model=eval_model,
+                attacks_per_vulnerability_type=apvt,
+                ignore_errors=ie,
+                reuse_simulated_test_cases=reuse_simulated_test_cases,
+            )
+            if bank_path is not None:
+                _dump_attack_bank(red_teamer, bank_path)
+        else:
+            risk_assessment = red_team(
+                model_callback=target_callback,
+                vulnerabilities=vulnerabilities,
+                attacks=attacks,
+                simulator_model=sim_model,
+                evaluation_model=eval_model,
+                attacks_per_vulnerability_type=apvt,
+                max_concurrent=mc,
+                ignore_errors=ie,
+                target_purpose=target_purpose,
+            )
         return build_summary(risk_assessment, label)
 
     if base_url is not None:
@@ -619,6 +676,74 @@ def run_red_team_eval(
         chat_template_kwargs=chat_template_kwargs,
     ) as url:
         return _run_against(url)
+
+
+def make_red_teamer(
+    *,
+    simulator_model: Any,
+    evaluation_model: Any,
+    target_purpose: str | None = None,
+    max_concurrent: int = 1,
+    async_mode: bool = True,
+) -> Any:
+    """Build a persistent :class:`~deepteam.red_teamer.RedTeamer`.
+
+    Share one instance across targets and pass it to
+    :func:`run_red_team_eval` with ``reuse_simulated_test_cases=True`` on every
+    call after the first — that reuses the *same* simulated attack bank so all
+    targets are scored on an identical set of prompts.
+    """
+    from deepteam.red_teamer import RedTeamer
+
+    return RedTeamer(
+        simulator_model=simulator_model,
+        evaluation_model=evaluation_model,
+        target_purpose=target_purpose or "",
+        async_mode=async_mode,
+        max_concurrent=max_concurrent,
+    )
+
+
+def _reset_bank_for_reuse(red_teamer: Any) -> None:
+    """Clear per-target evaluation state on the frozen bank before a reuse run.
+
+    Resets ``score`` / ``reason`` / ``error`` / ``actual_output`` on every
+    stored test case so deepteam re-probes + re-judges each one against the new
+    target. The simulated ``input`` and multi-turn ``turns`` (the frozen prompts)
+    are left intact — that's what makes the bank identical across targets.
+    Without this, ``_a_attack``'s ``if test_case.error is not None: return`` short
+    -circuits any case that errored on an earlier target, so counts only shrink.
+    """
+    for tc in getattr(red_teamer, "test_cases", None) or []:
+        tc.score = None
+        tc.reason = None
+        tc.error = None
+        tc.actual_output = None
+
+
+def _dump_attack_bank(red_teamer: Any, bank_path: Path) -> None:
+    """Serialize the RedTeamer's simulated attack bank to JSON for curation.
+
+    Captures every simulated case's vulnerability / type / attack method and the
+    seed ``input`` (first-turn prompt). Multi-turn follow-ups are adaptive and
+    not part of the frozen seed, so only the seed prompt is persisted.
+    """
+    import json
+
+    cases = getattr(red_teamer, "test_cases", None) or []
+    rows = []
+    for tc in cases:
+        vt = getattr(tc, "vulnerability_type", None)
+        rows.append(
+            {
+                "vulnerability": getattr(tc, "vulnerability", None),
+                "vulnerability_type": vt.value if hasattr(vt, "value") else str(vt),
+                "attack_method": getattr(tc, "attack_method", None),
+                "input": getattr(tc, "input", None),
+            }
+        )
+    bank_path.parent.mkdir(parents=True, exist_ok=True)
+    bank_path.write_text(json.dumps({"n_cases": len(rows), "cases": rows}, indent=2))
 
 
 # ── Renderer ───────────────────────────────────────────────────────────────────

@@ -107,6 +107,31 @@ def test_session_windows_body_never_starts_on_tool():
     assert "user hello" in wins[0][0]
 
 
+class StrictTok(FakeTok):
+    """Like FakeTok but mimics strict chat templates (e.g. Qwen3.5-VL) that
+    refuse to render a window with no user turn."""
+
+    def apply_chat_template(self, messages, tools=None, tokenize=False):
+        if not any(m.get("role") == "user" for m in messages):
+            raise ValueError("No user query found in messages.")
+        return super().apply_chat_template(messages, tools=tools, tokenize=False)
+
+
+def test_session_windows_skips_userless_windows_for_strict_templates():
+    # A window that would start on an orphaned assistant turn (no user in it)
+    # must be skipped, not raise — otherwise the whole session is discarded and
+    # strict-template models lose nearly all calibration signal.
+    tok = StrictTok()
+    msgs = [{"role": "system", "content": "S"}]
+    for i in range(12):
+        msgs.append({"role": "assistant" if i % 2 else "user", "content": f"turn{i}"})
+    wins = session_windows(tok, msgs, SCHEMA, cap_tokens=6,
+                           system_content="STUB", max_windows=8)
+    assert wins, "strict template must still yield the user-anchored windows"
+    for text, _ in wins:
+        assert "user" in text  # every emitted window carries a user turn
+
+
 def _pack_sessions(n=6):
     sessions = []
     for i in range(n):

@@ -241,6 +241,7 @@ def run_instance(
         record["prompt_tokens"] = result.prompt_tokens
         record["completion_tokens"] = result.completion_tokens
         record["total_tokens"] = result.total_tokens
+        record["n_empty_patch_nudges"] = result.extra.get("n_empty_patch_nudges", 0)
 
         if progress:
             print(

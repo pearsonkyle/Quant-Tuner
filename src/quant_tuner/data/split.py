@@ -138,18 +138,27 @@ def session_windows(
         if i >= n:
             break
         # Binary-search the largest j>i such that body[i:j] fits the cap.
-        lo, hi, best_j = i + 1, n, None
-        while lo <= hi:
-            mid = (lo + hi) // 2
-            _, ntok = render(body[i:mid])
-            if ntok <= cap_tokens:
-                best_j = mid
-                lo = mid + 1
-            else:
-                hi = mid - 1
-        if best_j is None:  # single message larger than the cap — keep it anyway
-            best_j = i + 1
-        text, ntok = render(body[i:best_j])
+        # Some chat templates are strict and refuse a window that lacks a user
+        # turn (e.g. one that starts on an assistant reply orphaned at a window
+        # boundary — Qwen3.5-VL raises "No user query found"). Treat such a
+        # render failure as "skip this start" rather than letting it bubble up
+        # and discard the whole session; lenient templates never raise here.
+        try:
+            lo, hi, best_j = i + 1, n, None
+            while lo <= hi:
+                mid = (lo + hi) // 2
+                _, ntok = render(body[i:mid])
+                if ntok <= cap_tokens:
+                    best_j = mid
+                    lo = mid + 1
+                else:
+                    hi = mid - 1
+            if best_j is None:  # single message larger than the cap — keep it anyway
+                best_j = i + 1
+            text, ntok = render(body[i:best_j])
+        except Exception:
+            i += 1
+            continue
         if ntok > 0:
             windows.append((text.strip(), ntok))
         i = best_j
