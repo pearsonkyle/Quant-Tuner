@@ -24,15 +24,20 @@ class DataConfig(BaseModel):
     # Calibration-corpus packing. With system_prose_budget set (the default),
     # the calibration (train) corpus is built with the stub + multi-window
     # packer: each session is sliced into <=per_session_cap windows whose system
-    # prose is trimmed to system_prose_budget tokens (schemas, rendered from
-    # tools=, are kept), and the full prose is rendered in only full_prose_quota
-    # sessions per unique system prompt. Keep per_session_cap < the imatrix ctx
-    # so no window straddles a context boundary. Set system_prose_budget: null
-    # to fall back to the legacy head-truncated single-chunk packer.
+    # prose is trimmed to system_prose_budget tokens, and the full prose is
+    # rendered in only full_prose_quota sessions per unique system prompt.
+    # Tool schemas get the same dedup via tool_schema_quota: the full schema
+    # set renders in the first window of the first `quota` sessions per unique
+    # set, a name+description stub everywhere else (null disables — pre-fix
+    # behavior re-rendered full schemas in EVERY window). Keep per_session_cap
+    # < the imatrix ctx (default 4096) so no window straddles a context
+    # boundary. Set system_prose_budget: null to fall back to the legacy
+    # head-truncated single-chunk packer.
     per_session_cap: int = 3_500
     system_prose_budget: int | None = 256
     full_prose_quota: int = 1
     max_windows_per_session: int = 8
+    tool_schema_quota: int | None = 1
 
 
 class CalibrationConfig(BaseModel):
@@ -59,6 +64,12 @@ class BenchConfig(BaseModel):
     # llama-perplexity cannot --parse-special, so a chat-templated eval slice
     # is tokenized differently from what the model sees at inference.
     eval_corpus: Path | None = None
+    # Optional second, in-distribution KLD suite (scripts/build_corpora.py's
+    # corpus.eval.tools.txt — windowed logtrain holdout). Gets its own
+    # baseline (eval/baseline-tools.kld) and emits *_tools columns. Chat
+    # markers tokenize as plain BPE (no --parse-special), so the numbers are
+    # quant-vs-quant comparisons, not absolute PPL.
+    eval_tools_corpus: Path | None = None
 
 
 class RunConfig(BaseModel):

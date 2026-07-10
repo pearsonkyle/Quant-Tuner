@@ -116,3 +116,31 @@ def test_imatrix_ctx_routed_to_llama_imatrix(tmp_path: Path, monkeypatch):
     pipeline.calibrate(cfg, ws, f16, train, ws.corpus_dir / "eval.txt")
     assert captured["ctx"] == 2048
     assert "imatrix_ctx" not in captured["variant_kwargs"]
+
+
+def test_imatrix_ctx_defaults_to_4096(tmp_path: Path, monkeypatch):
+    """Without an explicit param, llama-imatrix runs at DEFAULT_IMATRIX_CTX
+    (4096) so the packer's <=3500-token windows fit one context chunk — the
+    old 512 default sliced every window across ~7 chunks."""
+    captured: dict = {}
+
+    def fake_imatrix(model, corpus, out, ctx=512, log=None, **kw):
+        captured["ctx"] = ctx
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.touch()
+        return out
+
+    monkeypatch.setattr(pipeline.llama_cpp, "imatrix", fake_imatrix)
+
+    cfg = RunConfig(
+        name="t", model="m", workspace=tmp_path / "ws",
+        calibration=CalibrationConfig(method="imatrix", variant="default"),
+    )
+    ws = pipeline.prepare_workspace(cfg)
+    f16 = ws.gguf_dir / "model-f16.gguf"
+    f16.touch()
+    train = ws.corpus_dir / "train.txt"
+    train.write_text("x")
+
+    pipeline.calibrate(cfg, ws, f16, train, ws.corpus_dir / "eval.txt")
+    assert captured["ctx"] == pipeline.DEFAULT_IMATRIX_CTX == 4096

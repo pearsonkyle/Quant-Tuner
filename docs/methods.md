@@ -93,9 +93,15 @@ sample (domain + chat/tool structure with correct special tokens). Defaults to
 500k log tokens + full wiki (~300k) ≈ a 63/37 log/wiki mix.
 
 Two design facts that keep this simple:
-  * **Order is irrelevant.** `llama-imatrix` accumulates `E[a²]` as a running
-    average over fixed-size chunks, so block-concatenation and interleaving
-    yield the same imatrix. We concatenate (wiki first) — no interleaving.
+  * **Order is irrelevant — for `llama-imatrix` only.** It accumulates `E[a²]`
+    as a running average over fixed-size chunks of the WHOLE file, so
+    block-concatenation and interleaving yield the same imatrix. It is NOT
+    irrelevant for the HF-side calibrators (AWQ / GPTQ / outlier stats): they
+    sample a token budget from the file, and a monolithic wiki head used to
+    eat that entire budget — AWQ calibrated on pure wiki and never saw a
+    tool-call window. `scripts/build_corpora.py` therefore **interleaves**
+    window-sized wiki chunks with the log windows, and the calibrators
+    stride their budget across the file (`calibrate/_ingest.sample_chunks`).
   * **Don't chat-wrap the wiki.** Wrapping encyclopedia prose in fake
     user/assistant turns injects role-token activations that don't belong to
     general-language calibration and mislabels prose as assistant output. Raw
@@ -115,9 +121,14 @@ For each **scale group** (attention `q/k/v[/gate_proj]` sharing one
 `post_attention_layernorm`), AWQ:
 
 1. Captures `s_c = mean(|x_c|)` per input channel via forward pre-hooks on the
-   group anchor.
+   group anchor. The forward pass runs over `ceil(tokens/ctx)` chunks strided
+   **evenly across the whole calibration corpus** (`tokens` default 65536,
+   `ctx` 4096) — not the head of the file.
 2. Picks an exponent `α` (either fixed `0.5` per the AWQ paper, or grid-searched)
-   that minimises a proxy loss using fake INT4 g128 round-to-nearest.
+   that minimises a proxy loss using fake INT4 g128 round-to-nearest. The
+   proxy activations `X` accumulate `proxy_tokens` evenly-spaced rows drawn
+   from **every** forwarded chunk, so the α decision reflects the corpus
+   distribution instead of the first window's system prompt.
 3. Sets `scale_c = s_c^α / geomean(s^α)` (normalized so the per-row quantizer
    scale isn't dominated by any one channel).
 
@@ -152,8 +163,9 @@ the weights, replacing each column with the nearest INT-N value while
 compensating for that error in the columns that haven't been quantized yet.
 
 1. **Calibrate.** For each target Linear (attention `q/k/v/o_proj`, MLP
-   `gate/up/down_proj`), accumulate `H = Σ_t x_t x_t^T` over the calibration
-   corpus. One file per tensor is snapshot-saved to disk every N chunks (atomic
+   `gate/up/down_proj`), accumulate `H = Σ_t x_t x_t^T` over `tokens` (default
+   32768) of the calibration corpus, chunked at `ctx` (2048) and strided
+   evenly across the whole file. One file per tensor is snapshot-saved to disk every N chunks (atomic
    tmp + rename), so a crash mid-calibration is resumable. Memory: this stores
    one `[in × in]` FP32 Hessian per Linear — `down_proj` Hessians dominate at
    roughly `in_size² · 4 B`.

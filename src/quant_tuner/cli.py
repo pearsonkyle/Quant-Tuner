@@ -81,6 +81,10 @@ def bench(
     quant: Path = typer.Option(..., help="Quantized GGUF to evaluate"),
     reference: Path = typer.Option(..., help="Reference GGUF (typically the F16) for KLD"),
     eval_dataset: Path = typer.Option(..., "--eval", help="Held-out text corpus for KLD/PPL"),
+    eval_tools: Path | None = typer.Option(
+        None, "--eval-tools",
+        help="Optional in-distribution tools corpus (corpus.eval.tools.txt) for a "
+             "second KLD pass -> *_tools columns (quant-vs-quant only)"),
     out: Path = typer.Option(Path("results.csv"), help="CSV to append the bench row to"),
     label: str | None = typer.Option(None, help="Label for the row (default: quant filename)"),
     suite: str = typer.Option("full", help="quick | kld | speed | full | leaderboard"),
@@ -103,11 +107,22 @@ def bench(
         out.parent.mkdir(parents=True, exist_ok=True)
         kld_mod.build_baseline(reference, eval_dataset, baseline_path, ctx=eval_ctx)
 
+    tools_baseline: Path | None = None
+    if eval_tools is not None:
+        if not eval_tools.exists():
+            raise typer.BadParameter(f"tools eval dataset not found: {eval_tools}")
+        tools_baseline = out.parent / "baseline-tools.kld"
+        if not tools_baseline.exists():
+            out.parent.mkdir(parents=True, exist_ok=True)
+            kld_mod.build_baseline(reference, eval_tools, tools_baseline, ctx=eval_ctx)
+
     row = runner.bench_one(
         quant, label or quant.stem,
         reference_n_params=bpw_mod.n_params(reference),
         eval_dataset=eval_dataset,
         eval_baseline=baseline_path,
+        tools_dataset=eval_tools,
+        tools_baseline=tools_baseline,
         eval_ctx=eval_ctx,
         log_dir=out.parent / "logs",
         suite=suite,

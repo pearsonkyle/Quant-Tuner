@@ -25,6 +25,13 @@ from quant_tuner.models import extract, llama_cpp
 from quant_tuner.paths import Workspace
 from quant_tuner.quantize import convert, gguf
 
+# llama-imatrix context length (all three calibration methods). 4096 matches
+# the packer's per_session_cap=3500 windows — at the old default of 512 every
+# window straddled ~7 imatrix chunks and the repeated system/schema text was
+# re-sliced across most of them. Override per-recipe via
+# calibration.params.imatrix_ctx.
+DEFAULT_IMATRIX_CTX = 4096
+
 # ---------------------------------------------------------------------------
 # Phase 1: workspace + model extraction + F16 conversion
 # ---------------------------------------------------------------------------
@@ -123,6 +130,7 @@ def _build_corpora(cfg: RunConfig, ws: Workspace, train: Path, eval_: Path) -> N
             system_prose_budget=cfg.data.system_prose_budget,
             full_prose_quota=cfg.data.full_prose_quota,
             max_windows_per_session=cfg.data.max_windows_per_session,
+            tool_schema_quota=cfg.data.tool_schema_quota,
         )
         split.write_corpus(chunks, train, supplement=cfg.data.supplement)
         (ws.corpus_dir / "train_audit.json").write_text(
@@ -184,7 +192,7 @@ def calibrate(
     if method == "gptq":
         # GPTQ needs a base imatrix for the final llama-quantize pass.
         base_imatrix = ws.calibration_dir / "imatrix-base.gguf"
-        imatrix_ctx = int(cfg.calibration.params.get("imatrix_ctx", 512))
+        imatrix_ctx = int(cfg.calibration.params.get("imatrix_ctx", DEFAULT_IMATRIX_CTX))
         step("llama-imatrix (base)", base_imatrix,
              lambda: llama_cpp.imatrix(f16, train_corpus, base_imatrix,
                                        ctx=imatrix_ctx, log=logs / "imatrix-base.log"))
@@ -200,7 +208,7 @@ def _calibrate_imatrix(
     tuned = ws.calibration_dir / f"imatrix-{cfg.calibration.variant}.gguf"
 
     params: dict[str, Any] = dict(cfg.calibration.params)
-    imatrix_ctx = int(params.pop("imatrix_ctx", 512))
+    imatrix_ctx = int(params.pop("imatrix_ctx", DEFAULT_IMATRIX_CTX))
 
     step("llama-imatrix (base)", base_imatrix,
          lambda: llama_cpp.imatrix(f16, train_corpus, base_imatrix,
@@ -258,7 +266,7 @@ def _calibrate_awq(
     # Optional second-stage imatrix re-weighting on the folded model
     # (e.g. "hybrid_custom" to stack the two winning calibrations).
     imatrix_variant = params.pop("imatrix_variant", "default")
-    imatrix_ctx = int(params.pop("imatrix_ctx", 512))
+    imatrix_ctx = int(params.pop("imatrix_ctx", DEFAULT_IMATRIX_CTX))
 
     step("AWQ calibrate (capture mean|x| + grid α)", awq_bundle,
          lambda: awq.calibrate(ws.model_extracted, train_corpus, awq_bundle, **params))
@@ -405,6 +413,17 @@ def bench(
          lambda: kld.build_baseline(reference, eval_corpus, eval_baseline,
                                     ctx=cfg.bench.eval_ctx, log=logs / "baseline.log"))
 
+    # Optional in-distribution tools suite: separate corpus, separate baseline.
+    tools_corpus: Path | None = None
+    tools_baseline: Path | None = None
+    if cfg.bench.eval_tools_corpus is not None:
+        tools_corpus = Path(cfg.bench.eval_tools_corpus)
+        tools_baseline = ws.eval_dir / "baseline-tools.kld"
+        step("build KLD baseline (tools eval)", tools_baseline,
+             lambda: kld.build_baseline(reference, tools_corpus, tools_baseline,
+                                        ctx=cfg.bench.eval_ctx,
+                                        log=logs / "baseline-tools.log"))
+
     n_params = bpw_mod.n_params(reference)
     label = f"{cfg.calibration.method}/{cfg.quantize.type}-{cfg.calibration.variant}"
     with phase(f"bench {label}"):
@@ -413,6 +432,8 @@ def bench(
             reference_n_params=n_params,
             eval_dataset=eval_corpus,
             eval_baseline=eval_baseline,
+            tools_dataset=tools_corpus,
+            tools_baseline=tools_baseline,
             eval_ctx=cfg.bench.eval_ctx,
             log_dir=logs,
             suite=cfg.bench.suite,

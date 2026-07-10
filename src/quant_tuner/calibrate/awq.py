@@ -29,6 +29,7 @@ The RMSNorm fold has two forms (controlled by ``rmsnorm_plus_one``):
 
 from __future__ import annotations
 
+import math
 import re
 import shutil
 import sys
@@ -41,6 +42,7 @@ import torch
 
 from quant_tuner.calibrate._device import resolve_device
 from quant_tuner.calibrate._hf import forward_no_logits
+from quant_tuner.calibrate._ingest import load_chunks, sample_rows
 
 # --- Group discovery ------------------------------------------------------ #
 
@@ -733,12 +735,10 @@ def calibrate(
     calibration_text: Path,
     out_path: Path,
     *,
-    tokens: int = 4096,
-    # Default ctx aligned with the project-wide ctx=4096 convention. Also lifts
-    # the silent cap on proxy_tokens: target_X is populated from the first
-    # chunk only (see hook below), so proxy_tokens > ctx silently truncates.
-    # exp-024 hit this — proxy=1024 and proxy=2048 produced bit-identical
-    # outputs because both got capped at ctx=1024.
+    # Budget spread evenly across the WHOLE corpus (see calibrate._ingest),
+    # not a head-truncation: mean(|x|) and the α-search activations must see
+    # the tool-call windows, not just whatever text leads the file.
+    tokens: int = 65_536,
     ctx: int = 4096,
     device: str = "auto",
     dtype: str = "bfloat16",
@@ -849,34 +849,41 @@ def calibrate(
     cached_X_ho: dict[str, torch.Tensor | None] = {g.group_id: None for g in groups}
 
     def make_hook(gid: str, target_X: dict[str, torch.Tensor | None],
-                  update_sum: bool):
+                  update_sum: bool, rows_per_chunk: int):
+        # X accumulates across ALL forwarded chunks — rows_per_chunk evenly
+        # spaced rows from each chunk until proxy_tokens total — so the α
+        # search scores reconstruction on the corpus distribution, not on the
+        # (system-prompt-heavy) head of the first chunk.
         def pre(_module, in_args):
             x_flat = in_args[0].reshape(-1, in_args[0].shape[-1])
             if update_sum:
                 abs_sum = x_flat.float().abs().sum(dim=0).detach().cpu()
                 sum_abs[gid] = abs_sum if sum_abs[gid] is None else sum_abs[gid] + abs_sum
                 tok_count[gid] += x_flat.shape[0]
-            if target_X[gid] is None:
-                n = min(proxy_tokens, x_flat.shape[0])
-                target_X[gid] = x_flat[:n].detach().float().cpu()
+            have = 0 if target_X[gid] is None else target_X[gid].shape[0]
+            want = min(rows_per_chunk, proxy_tokens - have)
+            if want > 0:
+                piece = sample_rows(x_flat, want).detach().float().cpu()
+                target_X[gid] = piece if target_X[gid] is None else torch.cat(
+                    [target_X[gid], piece], dim=0)
         return pre
 
     # Calibration-corpus pass: collect mean(|x|) and cache X_cal per group.
+    chunks = load_chunks(tok, calibration_text, ctx=ctx, budget_tokens=tokens,
+                         log_tag="awq")
+    if not chunks:
+        raise ValueError(f"calibration corpus {calibration_text} tokenized to <2 tokens")
+    x_rows_per_chunk = max(1, math.ceil(proxy_tokens / len(chunks)))
     handles = [
         _get_module(model, g.anchor).register_forward_pre_hook(
-            make_hook(g.group_id, cached_X, update_sum=True)
+            make_hook(g.group_id, cached_X, update_sum=True,
+                      rows_per_chunk=x_rows_per_chunk)
         )
         for g in groups
     ]
     try:
-        text = calibration_text.read_text()
-        ids = tok(text, return_tensors="pt", add_special_tokens=False).input_ids[0][:tokens]
-        chunks = ids.split(ctx)
-        print(f"[awq] {ids.shape[0]} tokens, ctx {ctx} -> {len(chunks)} chunks", file=sys.stderr)
         with torch.no_grad():
             for i, chunk in enumerate(chunks):
-                if chunk.numel() < 2:
-                    continue
                 forward_no_logits(model, chunk.unsqueeze(0).to(device))
                 print(f"  chunk {i + 1}/{len(chunks)}", file=sys.stderr)
     finally:
@@ -898,22 +905,19 @@ def calibrate(
     if cv_strategy != "off" and holdout_text is not None:
         print(f"[awq] capturing held-out activations for cv_strategy={cv_strategy!r} "
               f"(cv_weight={cv_weight})", file=sys.stderr)
+        ho_chunks = load_chunks(tok, holdout_text, ctx=ctx, budget_tokens=tokens,
+                                log_tag="awq held-out")
+        ho_rows_per_chunk = max(1, math.ceil(proxy_tokens / max(len(ho_chunks), 1)))
         ho_handles = [
             _get_module(model, g.anchor).register_forward_pre_hook(
-                make_hook(g.group_id, cached_X_ho, update_sum=False)
+                make_hook(g.group_id, cached_X_ho, update_sum=False,
+                          rows_per_chunk=ho_rows_per_chunk)
             )
             for g in groups
         ]
         try:
-            ho_ids = tok(holdout_text.read_text(), return_tensors="pt",
-                         add_special_tokens=False).input_ids[0][:tokens]
-            ho_chunks = ho_ids.split(ctx)
-            print(f"[awq] held-out {ho_ids.shape[0]} tokens -> {len(ho_chunks)} chunks",
-                  file=sys.stderr)
             with torch.no_grad():
                 for i, chunk in enumerate(ho_chunks):
-                    if chunk.numel() < 2:
-                        continue
                     forward_no_logits(model, chunk.unsqueeze(0).to(device))
                     print(f"  ho chunk {i + 1}/{len(ho_chunks)}", file=sys.stderr)
         finally:

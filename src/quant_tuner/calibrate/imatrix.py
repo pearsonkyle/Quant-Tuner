@@ -132,8 +132,10 @@ def collect_forward_stats(
     calibration_text: Path,
     base_imatrix: Path,
     *,
-    tokens: int = 4096,
-    ctx: int = 1024,
+    # Budget spread evenly across the WHOLE corpus (calibrate._ingest); ctx
+    # unified with the AWQ/pipeline-wide 4096 convention.
+    tokens: int = 65_536,
+    ctx: int = 4096,
     device: str = "auto",
     dtype: str = "bfloat16",
 ) -> ForwardStats:
@@ -144,6 +146,8 @@ def collect_forward_stats(
     """
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
+
+    from quant_tuner.calibrate._ingest import load_chunks
 
     _ensure_gguf_py()
     from gguf import GGUFReader
@@ -201,14 +205,11 @@ def collect_forward_stats(
 
     handles = [hf_modules[h].register_forward_pre_hook(make_hook(g)) for h, g in mapping.items()]
     try:
-        text = calibration_text.read_text()
-        ids = tok(text, return_tensors="pt", add_special_tokens=False).input_ids[0][:tokens]
-        chunks = ids.split(ctx)
-        print(f"[forward_stats] {ids.shape[0]} tokens, ctx {ctx} -> {len(chunks)} chunks", file=sys.stderr)
+        # Strided sample across the WHOLE corpus (see calibrate._ingest).
+        chunks = load_chunks(tok, calibration_text, ctx=ctx, budget_tokens=tokens,
+                             log_tag="forward_stats")
         with torch.no_grad():
             for i, chunk in enumerate(chunks):
-                if chunk.numel() < 2:
-                    continue
                 forward_no_logits(model, chunk.unsqueeze(0).to(device))
                 print(f"  chunk {i + 1}/{len(chunks)}", file=sys.stderr)
     finally:
