@@ -306,6 +306,23 @@ def test_chunk_text_splits_on_paragraphs():
         == text.replace("\n\n", "").replace("\n", "")
 
 
+def test_chunk_text_falls_back_when_no_blank_lines():
+    # wiki.test.raw is single-newline delimited with NO "\n\n" — the naive
+    # paragraph split would return one giant chunk and defeat interleaving.
+    text = "\n".join(f"line{i} " + "x " * 20 for i in range(400))
+    chunks = chunk_text(text, approx_chars=200)
+    assert len(chunks) > 10, "single-newline text must still chunk"
+    assert max(len(c) for c in chunks) < 200 * 3  # no chunk vastly over target
+
+
+def test_chunk_text_hard_slices_one_huge_line():
+    # A single line longer than the target must be hard-sliced, not emitted whole.
+    text = "z" * 10_000
+    chunks = chunk_text(text, approx_chars=1000)
+    assert len(chunks) >= 10
+    assert max(len(c) for c in chunks) <= 1000
+
+
 def test_interleave_is_proportional_and_order_preserving():
     a = [f"a{i}" for i in range(9)]
     b = [f"b{i}" for i in range(3)]

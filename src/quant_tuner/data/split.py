@@ -503,28 +503,52 @@ def stratified_pack(
 
 
 def chunk_text(text: str, approx_chars: int) -> list[str]:
-    """Split raw text into ~approx_chars chunks on paragraph boundaries.
+    """Split raw text into ~approx_chars chunks.
 
     Used to break a monolithic filler corpus (wiki) into window-sized pieces
     so it can be interleaved with chat windows instead of prepended as one
     quarter-million-token head that eats any token-budgeted calibrator's
     entire sample.
+
+    Splits on the coarsest boundary that yields chunks near ``approx_chars``:
+    paragraph (``\\n\\n``) first, falling back to single newline, then a hard
+    character slice. Real filler files (e.g. ``wiki.test.raw``) are often
+    single-newline delimited with NO blank lines — a naive ``\\n\\n`` split
+    returns one giant chunk and silently defeats the whole point, so the
+    fallback matters.
     """
     if approx_chars < 1:
         raise ValueError(f"approx_chars must be >= 1, got {approx_chars}")
+
+    # Pick the finest-grained separator we actually need: only drop to single
+    # newlines / hard slicing when paragraph splitting can't approximate the
+    # target chunk size (blank-line-free corpora).
+    sep = "\n\n" if text.count("\n\n") * approx_chars * 2 >= len(text) else "\n"
+
     chunks: list[str] = []
     cur: list[str] = []
     cur_len = 0
-    for para in text.split("\n\n"):
-        cur.append(para)
-        cur_len += len(para) + 2
+
+    def flush() -> None:
+        nonlocal cur, cur_len
+        if cur:
+            joined = sep.join(cur)
+            if joined.strip():
+                chunks.append(joined)
+        cur, cur_len = [], 0
+
+    for seg in text.split(sep):
+        # A single segment larger than the target (e.g. one enormous line):
+        # hard-slice it so no chunk blows the budget by orders of magnitude.
+        while len(seg) > approx_chars:
+            flush()
+            chunks.append(seg[:approx_chars])
+            seg = seg[approx_chars:]
+        cur.append(seg)
+        cur_len += len(seg) + len(sep)
         if cur_len >= approx_chars:
-            chunks.append("\n\n".join(cur))
-            cur, cur_len = [], 0
-    if cur:
-        tail = "\n\n".join(cur)
-        if tail.strip():
-            chunks.append(tail)
+            flush()
+    flush()
     return chunks
 
 
