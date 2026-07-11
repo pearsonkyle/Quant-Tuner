@@ -48,13 +48,13 @@ D = {
     },
 }
 
-# (row, col): key, title, is_pct, log, fmt
+# (row, col): key, title, is_pct, log, fmt  -- portrait 3x2 grid
 PANELS = [
     (0, 0, "kld", "Median KLD vs fp16  (lower better)", False, True, "{:.2f}"),
-    (0, 1, "topp", "Top-token match rate  (higher better)", True, False, "{:.0f}%"),
+    (0, 1, "topp", "Top-token match rate", True, False, "{:.0f}%"),
     (1, 0, "tool", "Correct tool selection rate", True, False, "{:.0f}%"),
     (1, 1, "arg", "Correct argument rate", True, False, "{:.0f}%"),
-    (1, 2, "valid", "Valid tool-call rate", True, False, "{:.0f}%"),
+    (2, 0, "valid", "Valid tool-call rate", True, False, "{:.0f}%"),
 ]
 
 plt.rcParams.update({
@@ -63,7 +63,7 @@ plt.rcParams.update({
     "text.color": INK, "axes.labelcolor": INK, "xtick.color": MUTE, "ytick.color": MUTE,
 })
 
-fig, axes = plt.subplots(2, 3, figsize=(12.5, 7.2), facecolor="white")
+fig, axes = plt.subplots(3, 2, figsize=(8.4, 11.6), facecolor="white")
 for ax in axes.flat:
     ax.set_facecolor("white")
 
@@ -107,14 +107,14 @@ for row, col, key, title, is_pct, log, fmt in PANELS:
         ax.set_ylim(-8, 108)
         ax.set_yticks([0, 25, 50, 75, 100])
 
-# row captions on the left
+# group captions on the left
 axes[0, 0].set_ylabel("STATIC\nwhat KLD/PPL see", fontsize=10, fontweight="bold",
                       color=MUTE, labelpad=12)
 axes[1, 0].set_ylabel("AGENTIC\nwhat actually matters", fontsize=10, fontweight="bold",
                       color=MUTE, labelpad=12)
 
-# legend + takeaway in the spare top-right cell
-leg = axes[0, 2]
+# legend + takeaway in the spare bottom-right cell
+leg = axes[2, 1]
 leg.axis("off")
 handles = [
     Line2D([0], [0], color=GEMMA, lw=2.4, marker="o", ms=8, mec="white",
@@ -123,21 +123,21 @@ handles = [
            label="Ornith-9B  (3.4 GB)"),
 ]
 leg.legend(handles=handles, loc="upper center", frameon=False, fontsize=11,
-           handlelength=1.8, bbox_to_anchor=(0.5, 1.02))
-leg.text(0.5, 0.52,
+           handlelength=1.8, bbox_to_anchor=(0.5, 1.0))
+leg.text(0.5, 0.62,
          "Same story on both models:\n\n"
          "no calibration = dead\n(the bigger Q2_K can't tool-call)\n\n"
-         "imatrix wins the static row,\nbut AGENTIC keeps climbing to AWQ.\n\n"
-         "KLD/PPL don't predict tool use.",
-         transform=leg.transAxes, ha="center", va="top", fontsize=10,
+         "imatrix wins the static row,\nbut AGENTIC keeps\nclimbing to AWQ.\n\n"
+         "KLD/PPL don't\npredict tool use.",
+         transform=leg.transAxes, ha="center", va="top", fontsize=10.5,
          color=MUTE, linespacing=1.5)
 
-fig.suptitle("How a 2-bit quant changes with calibration technique",
-             fontsize=16, fontweight="bold", color=INK, x=0.5, y=0.99)
-fig.text(0.5, 0.925,
-         "same model, same size, three ways to spend the bits:  no calibration  >  imatrix  >  AWQ",
-         ha="center", fontsize=11, color=MUTE)
+fig.suptitle("How a 2-bit quant changes with\ncalibration technique",
+             fontsize=16, fontweight="bold", color=INK, x=0.5, y=0.988)
+fig.text(0.5, 0.918,
+         "same model, same size, three ways to spend the bits:\nno calibration  >  imatrix  >  AWQ",
+         ha="center", fontsize=10.5, color=MUTE, linespacing=1.4)
 
-fig.tight_layout(rect=[0.02, 0.0, 1, 0.90], h_pad=3.2, w_pad=1.5)
+fig.tight_layout(rect=[0.02, 0.0, 1, 0.895], h_pad=3.0, w_pad=2.0)
 fig.savefig(OUT, dpi=150, facecolor="white", bbox_inches="tight")
 print(f"wrote {OUT}")
