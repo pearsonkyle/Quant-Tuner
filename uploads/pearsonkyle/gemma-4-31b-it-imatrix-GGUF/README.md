@@ -125,16 +125,22 @@ the model still fills **correct tool-call arguments**, which is what agentic use
 assistant turn whether the model picks the right tool (**tool-sel**) and fills the right arguments
 (**param-acc**). 3 reps, mean ± σ, same sampling as above.
 
-| IQ2_M (2.85 bpw) | tool-sel | param-acc | schema-valid |
-|---|---:|---:|---:|
-| imatrix | 0.454 ± .071 | 0.171 ± .082 | 0.805 |
-| **AWQ (shipped)** | **0.492 ± .013** | **0.263 ± .009** | 0.823 |
+Both builds are measured on the **same** held-out eval + FP16 baseline (static) and the same 25-session
+replay (agentic). Static: ↓ PPL / ↓ KLD / ↑ top_p is better. Agentic: ↑ is better.
 
-**AWQ [activation-aware scaling](https://arxiv.org/abs/2306.00978) wins where it counts**: +54%
-tool-argument accuracy (0.17 → 0.26) and — just as important for agents — it **collapses run-to-run
-variance** (param-acc ±.009 vs ±.082; the imatrix build swings 0.51/0.48/0.38 on tool-sel across
-seeds, AWQ holds 0.50/0.50/0.48). It does this *despite* a slightly worse median-KLD, so the static
-table alone would have picked the wrong build. All 60 gemma layers are standard attention, so AWQ
+| IQ2_M (2.85 bpw) | PPL | KLD (med) | top_p | tool-sel | param-acc | schema-valid |
+|---|---:|---:|---:|---:|---:|---:|
+| imatrix | 1958.7 | **1.571** | **46.6%** | 0.454 ± .071 | 0.171 ± .082 | 0.805 |
+| **AWQ (shipped)** | **1040.0** | 1.804 | 43.9% | **0.492 ± .013** | **0.263 ± .009** | **0.823** |
+
+Read the split: on the metric the static table headlines (**median-KLD**) imatrix looks *better*
+(1.571 vs 1.804), and it edges top_p (46.6% vs 43.9%) — yet the AWQ build is the one that actually
+tool-calls. **AWQ [activation-aware scaling](https://arxiv.org/abs/2306.00978) wins where it counts**:
++54% tool-argument accuracy (0.17 → 0.26) and — just as important for agents — it **collapses
+run-to-run variance** (param-acc ±.009 vs ±.082; the imatrix build swings 0.51/0.48/0.38 on tool-sel
+across seeds, AWQ holds 0.50/0.50/0.48). (AWQ also nearly halves PPL, 1959 → 1040 — PPL and KLD
+disagree here because the fold shifts the whole distribution, lowering average surprise while nudging
+the very top token slightly.) The upshot: the static table alone would have picked the wrong build. All 60 gemma layers are standard attention, so AWQ
 scales the full network (120 groups); the per-channel scales fold into RMSNorm with **no inference
 cost**. The higher-bit builds (IQ3_M+) don't need it — at 3-4 bits the imatrix build already
 preserves arguments and AWQ's fold slightly perturbs general text, so those ship plain imatrix.
