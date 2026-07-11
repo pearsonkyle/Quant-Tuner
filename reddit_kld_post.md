@@ -21,7 +21,7 @@ I calibrate on real agentic-coding logs (Claude Code / Qwen Code / opencode), no
 
 ## how they actually tool-call
 
-Static metrics (PPL/KLD/top_p) measure average closeness to fp16. They do **not** measure whether the model still fills correct tool arguments, so I also replay 25 held-out tool-use sessions and score per turn: right tool (**tool-sel**), right arguments (**param-acc**), valid call (**schema-valid**). 3 reps each.
+Static metrics (PPL / KLD / top-token match) measure average closeness to fp16. They do **not** measure whether the model still fills correct tool arguments, so I also replay 25 held-out tool-use sessions and score, per turn, whether it picks the right tool, fills the right arguments, and emits a valid call. 3 reps each.
 
 **gemma-4-31B, ~2-bit**
 
@@ -31,11 +31,11 @@ Static metrics (PPL/KLD/top_p) measure average closeness to fp16. They do **not*
 | Quality | ❌ | ⭐⭐ | ⭐⭐⭐ |
 | Method | none | imatrix | AWQ + imatrix |
 | Size (GiB) | 11.10 | 10.17 | 10.17 |
-| KLD (med) | 5.21 | **1.57** | 1.80 |
-| top_p | 25.4% | **46.6%** | 43.9% |
-| tool-sel | 0.00 | 0.454 | **0.492** |
-| param-acc | 0.00 | 0.171 | **0.263** |
-| schema-valid | 0.00 | 0.805 | **0.823** |
+| median KLD (vs fp16) | 5.21 | **1.57** | 1.80 |
+| top-token match rate | 25.4% | **46.6%** | 43.9% |
+| correct tool selection rate | 0.00 | 0.454 | **0.492** |
+| correct argument rate | 0.00 | 0.171 | **0.263** |
+| valid tool-call rate | 0.00 | 0.805 | **0.823** |
 
 **Ornith-9B, ~2-bit**
 
@@ -45,11 +45,11 @@ Static metrics (PPL/KLD/top_p) measure average closeness to fp16. They do **not*
 | Quality | ❌ | ⭐⭐ | ⭐⭐⭐ |
 | Method | none | imatrix | AWQ + imatrix |
 | Size (GiB) | 3.56 | 3.36 | 3.36 |
-| KLD (med) | 2.03 | **0.11** | 0.12 |
-| top_p | 37.9% | **80.6%** | 79.7% |
-| tool-sel | 0.026 | 0.306 | **0.536** |
-| param-acc | 0.000 | 0.054 | **0.333** |
-| schema-valid | 0.026 | 0.851 | **0.930** |
+| median KLD (vs fp16) | 2.03 | **0.11** | 0.12 |
+| top-token match rate | 37.9% | **80.6%** | 79.7% |
+| correct tool selection rate | 0.026 | 0.306 | **0.536** |
+| correct argument rate | 0.000 | 0.054 | **0.333** |
+| valid tool-call rate | 0.026 | 0.851 | **0.930** |
 
 Two takeaways:
 
