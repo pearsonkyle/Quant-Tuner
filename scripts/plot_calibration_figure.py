@@ -16,7 +16,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 
 OUT = Path(__file__).resolve().parents[1] / "reddit_kld_figure.png"
 
@@ -67,45 +67,33 @@ fig, axes = plt.subplots(3, 2, figsize=(8.4, 11.6), facecolor="white")
 for ax in axes.flat:
     ax.set_facecolor("white")
 
-_HALO = dict(boxstyle="round,pad=0.12", fc="white", ec="none", alpha=0.72)
+_BW = 0.38  # bar width; two models side by side with a small gap
 
 for row, col, key, title, is_pct, log, fmt in PANELS:
     ax = axes[row, col]
-    g, o = D["gemma"][key], D["ornith"][key]
-    for model, color, marker in (("gemma", GEMMA, "o"), ("ornith", ORNITH, "s")):
+    ymax = max(max(D["gemma"][key]), max(D["ornith"][key]))
+    for model, color, off in (("gemma", GEMMA, -_BW / 2 - 0.011),
+                              ("ornith", ORNITH, _BW / 2 + 0.011)):
         y = D[model][key]
-        ax.plot(XI, y, color=color, lw=2.2, marker=marker, ms=8,
-                mfc=color, mec="white", mew=1.4, zorder=3, clip_on=False)
-        for i, v in enumerate(y):
-            other = (o if model == "gemma" else g)[i]
-            near_floor = is_pct and v <= 6        # keep near-0 labels off the x-ticks
-            both_low = near_floor and other <= 6
-            if log or near_floor:
-                above = True
-            elif v != other:                      # side away from the other line
-                above = v > other
-            else:
-                above = model == "gemma"
-            dy, va = (11, "bottom") if above else (-12, "top")
-            dx = (-11 if model == "gemma" else 11) if both_low else 0
-            ha = "right" if (both_low and model == "gemma") else \
-                 "left" if both_low else "center"
-            ax.annotate(fmt.format(v), (XI[i], v), textcoords="offset points",
-                        xytext=(dx, dy), ha=ha, va=va, fontsize=8.5,
-                        color=color, fontweight="bold", zorder=5, bbox=_HALO)
+        xs = [xi + off for xi in XI]
+        ax.bar(xs, y, width=_BW, color=color, zorder=3,
+               edgecolor="white", linewidth=0.8)
+        for xi, v in zip(xs, y):
+            ax.annotate(fmt.format(v), (xi, v), textcoords="offset points",
+                        xytext=(0, 3), ha="center", va="bottom", fontsize=8.5,
+                        color=color, fontweight="bold", zorder=5)
     ax.set_title(title, fontsize=11, fontweight="bold", color=INK, pad=10, loc="left")
     ax.set_xticks(XI)
     ax.set_xticklabels(X, fontsize=9)
-    ax.set_xlim(-0.28, 2.28)
-    if log:
-        ax.set_yscale("log")
-        ax.set_ylim(0.07, 9)
+    ax.set_xlim(-0.55, 2.55)
     ax.grid(axis="y", color=GRID, lw=0.9, zorder=0)
     ax.set_axisbelow(True)
     ax.spines[["top", "right"]].set_visible(False)
     if is_pct:
-        ax.set_ylim(-8, 108)
+        ax.set_ylim(0, 116)
         ax.set_yticks([0, 25, 50, 75, 100])
+    else:  # KLD: linear (bars on a log axis mislead), headroom for the top label
+        ax.set_ylim(0, ymax * 1.16)
 
 # group captions on the left
 axes[0, 0].set_ylabel("STATIC\nwhat KLD/PPL see", fontsize=10, fontweight="bold",
@@ -117,10 +105,8 @@ axes[1, 0].set_ylabel("AGENTIC\nwhat actually matters", fontsize=10, fontweight=
 leg = axes[2, 1]
 leg.axis("off")
 handles = [
-    Line2D([0], [0], color=GEMMA, lw=2.4, marker="o", ms=8, mec="white",
-           label="gemma-4-31B  (10 GB)"),
-    Line2D([0], [0], color=ORNITH, lw=2.4, marker="s", ms=8, mec="white",
-           label="Ornith-9B  (3.4 GB)"),
+    Patch(facecolor=GEMMA, edgecolor="white", label="gemma-4-31B  (10 GB)"),
+    Patch(facecolor=ORNITH, edgecolor="white", label="Ornith-9B  (3.4 GB)"),
 ]
 leg.legend(handles=handles, loc="upper center", frameon=False, fontsize=11,
            handlelength=1.8, bbox_to_anchor=(0.5, 1.0))
