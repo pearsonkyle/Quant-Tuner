@@ -88,6 +88,12 @@ def spawn_server(
         "-ngl", str(ngl),
         "-fa", "on",            # force flash attention (default 'auto') — faster + less KV memory
         "-ub", "1024",          # larger physical batch speeds prompt processing on long agent contexts
+        # Server-side repetition penalty: low-bit (2-bit) quants loop in agent
+        # loops, generating toward the token cap (minutes per step). The
+        # openai-agents backend can't forward a penalty, so set it here as the
+        # default; callers that send their own (tool-call reps send 1.0) override.
+        "--repeat-penalty", "1.1",
+        "--repeat-last-n", "256",
         "--host", "127.0.0.1",
     ]
     if mmproj_path is not None:
