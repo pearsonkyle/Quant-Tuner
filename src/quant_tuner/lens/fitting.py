@@ -197,6 +197,7 @@ def merge_lenses(parts, out_path: str | None = None):
     lenses = [p if isinstance(p, JacobianLensGGUF) else JacobianLensGGUF.load(str(p)) for p in parts]
     merged = JacobianLensGGUF.merge(lenses)
     if out_path is not None:
+        Path(out_path).parent.mkdir(parents=True, exist_ok=True)
         merged.save(str(out_path))
     return merged
 
@@ -263,6 +264,7 @@ def fit_lens(
     lens = fitted[0] if len(fitted) == 1 else _combine_bands(fitted)
     if extra_meta:
         lens.extra_meta.update({str(k): str(v) for k, v in extra_meta.items()})
+    Path(out_path).parent.mkdir(parents=True, exist_ok=True)
     lens.save(str(out_path))
     logger.info("saved %r -> %s", lens, out_path)
     return lens

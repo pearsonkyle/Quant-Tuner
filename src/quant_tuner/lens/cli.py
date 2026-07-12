@@ -53,10 +53,14 @@ def fit(
     gram_float32: bool = typer.Option(False, "--gram-float32", help="halve fit RAM (large models)"),
 ) -> None:
     """Fit a regression lens on MODEL over CORPUS (forward-only, any quant)."""
+    import logging
+
     import numpy as np
 
     from quant_tuner.lens.fitting import fit_lens
 
+    # fitting is long-running; surface per-band / per-prompt progress
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s", datefmt="%H:%M:%S")
     layer_list = _parse_layers(layers)
     fit_lens(
         model, corpus, out, layers=layer_list, band_size=band_size, ctx=ctx,
