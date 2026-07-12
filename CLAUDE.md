@@ -337,6 +337,61 @@ A unit test (`test_all_packaged_recipes_parse`) requires every shipped recipe to
 validate, and IQ1/IQ2 recipes to carry a calibration method — keep it green when
 adding recipes.
 
+### Jacobian-lens interpretability (`src/quant_tuner/lens/`, `native/jlens_server/`)
+Opens up the *inside* of a quant: layer-by-layer lens readouts, tool-call
+representation formation, loop autopsy, knowledge-loss probes, an A/B diff
+between two quants, and a weight-edit "bake" path. Full guide in `docs/lens.md`.
+Adapted (Apache-2.0, see root `NOTICE`) from `anthropics/jacobian-lens` (the
+`vendor/jacobian-lens` submodule; exact causal fits only) and
+`igorbarshteyn/jlens-gguf` (the GGUF-native stack, owned in-tree).
+- **`native/jlens_server/`** — a tracked llama-server-compatible C++ binary that
+  hooks the ggml eval callback to capture `l_out-<il>` residuals and apply
+  runtime steer/ablate/swap edits. Built via `bash native/jlens_server/build.sh`
+  (or `quant-tuner lens build-server`) against the vendored llama.cpp, linking
+  **only** the public API (`paths.jlens_server_bin()` resolves it, honoring
+  `$JLENS_SERVER_BIN`). Unlike the old `llama-mtp-capture`, the source is tracked
+  in quant-tuner, not inside the dirty submodule tree. The build stamps the
+  llama.cpp commit into `/props` (`llama_commit`); a startup `l_out_ok`
+  self-check + client-side assert guard architecture support and submodule drift.
+- **Lens strategy**: one regression lens per base model, fit on the **F16 GGUF**
+  over the **calibration corpus** (`lens fit`, forward-only, any quant, no
+  torch), reused across every quant of that model so A/B diffs isolate what
+  quantization moved. Lens container = `lens.gguf` (`JacobianLensGGUF`, adopts
+  jlens-gguf's format verbatim + namespaced `quant_tuner.lens.*` provenance kv).
+- **Capture run** (`lens/capture.py`) is the A/B unit: `<runs_dir>/<run_id>/` with
+  activations (not logits — readouts recomputed lazily, top-k cached) + a
+  `RunManifest`. Content-addressed → idempotent. Full-vocab final logprobs are
+  stored only at flagged `logits_positions` (exact KLD there; top-k+tail-mass
+  elsewhere). `diff_runs(cand, ref)` treats `ref` as FP16: rank shift = where the
+  reference's top-1 fell in the candidate; KLD is `D_KL(ref‖cand)`.
+- **Analysis modules**: `replay.py` (tool-call decision points — parity with
+  `eval.toolcall.eval_per_turn`'s turn walk is unit-tested; sidecar CSV joins the
+  leaderboard via `merge_lens`/`--lens-csv`), `loops.py` (`detect_repetition`,
+  `loop_autopsy`, `intervention_sweep` → `direction.npz`), `probes.py`
+  (correct/suppressed/absent), `study.py` (`calibration_study`),
+  `quant_noise.py` (the importable refactor of `measure_quant_noise` steps 1-3;
+  its `--empirical` path is now unbroken — `models.hf_gguf_map.gguf_to_hf_names`
+  inverse mapping was added).
+- **Bake** (`gguf_edit.py` + `bake.py`): `orthogonalize_layers` projects a
+  direction out of the FP16 residual-writing tensors (`attn_output`/`ffn_down`,
+  per-expert for MoE; skip path untouched), then `bake_and_requantize` runs a
+  fresh `llama-quantize` with the existing imatrix — never in-place block editing.
+  `copy_gguf_with_tensor_edits` passes unedited tensors through as raw bytes
+  (byte-identity unit-tested). Additive steering is **not** bakeable (no per-layer
+  bias tensor) — it stays a runtime capability of the OpenAI-compatible server.
+- **CLI**: `quant-tuner lens {build-server,fit,fit-causal,convert-pt,inspect,
+  capture,diff,serve,replay-toolcalls,loop,probe,study,bake,report}`. `lens serve
+  --model-b` enables live dual-backend A/B in the D3 UI (`web/ab.js` +
+  `diff_heatmap.js`).
+- **DB**: `LensToolcallRep` is the sibling rep table for lens tool-call
+  diagnostics (per the "new benchmark = new child table" convention).
+- **Tests**: `tests/unit/test_lens_*.py` need no model files; the integration
+  tests (`tests/integration/`, gated on `QT_LENS_IT=1` + `QT_TINY_GGUF`) include a
+  numpy-readout-vs-server-logits parity check (corr ≥ 0.9999) — the drift canary
+  on submodule bumps. `scripts/lens_smoke.sh` is the CPU acceptance gate.
+- Experiment scripts are gemma-4-31B-anchored: `scripts/lens_exp10{1,2,3,4}_*.py`
+  + `scripts/build_probe_set.py`.
+
 ## Conventions worth knowing
 
 - GGUF linear weights are stored `[n_out, n_in]`. Summing `W²` over axis 0 gives

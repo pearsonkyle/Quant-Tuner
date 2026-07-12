@@ -71,6 +71,18 @@ ignore = [
     "B008",  # Typer relies on function-call defaults (typer.Option) — idiomatic.
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# The Jacobian-lens code (adapted from igorbarshteyn/jlens-gguf) and its tests
+# use `l` for a layer index throughout the numpy readout/transport math, as the
+# reference implementation does. Renaming would diverge from upstream and hurt
+# readability of the lens algebra, so E741 is scoped-ignored here only.
+"src/quant_tuner/lens/*.py" = ["E741"]
+"tests/unit/test_lens_*.py" = ["E741"]
+"tests/integration/test_lens_*.py" = ["E741"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+markers = [
+    "integration: needs a built jlens-server + a tiny GGUF (QT_LENS_IT=1, QT_TINY_GGUF=…)",
+]

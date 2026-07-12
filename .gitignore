@@ -25,3 +25,7 @@ htmlcov/
 
 # OS
 .DS_Store
+
+# jlens-server build artifacts (source is tracked; binaries/objects are not)
+native/jlens_server/jlens-server
+native/jlens_server/*.o

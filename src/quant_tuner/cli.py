@@ -7,8 +7,10 @@ from pathlib import Path
 import typer
 
 from quant_tuner.config import RunConfig
+from quant_tuner.lens.cli import lens_app
 
 app = typer.Typer(no_args_is_help=True, add_completion=False)
+app.add_typer(lens_app, name="lens")
 
 
 _PACKAGED_RECIPES = Path(__file__).resolve().parent / "recipes"
@@ -143,6 +145,7 @@ def leaderboard(
     ),
     sort_by: str = typer.Option("sqs", "--sort", help="column to sort by"),
     toolcall_csv: Path | None = typer.Option(None, help="Optional tool-call CSV to merge"),
+    lens_csv: Path | None = typer.Option(None, help="Optional Jacobian-lens sidecar CSV to merge"),
 ) -> None:
     """Aggregate results.csv into a markdown leaderboard with SQS scores."""
     from quant_tuner.leaderboard.aggregate import aggregate
@@ -152,7 +155,8 @@ def leaderboard(
         raise typer.BadParameter("--weights expects three comma-separated numbers")
     a, b, c = parts
 
-    markdown = aggregate(results, weights=(a, b, c), sort_by=sort_by, toolcall_csv=toolcall_csv)
+    markdown = aggregate(results, weights=(a, b, c), sort_by=sort_by,
+                         toolcall_csv=toolcall_csv, lens_csv=lens_csv)
     out.write_text(markdown)
     typer.echo(f"wrote {out}")
 

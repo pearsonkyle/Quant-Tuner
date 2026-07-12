@@ -2,3 +2,6 @@
 	path = vendor/llama.cpp
 	url = https://github.com/ggml-org/llama.cpp.git
 	branch = master
+[submodule "vendor/jacobian-lens"]
+	path = vendor/jacobian-lens
+	url = https://github.com/anthropics/jacobian-lens.git

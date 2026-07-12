@@ -216,6 +216,31 @@ def ask(content, max_tokens=256):
 print(ask("What is 1+1?"))
 ```
 
+## Inspecting a quant (Jacobian lens)
+
+Beyond the leaderboard numbers, `quant-tuner lens` opens up the *inside* of a
+quant with the [Jacobian lens](https://transformer-circuits.pub/2026/workspace/index.html):
+layer-by-layer readouts, where tool-call decisions form, why a 2-bit model
+loops, what heavy quantization erased versus merely suppressed, and an A/B diff
+between two quants. If a runtime steer/ablate edit fixes a problem, it can be
+baked back into the GGUF. Built on Anthropic's reference implementation
+(the `vendor/jacobian-lens` submodule) and the GGUF-native
+[jlens-gguf](https://github.com/igorbarshteyn/jlens-gguf) (adapted in-tree,
+Apache-2.0).
+
+```bash
+# build the activation server (once), then fit one lens on the F16 over the cal corpus
+uv run quant-tuner lens build-server
+uv run quant-tuner lens fit --model model-f16.gguf --corpus corpus.cal.txt -o lens.gguf
+
+# browse a quant, or A/B two of them, in the interactive visualizer
+uv run quant-tuner lens serve --model quant.gguf --lens lens.gguf \
+    --runs-dir out/lens/runs --model-b model-f16.gguf   # → http://127.0.0.1:8090
+```
+
+See [`docs/lens.md`](docs/lens.md) for the full guide (loop autopsy, knowledge
+probes, the "why calibration works" study, and baking edits back into a GGUF).
+
 ## Pipeline at a glance
 
 ```
@@ -243,13 +268,16 @@ src/quant_tuner/
 ├── eval/        # task-level evals (toolcall, mmlu_pro, swebench) + N-rep runner
 ├── leaderboard/ # CSV → markdown aggregation with SQS scoring
 ├── models/      # HF extract, llama.cpp wrappers, HF→GGUF name map
+├── lens/        # Jacobian-lens interpretability (fit, capture, diff, probes, bake) + D3 UI
 ├── recipes/     # YAML recipes consumed by `quant-tuner run --recipe ...`
-├── cli.py       # typer CLI: run | bench | leaderboard
+├── cli.py       # typer CLI: run | bench | leaderboard | lens
 └── pipeline.py  # end-to-end: extract → calibrate → quantize → bench
 
-vendor/llama.cpp # pinned submodule
-scripts/         # corpus builders, experiment drivers, leaderboard reproducer
-tests/unit/      # 100+ passing tests
+native/jlens_server/  # tracked llama.cpp activation server for the lens (build.sh)
+vendor/llama.cpp      # pinned submodule
+vendor/jacobian-lens  # pinned submodule (Anthropic reference lens; exact causal fits)
+scripts/              # corpus builders, experiment drivers, leaderboard reproducer, lens experiments
+tests/unit/           # 100+ passing tests
 ```
 
 ## Development
@@ -266,3 +294,7 @@ uv run mypy src               # types
 - Quantization performed locally with **quant-tuner** + vendored
   [llama.cpp](https://github.com/ggerganov/llama.cpp).
 - Usage-log calibration data scraped with [**LogMiner**](https://github.com/pearsonkyle/LogMiner).
+- The Jacobian-lens tooling (`src/quant_tuner/lens/`, `native/jlens_server/`) is
+  adapted from [jlens-gguf](https://github.com/igorbarshteyn/jlens-gguf) and
+  [jacobian-lens](https://github.com/anthropics/jacobian-lens) (both Apache-2.0);
+  see the root [`NOTICE`](NOTICE) for details.
