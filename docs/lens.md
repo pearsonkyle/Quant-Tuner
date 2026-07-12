@@ -164,12 +164,29 @@ bake cleanly (most architectures have no per-layer bias tensor to absorb it), so
 it stays a runtime-only capability of the OpenAI-compatible jlens-server, which
 you can point an agent framework at to serve a steered model live.
 
-## Experiment scripts (gemma-4-31B-anchored)
+## Repetition penalty (breaking loops without stopping exploration)
+
+Low-bit quants loop during long agent rollouts. The **serving path**
+(`/v1/chat/completions`, `/v1/completions`) applies a repetition penalty by
+default — `repeat_penalty=1.1`, `repeat_last_n=256` — mirroring
+`eval/server.py`'s llama-server flags. It only damps *verbatim* repetition, so
+the agent still explores/plans freely; it just can't get stuck emitting the same
+tokens. Any OpenAI request field (`repeat_penalty`/`repetition_penalty`,
+`repeat_last_n`, `frequency_penalty`, `presence_penalty`) overrides the default.
+
+The **capture path** (`/jlens/forward`) defaults the penalty **off** so lens
+readouts stay faithful to the model's own distribution; pass
+`sampling={"repeat_penalty": 1.2, ...}` when you want penalized generation (e.g.
+to check whether a penalty alone breaks a loop before reaching for a bake).
+
+## Experiment scripts (gemma-4-31B + Ornith-1.0-9B anchored)
 
 - `scripts/lens_exp101_toolcall_lens.py` — tool-call representations under quantization
 - `scripts/lens_exp102_loop_autopsy.py` — loop diagnosis + intervention
 - `scripts/lens_exp103_knowledge_probes.py` — knowledge loss at 2 bpw
 - `scripts/lens_exp104_why_calibration.py` — the calibration divergence study
+- `scripts/lens_exp105_ornith_action_bias.py` — why Ornith-9B IQ2_M patches but resolves 0 (explore≫act)
+- `scripts/lens_exp106_bake_deloop.py` — bake a jlens loop direction out of a GGUF (corrected quant)
 - `scripts/build_probe_set.py` — mine the probe set
 - `scripts/lens_smoke.sh` — CPU end-to-end smoke on a tiny GGUF (the acceptance gate)
 

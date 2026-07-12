@@ -33,7 +33,9 @@
 //      "k": int }                                     // lowrank only
 //   ],
 //   "n_predict": 0,
-//   "sampling": {"greedy": true, "temp": 0.8, "top_k": 40, "top_p": 0.95, "seed": -1},
+//   "sampling": {"greedy": true, "temp": 0.8, "top_k": 40, "top_p": 0.95, "seed": -1,
+//                "repeat_penalty": 1.0, "repeat_last_n": 256, "freq_penalty": 0.0,
+//                "presence_penalty": 0.0},   // penalties default OFF here (capture-faithful)
 //   "logits_positions": [int, ...]         // absolute positions to return raw model logits for
 // }
 //
@@ -578,6 +580,14 @@ static void handle_forward(jlens_server & S, const httplib::Request & req, httpl
         const int   top_k  = sampling.value("top_k", 40);
         const float top_p  = sampling.value("top_p", 0.95f);
         const uint32_t seed = (uint32_t) sampling.value("seed", -1);
+        // repetition penalties (default OFF so capture stays faithful to the
+        // model's own distribution; the loop tools / serving path opt in).
+        // Applied before the final selector, so they break loops in greedy too.
+        const float repeat_penalty = sampling.value("repeat_penalty", 1.0f);
+        const int   repeat_last_n  = sampling.value("repeat_last_n", 256);
+        const float freq_penalty   = sampling.value("freq_penalty", 0.0f);
+        const float present_penalty = sampling.value("presence_penalty", 0.0f);
+        const bool  use_penalties = repeat_penalty != 1.0f || freq_penalty != 0.0f || present_penalty != 0.0f;
 
         // last-layer capture (and any logits request) needs all-position logits
         const bool all_logits = capture.count(S.n_layer - 1) > 0 ||
@@ -619,6 +629,10 @@ static void handle_forward(jlens_server & S, const httplib::Request & req, httpl
         if (n_predict > 0) {
             auto sparams = llama_sampler_chain_default_params();
             smpl = llama_sampler_chain_init(sparams);
+            if (use_penalties) {
+                llama_sampler_chain_add(smpl, llama_sampler_init_penalties(
+                    repeat_last_n, repeat_penalty, freq_penalty, present_penalty));
+            }
             if (greedy || temp <= 0.0f) {
                 llama_sampler_chain_add(smpl, llama_sampler_init_greedy());
             } else {
@@ -753,6 +767,15 @@ struct gen_params {
     float    top_p      = 0.95f;
     int      top_k      = 40;
     uint32_t seed       = (uint32_t) -1;
+    // Anti-loop defaults for the agent-serving path (mirrors eval/server.py's
+    // llama-server --repeat-penalty 1.1 --repeat-last-n 256): 2-bit quants loop
+    // during long agent rollouts, so penalize recently-emitted tokens by
+    // default. Exploration is unaffected (only verbatim repetition is damped).
+    // Any OpenAI request field overrides these.
+    float    repeat_penalty = 1.1f;
+    int      repeat_last_n  = 256;
+    float    freq_penalty   = 0.0f;
+    float    present_penalty = 0.0f;
     std::vector<std::string> stop;
 
     static gen_params from_request(const json & body) {
@@ -762,6 +785,10 @@ struct gen_params {
         gp.top_p = body.value("top_p", 0.95f);
         gp.top_k = body.value("top_k", 40);
         gp.seed  = (uint32_t) body.value("seed", -1);
+        gp.repeat_penalty = body.value("repeat_penalty", body.value("repetition_penalty", 1.1f));
+        gp.repeat_last_n  = body.value("repeat_last_n", 256);
+        gp.freq_penalty   = body.value("frequency_penalty", 0.0f);
+        gp.present_penalty = body.value("presence_penalty", 0.0f);
         if (body.contains("stop")) {
             if (body["stop"].is_string()) gp.stop.push_back(body["stop"].get<std::string>());
             else if (body["stop"].is_array()) {
@@ -819,6 +846,11 @@ static json run_completion(jlens_server & S, const std::vector<llama_token> & pr
 
     // ---- sampling ----
     llama_sampler * smpl = llama_sampler_chain_init(llama_sampler_chain_default_params());
+    // penalties first, so they damp loops in both greedy and sampled decoding
+    if (gp.repeat_penalty != 1.0f || gp.freq_penalty != 0.0f || gp.present_penalty != 0.0f) {
+        llama_sampler_chain_add(smpl, llama_sampler_init_penalties(
+            gp.repeat_last_n, gp.repeat_penalty, gp.freq_penalty, gp.present_penalty));
+    }
     if (gp.temp <= 0.0f) {
         llama_sampler_chain_add(smpl, llama_sampler_init_greedy());
     } else {
