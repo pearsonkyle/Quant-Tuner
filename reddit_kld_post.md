@@ -33,6 +33,7 @@ Static metrics (PPL / KLD / top-token match) measure average closeness to fp16. 
 | Size (GiB) | 11.10 | 10.17 | 10.17 |
 | median KLD (vs fp16) | 5.21 | **1.57** | 1.80 |
 | top-token match rate | 25.4% | **46.6%** | 43.9% |
+| | | |
 | correct tool selection rate | 0.00 | 0.454 | **0.492** |
 | correct argument rate | 0.00 | 0.171 | **0.263** |
 | valid tool-call rate | 0.00 | 0.805 | **0.823** |
@@ -47,6 +48,7 @@ Static metrics (PPL / KLD / top-token match) measure average closeness to fp16. 
 | Size (GiB) | 3.56 | 3.36 | 3.36 |
 | median KLD (vs fp16) | 2.03 | **0.11** | 0.12 |
 | top-token match rate | 37.9% | **80.6%** | 79.7% |
+| | | |
 | correct tool selection rate | 0.026 | 0.306 | **0.536** |
 | correct argument rate | 0.000 | 0.054 | **0.333** |
 | valid tool-call rate | 0.026 | 0.851 | **0.930** |
