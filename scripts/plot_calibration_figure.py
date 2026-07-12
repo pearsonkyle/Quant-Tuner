@@ -31,16 +31,20 @@ INK = "#0b0b0b"
 MUTE = "#52514e"
 GRID = "#e6e5e2"
 
+# None = not measured (drawn as a gap). Q2_K pass/patch = 0 inferred (0% valid
+# tool calls -> can't drive the agent); Ornith imatrix SWE-rebench not run.
 MODELS = {
     "gemma": {
         "name": "gemma-4-31B  (10 GB, IQ2_M)",
         "kld": [5.21, 1.57, 1.80], "topp": [25.4, 46.6, 43.9],
         "tool": [0.0, 45.4, 49.2], "arg": [0.0, 17.1, 26.3], "valid": [0.0, 80.5, 82.3],
+        "swpass": [0.0, 40.0, 40.0], "swpatch": [0.0, 100.0, 100.0],
     },
     "ornith": {
         "name": "Ornith-9B  (3.4 GB, IQ2_M)",
         "kld": [2.03, 0.11, 0.12], "topp": [37.9, 80.6, 79.7],
         "tool": [2.6, 30.6, 53.6], "arg": [0.0, 5.4, 33.3], "valid": [2.6, 85.1, 93.0],
+        "swpass": [0.0, None, 0.0], "swpatch": [0.0, None, 60.0],
     },
 }
 
@@ -51,6 +55,8 @@ METRICS = [
     ("tool", "Correct tool selection rate", "agentic", True, "{:.0f}%"),
     ("arg", "Correct argument rate", "agentic", True, "{:.0f}%"),
     ("valid", "Valid tool-call rate", "agentic", True, "{:.0f}%"),
+    ("swpass", "SWE-rebench pass rate  (resolves the issue)", "agentic", True, "{:.0f}%"),
+    ("swpatch", "SWE-rebench patch rate  (produces a diff)", "agentic", True, "{:.0f}%"),
 ]
 
 plt.rcParams.update({
@@ -72,12 +78,19 @@ def make_figure(mkey: str, m: dict) -> Path:
     for idx, (key, title, group, is_pct, fmt) in enumerate(METRICS):
         ax = axes.flat[idx]
         y = m[key]
-        ax.bar(XI, y, width=0.62, color=TECH_COLORS, zorder=3,
-               edgecolor="white", linewidth=0.8)
-        for xi, v in zip(XI, y):
+        # skip not-measured entries (None) -> a gap under that technique
+        xs = [xi for xi, v in zip(XI, y) if v is not None]
+        ys = [v for v in y if v is not None]
+        cs = [TECH_COLORS[i] for i, v in enumerate(y) if v is not None]
+        ax.bar(xs, ys, width=0.62, color=cs, zorder=3, edgecolor="white", linewidth=0.8)
+        for xi, v in zip(xs, ys):
             ax.annotate(fmt.format(v), (xi, v), textcoords="offset points",
                         xytext=(0, 3), ha="center", va="bottom", fontsize=9.5,
                         color=INK, fontweight="bold", zorder=5)
+        for i, v in enumerate(y):        # mark not-measured techniques
+            if v is None:
+                ax.annotate("n/a", (XI[i], 2), ha="center", va="bottom",
+                            fontsize=8.5, color=MUTE, style="italic", zorder=5)
         ax.set_title(title, fontsize=11.5, fontweight="bold", color=INK, pad=10, loc="left")
         ax.set_xticks(XI)
         ax.set_xticklabels(TECHS, fontsize=9.5)
@@ -123,7 +136,12 @@ def make_figure(mkey: str, m: dict) -> Path:
              "no calibration  >  imatrix  >  AWQ",
              ha="center", fontsize=10.5, color=MUTE)
 
-    fig.tight_layout(rect=[0.02, 0.0, 1, 0.925], h_pad=3.0, w_pad=2.0)
+    fig.text(0.5, 0.008,
+             "SWE-rebench: 10 held-out issues, gold tests decide pass; AWQ n=10 "
+             "(1 rep, binomial spread). Q2_K SWE-rebench inferred 0 (0% valid tool "
+             "calls); Ornith imatrix not run (n/a).",
+             ha="center", fontsize=8.5, color=MUTE, style="italic")
+    fig.tight_layout(rect=[0.02, 0.03, 1, 0.925], h_pad=3.0, w_pad=2.0)
     out = ROOT / f"reddit_kld_{mkey}.png"
     fig.savefig(out, dpi=150, facecolor="white", bbox_inches="tight")
     plt.close(fig)
