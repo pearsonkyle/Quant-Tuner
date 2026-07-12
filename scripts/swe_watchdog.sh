@@ -16,8 +16,10 @@ echo "[$(date '+%F %H:%M')] watchdog started (every $((INTERVAL/60))m)" >> "$WD"
 while true; do
   ts=$(date '+%F %H:%M')
   done=$(count out/swe-rebench/overnight.log "ALL DONE")
-  ginst=$(count out/swe-rebench/gemma-awq.run.log "exit=.*calls=")
-  oinst=$(count out/swe-rebench/ornith-awq.run.log "exit=.*calls=")
+  # openai-agents writes one result.json per graded (instance, rep) — count those.
+  ginst=$(find out/swe-rebench/gemma-awq-swe/trajectories -name "*.result.json" 2>/dev/null | wc -l | tr -d ' ')
+  oinst=$(find out/swe-rebench/ornith-awq-swe/trajectories -name "*.result.json" 2>/dev/null | wc -l | tr -d ' ')
+  ginst=${ginst:-0}; oinst=${oinst:-0}
   gl=$(ls -t out/swe-rebench/gemma-awq-swe/server_*.log 2>/dev/null | head -1)
   ol=$(ls -t out/swe-rebench/ornith-awq-swe/server_*.log 2>/dev/null | head -1)
   gt=$(count "$gl" "reasoning-budget: deactivated"); ot=$(count "$ol" "reasoning-budget: deactivated")
