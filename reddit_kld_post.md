@@ -37,6 +37,11 @@ Static metrics (PPL / KLD / top-token match) measure average closeness to fp16. 
 | correct tool selection rate | 0.00 | 0.454 | **0.492** |
 | correct argument rate | 0.00 | 0.171 | **0.263** |
 | valid tool-call rate | 0.00 | 0.805 | **0.823** |
+| | | |
+| SWE-rebench pass rate | 0%† | 40% | **40% ± 15%** |
+| SWE-rebench patch rate | 0%† | 100% | **100%** |
+
+*SWE-rebench = does the agent's patch actually resolve a real GitHub issue (10 held-out issues, gold tests). imatrix n=30 (3 reps); AWQ n=10 (1 rep, ± = binomial spread). †Q2_K not run — it emits 0 valid tool calls, so it can't drive the agent.*
 
 **Ornith-9B, ~2-bit**
 
@@ -52,6 +57,11 @@ Static metrics (PPL / KLD / top-token match) measure average closeness to fp16. 
 | correct tool selection rate | 0.026 | 0.306 | **0.536** |
 | correct argument rate | 0.000 | 0.054 | **0.333** |
 | valid tool-call rate | 0.026 | 0.851 | **0.930** |
+| | | |
+| SWE-rebench pass rate | 0%† | — | **0% ± 0%** |
+| SWE-rebench patch rate | 0%† | — | **60% ± 15%** |
+
+*Ornith AWQ makes plausible patches 60% of the time but resolves 0/10 real issues — a 9B is too weak to actually solve them at 2-bit, even though it tool-calls well. (imatrix SWE-rebench not run; †Q2_K can't tool-call.)*
 
 Two takeaways:
 
