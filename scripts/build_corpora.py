@@ -149,6 +149,7 @@ def build(
     system_prose_budget: int = 256,
     full_prose_quota: int = 1,
     max_windows_per_session: int = 8,
+    tool_schema_quota: int | None = 1,
 ) -> None:
     from transformers import AutoTokenizer
 
@@ -192,29 +193,39 @@ def build(
         "external_eval_domains": list(EVAL_DOMAINS),
     }
 
-    # --- 1) Calibration: ALL of wiki + ~500k logtrain (train slice) ----------
+    # --- 1) Calibration: ALL of wiki interleaved with ~500k logtrain ---------
+    # Wiki is NOT prepended as one monolith: AWQ/GPTQ sample a token budget
+    # from the corpus, and a 250k-token wiki head used to eat the entire
+    # budget — they calibrated on pure wiki and never saw a tool-call window.
+    # Chunk wiki to ~window size and round-robin it with the logtrain windows
+    # so every contiguous span of the file mixes both distributions.
     cal_chunks, _kept, cal_total, cal_pack = split.stratified_pack(
         splits["train"], tok,
         target_tokens=cal_tokens, per_session_cap=per_session_cap, seed=seed,
         system_prose_budget=system_prose_budget,
         full_prose_quota=full_prose_quota,
         max_windows_per_session=max_windows_per_session,
+        tool_schema_quota=tool_schema_quota,
     )
     cal_logtrain = out_dir / "corpus.cal.logtrain.txt"
     split.write_corpus(cal_chunks, cal_logtrain)
     cal_corpus = out_dir / "corpus.cal.txt"
-    sep = "" if wiki_text.endswith("\n") else "\n"
-    cal_corpus.write_text(wiki_text + sep + "\n" + cal_logtrain.read_text())
+    # ~4 chars/token puts a wiki chunk near one packer window / imatrix ctx.
+    wiki_chunks = split.chunk_text(wiki_text, approx_chars=per_session_cap * 4)
+    split.write_corpus(split.interleave(wiki_chunks, cal_chunks), cal_corpus)
     audit["calibration"] = {
         "path": str(cal_corpus.relative_to(REPO)),
         "target_logtrain_tokens": cal_tokens,
         "actual_logtrain_tokens": cal_total,
         "n_logtrain_sessions": len(cal_chunks),
+        "n_wiki_chunks": len(wiki_chunks),
+        "wiki_interleaved": True,
         "pack_audit": cal_pack,
     }
     print(
         f"  calibration: {cal_corpus.relative_to(REPO)}  "
-        f"(wiki + {cal_total:,} logtrain tokens)",
+        f"({len(wiki_chunks)} wiki chunks interleaved with {cal_total:,} "
+        f"logtrain tokens)",
         file=sys.stderr,
     )
 
@@ -229,6 +240,7 @@ def build(
             system_prose_budget=system_prose_budget,
             full_prose_quota=full_prose_quota,
             max_windows_per_session=max_windows_per_session,
+            tool_schema_quota=tool_schema_quota,
         )
         split.write_corpus(
             val_chunks, val_corpus,
@@ -344,6 +356,7 @@ def build(
         system_prose_budget=system_prose_budget,
         full_prose_quota=full_prose_quota,
         max_windows_per_session=max_windows_per_session,
+        tool_schema_quota=tool_schema_quota,
     )
     split.write_corpus(tools_chunks, tools_corpus)
     audit["eval_tools"] = {
@@ -410,16 +423,23 @@ def main() -> int:
                         "the logtrain HOLDOUT slice (default 30k)")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--per-session-cap", type=int, default=3_500,
-                   help="max tokens per emitted window; keep < imatrix ctx (4096) "
-                        "so no window straddles a context boundary (default 3500)")
+                   help="max tokens per emitted window; keep < the pipeline's "
+                        "imatrix ctx (default 4096) so no window straddles a "
+                        "context boundary (default 3500)")
     p.add_argument("--system-prose-budget", type=int, default=256,
-                   help="stub the system-message prose to this many tokens (schemas "
-                        "ride the tools= arg and are untouched); default 256")
+                   help="stub the system-message prose to this many tokens "
+                        "(default 256)")
     p.add_argument("--full-prose-quota", type=int, default=1,
                    help="render the FULL system prose in this many sessions per unique "
                         "system prompt; the rest get the stub (default 1)")
     p.add_argument("--max-windows-per-session", type=int, default=8,
                    help="cap windows emitted per long session (default 8)")
+    p.add_argument("--tool-schema-quota", type=int, default=1,
+                   help="render the FULL tool schemas in the first window of this "
+                        "many sessions per unique schema set; every other window "
+                        "gets a name+description stub. Pass a negative value to "
+                        "disable dedup (pre-fix behavior: full schemas in every "
+                        "window). Default 1")
     p.add_argument("--val-supplement", type=Path, default=None,
                    help="override the val supplement path (e.g. an MMMU file); "
                         "combine with --val-tokens 0 for a supplement-only val "
@@ -440,6 +460,7 @@ def main() -> int:
         system_prose_budget=a.system_prose_budget,
         full_prose_quota=a.full_prose_quota,
         max_windows_per_session=a.max_windows_per_session,
+        tool_schema_quota=None if a.tool_schema_quota < 0 else a.tool_schema_quota,
     )
     return 0
 

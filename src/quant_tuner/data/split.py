@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import random
+import sys
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
@@ -91,6 +92,46 @@ def stub_system_content(content: str, tokenizer, budget_tokens: int) -> str:
     return tokenizer.decode(ids[:budget_tokens], skip_special_tokens=True)
 
 
+def stub_tools(tools: list | None) -> list | None:
+    """Reduce tool schemas to name + first line of description, no parameters.
+
+    Full schemas are rendered into EVERY window of every session by
+    ``apply_chat_template(tools=...)`` — for agent logs with 1-2k-token
+    schemas that repeated boilerplate dominates the calibration windows the
+    same way un-deduped system prose used to. Mirroring the prose quota,
+    ``stratified_pack`` renders the full schema set only ``tool_schema_quota``
+    times per unique set and stubs it everywhere else. An empty ``parameters``
+    object is kept so strict chat templates don't reject the schema.
+    """
+    if not tools:
+        return tools
+    stubbed: list = []
+    for t in tools:
+        if not isinstance(t, dict):
+            stubbed.append(t)
+            continue
+        fn = t.get("function") if isinstance(t.get("function"), dict) else None
+        src = fn if fn is not None else t
+        slim: dict = {"name": src.get("name")}
+        desc = src.get("description")
+        if isinstance(desc, str) and desc.strip():
+            slim["description"] = desc.strip().splitlines()[0].split(". ")[0]
+        slim["parameters"] = {"type": "object", "properties": {}}
+        if fn is not None:
+            outer = {k: v for k, v in t.items() if k != "function"}
+            outer["function"] = slim
+            stubbed.append(outer)
+        else:
+            stubbed.append(slim)
+    return stubbed
+
+
+def tools_fingerprint(tools: list) -> str:
+    return hashlib.sha256(
+        json.dumps(tools, sort_keys=True, default=str).encode()
+    ).hexdigest()
+
+
 def session_windows(
     tokenizer,
     messages: list[dict],
@@ -99,6 +140,7 @@ def session_windows(
     *,
     system_content: str | None = None,
     max_windows: int = 8,
+    tools_after_first: list | None = None,
 ) -> list[tuple[str, int]]:
     """Slice one session into ≤max_windows chat-templated windows of ≤cap_tokens.
 
@@ -112,6 +154,11 @@ def session_windows(
     Returns a list of (text, ntok). A window whose first body message alone
     exceeds ``cap_tokens`` is still emitted (ntok > cap_tokens) so nothing is
     silently dropped; callers can detect it by comparing ntok to the cap.
+
+    ``tools_after_first`` (schema dedup): when given, the first window renders
+    with ``tools`` and every subsequent window with ``tools_after_first``
+    (typically ``stub_tools(tools)``), so the full schema boilerplate appears
+    once per session instead of once per window.
     """
     coerce_tool_call_arguments(messages)
     if messages and messages[0].get("role") == "system":
@@ -124,14 +171,15 @@ def session_windows(
         prefix = []
         body = messages
 
-    def render(run: list[dict]) -> tuple[str, int]:
-        text = tokenizer.apply_chat_template(prefix + run, tools=tools, tokenize=False)
+    def render(run: list[dict], w_tools) -> tuple[str, int]:
+        text = tokenizer.apply_chat_template(prefix + run, tools=w_tools, tokenize=False)
         ntok = len(tokenizer(text, add_special_tokens=False)["input_ids"])
         return text, ntok
 
     windows: list[tuple[str, int]] = []
     i, n = 0, len(body)
     while i < n and len(windows) < max_windows:
+        cur_tools = tools if (tools_after_first is None or not windows) else tools_after_first
         # Snap the window start to a non-orphan boundary.
         while i < n and body[i].get("role") not in _BODY_START_ROLES:
             i += 1
@@ -147,7 +195,7 @@ def session_windows(
             lo, hi, best_j = i + 1, n, None
             while lo <= hi:
                 mid = (lo + hi) // 2
-                _, ntok = render(body[i:mid])
+                _, ntok = render(body[i:mid], cur_tools)
                 if ntok <= cap_tokens:
                     best_j = mid
                     lo = mid + 1
@@ -155,7 +203,7 @@ def session_windows(
                     hi = mid - 1
             if best_j is None:  # single message larger than the cap — keep it anyway
                 best_j = i + 1
-            text, ntok = render(body[i:best_j])
+            text, ntok = render(body[i:best_j], cur_tools)
         except Exception:
             i += 1
             continue
@@ -163,6 +211,17 @@ def session_windows(
             windows.append((text.strip(), ntok))
         i = best_j
     return windows
+
+
+def _prefix_ntok(tokenizer, prefix: list[dict], tools) -> int | None:
+    """Token count of the boilerplate a window carries before any body message
+    (system prose + tool schemas + template wrapper). ``None`` when the
+    template refuses a body-less render (strict templates)."""
+    try:
+        text = tokenizer.apply_chat_template(prefix, tools=tools, tokenize=False)
+        return len(tokenizer(text, add_special_tokens=False)["input_ids"])
+    except Exception:
+        return None
 
 
 def stratified_pack(
@@ -175,6 +234,8 @@ def stratified_pack(
     system_prose_budget: int | None = None,
     full_prose_quota: int = 1,
     max_windows_per_session: int = 8,
+    tool_schema_quota: int | None = 1,
+    drop_oversize: bool = False,
 ) -> tuple[list[str], list[dict], int, dict[str, Any]]:
     """Round-robin across (source, length_bucket) strata. Returns (chunks, kept, total, audit).
 
@@ -187,20 +248,35 @@ def stratified_pack(
         instead of being truncated off the tail).
       * The system *prose* is replaced with a ≤``system_prose_budget``-token stub
         for all but the first ``full_prose_quota`` sessions sharing an identical
-        system prompt — schemas (rendered from ``tools=``) are untouched. This
-        deduplicates the giant repeated boilerplate that otherwise dominates the
-        imatrix, freeing the budget for diverse tool-call signal.
+        system prompt. This deduplicates the giant repeated boilerplate that
+        otherwise dominates the imatrix, freeing the budget for diverse
+        tool-call signal.
+      * Tool schemas get the same treatment (``tool_schema_quota``): per unique
+        schema set, the first ``quota`` sessions render the full schemas in
+        their FIRST window only; every other window gets ``stub_tools``.
+        ``tool_schema_quota=None`` disables schema dedup (pre-fix behavior:
+        full schemas re-rendered in every window).
+      * ``drop_oversize=True`` drops windows whose single first body message
+        blows ``per_session_cap`` (they are maximally boilerplate-dominated);
+        the default keeps them but counts + warns.
     """
     rng = random.Random(seed)
     windowed = system_prose_budget is not None
     prose_budget = system_prose_budget if system_prose_budget is not None else 0
     full_prose_counts: Counter = Counter()
+    full_schema_counts: Counter = Counter()
     full_prose_sessions = 0
     stub_sessions = 0
+    full_schema_sessions = 0
+    schema_stub_sessions = 0
     windows_emitted = 0
     system_tokens_total = 0
+    boilerplate_tokens_total = 0
     oversize_windows = 0
+    oversize_dropped = 0
+    worst_oversize = 0
     unique_system_prompts: set[str] = set()
+    unique_tool_schemas: set[str] = set()
 
     strata: dict[tuple[str, str], list[dict]] = defaultdict(list)
     for s in sessions:
@@ -283,33 +359,66 @@ def stratified_pack(
                 else:
                     sys_content = stub_system_content(sys_raw, tokenizer, prose_budget)
 
+            # Schema dedup, mirroring the prose quota: full schemas in the
+            # first window of the first `tool_schema_quota` sessions per unique
+            # schema set; stubbed everywhere else.
+            win_tools, rest_tools = tools, None
+            schema_is_full = False
+            if tools and tool_schema_quota is not None:
+                th = tools_fingerprint(tools)
+                unique_tool_schemas.add(th)
+                slim = stub_tools(tools)
+                if full_schema_counts[th] < tool_schema_quota:
+                    full_schema_counts[th] += 1
+                    win_tools, rest_tools = tools, slim
+                    schema_is_full = True
+                else:
+                    win_tools, rest_tools = slim, slim
+
             # A full-prose session emits a SINGLE window: the prose is huge and
             # identical across windows, so multi-windowing it would just replay
             # the boilerplate. One window keeps the real long-prompt activations
             # represented once; the stub sessions carry the tool-turn signal.
             try:
                 wins = session_windows(
-                    tokenizer, messages, tools, per_session_cap,
+                    tokenizer, messages, win_tools, per_session_cap,
                     system_content=sys_content,
                     max_windows=1 if is_full else max_windows_per_session,
+                    tools_after_first=rest_tools,
                 )
             except Exception:
                 continue
             if not wins:
                 continue
 
-            # System-prose token count (for the body/tool-turn share in the audit).
-            # Estimate from the content actually rendered (full vs. stub); the
-            # template wrapper is small relative to the prose so we ignore it.
+            # System-prose token count (kept for audit continuity; excludes
+            # schemas + wrapper).
             used_sys = sys_content if sys_content is not None else sys_raw
             sys_only_tokens = (
                 len(tokenizer(used_sys, add_special_tokens=False)["input_ids"])
                 if isinstance(used_sys, str)
                 else 0
             )
+            # True per-window boilerplate = prose + tool schemas + template
+            # wrapper, measured by rendering the body-less prefix. Falls back
+            # to the prose-only estimate when the template refuses a body-less
+            # render (strict templates).
+            prefix_msgs = (
+                [dict(messages[0], content=used_sys)]
+                if messages[0].get("role") == "system" and used_sys is not None
+                else []
+            )
+            bp_first = _prefix_ntok(tokenizer, prefix_msgs, win_tools)
+            bp_rest = (
+                _prefix_ntok(tokenizer, prefix_msgs, rest_tools)
+                if rest_tools is not None
+                else bp_first
+            )
+            bp_first = sys_only_tokens if bp_first is None else bp_first
+            bp_rest = sys_only_tokens if bp_rest is None else bp_rest
 
             kept_any = False
-            for text, ntok in wins:
+            for w_idx, (text, ntok) in enumerate(wins):
                 remaining = target_tokens - total
                 if remaining <= 0:
                     break
@@ -317,10 +426,16 @@ def stratified_pack(
                     continue
                 if ntok > per_session_cap:
                     oversize_windows += 1
+                    worst_oversize = max(worst_oversize, ntok)
+                    if drop_oversize:
+                        oversize_dropped += 1
+                        continue
                 chunks.append(text)
                 total += ntok
                 windows_emitted += 1
                 system_tokens_total += min(sys_only_tokens, ntok)
+                bp = bp_first if w_idx == 0 else bp_rest
+                boilerplate_tokens_total += min(bp, ntok)
                 per_source[key[0]] += ntok
                 per_bucket[key[1]] += ntok
                 per_stratum[f"{key[0]}/{key[1]}"] += ntok
@@ -331,6 +446,11 @@ def stratified_pack(
                     full_prose_sessions += 1
                 else:
                     stub_sessions += 1
+                if tools and tool_schema_quota is not None:
+                    if schema_is_full:
+                        full_schema_sessions += 1
+                    else:
+                        schema_stub_sessions += 1
             if total >= target_tokens:
                 break
 
@@ -347,23 +467,106 @@ def stratified_pack(
         "sessions_consumed_per_stratum": {f"{k[0]}/{k[1]}": cursors[k] for k in stratum_keys},
     }
     if windowed:
-        body_tokens = total - system_tokens_total
+        body_tokens = total - boilerplate_tokens_total
         audit["windowing"] = {
             "system_prose_budget": system_prose_budget,
             "full_prose_quota": full_prose_quota,
             "max_windows_per_session": max_windows_per_session,
+            "tool_schema_quota": tool_schema_quota,
             "windows_emitted": windows_emitted,
             "sessions_kept": len(kept),
             "avg_windows_per_session": round(windows_emitted / max(1, len(kept)), 2),
             "unique_system_prompts": len(unique_system_prompts),
+            "unique_tool_schemas": len(unique_tool_schemas),
             "full_prose_sessions": full_prose_sessions,
             "stub_sessions": stub_sessions,
+            "full_schema_sessions": full_schema_sessions,
+            "schema_stub_sessions": schema_stub_sessions,
             "oversize_windows": oversize_windows,
+            "oversize_dropped": oversize_dropped,
             "system_prose_tokens": system_tokens_total,
+            # prose + tool schemas + template wrapper — the pre-fix audit
+            # counted schemas as body, overstating tool_turn_token_share.
+            "boilerplate_tokens": boilerplate_tokens_total,
             "body_tokens": body_tokens,
             "tool_turn_token_share": round(body_tokens / max(1, total), 4),
         }
+        if oversize_windows:
+            print(
+                f"[pack] WARN: {oversize_windows} oversize windows "
+                f"(> per_session_cap={per_session_cap}, worst {worst_oversize} tokens"
+                f"{', dropped ' + str(oversize_dropped) if drop_oversize else ''}) — "
+                f"these straddle llama-imatrix context boundaries",
+                file=sys.stderr,
+            )
     return chunks, kept, total, audit
+
+
+def chunk_text(text: str, approx_chars: int) -> list[str]:
+    """Split raw text into ~approx_chars chunks.
+
+    Used to break a monolithic filler corpus (wiki) into window-sized pieces
+    so it can be interleaved with chat windows instead of prepended as one
+    quarter-million-token head that eats any token-budgeted calibrator's
+    entire sample.
+
+    Splits on the coarsest boundary that yields chunks near ``approx_chars``:
+    paragraph (``\\n\\n``) first, falling back to single newline, then a hard
+    character slice. Real filler files (e.g. ``wiki.test.raw``) are often
+    single-newline delimited with NO blank lines — a naive ``\\n\\n`` split
+    returns one giant chunk and silently defeats the whole point, so the
+    fallback matters.
+    """
+    if approx_chars < 1:
+        raise ValueError(f"approx_chars must be >= 1, got {approx_chars}")
+
+    # Pick the finest-grained separator we actually need: only drop to single
+    # newlines / hard slicing when paragraph splitting can't approximate the
+    # target chunk size (blank-line-free corpora).
+    sep = "\n\n" if text.count("\n\n") * approx_chars * 2 >= len(text) else "\n"
+
+    chunks: list[str] = []
+    cur: list[str] = []
+    cur_len = 0
+
+    def flush() -> None:
+        nonlocal cur, cur_len
+        if cur:
+            joined = sep.join(cur)
+            if joined.strip():
+                chunks.append(joined)
+        cur, cur_len = [], 0
+
+    for seg in text.split(sep):
+        # A single segment larger than the target (e.g. one enormous line):
+        # hard-slice it so no chunk blows the budget by orders of magnitude.
+        while len(seg) > approx_chars:
+            flush()
+            chunks.append(seg[:approx_chars])
+            seg = seg[approx_chars:]
+        cur.append(seg)
+        cur_len += len(seg) + len(sep)
+        if cur_len >= approx_chars:
+            flush()
+    flush()
+    return chunks
+
+
+def interleave(a: list[str], b: list[str]) -> list[str]:
+    """Proportional round-robin merge of two chunk lists, preserving each
+    list's internal order (Bresenham-style: the list that is behind its
+    proportional pace goes next)."""
+    out: list[str] = []
+    ia = ib = 0
+    na, nb = len(a), len(b)
+    while ia < na or ib < nb:
+        if ib >= nb or (ia < na and ia * nb <= ib * na):
+            out.append(a[ia])
+            ia += 1
+        else:
+            out.append(b[ib])
+            ib += 1
+    return out
 
 
 def write_corpus(chunks: list[str], path: Path, supplement: Path | None = None) -> None:
@@ -417,13 +620,17 @@ def write_split_jsonl(sessions: list[dict], path: Path) -> None:
 
 __all__ = [
     "cap_session",
+    "chunk_text",
+    "interleave",
     "length_bucket",
     "session_tools",
     "session_windows",
     "split_sessions",
     "stratified_pack",
     "stub_system_content",
+    "stub_tools",
     "template_session",
+    "tools_fingerprint",
     "write_corpus",
     "write_split_jsonl",
 ]

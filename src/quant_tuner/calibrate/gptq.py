@@ -40,6 +40,7 @@ import torch
 
 from quant_tuner.calibrate._device import resolve_device
 from quant_tuner.calibrate._hf import forward_no_logits
+from quant_tuner.calibrate._ingest import load_chunks
 
 # --- Target discovery ----------------------------------------------------- #
 
@@ -314,13 +315,11 @@ def calibrate(
         print(f"[gptq] snapshot {len(H)} files -> {hessians_dir}", file=sys.stderr)
 
     try:
-        text = calibration_text.read_text()
-        ids = tok(text, return_tensors="pt", add_special_tokens=False).input_ids[0][:tokens]
-        chunks = ids.split(ctx)
-        print(f"[gptq] {ids.shape[0]} tokens, ctx {ctx} -> {len(chunks)} chunks", file=sys.stderr)
+        # Strided sample across the WHOLE corpus (see calibrate._ingest) — a
+        # head-truncated Hessian never sees the tool-call windows.
+        chunks = load_chunks(tok, calibration_text, ctx=ctx, budget_tokens=tokens,
+                             log_tag="gptq")
         for i, chunk in enumerate(chunks):
-            if chunk.numel() < 2:
-                continue
             forward_no_logits(model, chunk.unsqueeze(0).to(device))
             if (i + 1) % save_every == 0:
                 print(f"  chunk {i + 1}/{len(chunks)}", file=sys.stderr)

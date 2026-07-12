@@ -39,6 +39,10 @@ COLUMNS: tuple[tuple[str, str], ...] = (
     ("median_kld", "Median KLD"),
     ("same_top_p", "Same Top p"),
     ("rms_dp", "RMS Δp"),
+    # In-distribution tools eval (bench.eval_tools_corpus). Display-only:
+    # never feeds SQS; quant-vs-quant comparison only (no --parse-special).
+    ("mean_kld_tools", "Tools KLD"),
+    ("same_top_p_tools", "Tools Top p"),
     ("prefill_tok_s", "Prefill tok/s"),
     ("decode_tok_s", "Decode tok/s"),
     ("ttft_2k_ms", "TTFT@2k (ms)"),
@@ -60,6 +64,8 @@ _FORMATS: dict[str, str] = {
     "median_kld": "{:.4f}",
     "same_top_p": "{:.2f}",
     "rms_dp": "{:.2f}",
+    "mean_kld_tools": "{:.3f}",
+    "same_top_p_tools": "{:.2f}",
     "sqs": "{:.3f}",
 }
 # Columns that combine value ± stdev into a single cell.

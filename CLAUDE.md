@@ -247,8 +247,11 @@ The OmniCoder reproduction is here; the CLI handles ad-hoc runs.
   it asserts the ksigns parity convention and records the commit in the header.
 - `build_corpora.py` — **canonical text-corpus builder**. One pass, one seed (42),
   five corpora written to `--out`:
-  - `corpus.cal.txt` — ALL of `wiki.test.raw` + ~500k tokens from the logtrain **train**
-    split (stratified-packed). Feed to `llama-imatrix` and `awq.calibrate(cal_text=…)`.
+  - `corpus.cal.txt` — ALL of `wiki.test.raw` **interleaved** (window-sized chunks,
+    round-robin) with ~500k tokens from the logtrain **train** split
+    (stratified-packed). Feed to `llama-imatrix` and `awq.calibrate(cal_text=…)`.
+    Wiki is NOT prepended as a monolith: token-budgeted calibrators sample the
+    file, and a 250k-token wiki head used to eat AWQ/GPTQ's entire budget.
   - `corpus.val.txt` — ~10k tokens from the logtrain **test** split + `calibration_supplement.txt`.
     Feed to `awq.calibrate(holdout_text=…)` for cv-mixed / cv-gate scoring. The supplement
     is deliberately *under-represented content* (Rust etc.) so that an α candidate winning
@@ -362,9 +365,29 @@ adding recipes.
     numbers are off-distribution. Prefer a raw-text eval corpus —
     `build_corpora.py`'s external `corpus.eval.txt`, wired into a recipe via
     `bench.eval_corpus` — over the pipeline's default log-derived eval slice.
-- `calibration.params.imatrix_ctx` (default 512) sets the llama-imatrix context
-  length for all three methods; it is consumed by the pipeline and not forwarded
-  to the calibrators.
+- `calibration.params.imatrix_ctx` (default **4096**, `pipeline.DEFAULT_IMATRIX_CTX`)
+  sets the llama-imatrix context length for all three methods; it is consumed by
+  the pipeline and not forwarded to the calibrators. 4096 fits the packer's
+  ≤3500-token windows in one context chunk — the old 512 default sliced every
+  window across ~7 chunks. Numbers produced at 512 are not comparable.
+- **HF-side calibrators sample the WHOLE corpus** (`calibrate/_ingest.sample_chunks`):
+  AWQ (`tokens` default 65536), GPTQ (32768), and the outlier forward stats
+  stride their token budget evenly across the file instead of reading its head.
+  The AWQ α-search activations `X` accumulate evenly-spaced rows from **every**
+  sampled chunk (not the first chunk's head), so α is chosen on the corpus
+  distribution rather than on the leading system prompt. Run
+  `scripts/audit_calibration_coverage.py` to see what a corpus+budget yields.
+- The packer dedups **tool schemas** like system prose (`tool_schema_quota`,
+  default 1): full schemas render in the first window of the first session per
+  unique schema set; every other window gets `stub_tools` (name + first
+  description line, empty parameters). The pack audit's `boilerplate_tokens`
+  (prose + schemas + wrapper, measured by a body-less prefix render) is what
+  `tool_turn_token_share` is computed from; `system_prose_tokens` is the
+  prose-only subset kept for continuity.
+- `bench.eval_tools_corpus` (optional) adds a second, in-distribution KLD suite
+  (own `eval/baseline-tools.kld`, `*_tools` CSV columns, display-only in the
+  leaderboard). CLI: `quant-tuner bench --eval-tools corpus.eval.tools.txt`.
+  Quant-vs-quant only — same no-`--parse-special` caveat as above.
 - HF calibration forward passes go through `calibrate/_hf.forward_no_logits`,
   which runs the decoder trunk only — hooks still fire, but the `[ctx, vocab]`
   logits tensor and lm_head matmul are skipped. Keep using it for new

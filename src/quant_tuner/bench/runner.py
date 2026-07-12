@@ -21,6 +21,11 @@ class BenchRow:
     median_kld: float | None
     same_top_p: float | None
     rms_dp: float | None
+    # In-distribution tools eval (bench.eval_tools_corpus): quant-vs-quant
+    # only — llama-perplexity can't --parse-special the chat markers.
+    ppl_tools: float | None
+    mean_kld_tools: float | None
+    same_top_p_tools: float | None
     prefill_tok_s: float | None
     prefill_stdev: float | None
     decode_tok_s: float | None
@@ -34,6 +39,7 @@ class BenchRow:
 CSV_COLUMNS = [
     "model", "size_gib", "bpw",
     "ppl", "ppl_ratio", "mean_kld", "median_kld", "same_top_p", "rms_dp",
+    "ppl_tools", "mean_kld_tools", "same_top_p_tools",
     "prefill_tok_s", "prefill_stdev",
     "decode_tok_s", "decode_stdev",
     "ttft_2k_ms", "ttft_stdev_ms",
@@ -49,6 +55,8 @@ def bench_one(
     reference_n_params: int,
     eval_dataset: Path | None = None,
     eval_baseline: Path | None = None,
+    tools_dataset: Path | None = None,
+    tools_baseline: Path | None = None,
     eval_ctx: int = 8192,
     n_tokens: int | None = None,
     log_dir: Path | None = None,
@@ -64,11 +72,15 @@ def bench_one(
       - "full":       all of the above
       - "leaderboard": alias for full
 
+    ``tools_dataset`` + ``tools_baseline`` (both or neither) add a second,
+    in-distribution KLD pass whose results land in the ``*_tools`` columns.
+
     ``bench_repetitions`` controls how many times llama-bench repeats each
     timing measurement; with the default of 10, we get prefill/decode/TTFT
     mean ± sample stdev per row. Set to 1 to skip variance estimation.
     """
     kld_metrics = kld.KLDMetrics()
+    tools_metrics = kld.KLDMetrics()
     speed_metrics = speed.SpeedMetrics()
     log_dir = log_dir or quant_path.parent / "logs"
 
@@ -80,6 +92,14 @@ def bench_one(
             ctx=eval_ctx, n_tokens=n_tokens,
             log=log_dir / f"{label}.kld.log",
         )
+        if (tools_dataset is None) != (tools_baseline is None):
+            raise ValueError("tools_dataset and tools_baseline must be set together")
+        if tools_dataset is not None and tools_baseline is not None:
+            tools_metrics = kld.evaluate(
+                quant_path, tools_dataset, tools_baseline,
+                ctx=eval_ctx, n_tokens=n_tokens,
+                log=log_dir / f"{label}.kld-tools.log",
+            )
 
     if suite in ("speed", "full", "leaderboard"):
         speed_metrics = speed.evaluate(
@@ -98,6 +118,9 @@ def bench_one(
         median_kld=kld_metrics.median_kld,
         same_top_p=kld_metrics.same_top_p,
         rms_dp=kld_metrics.rms_dp,
+        ppl_tools=tools_metrics.ppl,
+        mean_kld_tools=tools_metrics.mean_kld,
+        same_top_p_tools=tools_metrics.same_top_p,
         prefill_tok_s=speed_metrics.prefill_tok_s,
         prefill_stdev=speed_metrics.prefill_stdev,
         decode_tok_s=speed_metrics.decode_tok_s,

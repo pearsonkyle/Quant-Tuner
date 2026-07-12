@@ -86,12 +86,29 @@ def spawn_server(
         "--port", str(port),
         "-c", str(ctx),
         "-ngl", str(ngl),
+        "-fa", "on",            # force flash attention (default 'auto') — faster + less KV memory
+        "-ub", "1024",          # larger physical batch speeds prompt processing on long agent contexts
+        # Server-side repetition penalty: low-bit (2-bit) quants loop in agent
+        # loops, generating toward the token cap (minutes per step). The
+        # openai-agents backend can't forward a penalty, so set it here as the
+        # default; callers that send their own (tool-call reps send 1.0) override.
+        "--repeat-penalty", "1.1",
+        "--repeat-last-n", "256",
         "--host", "127.0.0.1",
     ]
     if mmproj_path is not None:
         cmd += ["--mmproj", str(mmproj_path)]
     if chat_template_kwargs is not None:
         cmd += ["--chat-template-kwargs", chat_template_kwargs]
+        # `enable_thinking` via --chat-template-kwargs is DEPRECATED and silently
+        # ignored by recent templates (e.g. gemma-4 / peg-gemma4 keeps thinking
+        # ON). The authoritative switch is --reasoning; translate so every caller
+        # that already passes {"enable_thinking":false} actually disables it.
+        _low = chat_template_kwargs.replace(" ", "").lower()
+        if '"enable_thinking":false' in _low:
+            cmd += ["--reasoning", "off"]
+        elif '"enable_thinking":true' in _low:
+            cmd += ["--reasoning", "on"]
     if spec_type is not None:
         cmd += ["--spec-type", spec_type]
     if spec_draft_n_max is not None:

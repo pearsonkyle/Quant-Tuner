@@ -35,6 +35,7 @@ def _bench_row(label: str, **kw) -> BenchRow:
     base = dict(
         model=label, size_gib=5.0, bpw=4.5, ppl=2.4, ppl_ratio=0.9,
         mean_kld=0.5, median_kld=0.0015, same_top_p=89.6, rms_dp=17.0,
+        ppl_tools=None, mean_kld_tools=None, same_top_p_tools=None,
         prefill_tok_s=None, prefill_stdev=None, decode_tok_s=None,
         decode_stdev=None, ttft_2k_ms=None, ttft_stdev_ms=None,
         bench_repetitions=None, quant_path="/out/repo/Q4_K_M-imatrix.gguf",
