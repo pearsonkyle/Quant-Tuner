@@ -9,7 +9,8 @@ prev=-1
 restarts=0
 
 note() { osascript -e "display notification \"$1\" with title \"quant-tuner watchdog\"" 2>/dev/null; }
-count() { grep -cE "$2" "$1" 2>/dev/null || echo 0; }
+# grep -c prints "0" (exit 1) on no-match and nothing on a missing file; both -> 0.
+count() { local n; n=$(grep -cE "$2" "$1" 2>/dev/null); echo "${n:-0}"; }
 
 echo "[$(date '+%F %H:%M')] watchdog started (every $((INTERVAL/60))m)" >> "$WD"
 while true; do
