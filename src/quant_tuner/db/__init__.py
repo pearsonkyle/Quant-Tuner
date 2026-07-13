@@ -20,6 +20,7 @@ from quant_tuner.db.engine import (
 from quant_tuner.db.models import (
     MMLU_SUBJECTS,
     Dataset,
+    LensToolcallRep,
     MmluRep,
     Quant,
     ToolcallRep,
@@ -29,6 +30,7 @@ __all__ = [
     "DEFAULT_DB_PATH",
     "MMLU_SUBJECTS",
     "Dataset",
+    "LensToolcallRep",
     "MmluRep",
     "Quant",
     "ToolcallRep",

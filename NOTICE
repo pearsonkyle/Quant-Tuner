@@ -1,0 +1,34 @@
+quant-tuner
+
+This repository includes code adapted from third-party projects:
+
+- jlens-gguf (https://github.com/igorbarshteyn/jlens-gguf), Apache License 2.0.
+  Adapted into:
+    native/jlens_server/            the llama.cpp activation/intervention server
+                                    (jlens_server.cpp, build.sh, vendored deps)
+    src/quant_tuner/lens/           lens container, model reader, readout math,
+                                    fitting, .pt conversion, native client, and
+                                    the bridge server (lens.py, model_reader.py,
+                                    readout.py, fitting.py, pt_convert.py,
+                                    client.py, server.py)
+    src/quant_tuner/lens/web/       the D3 visualizer (index.html, app.js,
+                                    style.css), extended with A/B run-diff views
+  A copy of the Apache License 2.0 is kept at native/jlens_server/LICENSE and
+  src/quant_tuner/lens/LICENSE.Apache-2.0.
+
+- jlens-gguf itself derives from the Jacobian Lens method and its reference
+  implementation ("Verbalizable Representations Form a Global Workspace in
+  Language Models", Anthropic, Apache License 2.0,
+  https://github.com/anthropics/jacobian-lens — vendored here as the
+  vendor/jacobian-lens git submodule). The web visualizer's heatmap, panel,
+  and rank-chart design is adapted from that reference visualization.
+
+Vendored third-party components (each under its own license):
+
+- cpp-httplib (Yuji Hirose, MIT) — native/jlens_server/vendor/cpp-httplib/
+- nlohmann/json (Niels Lohmann, MIT) — native/jlens_server/vendor/nlohmann/
+- d3 v7 (Mike Bostock, ISC) — src/quant_tuner/lens/web/vendor/d3.min.js
+
+llama.cpp (MIT, https://github.com/ggml-org/llama.cpp) is referenced as the
+vendor/llama.cpp git submodule and linked at build time; it is not
+redistributed in this repository.

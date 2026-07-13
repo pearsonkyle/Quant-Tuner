@@ -1,0 +1,66 @@
+<!doctype html>
+<!--
+jlens-gguf interactive visualizer.
+Heatmap/panel/rank-chart design adapted from Anthropic's jacobian-lens
+reference visualisation (Apache-2.0), rebuilt for a live llama.cpp backend
+with steering / patching / generation controls.
+-->
+<html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>J-Lens · GGUF</title>
+<link rel="stylesheet" href="style.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Ctext y='13' font-size='13'%3E🔍%3C/text%3E%3C/svg%3E">
+<script src="vendor/d3.min.js"></script>
+</head><body>
+<div class="jl-page">
+
+  <div class="topbar">
+    <div class="brand">J‑Lens <span class="sub">GGUF · llama.cpp</span></div>
+    <div class="model-info" id="modelInfo">connecting…</div>
+    <span class="help" title="Click a heatmap cell to select (position, layer) and pin its top token. Pinned tokens get rank charts + a rank heatmap. Shift+hover scrubs. Arrow keys move the selection. Add interventions (steer / swap / ablate) in the right panel, then Run to see their effect live; cells whose top-1 changed vs baseline get an orange marker.">?</span>
+  </div>
+
+  <div class="promptbar">
+    <textarea id="prompt" rows="2" spellcheck="false"
+      placeholder="Enter a prompt… (chat mode wraps it in the model's chat template)"></textarea>
+    <div class="prompt-controls">
+      <label class="chk" title="Wrap the prompt in the model's chat template as a user message"><input type="checkbox" id="chatMode"> chat</label>
+      <label class="chk" title="Read every layer through the fitted lens (off = raw logit lens)"><input type="checkbox" id="useLens" checked> lens</label>
+      <label class="numl" title="Render every Nth layer (faster on deep models)">⁄<input type="number" id="stride" value="1" min="1" max="8"><span>layer</span></label>
+      <label class="numl" title="Generate N tokens with the model (with interventions active) and include them in the view">+<input type="number" id="nPredict" value="0" min="0" max="256" step="4"><span>tok</span></label>
+      <button id="runBtn" class="primary">Run ▶</button>
+    </div>
+  </div>
+
+  <div class="ivbar" id="ivBar">
+    <span class="ivlabel">interventions:</span>
+    <button class="ivadd" id="addSteer" title="Inject a token's J-lens direction into the residual stream">+ steer</button>
+    <button class="ivadd" id="addSwap" title="Swap the lens coordinates of two tokens (concept patch)">+ swap</button>
+    <button class="ivadd" id="addAblate" title="Project a token's J-lens direction out of the residual stream">+ ablate</button>
+    <span id="ivChips"></span>
+    <span class="status" id="status"></span>
+  </div>
+
+  <div class="main-content" id="main">
+    <div class="loading">Enter a prompt and press Run.</div>
+  </div>
+
+  <div class="tooltip" id="tt"></div>
+
+  <!-- intervention editor popup -->
+  <div class="modal-back" id="modalBack" style="display:none">
+    <div class="modal" id="ivModal">
+      <h3 id="ivTitle">Steer</h3>
+      <div class="ivform" id="ivForm"></div>
+      <div class="modal-buttons">
+        <button id="ivCancel">Cancel</button>
+        <button id="ivSave" class="primary">Add & Run</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="app.js"></script>
+<script src="diff_heatmap.js"></script>
+<script src="ab.js"></script>
+</body></html>

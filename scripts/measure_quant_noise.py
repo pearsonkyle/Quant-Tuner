@@ -55,19 +55,15 @@ from quant_tuner.paths import LLAMA_CPP_DIR
 # Step 1: dequantize GGUF → temp F16 GGUF via llama-quantize
 # ---------------------------------------------------------------------------
 
+# Steps 1-3 (dequantize, load weights, per-tensor RMSE) now live in the
+# importable `quant_tuner.lens.quant_noise` so the interpretability study can
+# share them. These thin wrappers preserve this script's logging behavior.
+
 def _dequantize_gguf(quant_gguf: Path, tmp_dir: Path) -> Path:
     """Convert a quantized GGUF to F16 using llama-quantize --allow-requantize."""
-    out = tmp_dir / f"{quant_gguf.stem}_dequant_f16.gguf"
-    if out.exists():
-        log(f"  dequant F16 GGUF already exists: {out.name}")
-        return out
+    from quant_tuner.lens.quant_noise import dequantize_gguf
 
-    bin_path = LLAMA_CPP_DIR / "build/bin/llama-quantize"
-    cmd = [str(bin_path), "--allow-requantize", str(quant_gguf), str(out), "F16"]
-    log(f"  running: {' '.join(cmd)}")
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        raise RuntimeError(f"llama-quantize failed:\n{result.stderr}")
+    out = dequantize_gguf(quant_gguf, tmp_dir)
     log(f"  dequantized → {out.name} ({out.stat().st_size / 1e9:.2f} GB)")
     return out
 
@@ -77,26 +73,10 @@ def _dequantize_gguf(quant_gguf: Path, tmp_dir: Path) -> Path:
 # ---------------------------------------------------------------------------
 
 def _load_gguf_weights(gguf_path: Path) -> dict[str, np.ndarray]:
-    """Load all F16/F32 tensors from a GGUF file into a name→float32 dict."""
-    sys.path.insert(0, str(LLAMA_CPP_DIR / "gguf-py"))
-    from gguf import GGUFReader, GGMLQuantizationType
+    """Load all F16/F32/BF16 tensors from a GGUF file into a name→float32 dict."""
+    from quant_tuner.lens.quant_noise import load_gguf_weights
 
-    reader = GGUFReader(str(gguf_path))
-    weights: dict[str, np.ndarray] = {}
-    for t in reader.tensors:
-        tt = t.tensor_type
-        if tt == GGMLQuantizationType.F16:
-            arr = t.data.view(np.float16).reshape(t.shape).astype(np.float32)
-        elif tt == GGMLQuantizationType.F32:
-            arr = t.data.view(np.float32).reshape(t.shape)
-        elif tt == GGMLQuantizationType.BF16:
-            raw = t.data.view(np.uint16).reshape(t.shape)
-            # BF16 → F32: shift mantissa
-            arr = (raw.astype(np.uint32) << 16).view(np.float32)
-        else:
-            continue  # skip any residual quantized tensors (shouldn't be any in F16 GGUF)
-        weights[t.name] = arr
-    return weights
+    return load_gguf_weights(gguf_path)
 
 
 # ---------------------------------------------------------------------------
@@ -108,17 +88,9 @@ def _measure_weight_noise(
     dq_weights: dict[str, np.ndarray],
 ) -> dict[str, float]:
     """Return per-tensor relative RMSE between f16 and dequantized weights."""
-    shared = set(f16_weights) & set(dq_weights)
-    noise: dict[str, float] = {}
-    for name in shared:
-        w_ref = f16_weights[name]
-        w_dq  = dq_weights[name]
-        if w_ref.shape != w_dq.shape:
-            continue
-        diff_rms = float(np.sqrt(np.mean((w_ref - w_dq) ** 2)))
-        ref_rms  = float(np.sqrt(np.mean(w_ref ** 2))) + 1e-8
-        noise[name] = diff_rms / ref_rms
-    return noise
+    from quant_tuner.lens.quant_noise import measure_weight_noise
+
+    return measure_weight_noise(f16_weights, dq_weights)
 
 
 def _estimate_activation_noise(

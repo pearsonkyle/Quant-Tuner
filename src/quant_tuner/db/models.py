@@ -133,6 +133,10 @@ class Quant(SQLModel, table=True):
         back_populates="quant",
         sa_relationship_kwargs={"cascade": "all, delete-orphan"},
     )
+    lens_toolcall_reps: list["LensToolcallRep"] = Relationship(
+        back_populates="quant",
+        sa_relationship_kwargs={"cascade": "all, delete-orphan"},
+    )
 
 
 class _SamplingMixin(SQLModel):
@@ -208,3 +212,33 @@ class ToolcallRep(_SamplingMixin, table=True):
     n_post_result_errors: int | None = Field(default=None)
 
     quant: Quant = Relationship(back_populates="toolcall_reps")
+
+
+class LensToolcallRep(SQLModel, table=True):
+    """Jacobian-lens tool-call diagnostics for one quant (one row per model).
+
+    Sibling of the benchmark rep tables (per quant-tuner's "new benchmark = new
+    child table" convention). Populated from the lens sidecar CSV that
+    ``quant-tuner lens replay-toolcalls`` writes; these are mechanistic
+    measurements of where tool-call decisions form, not accuracy scores.
+    """
+
+    __tablename__ = "lens_toolcall_rep"
+
+    id: int | None = Field(default=None, primary_key=True)
+    quant_id: int = Field(foreign_key="quant.id", index=True)
+
+    lens_path: str | None = Field(default=None)
+    n_decisions: int | None = Field(default=None)
+    # mean lens rank of the gold tool token at the decision's final position
+    gold_rank_final_mean: float | None = Field(default=None)
+    # mean layer at which the gold tool token enters the lens top-k
+    emergence_layer_mean: float | None = Field(default=None)
+    # mean final-position KLD vs the FP16 reference at decision points
+    decision_kld_vs_ref_mean: float | None = Field(default=None)
+    # mean per-layer rel-L2 activation divergence vs FP16 (AUC over layers)
+    layer_divergence_auc_mean: float | None = Field(default=None)
+
+    created_at: datetime = Field(default_factory=_utcnow)
+
+    quant: Quant = Relationship(back_populates="lens_toolcall_reps")

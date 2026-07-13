@@ -51,3 +51,58 @@ def is_ssm(gguf_name: str) -> bool:
     """SSM tensors lack the y = W a structure; calibrators must not rerank them
     with an output-aware prior (E[a^2] passthrough is correct)."""
     return ".ssm_" in gguf_name
+
+
+# Inverse mapping (GGUF -> candidate HF names). Built once from the forward
+# rules: a GGUF tensor may correspond to more than one HF module name (e.g.
+# attn_output maps from both self_attn.o_proj and self_attn.out_proj), so
+# callers get every candidate and disambiguate by state-dict membership.
+def _build_inverse() -> dict[str, list[str]]:
+    inv: dict[str, list[str]] = {}
+    for pat, tmpl in _HF_TO_GGUF_RULES:
+        # reconstruct the HF template from the compiled pattern's source
+        hf_tmpl = (
+            pat.pattern
+            .lstrip("^")
+            .rstrip("$")
+            .replace(r"\.", ".")
+            .replace(r"(\d+)", "{bid}")
+        )
+        gguf_tmpl = tmpl  # may contain "{bid}"
+        inv.setdefault(gguf_tmpl, [])
+        if hf_tmpl not in inv[gguf_tmpl]:
+            inv[gguf_tmpl].append(hf_tmpl)
+    return inv
+
+
+_GGUF_TO_HF_TEMPLATES = _build_inverse()
+
+
+def gguf_to_hf_names(gguf_name: str) -> list[str]:
+    """Inverse of :func:`map_hf_to_gguf`: all candidate HF module names.
+
+    ``gguf_name`` is a tensor name without the ``.weight`` suffix's variance —
+    both ``blk.3.ffn_up`` and ``blk.3.ffn_up.weight`` are accepted. Callers
+    append ``.weight`` (or check state-dict membership) to pick the real one.
+    """
+    name = gguf_name[:-len(".weight")] if gguf_name.endswith(".weight") else gguf_name
+    m = re.match(r"^blk\.(\d+)\.(.+)$", name)
+    bid = m.group(1) if m else None
+    suffix = m.group(2) if m else name
+
+    out: list[str] = []
+    for gguf_tmpl, hf_tmpls in _GGUF_TO_HF_TEMPLATES.items():
+        tmpl_name = gguf_tmpl[:-len(".weight")] if gguf_tmpl.endswith(".weight") else gguf_tmpl
+        tm = re.match(r"^blk\.\{bid\}\.(.+)$", tmpl_name)
+        if tm:
+            if bid is not None and tm.group(1) == suffix:
+                out.extend(t.format(bid=bid) for t in hf_tmpls)
+        elif tmpl_name == name:  # non-layer tensor (e.g. output)
+            out.extend(hf_tmpls)
+    return out
+
+
+def gguf_to_hf_name(gguf_name: str) -> str | None:
+    """First candidate HF name for ``gguf_name`` (see :func:`gguf_to_hf_names`)."""
+    names = gguf_to_hf_names(gguf_name)
+    return names[0] if names else None

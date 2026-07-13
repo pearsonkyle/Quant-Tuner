@@ -51,8 +51,16 @@ COLUMNS: tuple[tuple[str, str], ...] = (
     ("param_acc_mean", "Param Acc %"),
     ("schema_valid_rate", "Schema %"),
     ("rollout_complete_rate", "Rollout Done %"),
+    # Jacobian-lens columns (merged in from `quant-tuner lens replay-toolcalls`).
+    # Display-only mechanistic diagnostics; never feed SQS.
+    ("lens_gold_rank", "Gold Rank"),
+    ("lens_emerge_layer", "Emerge L"),
+    ("lens_decision_kld", "Decision KLD"),
     ("sqs", "SQS"),
 )
+
+# Keys pulled from a lens sidecar CSV, joined by basename(quant_path).
+_LENS_KEYS = ("lens_gold_rank", "lens_emerge_layer", "lens_decision_kld")
 
 # Number of decimals per column key. Anything not listed renders as raw.
 _FORMATS: dict[str, str] = {
@@ -216,6 +224,28 @@ def merge_toolcall(
     return rows
 
 
+def merge_lens(rows: list[dict], lens_csv: Path) -> list[dict]:
+    """Join Jacobian-lens diagnostic columns into bench rows by basename(quant_path).
+
+    The sidecar CSV is produced by ``quant-tuner lens replay-toolcalls`` (see
+    :func:`quant_tuner.lens.replay.write_lens_sidecar`); its ``model`` column is
+    the quant filename, matching the same join key ``merge_toolcall`` uses.
+    """
+    if not lens_csv.exists():
+        return rows
+    with lens_csv.open() as f:
+        by_filename = {r.get("model", ""): r for r in csv.DictReader(f)}
+    for r in rows:
+        qp = r.get("quant_path") or ""
+        lens = by_filename.get(os.path.basename(qp))
+        if not lens:
+            continue
+        for k in _LENS_KEYS:
+            if lens.get(k) not in (None, ""):
+                r[k] = lens[k]
+    return rows
+
+
 SortOrder = Literal["asc", "desc"]
 
 
@@ -308,8 +338,9 @@ def aggregate(
     sort_by: str = "sqs",
     order: SortOrder | None = None,
     toolcall_csv: Path | None = None,
+    lens_csv: Path | None = None,
 ) -> str:
-    """End-to-end: load a results.csv, optionally merge tool-call columns,
+    """End-to-end: load a results.csv, optionally merge tool-call + lens columns,
     compute SQS, sort, render markdown.
 
     Raises ``RuntimeError`` if no FP16 baseline row is present — SQS is only
@@ -319,6 +350,8 @@ def aggregate(
     rows = load_results(results_csv)
     if toolcall_csv is not None:
         rows = merge_toolcall(rows, toolcall_csv)
+    if lens_csv is not None:
+        rows = merge_lens(rows, lens_csv)
     f16 = find_f16_baseline(rows)
     if f16 is None:
         raise RuntimeError(
