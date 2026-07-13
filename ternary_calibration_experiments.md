@@ -103,6 +103,29 @@ Cost/risk: full 8B QAT needs a GPU with room for fp16 latents + AdamW states +
 activations (a CUDA box, or a memory-frugal LoRA-on-latent / partial-layer variant on
 Metal). This is real training infra quant-tuner doesn't have yet — the actual build.
 
+### exp-057: the QAT pipeline is BUILT and VALIDATED on Metal (M4 Max, 128 GB)
+
+`src/quant_tuner/qat/ternary.py` (per-group TWN + STE) + three scripts
+(`exp057_qat_{step0,train,export}.py`). All green:
+
+- **Step-0 reproduction is EXACT** (fp32): wrapping all 252 linears with the STE
+  ternarizer changes the logits by `0.0000e+00` (100% top-1). The fine-tune
+  provably starts from the real model — TWN recovers each group's `s` exactly.
+- **Training runs on MPS**: fp32 8B, last-4-layers trainable, gradient
+  checkpointing → **36.6 GiB** peak (of 128), ~20 s/step, loss falling
+  (2.34 → 2.10 in a 20-step smoke run). Frozen layers carry no optimizer state.
+- **Export round-trips**: trained latents → ternarize every linear → F16 GGUF →
+  prism `llama-quantize` **Q2_0** (supported, type 41). The result runs on the
+  prism fork and generates coherent code; the trained layer (blk.35) changed,
+  the frozen layer (blk.0) is byte-identical.
+
+So Metal is sufficient — no CUDA needed. Remaining for a *real* run (not just a
+smoke test): (a) a tool-log-weighted training corpus (the cal corpus is wiki-heavy);
+(b) more trainable layers (128 GB fits all 36) + more steps; (c) match the original
+2.03 GiB packing (`--output-tensor-type`/`--token-embedding-type Q2_0`; our default
+left embed/output at higher precision → 2.53 GiB); then bench + SWE-rebench vs the
+0%-pass baseline.
+
 ## What would actually improve it (the real levers)
 
 1. **Continued QAT fine-tune on the tool-call logs** — the correct analog to
