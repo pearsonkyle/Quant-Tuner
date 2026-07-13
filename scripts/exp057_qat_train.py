@@ -133,6 +133,12 @@ def main() -> int:
         bi += 1
         with amp_ctx:
             out = model(input_ids=ids, labels=ids)
+        if not torch.isfinite(out.loss):
+            # bf16 + checkpointing can spike; drop this microbatch rather than
+            # poison the accumulated grad / optimizer state.
+            print(f"[qat] non-finite loss at block {bi} — skipping", flush=True)
+            opt.zero_grad()
+            continue
         loss = out.loss / args.grad_accum
         loss.backward()
         losses.append(out.loss.item())

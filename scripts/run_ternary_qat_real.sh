@@ -7,9 +7,10 @@ cd /Users/kpearson/Programs/ai/llm/quant-tuner
 export PYTHONPATH=src
 PY=.venv/bin/python
 
-echo "=== [$(date)] Ternary QAT real run START (full-36, 600 steps) ==="
+echo "=== [$(date)] Ternary QAT real run START (full-36, bf16, 600 steps, lr 1e-4) ==="
 $PY -u scripts/exp057_qat_train.py \
-  --train-layers 36 --steps 600 --seq 1024 --grad-accum 2 --lr 2e-5 \
+  --train-layers 36 --steps 600 --seq 1024 --grad-accum 2 --lr 1e-4 \
+  --dtype bf16 \
   --corpus out/exp-057/corpus.train.txt --limit-tokens 0 \
   --out out/exp-057/trained_real
 echo "=== [$(date)] Ternary QAT real run DONE ==="
