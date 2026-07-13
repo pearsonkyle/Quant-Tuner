@@ -80,8 +80,11 @@ def main() -> int:
     from quant_tuner import paths
     import subprocess
     qbin = paths.llama_bin("llama-quantize")
-    print(f"[export] {qbin} {f16.name} -> Q2_0 ...", flush=True)
-    subprocess.run([str(qbin), str(f16), str(q2), "Q2_0"], check=True)
+    print(f"[export] {qbin} {f16.name} -> Q2_0 (embd+output also Q2_0 to match 2.03 GiB) ...", flush=True)
+    subprocess.run([str(qbin),
+                    "--output-tensor-type", "Q2_0",
+                    "--token-embedding-type", "Q2_0",
+                    str(f16), str(q2), "Q2_0"], check=True)
     print(f"[export] DONE: {q2} ({q2.stat().st_size/1024**3:.2f} GiB)")
     return 0
 

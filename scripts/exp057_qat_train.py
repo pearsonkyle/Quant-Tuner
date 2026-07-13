@@ -86,6 +86,11 @@ def main() -> int:
     ap.add_argument("--lr", type=float, default=1e-5)
     ap.add_argument("--dtype", choices=["fp32", "bf16"], default="fp32")
     ap.add_argument("--limit-tokens", type=int, default=400_000)
+    ap.add_argument("--corpus", type=Path, default=None)
+    ap.add_argument("--optim", choices=["adamw", "sgd"], default="adamw")
+    ap.add_argument("--amp", action="store_true",
+                    help="bf16 autocast compute with fp32 master latents (faster on MPS, "
+                         "keeps latent precision needed for ternary code-flipping)")
     ap.add_argument("--out", type=Path, default=REPO / "out" / "exp-057" / "trained")
     args = ap.parse_args()
 
@@ -93,7 +98,7 @@ def main() -> int:
     dtype = torch.float32 if args.dtype == "fp32" else torch.bfloat16
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
-    corpus = CORPUS if CORPUS.exists() else FALLBACK_CORPUS
+    corpus = args.corpus or (CORPUS if CORPUS.exists() else FALLBACK_CORPUS)
     print(f"[qat] device={dev} dtype={args.dtype} corpus={corpus}", flush=True)
 
     tok = AutoTokenizer.from_pretrained(MODEL)
@@ -108,7 +113,11 @@ def main() -> int:
     model.train()
 
     batches = make_batches(tok, corpus.read_text(), args.seq, dev, args.limit_tokens)
-    opt = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=args.lr)
+    trainable = [p for p in model.parameters() if p.requires_grad]
+    if args.optim == "sgd":
+        opt = torch.optim.SGD(trainable, lr=args.lr, momentum=0.9)  # 1 state (frugal)
+    else:
+        opt = torch.optim.AdamW(trainable, lr=args.lr)              # 2 fp32 states
 
     n_blocks = batches.shape[0]
     step = 0
@@ -116,10 +125,14 @@ def main() -> int:
     t_start = time.time()
     opt.zero_grad()
     losses: list[float] = []
+    import contextlib
+    amp_ctx = (torch.autocast(device_type=dev, dtype=torch.bfloat16)
+               if args.amp else contextlib.nullcontext())
     while step < args.steps:
         ids = batches[bi % n_blocks : (bi % n_blocks) + 1]
         bi += 1
-        out = model(input_ids=ids, labels=ids)
+        with amp_ctx:
+            out = model(input_ids=ids, labels=ids)
         loss = out.loss / args.grad_accum
         loss.backward()
         losses.append(out.loss.item())
