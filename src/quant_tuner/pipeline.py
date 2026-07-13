@@ -174,7 +174,9 @@ def calibrate(
       * ``imatrix`` — ``{"imatrix": <path>, "f16": <unchanged f16>}``
       * ``awq`` — ``{"imatrix": <imatrix collected on the folded F16, optionally
         re-weighted via params.imatrix_variant>, "f16": <f16 with scales folded>}``
-      * ``gptq`` — ``{"imatrix": <base imatrix>, "f16": <new f16 with rounded weights>}``
+      * ``gptq`` — ``{"imatrix": <imatrix collected on the GPTQ-rounded F16,
+        optionally re-weighted via params.imatrix_variant>, "f16": <new f16
+        with rounded weights>}``
     """
     method = cfg.calibration.method
     logs = ws.root / "logs"
@@ -190,13 +192,8 @@ def calibrate(
         return _calibrate_awq(cfg, ws, f16, train_corpus, logs)
 
     if method == "gptq":
-        # GPTQ needs a base imatrix for the final llama-quantize pass.
-        base_imatrix = ws.calibration_dir / "imatrix-base.gguf"
-        imatrix_ctx = int(cfg.calibration.params.get("imatrix_ctx", DEFAULT_IMATRIX_CTX))
-        step("llama-imatrix (base)", base_imatrix,
-             lambda: llama_cpp.imatrix(f16, train_corpus, base_imatrix,
-                                       ctx=imatrix_ctx, log=logs / "imatrix-base.log"))
-        return _calibrate_gptq(cfg, ws, f16, train_corpus, eval_corpus, base_imatrix, logs)
+        # GPTQ computes its imatrix AFTER the rounding (see _calibrate_gptq).
+        return _calibrate_gptq(cfg, ws, f16, train_corpus, eval_corpus, logs)
 
     raise ValueError(f"unknown calibration method: {method!r}")
 
@@ -300,7 +297,7 @@ def _calibrate_awq(
 
 # Recipe params consumed by gptq.apply() rather than gptq.calibrate().
 _GPTQ_APPLY_PARAMS = (
-    "n_bits", "group_size", "dampen", "actorder", "sym",
+    "n_bits", "group_size", "dampen", "actorder", "sym", "grid_mix",
     "name_filter", "sanity_tokens", "sanity_max_rel",
 )
 
@@ -313,14 +310,17 @@ _GPTQ_SANITY_MAX_REL = {2: 1.0, 3: 0.75}
 
 def _calibrate_gptq(
     cfg: RunConfig, ws: Workspace, f16: Path, train_corpus: Path,
-    eval_corpus: Path, base_imatrix: Path, logs: Path,
+    eval_corpus: Path, logs: Path,
 ) -> dict[str, Path]:
     hessians = ws.calibration_dir / "hessians"
     model_gptq = ws.root / "model_gptq"
     f16_gptq = ws.gguf_dir / "model-f16-gptq.gguf"
 
     params: dict[str, Any] = dict(cfg.calibration.params)
-    params.pop("imatrix_ctx", None)  # consumed by the base-imatrix step in calibrate()
+    # Optional second-stage imatrix re-weighting on the rounded model
+    # (e.g. "hybrid_custom" to stack the two winning calibrations).
+    imatrix_variant = params.pop("imatrix_variant", "default")
+    imatrix_ctx = int(params.pop("imatrix_ctx", DEFAULT_IMATRIX_CTX))
     apply_params: dict[str, Any] = {
         k: params.pop(k) for k in _GPTQ_APPLY_PARAMS if k in params
     }
@@ -328,8 +328,18 @@ def _calibrate_gptq(
         apply_params.setdefault("dtype", params["dtype"])
     # Default the rounding grid to the target quant's shape (2-bit -> asym
     # g16, 3-bit -> asym g16, else sym g32). Recipe params take precedence.
+    # Mixed ftypes bump some tensors above the base grid (attn_v -> Q4_K at
+    # 2 bits under GQA >= 4, Q4_K_M attn_v/ffn_down -> Q6_K, ...; see
+    # _quant_mix.target_type_for_member) — default grid_mix so each tensor is
+    # rounded on the grid matching its real target type. Pure ftypes resolve
+    # to zero overrides, so this is a no-op for them. Pinning any base-grid
+    # param in a recipe opts out of the mix; set `grid_mix` explicitly to
+    # combine a pinned base grid with the mix (`grid_mix: null` disables it).
+    user_pinned_grid = any(k in apply_params for k in ("n_bits", "group_size", "sym"))
     for k, v in gptq.grid_for_quant_type(cfg.quantize.type).items():
         apply_params.setdefault(k, v)
+    if not user_pinned_grid:
+        apply_params.setdefault("grid_mix", cfg.quantize.type)
     n_bits = int(apply_params["n_bits"])
     apply_params.setdefault("sanity_max_rel", _GPTQ_SANITY_MAX_REL.get(n_bits, 0.5))
     ppl_max_ratio = params.pop(
@@ -360,7 +370,28 @@ def _calibrate_gptq(
         ctx=cfg.bench.eval_ctx, log=logs / "gptq-verify-ppl.log",
     )
 
-    return {"imatrix": base_imatrix, "f16": f16_gptq}
+    # The imatrix is collected on the ROUNDED F16 (after the guardrail — no
+    # point spending an imatrix run on a model about to be rejected): the
+    # weight-aware variants score `‖W[:,c]‖²·E[a²]` and llama-quantize sees
+    # the rounded weights, so column norms of the original F16 would be
+    # norms of weights that no longer exist. E[a²] drift from rounding is
+    # second-order (GPTQ does not rescale channels the way AWQ folding does).
+    gptq_imatrix = ws.calibration_dir / "imatrix-gptq.gguf"
+    step("llama-imatrix (on GPTQ-rounded F16)", gptq_imatrix,
+         lambda: llama_cpp.imatrix(f16_gptq, train_corpus, gptq_imatrix,
+                                   ctx=imatrix_ctx, log=logs / "imatrix-gptq.log"))
+
+    if imatrix_variant == "default":
+        return {"imatrix": gptq_imatrix, "f16": f16_gptq}
+
+    tuned = ws.calibration_dir / f"imatrix-gptq-{imatrix_variant}.gguf"
+    step(f"build imatrix variant '{imatrix_variant}' (rounded)", tuned,
+         lambda: imatrix.calibrate(
+             variant=imatrix_variant, f16_gguf=f16_gptq,
+             base_imatrix=gptq_imatrix, out_path=tuned,
+             model_dir=model_gptq, calibration_text=train_corpus,
+             forward_stats_path=ws.calibration_dir / "forward-stats-gptq.npz"))
+    return {"imatrix": tuned, "f16": f16_gptq}
 
 
 # ---------------------------------------------------------------------------
@@ -383,9 +414,14 @@ def quantize_model(
     suffix = "" if imatrix_path is None else f"-{cfg.calibration.method}"
     # Variant must be part of the filename: otherwise re-running the same
     # workspace with a different variant finds the old GGUF, skips
-    # llama-quantize, and benches the stale file under the new label.
+    # llama-quantize, and benches the stale file under the new label. The
+    # same applies to params.imatrix_variant (the AWQ/GPTQ second-stage
+    # imatrix re-weighting).
     if imatrix_path is not None and cfg.calibration.variant != "default":
         suffix += f"-{cfg.calibration.variant}"
+    imatrix_variant = cfg.calibration.params.get("imatrix_variant", "default")
+    if imatrix_path is not None and imatrix_variant != "default":
+        suffix += f"-{imatrix_variant}"
     out_quant = ws.gguf_dir / f"{cfg.quantize.type}{suffix}.gguf"
     logs = ws.root / "logs"
 

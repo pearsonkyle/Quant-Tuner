@@ -9,6 +9,7 @@ from quant_tuner.calibrate.gptq import (
     Hessian,
     _parse_perplexity,
     gptq_round_tensor,
+    grid_for_member,
     grid_for_quant_type,
 )
 
@@ -39,8 +40,9 @@ def test_gptq_round_int4_quantization_levels():
         assert len(torch.unique(row)) <= 30
 
 
-def test_gptq_round_dead_columns_zeroed():
-    """A column with zero H-diagonal must come out exactly zero."""
+def test_gptq_round_dead_columns_rtn_not_zeroed():
+    """A column with zero H-diagonal is plain-RTN'd on the group grid, not
+    zeroed — the corpus simply never exercised it, the weight is still real."""
     n = 32
     W = torch.randn(4, n) * 0.5
     H = _random_psd(n, seed=1)
@@ -48,7 +50,10 @@ def test_gptq_round_dead_columns_zeroed():
     H[:, 5] = 0.0  # column 5 is "dead"
     Q, stats = gptq_round_tensor(W, H, group_size=8, actorder=False)
     assert stats.dead_cols >= 1
-    assert torch.allclose(Q[:, 5], torch.zeros(4))
+    # RTN on the 4-bit group grid: within half a grid step of the original,
+    # and certainly not destroyed to zero.
+    assert (Q[:, 5] - W[:, 5]).abs().max() < 0.5 * W.abs().max()
+    assert not torch.allclose(Q[:, 5], torch.zeros(4))
 
 
 def test_gptq_round_high_bits_low_error():
@@ -87,7 +92,9 @@ def test_gptq_round_actorder_zero_diag_handled():
     H[:, 0] = 0.0  # dead column 0 has lowest priority under act-order
     Q, stats = gptq_round_tensor(W, H, group_size=4, actorder=True)
     assert stats.dead_cols >= 1
-    assert torch.allclose(Q[:, 0], torch.zeros(2))
+    assert torch.isfinite(Q).all()
+    # dead column survives (RTN'd), no zeroing
+    assert (Q[:, 0] - W[:, 0]).abs().max() < 0.5 * W.abs().max()
 
 
 def test_gptq_round_actorder_and_no_actorder_agree_on_dead_cols():
@@ -162,8 +169,8 @@ def test_gptq_sym_auto_selected_below_4_bits():
         torch.testing.assert_close(Q_auto, Q_explicit)
 
 
-def test_gptq_asym_dead_columns_still_zeroed():
-    """Dead-channel zeroing must survive the asymmetric grid (0 representable)."""
+def test_gptq_asym_dead_columns_rtn():
+    """Dead-channel RTN must survive the asymmetric grid too."""
     n = 32
     W = torch.randn(4, n) * 0.5
     H = _random_psd(n, seed=7)
@@ -173,7 +180,9 @@ def test_gptq_asym_dead_columns_still_zeroed():
         W, H, n_bits=2, group_size=16, sym=False, actorder=False
     )
     assert stats.dead_cols >= 1
-    assert torch.allclose(Q[:, 5], torch.zeros(4))
+    assert torch.isfinite(Q[:, 5]).all()
+    # 2-bit asym grid step is (wmax-wmin)/3 per row-group; stay within a step.
+    assert (Q[:, 5] - W[:, 5]).abs().max() <= (2.0 * W.abs().max() / 3.0) + 1e-6
 
 
 def test_grid_for_quant_type_mapping():
@@ -183,7 +192,92 @@ def test_grid_for_quant_type_mapping():
     assert grid_for_quant_type("iq3_s") == {"n_bits": 3, "group_size": 16, "sym": False}
     assert grid_for_quant_type("Q3_K_M") == {"n_bits": 3, "group_size": 16, "sym": False}
     assert grid_for_quant_type("Q4_K_M") == {"n_bits": 4, "group_size": 32, "sym": True}
-    assert grid_for_quant_type("Q5_K_S") == {"n_bits": 4, "group_size": 32, "sym": True}
+    assert grid_for_quant_type("IQ4_XS") == {"n_bits": 4, "group_size": 32, "sym": True}
+    # mix-bump targets: Q5_K keeps the pragmatic sym g32, Q6_K is sym per-16
+    assert grid_for_quant_type("Q5_K_S") == {"n_bits": 5, "group_size": 32, "sym": True}
+    assert grid_for_quant_type("Q5_K") == {"n_bits": 5, "group_size": 32, "sym": True}
+    assert grid_for_quant_type("Q6_K") == {"n_bits": 6, "group_size": 16, "sym": True}
+    assert grid_for_quant_type("Q8_0") == {"n_bits": 4, "group_size": 32, "sym": True}
+
+
+def test_grid_for_member_mixes():
+    """grid_for_member: base grid for unbumped members, the real target's grid
+    for bumped ones (mirrors llama-quantize's tensor mix)."""
+    base = grid_for_quant_type("Q2_K")
+    v = "model.layers.3.self_attn.v_proj"
+    down = "model.layers.{}.mlp.down_proj"
+    q = "model.layers.3.self_attn.q_proj"
+    # Q2_K + GQA: attn_v really lands on Q4_K -> 4-bit sym g32
+    assert grid_for_member("Q2_K", v, gqa_ge4=True, n_layers=32, base_grid=base) == \
+        grid_for_quant_type("Q4_K")
+    # Q2_K: ffn_down -> Q3_K on every layer
+    assert grid_for_member("Q2_K", down.format(30), gqa_ge4=True, n_layers=32,
+                           base_grid=base) == grid_for_quant_type("Q3_K")
+    # unbumped members keep the base grid
+    assert grid_for_member("Q2_K", q, gqa_ge4=True, n_layers=32, base_grid=base) is base
+    # Q4_K_M: attn_v -> Q6_K on the use_more_bits schedule (layer 0 yes, 4 no)
+    base4 = grid_for_quant_type("Q4_K_M")
+    v0 = "model.layers.0.self_attn.v_proj"
+    v4 = "model.layers.4.self_attn.v_proj"
+    assert grid_for_member("Q4_K_M", v0, gqa_ge4=False, n_layers=32,
+                           base_grid=base4) == grid_for_quant_type("Q6_K")
+    assert grid_for_member("Q4_K_M", v4, gqa_ge4=False, n_layers=32,
+                           base_grid=base4) is base4
+    # pure ftype: zero overrides everywhere
+    base3 = grid_for_quant_type("IQ3_S")
+    assert grid_for_member("IQ3_S", v, gqa_ge4=False, n_layers=32, base_grid=base3) is base3
+
+
+# ----- Cholesky retry / damping escalation ----------------------------------- #
+
+
+def test_gptq_round_rank_deficient_h_escalates_damping():
+    """A rank-deficient H with zero damping fails Cholesky; the retry loop
+    escalates the damping instead of dying, and reports what it used."""
+    n = 16
+    g = torch.Generator().manual_seed(8)
+    a = torch.randn(n, 2, generator=g)
+    H = a @ a.T  # rank 2, positive diag -> not "dead", genuinely singular
+    W = torch.randn(4, n, generator=g) * 0.5
+    Q, stats = gptq_round_tensor(
+        W, H, n_bits=4, group_size=8, actorder=False, dampen=0.0
+    )
+    assert torch.isfinite(Q).all()
+    assert stats.dampen_used > 0.0
+
+
+def test_gptq_round_well_conditioned_keeps_dampen():
+    W = torch.randn(4, 16) * 0.5
+    Q, stats = gptq_round_tensor(
+        W, _random_psd(16, seed=9), n_bits=4, group_size=8,
+        actorder=False, dampen=0.01,
+    )
+    assert torch.isfinite(Q).all()
+    assert stats.dampen_used == 0.01
+
+
+def test_layer_slices_partition():
+    from quant_tuner.calibrate.gptq import _layer_slices
+
+    targets = [
+        (f"model.layers.{i}.{leaf}", object())
+        for i in range(4)
+        for leaf in ("self_attn.v_proj", "mlp.down_proj")
+    ]
+    # 0 -> single pass, everything in one slice
+    assert _layer_slices(targets, 0) == [targets]
+    assert _layer_slices([], 0) == []
+    # 2 layers per pass -> 2 slices of 4 targets, layer order preserved
+    slices = _layer_slices(targets, 2)
+    assert [len(s) for s in slices] == [4, 4]
+    assert [n for n, _ in slices[0]] == [n for n, _ in targets[:4]]
+    assert [n for n, _ in slices[1]] == [n for n, _ in targets[4:]]
+    # oversized layers_per_pass -> one slice
+    assert _layer_slices(targets, 99) == [targets]
+    # a target without a layer index rides with the first slice
+    stray = ("model.embed_tokens", object())
+    slices = _layer_slices([*targets, stray], 2)
+    assert stray in slices[0] and len(slices) == 2
 
 
 def test_hessian_save_load_roundtrip(tmp_path):

@@ -1,0 +1,45 @@
+# Hessian-based weight rounding (GPTQ) → IQ4_XS (~4.3 bpw).
+#
+# 4-bit ladder rung. Grid auto-derived (4-bit symmetric g32); the per-tensor
+# grid mix rounds attn_v on the 5-bit grid when GQA/MoE >= 4 (llama-quantize
+# stores it as Q5_K there). The IQ4 first-eighth ffn_down bump only applies
+# without an imatrix, which never happens on this path. Default guardrails
+# (sanity_max_rel 0.5, ppl_max_ratio 1.5).
+name: iq4_xs_gptq
+
+model: PLACEHOLDER
+
+workspace: ./out/iq4_xs_gptq
+
+data:
+  logs: PLACEHOLDER
+  train_frac: 0.8
+  test_frac: 0.1
+  holdout_frac: 0.1
+  train_max_tokens: 250000
+  eval_max_tokens: 50000
+  supplement: ./calibration_supplement.txt
+  context_len: 16384
+
+calibration:
+  method: gptq
+  variant: default
+  params:
+    tokens: 32768
+    ctx: 2048
+    dampen: 0.01
+    actorder: true
+    # imatrix_variant: hybrid_custom  # optional second-stage re-weighting
+    # grid_mix: IQ4_XS      # auto from quantize.type
+    # Mac (Apple Silicon):
+    # device: mps           # auto already prefers mps when present
+    # dtype: float16        # M1-generation GPUs lack bf16
+    # hessian_device: auto  # default: Hessians stay on-device under MPS
+    # layers_per_pass: 4    # bound peak Hessian RAM on big models
+
+quantize:
+  type: IQ4_XS
+
+bench:
+  suite: full
+  eval_ctx: 8192

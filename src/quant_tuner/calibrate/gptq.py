@@ -41,6 +41,11 @@ import torch
 from quant_tuner.calibrate._device import resolve_device
 from quant_tuner.calibrate._hf import forward_no_logits
 from quant_tuner.calibrate._ingest import load_chunks
+from quant_tuner.calibrate._quant_mix import (
+    LAYER_RE,
+    gqa_or_moe_ge4,
+    target_type_for_member,
+)
 
 # --- Target discovery ----------------------------------------------------- #
 
@@ -108,6 +113,7 @@ class GPTQStats:
     sse: float                       # sum of squared (W - Q) over the permuted basis
     frob_rel: float                  # ||Q - W||_F / ||W||_F in the original basis
     dead_cols: int                   # input channels with zero diag(H)
+    dampen_used: float               # final damping after any Cholesky-retry escalation
 
 
 def gptq_round_tensor(
@@ -124,7 +130,12 @@ def gptq_round_tensor(
 
     Steps (per Frantar 2023):
       1. Tikhonov-damp ``H`` by ``dampen * mean(diag(H))``; zero-diag rows are
-         marked "dead" — those input channels are forced to 0 and excluded.
+         marked "dead" — those input channels get H-diag 1.0 (keeps H positive
+         definite with zero coupling, so no compensation flows through them)
+         and plain RTN on the group grid. If the Cholesky still fails (2-3-bit
+         Hessians are often near-singular), the damping escalates ×2.5 up to
+         four times before giving up; ``stats.dampen_used`` records the final
+         value. On CPU the damp/Cholesky/inverse chain runs in float64.
       2. Optionally permute columns by descending ``diag(H)`` (act-order). This
          rounds the high-importance channels first, leaving more compensation
          budget for the tail.
@@ -152,17 +163,19 @@ def gptq_round_tensor(
     H = H.clone().float()
     W_orig = W.clone()  # preserved across in-place mutations for the Frobenius stat
 
-    # 1) Damping + dead-channel handling.
+    # 1) Dead-channel handling: channels the corpus never exercised get
+    #    H-diag 1.0 — H stays positive definite and their zero off-diagonals
+    #    mean no compensation flows through them, so the sweep plain-RTNs
+    #    them on the group grid. (Zeroing the weights instead would destroy
+    #    rare-token paths the calibration corpus simply never touched.)
     diag = torch.diag(H)
     dead = diag == 0
     if dead.any():
         H[dead, dead] = 1.0
-        W[:, dead] = 0.0
-        W_orig[:, dead] = 0.0  # match expectation that dead cols are zeroed
     diag_mean = float(torch.diag(H).mean().item())
-    H = H + dampen * diag_mean * torch.eye(in_features, dtype=H.dtype)
 
-    # 2) Act-order permutation.
+    # 2) Act-order permutation (the damping added below is diagonal, so the
+    #    permutation commutes with it).
     if actorder:
         perm = torch.argsort(torch.diag(H), descending=True)
         W = W[:, perm]
@@ -171,10 +184,41 @@ def gptq_round_tensor(
     else:
         invperm = None
 
-    # 3) Upper Cholesky of H^{-1}.
-    L = torch.linalg.cholesky(H)
-    Hinv = torch.cholesky_inverse(L)
-    U = torch.linalg.cholesky(Hinv, upper=True)
+    # 3) Upper Cholesky of H^{-1} under escalating Tikhonov damping. Low-bit
+    #    Hessians are often near-singular; rather than dying on the first
+    #    factorization failure, retry at 2.5x the damping (an accuracy hit,
+    #    but far better than skipping the tensor). float64 on CPU — apply()
+    #    rounds on CPU by default, and MPS (which lacks fp64) never gets here.
+    linalg_dtype = torch.float64 if H.device.type == "cpu" else torch.float32
+    Hl = H.to(linalg_dtype)
+    damp = dampen
+    U: torch.Tensor | None = None
+    for attempt in range(5):
+        Hd = Hl.clone()
+        Hd.diagonal().add_(damp * diag_mean)
+        L, info = torch.linalg.cholesky_ex(Hd)
+        del Hd
+        if int(info) == 0:
+            Hinv = torch.cholesky_inverse(L)
+            del L
+            Uc, info2 = torch.linalg.cholesky_ex(Hinv, upper=True)
+            del Hinv
+            if int(info2) == 0:
+                U = Uc.to(W.dtype)
+                break
+        if attempt < 4:
+            damp = max(damp * 2.5, 1e-4)
+            print(
+                f"[gptq] cholesky failed (attempt {attempt + 1}); "
+                f"escalating dampen -> {damp:.4g}",
+                file=sys.stderr,
+            )
+    del Hl
+    if U is None:
+        raise RuntimeError(
+            f"Cholesky failed after damping escalation to {damp:.4g}; "
+            f"Hessian too ill-conditioned"
+        )
 
     # 4) Column-wise sweep in blocks.
     if sym is None:
@@ -229,6 +273,7 @@ def gptq_round_tensor(
         sse=total_sse,
         frob_rel=frob_rel,
         dead_cols=int(dead.sum().item()),
+        dampen_used=damp,
     )
 
 
@@ -237,18 +282,80 @@ def grid_for_quant_type(quant_type: str) -> dict[str, int | bool]:
 
     Low-bit K-quants use 16-element inner blocks with asymmetric (min+scale)
     grids; rounding toward the same shape keeps GPTQ's error compensation
-    aligned with what llama-quantize will re-snap to. 4-bit and above keeps
-    the original symmetric g32 default.
+    aligned with what llama-quantize will re-snap to. Q6_K is symmetric per-16
+    in llama.cpp; Q5_K and 4-bit keep the pragmatic symmetric g32 default.
     """
     qt = quant_type.upper()
     if qt.startswith(("IQ1", "IQ2", "Q2")):
         return {"n_bits": 2, "group_size": 16, "sym": False}
     if qt.startswith(("IQ3", "Q3")):
         return {"n_bits": 3, "group_size": 16, "sym": False}
+    if qt.startswith("Q6"):
+        return {"n_bits": 6, "group_size": 16, "sym": True}
+    if qt.startswith("Q5"):
+        return {"n_bits": 5, "group_size": 32, "sym": True}
     return {"n_bits": 4, "group_size": 32, "sym": True}
 
 
+def grid_for_member(
+    grid_mix: str,
+    member: str,
+    *,
+    gqa_ge4: bool,
+    n_layers: int | None,
+    base_grid: dict[str, int | bool],
+) -> dict[str, int | bool]:
+    """Rounding grid for one tensor under a mixed ftype.
+
+    Mixed ftypes (Q2_K, IQ2_M, IQ3_M, Q4_K_M, …) store some tensors above the
+    base grid — llama-quantize bumps e.g. attn_v to Q4_K at 2 bits under
+    GQA ≥ 4 (see ``_quant_mix.target_type_for_member``). Rounding those
+    tensors on the base grid injects error the real quantization never makes
+    and burns compensation budget, so round each on the grid matching its
+    *real* target type instead. Members without an override keep
+    ``base_grid``. Pure ftypes (Q3_K_S, IQ3_S without GQA) resolve to zero
+    overrides.
+    """
+    target = target_type_for_member(
+        grid_mix, member, gqa_ge4=gqa_ge4, n_layers=n_layers)
+    return base_grid if target is None else grid_for_quant_type(target)
+
+
 # --- Calibration: accumulate Hessians ----------------------------------- #
+
+def _layer_slices(
+    targets: list[tuple[str, torch.nn.Linear]], layers_per_pass: int,
+) -> list[list[tuple[str, torch.nn.Linear]]]:
+    """Partition targets into slices of ``layers_per_pass`` consecutive layers.
+
+    ``layers_per_pass <= 0`` returns everything as one slice (single-pass
+    behavior). Targets without a layer index in their name ride with the
+    first slice.
+    """
+    if layers_per_pass <= 0:
+        return [targets] if targets else []
+    by_layer: dict[int, list[tuple[str, torch.nn.Linear]]] = {}
+    stray: list[tuple[str, torch.nn.Linear]] = []
+    for name, mod in targets:
+        m = LAYER_RE.search(name)
+        if m is None:
+            stray.append((name, mod))
+        else:
+            by_layer.setdefault(int(m.group(1)), []).append((name, mod))
+    slices: list[list[tuple[str, torch.nn.Linear]]] = []
+    layers = sorted(by_layer)
+    for i in range(0, len(layers), layers_per_pass):
+        block: list[tuple[str, torch.nn.Linear]] = []
+        for li in layers[i:i + layers_per_pass]:
+            block.extend(by_layer[li])
+        slices.append(block)
+    if stray:
+        if slices:
+            slices[0].extend(stray)
+        else:
+            slices.append(stray)
+    return slices
+
 
 @torch.no_grad()
 def calibrate(
@@ -261,11 +368,26 @@ def calibrate(
     device: str = "auto",
     dtype: str = "bfloat16",
     save_every: int = 8,
+    hessian_device: str = "auto",
+    layers_per_pass: int = 0,
 ) -> Path:
     """Accumulate per-tensor Hessians over the calibration corpus.
 
-    Snapshots all Hessians to ``hessians_dir`` every ``save_every`` chunks
-    (atomic via tmp + rename), so the run can be resumed after a crash.
+    Snapshots the in-flight Hessians to ``hessians_dir`` every ``save_every``
+    chunks (atomic via tmp + rename), so the run can be resumed after a crash.
+
+    ``hessian_device`` controls where the ``[in, in]`` accumulators live:
+    ``"auto"`` keeps them on the model device under MPS (unified memory —
+    same pool either way, and it avoids an H-sized device→host copy inside
+    every hook call) and on CPU otherwise (CUDA VRAM safety). Snapshots are
+    always persisted as CPU tensors.
+
+    ``layers_per_pass > 0`` bounds peak Hessian memory: targets are split
+    into slices of N layers and the corpus is forwarded once per slice, with
+    only that slice's Hessians allocated. ffn_down Hessians are
+    ``[ffn_dim, ffn_dim]`` fp32 — holding every layer's at once is GBs on
+    large models. Completed slices are recorded in ``_complete`` and skipped
+    on re-run (mid-slice snapshots alone don't mark completion).
     """
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -275,6 +397,10 @@ def calibrate(
         "float16": torch.float16,
         "float32": torch.float32,
     }[dtype]
+    h_dev = (
+        (device if device == "mps" else "cpu")
+        if hessian_device == "auto" else hessian_device
+    )
 
     print(f"[gptq] load {model_dir} -> {device}/{dtype}", file=sys.stderr)
     tok = AutoTokenizer.from_pretrained(model_dir, fix_mistral_regex=True)
@@ -291,44 +417,70 @@ def calibrate(
     print(f"[gptq] targets: {len(targets)} total ({n_attn} attn, {n_mlp} mlp)", file=sys.stderr)
 
     hessians_dir.mkdir(parents=True, exist_ok=True)
-    H: dict[str, torch.Tensor] = {}
-    n_seen: dict[str, int] = {}
-    for name, mod in targets:
-        d = mod.in_features
-        H[name] = torch.zeros((d, d), dtype=torch.float32)
-        n_seen[name] = 0
 
-    def make_hook(name: str):
-        def pre(_module, in_args):
-            x = in_args[0].reshape(-1, in_args[0].shape[-1]).float()
-            H[name].add_((x.T @ x).detach().cpu())
-            n_seen[name] += x.shape[0]
-        return pre
+    # Strided sample across the WHOLE corpus (see calibrate._ingest) — a
+    # head-truncated Hessian never sees the tool-call windows. Tokenized once,
+    # shared by every slice pass.
+    chunks = load_chunks(tok, calibration_text, ctx=ctx, budget_tokens=tokens,
+                         log_tag="gptq")
 
-    handles = [mod.register_forward_pre_hook(make_hook(n)) for n, mod in targets]
+    slices = _layer_slices(targets, layers_per_pass)
+    complete_path = hessians_dir / "_complete"
+    done_names: set[str] = (
+        set(complete_path.read_text().split()) if complete_path.exists() else set()
+    )
 
-    def snapshot() -> None:
-        for name in H:
-            Hessian(name=name, H=H[name], n_seen=n_seen[name]).save(
-                hessians_dir / f"{_safe_name(name)}.pt"
-            )
-        print(f"[gptq] snapshot {len(H)} files -> {hessians_dir}", file=sys.stderr)
+    def run_slice(sl: list[tuple[str, torch.nn.Linear]], tag: str) -> None:
+        H: dict[str, torch.Tensor] = {}
+        n_seen: dict[str, int] = {}
+        for name, mod in sl:
+            d = mod.in_features
+            H[name] = torch.zeros((d, d), dtype=torch.float32, device=h_dev)
+            n_seen[name] = 0
 
-    try:
-        # Strided sample across the WHOLE corpus (see calibrate._ingest) — a
-        # head-truncated Hessian never sees the tool-call windows.
-        chunks = load_chunks(tok, calibration_text, ctx=ctx, budget_tokens=tokens,
-                             log_tag="gptq")
-        for i, chunk in enumerate(chunks):
-            forward_no_logits(model, chunk.unsqueeze(0).to(device))
-            if (i + 1) % save_every == 0:
-                print(f"  chunk {i + 1}/{len(chunks)}", file=sys.stderr)
-                snapshot()
-    finally:
-        for h in handles:
-            h.remove()
+        def make_hook(name: str):
+            def pre(_module, in_args):
+                x = in_args[0].reshape(-1, in_args[0].shape[-1]).float()
+                H[name].add_((x.T @ x).detach().to(H[name].device))
+                n_seen[name] += x.shape[0]
+            return pre
 
-    snapshot()
+        handles = [mod.register_forward_pre_hook(make_hook(n)) for n, mod in sl]
+
+        def snapshot() -> None:
+            for name in H:
+                Hessian(name=name, H=H[name].to("cpu"), n_seen=n_seen[name]).save(
+                    hessians_dir / f"{_safe_name(name)}.pt"
+                )
+            print(f"[gptq] snapshot {len(H)} files -> {hessians_dir}", file=sys.stderr)
+
+        try:
+            for i, chunk in enumerate(chunks):
+                forward_no_logits(model, chunk.unsqueeze(0).to(device))
+                if (i + 1) % save_every == 0:
+                    print(f"  {tag} chunk {i + 1}/{len(chunks)}", file=sys.stderr)
+                    snapshot()
+        finally:
+            for hd in handles:
+                hd.remove()
+        snapshot()
+
+    for si, sl in enumerate(slices):
+        tag = f"slice {si + 1}/{len(slices)}"
+        if len(slices) > 1 and all(_safe_name(n) in done_names for n, _ in sl):
+            print(f"[gptq] {tag}: {len(sl)} Hessians already complete; skip",
+                  file=sys.stderr)
+            continue
+        run_slice(sl, tag)
+        with complete_path.open("a") as fh:
+            for name, _ in sl:
+                fh.write(_safe_name(name) + "\n")
+        if len(slices) > 1:
+            if device == "mps" and hasattr(torch, "mps"):
+                torch.mps.empty_cache()
+            elif device.startswith("cuda"):
+                torch.cuda.empty_cache()
+
     return hessians_dir
 
 
@@ -345,6 +497,7 @@ def apply(
     dampen: float = 0.01,
     actorder: bool = True,
     sym: bool | None = None,
+    grid_mix: str | None = None,
     device: str = "cpu",
     dtype: str = "bfloat16",
     name_filter: str | None = None,
@@ -363,6 +516,12 @@ def apply(
     ``sym=None`` auto-selects per :func:`gptq_round_tensor` (asymmetric below
     4 bits). ``device`` stays ``"cpu"`` by default: the Cholesky path is
     numerically safest there and rounding is not the bottleneck.
+
+    ``grid_mix`` (a llama-quantize ftype, e.g. ``"Q2_K"``) rounds each tensor
+    on the grid matching its *real* per-tensor target type under that ftype's
+    mix (see :func:`grid_for_member`) instead of the uniform
+    ``n_bits``/``group_size``/``sym`` grid. The pipeline defaults it to
+    ``quantize.type`` unless the recipe pins the base grid.
     """
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -393,6 +552,27 @@ def apply(
         raise FileNotFoundError(f"no Hessians in {hessians_dir}")
     print(f"[gptq.apply] {len(h_files)} Hessians", file=sys.stderr)
 
+    # Per-tensor grid overrides from the target ftype's tensor mix. Tensors
+    # without an override keep the uniform n_bits/group_size/sym grid.
+    base_grid: dict[str, int | bool] = {
+        "n_bits": n_bits, "group_size": group_size, "sym": sym,  # type: ignore[dict-item]
+    }
+    member_grids: dict[str, dict[str, int | bool]] = {}
+    if grid_mix is not None:
+        gqa_ge4 = gqa_or_moe_ge4(model.config)
+        n_layers = getattr(model.config, "num_hidden_layers", None)
+        counts: dict[str, int] = {}
+        for hpath in h_files:
+            member = hpath.stem.replace("__", ".")
+            target = target_type_for_member(
+                grid_mix, member, gqa_ge4=gqa_ge4, n_layers=n_layers)
+            if target is not None:
+                member_grids[member] = grid_for_quant_type(target)
+                counts[target] = counts.get(target, 0) + 1
+        summary = ", ".join(f"{k}×{v}" for k, v in sorted(counts.items())) or "none"
+        print(f"[gptq.apply] grid_mix={grid_mix}: member overrides {summary} "
+              f"(gqa_or_moe_ge4={gqa_ge4})", file=sys.stderr)
+
     rel_errors: list[tuple[str, float]] = []
     for i, hpath in enumerate(h_files):
         h = Hessian.load(hpath)
@@ -406,15 +586,21 @@ def apply(
                 file=sys.stderr,
             )
             continue
+        grid = member_grids.get(h.name, base_grid)
         try:
             Q, stats = gptq_round_tensor(
-                W, h.H, n_bits=n_bits, group_size=group_size,
-                dampen=dampen, actorder=actorder, sym=sym,
+                W, h.H, dampen=dampen, actorder=actorder, **grid,  # type: ignore[arg-type]
             )
         except Exception as e:
             print(f"[gptq.apply] WARN: GPTQ failed on {h.name}: {e}", file=sys.stderr)
             continue
         mod.weight.data.copy_(Q.to(torch_dtype).to(mod.weight.device))
+        if stats.dampen_used > dampen:
+            print(
+                f"[gptq.apply] {h.name}: dampen escalated {dampen:.4g} -> "
+                f"{stats.dampen_used:.4g}",
+                file=sys.stderr,
+            )
         rel_errors.append((h.name, stats.frob_rel))
         if (i + 1) % 16 == 0 or (i + 1) == len(h_files):
             print(
@@ -513,6 +699,7 @@ __all__ = [
     "calibrate",
     "discover_targets",
     "gptq_round_tensor",
+    "grid_for_member",
     "grid_for_quant_type",
     "verify_perplexity",
 ]

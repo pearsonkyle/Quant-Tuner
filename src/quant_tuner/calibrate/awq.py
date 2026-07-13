@@ -30,7 +30,6 @@ The RMSNorm fold has two forms (controlled by ``rmsnorm_plus_one``):
 from __future__ import annotations
 
 import math
-import re
 import shutil
 import sys
 from collections.abc import Callable
@@ -43,6 +42,11 @@ import torch
 from quant_tuner.calibrate._device import resolve_device
 from quant_tuner.calibrate._hf import forward_no_logits
 from quant_tuner.calibrate._ingest import load_chunks, sample_rows
+from quant_tuner.calibrate._quant_mix import (
+    LAYER_RE,
+    gqa_or_moe_ge4,
+    target_type_for_member,
+)
 
 # --- Group discovery ------------------------------------------------------ #
 
@@ -513,20 +517,25 @@ def proxy_for_quant_type(quant_type: str) -> str:
     return "int4_g128"
 
 
-_LAYER_RE = re.compile(r"\.layers\.(\d+)\.")
+# Kept as aliases: awq.calibrate and external callers use these names; the
+# implementations moved to calibrate/_quant_mix.py so GPTQ can share the
+# llama-quantize tensor-mix table.
+_LAYER_RE = LAYER_RE
+_gqa_or_moe_ge4 = gqa_or_moe_ge4
 
-
-def _gqa_or_moe_ge4(config) -> bool:
-    """Mirror llama.cpp's ``n_gqa() >= 4 || n_expert >= 4`` tensor-mix predicate."""
-    heads = getattr(config, "num_attention_heads", None) or 0
-    kv = getattr(config, "num_key_value_heads", None) or 0
-    if kv and heads // kv >= 4:
-        return True
-    experts = max(
-        getattr(config, "num_local_experts", None) or 0,
-        getattr(config, "num_experts", None) or 0,
-    )
-    return experts >= 4
+# Target-type tag (from _quant_mix.target_type_for_member) -> the AWQ proxy
+# quantizer whose error shape matches it. Q4_K/Q5_K/Q6_K all collapse onto the
+# INT4 proxy — past 4 bits the α landscape is flat and only "high-precision,
+# nearly α-insensitive" matters for the mix scoring.
+_MIX_PROXY = {
+    "Q6_K": "int4_g128",
+    "Q5_K": "int4_g128",
+    "Q4_K": "int4_g128",
+    "Q3_K": "q3k_b16",
+    "Q2_K": "q2k_b16",
+    "IQ3_S": "iq3_s",
+    "IQ2_XXS": "iq2_xxs",
+}
 
 
 def proxy_for_member(
@@ -536,85 +545,26 @@ def proxy_for_member(
     gqa_ge4: bool,
     n_layers: int | None = None,
 ) -> str | None:
-    """Per-member proxy override mirroring llama-quantize's 2-bit tensor mixes.
+    """Per-member proxy override mirroring llama-quantize's low-bit tensor mixes.
 
-    The low-bit ftypes are *mixed* quants — ``llama_tensor_get_type`` (pinned
-    llama.cpp 9e58d4d6) bumps some tensors above the ftype's base grid:
+    Thin proxy-vocabulary wrapper over
+    :func:`quant_tuner.calibrate._quant_mix.target_type_for_member` — see its
+    docstring for the full table (pinned llama.cpp f3e18281). Only low-bit
+    ftypes (IQ1/IQ2/IQ3/Q2/Q3) resolve here: the pipeline never defaults
+    ``proxy_mix`` for 4-bit+ targets, whose members are all scored with
+    ``int4_g128`` anyway.
 
-    - IQ1/IQ2 branch:
-        ``attn_v``     → Q4_K when GQA or MoE ≥ 4, else IQ3_S (S/M) / Q2_K (rest)
-        ``attn_output``→ IQ3_S for IQ2_S/IQ2_M, IQ2_XXS for IQ1_*
-        ``ffn_down``   → one tier up for the first eighth of layers
-    - Q2_K:   ``attn_v`` → Q4_K (GQA/MoE ≥ 4) else Q3_K; ``ffn_down`` → Q3_K on
-      *every* layer; ``attn_output`` → Q3_K (the 8-expert-MoE Q5_K special case
-      is not modeled — o_proj groups are off by default anyway)
-    - Q2_K_S: ``attn_v`` → Q4_K only under GQA/MoE ≥ 4; ``ffn_down`` → Q4_K for
-      the first eighth; ``attn_output`` keeps the base grid
-    - Q3_K_M/Q3_K_L: ``attn_v``, ``attn_output`` and ``ffn_down`` (every layer,
-      non-Falcon) all land on Q4_K–Q5_K → scored with ``int4_g128``
-    - IQ3_M: ``ffn_down`` → Q4_K for the first eighth, ``attn_output`` → Q4_K
-    - Q3_K_S and IQ3_S have *no* overrides — every member keeps the base grid
-
-    Not modeled: the 70B attn_v → Q5_K special case, the 8-expert-MoE
-    variations, and IQ3_XS/IQ3_XXS (which bump attn_q/attn_k *down* a tier;
-    no shipped recipe targets them).
-
-    Scoring those members with the ftype's base proxy optimizes α against an
+    Scoring a bumped member with the ftype's base proxy optimizes α against an
     error the real quantization does not have — under IQ2_M the v_proj term
     (really Q4_K, ~30× smaller error and nearly α-insensitive) steers the
     shared attn-group α. Returns the proxy name matching the member's real
     target type, or ``None`` when the member keeps the ftype's base grid.
     """
-    qt = quant_type.upper()
-    leaf = member.rsplit(".", 1)[-1]
-
-    def first_eighth() -> bool:
-        if not n_layers:
-            return False
-        m = _LAYER_RE.search(member)
-        return m is not None and int(m.group(1)) < max(1, n_layers // 8)
-
-    # --- 3-bit families (no GQA conditions in their branches) -------------- #
-    if qt.startswith("Q3"):
-        if qt in ("Q3_K_M", "Q3_K_L") and leaf in ("v_proj", "o_proj", "down_proj"):
-            return "int4_g128"  # Q4_K/Q5_K
-        return None  # Q3_K_S: base grid everywhere
-    if qt.startswith("IQ3"):
-        if qt == "IQ3_M" and (leaf == "o_proj" or (leaf == "down_proj" and first_eighth())):
-            return "int4_g128"  # Q4_K
-        return None  # IQ3_S: base grid everywhere; XS/XXS down-bumps unmodeled
-
-    # --- 2-bit families ----------------------------------------------------- #
-    if not qt.startswith(("IQ1", "IQ2", "Q2")):
+    if not quant_type.upper().startswith(("IQ1", "IQ2", "IQ3", "Q2", "Q3")):
         return None
-    s_or_m = qt.startswith(("IQ2_S", "IQ2_M"))
-
-    if leaf == "v_proj":
-        if gqa_ge4:
-            return "int4_g128"  # Q4_K
-        if qt == "Q2_K":
-            return "q3k_b16"  # Q3_K
-        if qt == "Q2_K_S":
-            return None
-        return "iq3_s" if s_or_m else "q2k_b16"  # IQ3_S : Q2_K
-    if leaf == "o_proj":
-        if qt == "Q2_K":
-            return "q3k_b16"  # Q3_K
-        if qt == "Q2_K_S":
-            return None
-        if s_or_m:
-            return "iq3_s"  # IQ3_S
-        if qt.startswith("IQ1"):
-            return "iq2_xxs"
-        return None
-    if leaf == "down_proj":
-        if qt == "Q2_K":
-            return "q3k_b16"  # Q3_K, every layer
-        if qt == "Q2_K_S":
-            return "int4_g128" if first_eighth() else None  # Q4_K
-        if first_eighth():
-            return "iq3_s" if s_or_m else "q2k_b16"
-    return None
+    target = target_type_for_member(
+        quant_type, member, gqa_ge4=gqa_ge4, n_layers=n_layers)
+    return None if target is None else _MIX_PROXY[target]
 
 
 def proxy_loss(
