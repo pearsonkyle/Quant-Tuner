@@ -189,6 +189,25 @@ weight-space bakes as an experimental capability that must clear a real-task
 eval before it is called a correction. This is exactly why the bake pipeline
 ships with `verify_bake` and the exp-106/107 scripts run a matched control.
 
+**Two-tier eval: cheap gate, then the gold standard.** Verify a candidate bake
+on the tool-call holdout first — it is fast (minutes) and, on the multi-direction
+bake, it *correctly* flagged the regression (param accuracy 0.193→0.013) before
+any expensive agentic run. Only escalate a bake that *passes* the gate to the
+full agentic **SWE-rebench** eval (`scripts/run_swebench_eval.py --models
+<gguf> …`), which is the real "does it resolve issues?" metric but costs hours
+per model (one Docker container per instance; slow under Apple-Silicon
+emulation). Running SWE-rebench on a bake that already failed the tool-holdout
+just confirms 0% at great cost. The tool-holdout is the proxy; SWE-rebench is
+the verdict — use them in that order.
+
+### Figures
+
+`scripts/plot_jlens_analysis.py` renders the analysis into two PNGs under
+`out/exp-051/lens/`: `jlens_story.png` (the 2×2 — 2-bit sharpens explore≫act →
+the bake shifts the readout → but breaks the model → repetition penalty is the
+safe fix) and `jlens_layers.png` (the layer × token rank heatmap — the
+inside-the-network view). CVD-safe blue/red by job, log-scale ranks.
+
 ## Repetition penalty (breaking loops without stopping exploration)
 
 Low-bit quants loop during long agent rollouts. The **serving path**
