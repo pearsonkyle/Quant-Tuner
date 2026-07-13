@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import os
 import time
 from typing import Any
 
@@ -72,6 +73,46 @@ _EMPTY_PATCH_NUDGE = (
     "stop again until `git -C /testbed diff` shows a non-empty change to a source file."
 )
 _MAX_EMPTY_PATCH_RETRIES = 2
+
+# Optional, opt-in extra guidance appended to the system prompt. Kept OUT of the
+# default so published runs (Ornith/Qwythos/gemma) are unaffected; set it to A/B a
+# scaffolding change on a weak model without leaking hidden test names. The bundled
+# _SCAFFOLD_INSTRUCTIONS below target the failure modes seen on Ternary-Bonsai
+# (hallucinated pytest flags, running modules as scripts, treating a reproducing
+# test's non-zero exit as an error). Enable with QT_SWE_EXTRA_INSTRUCTIONS=scaffold
+# (the built-in text) or QT_SWE_EXTRA_INSTRUCTIONS="<your own text>".
+_SCAFFOLD_INSTRUCTIONS = """\
+
+## Extra operating rules
+
+Running tests: do NOT guess test commands or invent flags. First discover how \
+this project runs its tests by inspecting the repo (setup.py, setup.cfg, tox.ini, \
+pytest.ini, pyproject.toml, Makefile, or the tests/ layout). Run a single test \
+file with a plain `python -m pytest <path/to/test_file.py> -x -q`, or use the \
+project's documented runner. Never pass a pytest flag you have not confirmed \
+exists (e.g. there is no `--format=json`).
+
+Read before you run: before executing a file, confirm it exists with `ls` / \
+`find . -name '<file>'` and read the relevant lines with `sed -n`. Do NOT run a \
+library module directly as a script (`python path/to/module.py`) unless it has a \
+`if __name__ == "__main__"` block — import it or call it via the test suite \
+instead.
+
+Non-zero exits are normal: a failing test exits non-zero. When you are \
+REPRODUCING the bug, that failure is the expected, useful signal — not an error \
+to avoid. Read the traceback, find the responsible source file, fix it, then \
+re-run the SAME test and confirm it now passes.
+"""
+
+
+def _system_prompt() -> str:
+    """Base prompt plus optional opt-in scaffolding (``QT_SWE_EXTRA_INSTRUCTIONS``)."""
+    extra = os.environ.get("QT_SWE_EXTRA_INSTRUCTIONS", "").strip()
+    if not extra:
+        return _SYSTEM_PROMPT
+    if extra.lower() == "scaffold":
+        return _SYSTEM_PROMPT + _SCAFFOLD_INSTRUCTIONS
+    return _SYSTEM_PROMPT + "\n\n" + extra
 
 
 def _truncate_output(text: str, limit: int = _MAX_TOOL_OUTPUT_CHARS) -> str:
@@ -191,7 +232,7 @@ class OpenAIAgentsBackend:
         )
         agent = Agent(
             name="swe-agent",
-            instructions=_SYSTEM_PROMPT,
+            instructions=_system_prompt(),
             model=model,
             tools=[bash],
             model_settings=settings,
