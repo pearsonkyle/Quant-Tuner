@@ -55,6 +55,36 @@ tell: episodes terminate almost instantly with garbled non-tool output — it
 never engages the agent loop. Ornith IQ2_M still works through episodes (2.5M
 tokens, 19% tool-errors) and even resolves one.
 
+## Ternary-Bonsai-8B (prism-ml) — native 1.58-bit, added for reference
+
+A different animal: a **Qwen3-8B trained natively ternary** (weights ∈ {−1, 0, +1}
++ one fp16 scale per 128), shipped in a custom `Q2_0` GGUF (ggml type 42) that is
+**not in mainline llama.cpp** — it runs only on the [PrismML fork](https://github.com/PrismML-Eng/llama.cpp)
+(`prism` branch), which we built with Metal. Of the three 2-bit files in the repo,
+only **Q2_0 (g128)** loads on that branch; `PQ2_0` (type 142) and `Q2_0_g64`
+(g64 layout) need other experimental branches.
+
+| Metric | F16 *(=Q2_0)* | **Q2_0** |
+|:---|---:|---:|
+| Method | — | native ternary |
+| BPW | 16.0 | **2.13** |
+| Size (GiB) | 15.3 | **2.03** |
+| 📐 PPL (general) | 6.492 | 6.492 |
+| 📐 KLD (med) | 0.000 | ~0.000 ‡ |
+| 📐 same_top_p | 100% | 99.99% ‡ |
+| 🤖 SWE-rebench | — | *running (10 inst)* |
+
+‡ **KLD ≈ 0 is structural, not a quality claim.** Because the model is *trained*
+ternary, the shipped "F16" holds the *same* {−1,0,+1} weights in a fat container —
+Q2_0 is a lossless re-encoding of it, so KLD-vs-own-F16 is ~0 by construction. This
+is **not** comparable to Ornith/Qwythos KLD (loss vs a genuinely higher-precision
+FP16). The comparable numbers are **absolute PPL** and the **agentic** result: at
+**2.13 bpw** (vs 3.22 for the IQ2_M coders) it hits 6.49 general PPL — between
+Ornith IQ2_M (6.37 @ 3.22 bpw) and Qwythos IQ2_M (7.23 @ 3.22 bpw), on a smaller,
+lower-bit, *different* base (general Qwen3-8B, not a Qwen3.5 coder). Whether that
+static parity survives real issue-resolution is the open question the SWE-rebench
+run answers.
+
 ## Takeaways
 
 1. **Ornith is the better agentic 9B at 2-bit** — its IQ2_M still functions
