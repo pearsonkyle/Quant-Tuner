@@ -72,7 +72,10 @@ only **Q2_0 (g128)** loads on that branch; `PQ2_0` (type 142) and `Q2_0_g64`
 | 📐 PPL (general) | 6.492 | 6.492 |
 | 📐 KLD (med) | 0.000 | ~0.000 ‡ |
 | 📐 same_top_p | 100% | 99.99% ‡ |
-| 🤖 SWE-rebench | — | *running (10 inst)* |
+| 🤖 Pass Rate | — | 0±0% |
+| 🤖 Patch Rate | — | 50±16% |
+| 🤖 Tool Errors | — | 79.1% |
+| 🤖 Mean Tokens | — | 258K |
 
 ‡ **KLD ≈ 0 is structural, not a quality claim.** Because the model is *trained*
 ternary, the shipped "F16" holds the *same* {−1,0,+1} weights in a fat container —
@@ -81,9 +84,19 @@ is **not** comparable to Ornith/Qwythos KLD (loss vs a genuinely higher-precisio
 FP16). The comparable numbers are **absolute PPL** and the **agentic** result: at
 **2.13 bpw** (vs 3.22 for the IQ2_M coders) it hits 6.49 general PPL — between
 Ornith IQ2_M (6.37 @ 3.22 bpw) and Qwythos IQ2_M (7.23 @ 3.22 bpw), on a smaller,
-lower-bit, *different* base (general Qwen3-8B, not a Qwen3.5 coder). Whether that
-static parity survives real issue-resolution is the open question the SWE-rebench
-run answers.
+lower-bit, *different* base (general Qwen3-8B, not a Qwen3.5 coder).
+
+**Agentic verdict: the 2-bit resolution ceiling holds regardless of how you get to
+2 bits.** At just 2.13 bpw Ternary Q2_0 *engages* — it produces a valid diff on 50%
+of issues (beating post-hoc Qwythos IQ2_M's 40% at a higher 3.22 bpw) and doesn't
+loop (258K mean tokens, 15 steps). But it **resolves 0** (0% pass) and fumbles tool
+calls 79% of the time — it's a general model, not a coder/tool fine-tune. So all
+three 2-bit contenders (Ternary Q2_0, Ornith/Qwythos IQ2_M) land in the same place:
+*plausible patches, ~zero passes*. Native-ternary training buys a genuinely usable
+2-bit general model at rock-bottom size, but it does **not** break the agentic
+issue-resolution floor — that still requires IQ4_XS+ (which this 2-bit-only release
+has no equivalent of). Ornith's purpose-built IQ2_M still edges it (60% patch /
+10% pass, 19% tool-err) because it *is* a coder.
 
 ## Takeaways
 
