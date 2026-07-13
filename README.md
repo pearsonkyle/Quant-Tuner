@@ -117,7 +117,8 @@ uv run quant-tuner run --recipe iq2_xs_awq \
 uv run quant-tuner run --recipe iq2_xs_awq --model X --logs Y --workspace W --dry-run
 
 # Bench any GGUF against FP16 → CSV row, then aggregate to markdown
-uv run quant-tuner bench --quant out/run/gguf/IQ2_XS-awq.gguf \
+# (recipes that stack params.imatrix_variant carry it in the GGUF name)
+uv run quant-tuner bench --quant out/run/gguf/IQ2_XS-awq-hybrid_custom.gguf \
     --reference out/run/gguf/model-f16.gguf \
     --eval out/run/corpus/corpus.eval.txt --out out/run/results.csv
 uv run quant-tuner leaderboard --results out/run/results.csv --out LEADERBOARD.md

@@ -109,9 +109,10 @@ Pipeline behaviors worth knowing:
     attn_v → Q4_K (GQA/MoE ≥ 4), attn_output → IQ3_S (IQ2_S/M) / Q3_K (Q2_K),
     ffn_down a tier up for the first eighth of layers (every layer for Q2_K);
     under Q3_K_M/L attn_v/attn_output/ffn_down all land on Q4_K–Q5_K; under
-    IQ3_M attn_output + first-eighth ffn_down → Q4_K — so `proxy_for_member`
+    IQ3_M attn_v (always) + attn_output + first-eighth ffn_down → Q4_K; under
+    IQ3_S/XS attn_v → Q4_K when GQA/MoE ≥ 4 — so `proxy_for_member`
     scores those members with the proxy matching their *real* target. Pure
-    ftypes (Q3_K_S, IQ3_S) resolve to zero overrides. Pinning `params.proxy`
+    ftypes (Q3_K_S; IQ3_S without GQA) resolve to zero overrides. Pinning `params.proxy`
     disables both the auto-selection and the mix (set `proxy_mix` explicitly
     to stack them). `iq2_m_awq` pins `proxy: q2k_b16`: pure-`iq2_s` scoring
     regressed IQ2_M top_p — the codebook's steep α penalty plus v_proj's
@@ -137,8 +138,9 @@ Pipeline behaviors worth knowing:
     stack); pure ftypes resolve to zero overrides.
   - PPL/logit guardrails are auto-relaxed at 2-3 bits (`ppl_max_ratio` 4.0/2.0,
     `sanity_max_rel` 1.0/0.75). `gptq.apply` runs on CPU by design — the
-    damp/Cholesky/inverse chain runs in fp64 there and **retries under escalating
-    damping** (×2.5, up to 4 escalations, recorded in `GPTQStats.dampen_used`)
+    damp/Cholesky/inverse chain runs in fp64 there for 2-3-bit grids (4-bit+
+    keeps the cheaper fp32 path) and **retries under escalating damping**
+    (×2.5, up to 4 escalations, recorded in `GPTQStats.dampen_used`)
     instead of dying on near-singular low-bit Hessians. Dead columns (zero H-diag)
     are plain-RTN'd on the group grid, not zeroed. Calibration honors `device`.
   - **The imatrix is collected on the GPTQ-rounded F16** (after the PPL guardrail —
@@ -149,7 +151,8 @@ Pipeline behaviors worth knowing:
     accumulators on-device under MPS (avoids an H-sized copy per hook call, per
     chunk); `layers_per_pass: N` forwards the corpus once per N-layer slice so peak
     Hessian RAM is Σ_slice in² instead of Σ_all (completed slices recorded in
-    `hessians/_complete`, skipped on re-run). Use `dtype: float16` on
+    `hessians/_complete`, keyed to a tokens/ctx/corpus fingerprint and skipped on
+    re-run only when the key matches). Use `dtype: float16` on
     M1-generation GPUs (no bf16).
 - **Recipe param routing**: calibrate-stage and apply/fold-stage kwargs live in the
   same `calibration.params` dict but go to different functions — the pipeline splits

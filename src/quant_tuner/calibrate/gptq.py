@@ -30,6 +30,7 @@ uncalibrated F16 baseline PPL, abort if the ratio exceeds ~1.5.
 
 from __future__ import annotations
 
+import hashlib
 import re
 import shutil
 import sys
@@ -42,8 +43,8 @@ from quant_tuner.calibrate._device import resolve_device
 from quant_tuner.calibrate._hf import forward_no_logits
 from quant_tuner.calibrate._ingest import load_chunks
 from quant_tuner.calibrate._quant_mix import (
-    LAYER_RE,
     gqa_or_moe_ge4,
+    layer_index,
     target_type_for_member,
 )
 
@@ -135,7 +136,8 @@ def gptq_round_tensor(
          and plain RTN on the group grid. If the Cholesky still fails (2-3-bit
          Hessians are often near-singular), the damping escalates ×2.5 up to
          four times before giving up; ``stats.dampen_used`` records the final
-         value. On CPU the damp/Cholesky/inverse chain runs in float64.
+         value. At 2-3 bits the damp/Cholesky/inverse chain runs in float64
+         on CPU; 4-bit+ keeps the proven (cheaper) fp32 path.
       2. Optionally permute columns by descending ``diag(H)`` (act-order). This
          rounds the high-importance channels first, leaving more compensation
          budget for the tail.
@@ -187,14 +189,22 @@ def gptq_round_tensor(
     # 3) Upper Cholesky of H^{-1} under escalating Tikhonov damping. Low-bit
     #    Hessians are often near-singular; rather than dying on the first
     #    factorization failure, retry at 2.5x the damping (an accuracy hit,
-    #    but far better than skipping the tensor). float64 on CPU — apply()
-    #    rounds on CPU by default, and MPS (which lacks fp64) never gets here.
-    linalg_dtype = torch.float64 if H.device.type == "cpu" else torch.float32
-    Hl = H.to(linalg_dtype)
+    #    but far better than skipping the tensor). At 2-3 bits the chain runs
+    #    in float64 on CPU — rounding errors there are ~an order of magnitude
+    #    larger, so U's precision matters most exactly where H is worst —
+    #    while 4-bit+ keeps the proven fp32 path (half the LAPACK cost and
+    #    fp64 peak memory on multi-GB ffn_down Hessians). apply() rounds on
+    #    CPU by default; MPS (which lacks fp64) never selects it.
+    linalg_dtype = (
+        torch.float64 if H.device.type == "cpu" and n_bits < 4 else torch.float32
+    )
     damp = dampen
     U: torch.Tensor | None = None
     for attempt in range(5):
-        Hd = Hl.clone()
+        # One working copy per attempt; the explicit dels below cap the number
+        # of simultaneously-live [in, in] matrices at two (multi-GB in fp64
+        # for large ffn_down tensors) — don't "clean them up".
+        Hd = H.to(linalg_dtype) if linalg_dtype != H.dtype else H.clone()
         Hd.diagonal().add_(damp * diag_mean)
         L, info = torch.linalg.cholesky_ex(Hd)
         del Hd
@@ -207,13 +217,14 @@ def gptq_round_tensor(
                 U = Uc.to(W.dtype)
                 break
         if attempt < 4:
+            # The 1e-4 floor bootstraps escalation when dampen=0 (0 x 2.5
+            # would never escalate); it is far below any damping that matters.
             damp = max(damp * 2.5, 1e-4)
             print(
                 f"[gptq] cholesky failed (attempt {attempt + 1}); "
                 f"escalating dampen -> {damp:.4g}",
                 file=sys.stderr,
             )
-    del Hl
     if U is None:
         raise RuntimeError(
             f"Cholesky failed after damping escalation to {damp:.4g}; "
@@ -323,6 +334,17 @@ def grid_for_member(
 
 # --- Calibration: accumulate Hessians ----------------------------------- #
 
+def _resume_key(tokens: int, ctx: int, calibration_text: Path) -> str:
+    """Fingerprint of the calibration inputs a saved Hessian depends on.
+
+    Keys the ``_complete`` slice ledger so a resumed multi-slice run never
+    mixes Hessians accumulated over different corpora or token budgets.
+    """
+    h = hashlib.sha256(f"{tokens}|{ctx}|".encode())
+    h.update(calibration_text.read_bytes())
+    return h.hexdigest()[:16]
+
+
 def _layer_slices(
     targets: list[tuple[str, torch.nn.Linear]], layers_per_pass: int,
 ) -> list[list[tuple[str, torch.nn.Linear]]]:
@@ -337,11 +359,11 @@ def _layer_slices(
     by_layer: dict[int, list[tuple[str, torch.nn.Linear]]] = {}
     stray: list[tuple[str, torch.nn.Linear]] = []
     for name, mod in targets:
-        m = LAYER_RE.search(name)
-        if m is None:
+        idx = layer_index(name)
+        if idx is None:
             stray.append((name, mod))
         else:
-            by_layer.setdefault(int(m.group(1)), []).append((name, mod))
+            by_layer.setdefault(idx, []).append((name, mod))
     slices: list[list[tuple[str, torch.nn.Linear]]] = []
     layers = sorted(by_layer)
     for i in range(0, len(layers), layers_per_pass):
@@ -387,7 +409,10 @@ def calibrate(
     only that slice's Hessians allocated. ffn_down Hessians are
     ``[ffn_dim, ffn_dim]`` fp32 — holding every layer's at once is GBs on
     large models. Completed slices are recorded in ``_complete`` and skipped
-    on re-run (mid-slice snapshots alone don't mark completion).
+    on re-run (mid-slice snapshots alone don't mark completion). The ledger
+    is keyed to a fingerprint of (tokens, ctx, corpus bytes): change any of
+    them and every slice re-accumulates instead of silently mixing Hessians
+    from two configurations.
     """
     from transformers import AutoModelForCausalLM, AutoTokenizer
 
@@ -424,11 +449,29 @@ def calibrate(
     chunks = load_chunks(tok, calibration_text, ctx=ctx, budget_tokens=tokens,
                          log_tag="gptq")
 
+    # Slice-resume ledger: only meaningful for multi-slice runs (a single
+    # pass always re-accumulates, as before). The header keys the ledger to
+    # the calibration inputs — a completed slice is only reusable if the
+    # Hessians were accumulated over the same corpus and token budget.
     slices = _layer_slices(targets, layers_per_pass)
+    multi = len(slices) > 1
     complete_path = hessians_dir / "_complete"
-    done_names: set[str] = (
-        set(complete_path.read_text().split()) if complete_path.exists() else set()
-    )
+    done_names: set[str] = set()
+    if multi:
+        header = f"#key={_resume_key(tokens, ctx, calibration_text)}"
+        if complete_path.exists():
+            lines = complete_path.read_text().split()
+            if lines and lines[0] == header:
+                done_names = set(lines[1:])
+            else:
+                print(
+                    "[gptq] _complete ledger is from different calibration "
+                    "inputs; discarding (all slices re-accumulate)",
+                    file=sys.stderr,
+                )
+                complete_path.unlink()
+        if not complete_path.exists():
+            complete_path.write_text(header + "\n")
 
     def run_slice(sl: list[tuple[str, torch.nn.Linear]], tag: str) -> None:
         H: dict[str, torch.Tensor] = {}
@@ -467,15 +510,15 @@ def calibrate(
 
     for si, sl in enumerate(slices):
         tag = f"slice {si + 1}/{len(slices)}"
-        if len(slices) > 1 and all(_safe_name(n) in done_names for n, _ in sl):
+        if multi and all(_safe_name(n) in done_names for n, _ in sl):
             print(f"[gptq] {tag}: {len(sl)} Hessians already complete; skip",
                   file=sys.stderr)
             continue
         run_slice(sl, tag)
-        with complete_path.open("a") as fh:
-            for name, _ in sl:
-                fh.write(_safe_name(name) + "\n")
-        if len(slices) > 1:
+        if multi:
+            with complete_path.open("a") as fh:
+                for name, _ in sl:
+                    fh.write(_safe_name(name) + "\n")
             if device == "mps" and hasattr(torch, "mps"):
                 torch.mps.empty_cache()
             elif device.startswith("cuda"):
@@ -561,14 +604,24 @@ def apply(
     if grid_mix is not None:
         gqa_ge4 = gqa_or_moe_ge4(model.config)
         n_layers = getattr(model.config, "num_hidden_layers", None)
+        if not n_layers:
+            print(
+                f"[gptq.apply] WARN: model config lacks num_hidden_layers; "
+                f"grid_mix={grid_mix} layer-scheduled bumps (first-eighth, "
+                f"use_more_bits) are disabled — only static overrides apply",
+                file=sys.stderr,
+            )
         counts: dict[str, int] = {}
         for hpath in h_files:
             member = hpath.stem.replace("__", ".")
-            target = target_type_for_member(
-                grid_mix, member, gqa_ge4=gqa_ge4, n_layers=n_layers)
-            if target is not None:
-                member_grids[member] = grid_for_quant_type(target)
-                counts[target] = counts.get(target, 0) + 1
+            grid = grid_for_member(
+                grid_mix, member, gqa_ge4=gqa_ge4, n_layers=n_layers,
+                base_grid=base_grid)
+            if grid is not base_grid:
+                member_grids[member] = grid
+                target = target_type_for_member(
+                    grid_mix, member, gqa_ge4=gqa_ge4, n_layers=n_layers)
+                counts[str(target)] = counts.get(str(target), 0) + 1
         summary = ", ".join(f"{k}×{v}" for k, v in sorted(counts.items())) or "none"
         print(f"[gptq.apply] grid_mix={grid_mix}: member overrides {summary} "
               f"(gqa_or_moe_ge4={gqa_ge4})", file=sys.stderr)

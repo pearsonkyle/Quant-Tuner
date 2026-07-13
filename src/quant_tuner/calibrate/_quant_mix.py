@@ -20,6 +20,12 @@ import re
 LAYER_RE = re.compile(r"\.layers\.(\d+)\.")
 
 
+def layer_index(member: str) -> int | None:
+    """Layer index parsed from a dotted HF module name, or ``None``."""
+    m = LAYER_RE.search(member)
+    return int(m.group(1)) if m else None
+
+
 def gqa_or_moe_ge4(config) -> bool:
     """Mirror llama.cpp's ``n_gqa() >= 4 || n_expert >= 4`` tensor-mix predicate."""
     heads = getattr(config, "num_attention_heads", None) or 0
@@ -84,22 +90,17 @@ def target_type_for_member(
     """
     qt = quant_type.upper()
     leaf = member.rsplit(".", 1)[-1]
-
-    def layer_idx() -> int | None:
-        m = LAYER_RE.search(member)
-        return int(m.group(1)) if m else None
+    idx = layer_index(member)
 
     def first_eighth() -> bool:
-        if not n_layers:
+        if not n_layers or idx is None:
             return False
-        i = layer_idx()
-        return i is not None and i < max(1, n_layers // 8)
+        return idx < max(1, n_layers // 8)
 
     def more_bits() -> bool:
-        if not n_layers:
+        if not n_layers or idx is None:
             return False
-        i = layer_idx()
-        return i is not None and use_more_bits(i, n_layers)
+        return use_more_bits(idx, n_layers)
 
     # --- 2-bit IQ families (IQ1_*, IQ2_*) ---------------------------------- #
     if qt.startswith(("IQ1", "IQ2")):
@@ -161,6 +162,7 @@ def target_type_for_member(
 __all__ = [
     "LAYER_RE",
     "gqa_or_moe_ge4",
+    "layer_index",
     "target_type_for_member",
     "use_more_bits",
 ]

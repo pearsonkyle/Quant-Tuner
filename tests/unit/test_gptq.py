@@ -256,6 +256,21 @@ def test_gptq_round_well_conditioned_keeps_dampen():
     assert stats.dampen_used == 0.01
 
 
+def test_resume_key_sensitive_to_calibration_inputs(tmp_path):
+    """The _complete slice ledger key must change whenever tokens, ctx, or the
+    corpus bytes change — otherwise a resumed run mixes Hessians silently."""
+    from quant_tuner.calibrate.gptq import _resume_key
+
+    corpus = tmp_path / "c.txt"
+    corpus.write_text("hello")
+    key = _resume_key(1024, 512, corpus)
+    assert key == _resume_key(1024, 512, corpus)  # deterministic
+    assert key != _resume_key(2048, 512, corpus)
+    assert key != _resume_key(1024, 256, corpus)
+    corpus.write_text("hello, changed")
+    assert key != _resume_key(1024, 512, corpus)
+
+
 def test_layer_slices_partition():
     from quant_tuner.calibrate.gptq import _layer_slices
 

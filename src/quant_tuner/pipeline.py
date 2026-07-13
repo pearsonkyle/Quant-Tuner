@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from quant_tuner.bench import bpw as bpw_mod
 from quant_tuner.bench import kld, runner
@@ -277,22 +277,38 @@ def _calibrate_awq(
     # The imatrix MUST be collected on the folded F16: AWQ rescales each input
     # channel, so E[a^2] from the unfolded model would over-weight exactly the
     # channels AWQ already boosted and under-protect the rest.
-    awq_imatrix = ws.calibration_dir / "imatrix-awq.gguf"
-    step("llama-imatrix (on AWQ-folded F16)", awq_imatrix,
-         lambda: llama_cpp.imatrix(f16_awq, train_corpus, awq_imatrix,
-                                   ctx=imatrix_ctx, log=logs / "imatrix-awq.log"))
+    return _imatrix_with_variant(
+        ws, "awq", f16_awq, model_awq, train_corpus, logs,
+        imatrix_variant=imatrix_variant, imatrix_ctx=imatrix_ctx,
+        collect_label="llama-imatrix (on AWQ-folded F16)")
+
+
+def _imatrix_with_variant(
+    ws: Workspace, method: str, f16_src: Path, model_dir: Path,
+    train_corpus: Path, logs: Path, *,
+    imatrix_variant: str, imatrix_ctx: int, collect_label: str,
+) -> dict[str, Path]:
+    """Collect ``imatrix-{method}.gguf`` on ``f16_src`` and, when
+    ``imatrix_variant`` is not ``"default"``, re-weight it into
+    ``imatrix-{method}-{variant}.gguf`` — the shared tail of the AWQ (folded
+    F16) and GPTQ (rounded F16) calibration branches."""
+    base = ws.calibration_dir / f"imatrix-{method}.gguf"
+    step(collect_label, base,
+         lambda: llama_cpp.imatrix(f16_src, train_corpus, base,
+                                   ctx=imatrix_ctx, log=logs / f"imatrix-{method}.log"))
 
     if imatrix_variant == "default":
-        return {"imatrix": awq_imatrix, "f16": f16_awq}
+        return {"imatrix": base, "f16": f16_src}
 
-    tuned = ws.calibration_dir / f"imatrix-awq-{imatrix_variant}.gguf"
-    step(f"build imatrix variant '{imatrix_variant}' (folded)", tuned,
+    tuned = ws.calibration_dir / f"imatrix-{method}-{imatrix_variant}.gguf"
+    step(f"build imatrix variant '{imatrix_variant}' ({method})", tuned,
          lambda: imatrix.calibrate(
-             variant=imatrix_variant, f16_gguf=f16_awq,
-             base_imatrix=awq_imatrix, out_path=tuned,
-             model_dir=model_awq, calibration_text=train_corpus,
-             forward_stats_path=ws.calibration_dir / "forward-stats-awq.npz"))
-    return {"imatrix": tuned, "f16": f16_awq}
+             # recipes pass free-form strings; imatrix.calibrate validates
+             variant=cast(imatrix.Variant, imatrix_variant), f16_gguf=f16_src,
+             base_imatrix=base, out_path=tuned,
+             model_dir=model_dir, calibration_text=train_corpus,
+             forward_stats_path=ws.calibration_dir / f"forward-stats-{method}.npz"))
+    return {"imatrix": tuned, "f16": f16_src}
 
 
 # Recipe params consumed by gptq.apply() rather than gptq.calibrate().
@@ -376,22 +392,10 @@ def _calibrate_gptq(
     # the rounded weights, so column norms of the original F16 would be
     # norms of weights that no longer exist. E[a²] drift from rounding is
     # second-order (GPTQ does not rescale channels the way AWQ folding does).
-    gptq_imatrix = ws.calibration_dir / "imatrix-gptq.gguf"
-    step("llama-imatrix (on GPTQ-rounded F16)", gptq_imatrix,
-         lambda: llama_cpp.imatrix(f16_gptq, train_corpus, gptq_imatrix,
-                                   ctx=imatrix_ctx, log=logs / "imatrix-gptq.log"))
-
-    if imatrix_variant == "default":
-        return {"imatrix": gptq_imatrix, "f16": f16_gptq}
-
-    tuned = ws.calibration_dir / f"imatrix-gptq-{imatrix_variant}.gguf"
-    step(f"build imatrix variant '{imatrix_variant}' (rounded)", tuned,
-         lambda: imatrix.calibrate(
-             variant=imatrix_variant, f16_gguf=f16_gptq,
-             base_imatrix=gptq_imatrix, out_path=tuned,
-             model_dir=model_gptq, calibration_text=train_corpus,
-             forward_stats_path=ws.calibration_dir / "forward-stats-gptq.npz"))
-    return {"imatrix": tuned, "f16": f16_gptq}
+    return _imatrix_with_variant(
+        ws, "gptq", f16_gptq, model_gptq, train_corpus, logs,
+        imatrix_variant=imatrix_variant, imatrix_ctx=imatrix_ctx,
+        collect_label="llama-imatrix (on GPTQ-rounded F16)")
 
 
 # ---------------------------------------------------------------------------
