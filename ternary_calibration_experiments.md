@@ -54,6 +54,55 @@ win at no resolution cost. It is not a quality lever.
 
 ## #2 — Q2_0 per-group scale refit. Verdict: **not built — proven no-op** (see structural fact).
 
+## GPTQ — verdict: **not appropriate** (demonstrated on our own framework)
+
+GPTQ *reconstructs* quantized weights toward a reference `W` by minimizing
+`‖(W − Ŵ)X‖²` over calibration activations `X`. Two reference choices, both dead:
+
+1. **Reference = Bonsai's own ternary weights, grid = ternary.** We ran our real
+   `gptq_round_tensor(sym=True, n_bits=2, group_size=128)` — whose grid `qmax=1`,
+   `scale=max|w|` is *exactly* Q2_0's `{−s, 0, +s}` — on `blk.0.ffn_gate.weight`:
+   relative reconstruction error = **0.000**, `max|W − Ŵ| = 0`. GPTQ changes
+   nothing, because the weights already sit exactly on that grid.
+   The only way it "acts" is by targeting a *different* grid (asymmetric 2-bit,
+   `sym=False`): rel error jumps to **0.333** — a lateral re-quant that is worse and
+   can't be packed as Q2_0.
+2. **Reference = a dense teacher (original Qwen3-8B fp16), grid = ternary.** This is
+   the symmetric 3-level grid our own `gptq.py` (lines 152-157) documents as one that
+   *"has only three usable levels {−s, 0, +s} … and destroys the weight
+   distribution."* Post-hoc ternary rounding of dense weights is catastrophic —
+   precisely why native-ternary models are QAT'd, not post-hoc quantized.
+
+**Why every post-hoc method fails, in one sentence:** the model is not badly
+*quantized* (it is a perfect, lossless quant of itself), it is badly *allocated* —
+its ternary capacity was spent on general pretraining, not tool/agent use. Post-hoc
+calibration reduces *quantization error*; there is none. Re-allocating capacity for
+our task needs a training signal, which no calibrator has.
+
+## The real path: continued ternary QAT on the logs (feasible; method is public)
+
+Correction to "no published pipeline": prism's exact *data/hparams* are proprietary,
+but the *method* is **published — BitNet b1.58** (Microsoft, 2024): straight-through
+estimator + absmean ternarization, a ~20-line PyTorch module. So this is not
+inventing a secret recipe; it is applying a known one as a short *continued* fine-tune.
+
+Base is ready: `prism-ml/Ternary-Bonsai-8B-unpacked` is a **plain, trainable
+`Qwen3ForCausalLM`** (36 layers, hidden 4096, GQA 32/8; ternary weights stored as
+fp16, no quant_config) — standard HF/PyTorch training.
+
+Sketch:
+1. Wrap each linear's forward with STE ternarization: `s = mean(|W|)` per group,
+   `Ŵ = s · clip(round(W/s), −1, 1)`; forward uses `Ŵ`, backward flows to the fp16
+   latent `W` (STE). Initializing latents from the shipped fp16 reproduces the
+   current model exactly at step 0.
+2. Continue-train on `corpus.cal.txt` (our tool-call logs) with LM cross-entropy,
+   low LR, a few hundred–thousand steps (fine-tune, not from scratch).
+3. Re-ternarize final latents → pack to Q2_0 (prism format) → bench + SWE-rebench.
+
+Cost/risk: full 8B QAT needs a GPU with room for fp16 latents + AdamW states +
+activations (a CUDA box, or a memory-frugal LoRA-on-latent / partial-layer variant on
+Metal). This is real training infra quant-tuner doesn't have yet — the actual build.
+
 ## What would actually improve it (the real levers)
 
 1. **Continued QAT fine-tune on the tool-call logs** — the correct analog to
