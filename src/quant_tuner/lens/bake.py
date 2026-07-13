@@ -75,18 +75,34 @@ class Direction:
         )
 
 
-def _orthogonalize_output_rows(W: np.ndarray, v: np.ndarray) -> np.ndarray:
-    """Remove direction ``v`` from the output space of ``W`` (GGUF ``[n_out, n_in]``).
+def _orthonormal_basis(directions: np.ndarray) -> np.ndarray:
+    """Orthonormal basis ``[d, r]`` spanning ``directions`` (``[k, d]``, one per row).
 
-    Each output row w_o gets ``w_o - (v·w_o_proj)``... more precisely we project
-    the *columns* of the output-space representation: with W mapping input->output
-    and v a vector in output space, the write of direction v is
-    ``W <- W - v̂ (v̂ᵀ W)`` so no input can produce a component along v̂.
+    Uses an SVD so near-duplicate or rank-deficient directions are dropped
+    robustly (QR's diagonal is unreliable for rank detection); the projector then
+    removes exactly the span, not more.
     """
-    v = v.astype(np.float32)
-    v = v / (np.linalg.norm(v) + 1e-12)
-    # W: [n_out, n_in]; v: [n_out]. v̂ᵀW: [n_in]; outer(v̂, v̂ᵀW): [n_out, n_in]
-    proj = np.outer(v, v @ W)
+    V = np.ascontiguousarray(directions, dtype=np.float32).T  # [d, k]
+    U, s, _ = np.linalg.svd(V, full_matrices=False)
+    if s.size == 0:
+        return U[:, :0].astype(np.float32)
+    keep = s > 1e-6 * (s[0] + 1e-12)
+    return U[:, keep].astype(np.float32)
+
+
+def _orthogonalize_output_rows(W: np.ndarray, basis: np.ndarray) -> np.ndarray:
+    """Remove the ``basis`` subspace from the output space of ``W`` (GGUF ``[n_out, n_in]``).
+
+    With W mapping input->output and Q ``[n_out, k]`` an orthonormal basis of the
+    directions to remove, ``W <- W - Q (Qᵀ W)`` so no input can produce a
+    component along any direction in span(Q). A single direction is the k=1 case
+    (``Q = v̂``, reproducing ``W - v̂(v̂ᵀW)``).
+    """
+    basis = np.ascontiguousarray(basis, dtype=np.float32)
+    if basis.ndim == 1:
+        basis = basis[:, None] / (np.linalg.norm(basis) + 1e-12)
+    # Q: [n_out, k]; QᵀW: [k, n_in]; Q(QᵀW): [n_out, n_in]
+    proj = basis @ (basis.T @ W)
     return (W - proj).astype(np.float32)
 
 
@@ -108,8 +124,8 @@ def orthogonalize_layers(
     )
 
     layers = layers if layers is not None else list(direction.layers)
-    v = np.asarray(direction.v, dtype=np.float32)
-    d = v.shape[0]
+    basis = _orthonormal_basis(np.asarray(direction.v, dtype=np.float32)[None, :])
+    d = basis.shape[0]
     names = set(list_gguf_tensor_names(f16_gguf))
     edits: dict[str, np.ndarray] = {}
 
@@ -124,14 +140,14 @@ def orthogonalize_layers(
                         name, W.shape[0], d,
                     )
                     continue
-                edits[name] = _orthogonalize_output_rows(W, v)
+                edits[name] = _orthogonalize_output_rows(W, basis)
         if include_moe:
             moe = f"blk.{layer}.{MOE_DOWN_SUFFIX}"
             if moe in names:
                 W = load_gguf_tensor(f16_gguf, moe)      # [n_expert, n_out, n_in]
                 if W.ndim == 3 and W.shape[1] == d:
                     edits[moe] = np.stack(
-                        [_orthogonalize_output_rows(W[e], v) for e in range(W.shape[0])]
+                        [_orthogonalize_output_rows(W[e], basis) for e in range(W.shape[0])]
                     )
 
     if not edits:
@@ -140,6 +156,66 @@ def orthogonalize_layers(
             f"(suffixes {target_suffixes}); direction dim={d}"
         )
     logger.info("orthogonalizing %d tensors across layers %s", len(edits), layers)
+    return copy_gguf_with_tensor_edits(f16_gguf, out_f16, edits, edit_dtype=np.float16)
+
+
+def orthogonalize_subspace(
+    f16_gguf: Path,
+    directions: list[Direction],
+    out_f16: Path,
+    *,
+    layers: list[int] | None = None,
+    target_suffixes: tuple[str, ...] = DEFAULT_TARGET_SUFFIXES,
+    include_moe: bool = True,
+) -> Path:
+    """Orthogonalize the SPAN of several ``directions`` out of the residual writers.
+
+    Stacks the directions, builds an orthonormal basis Q (dropping near-duplicate
+    or rank-deficient ones), and removes the whole subspace at once —
+    ``W <- W - Q(QᵀW)`` — which is the correct joint edit for non-orthogonal
+    directions (removing them one at a time would over- or under-project).
+    ``layers`` defaults to the union of every direction's layers.
+    """
+    from quant_tuner.lens.gguf_edit import (
+        copy_gguf_with_tensor_edits,
+        list_gguf_tensor_names,
+        load_gguf_tensor,
+    )
+
+    if not directions:
+        raise ValueError("orthogonalize_subspace needs at least one direction")
+    stack = np.stack([np.asarray(dr.v, dtype=np.float32) for dr in directions])  # [k, d]
+    basis = _orthonormal_basis(stack)                                            # [d, k']
+    d = basis.shape[0]
+    if layers is None:
+        layers = sorted({l for dr in directions for l in dr.layers})
+    names = set(list_gguf_tensor_names(f16_gguf))
+    edits: dict[str, np.ndarray] = {}
+
+    for layer in layers:
+        for suffix in target_suffixes:
+            name = f"blk.{layer}.{suffix}"
+            if name in names:
+                W = load_gguf_tensor(f16_gguf, name)
+                if W.shape[0] != d:
+                    logger.warning("skip %s: output dim %d != direction dim %d", name, W.shape[0], d)
+                    continue
+                edits[name] = _orthogonalize_output_rows(W, basis)
+        if include_moe:
+            moe = f"blk.{layer}.{MOE_DOWN_SUFFIX}"
+            if moe in names:
+                W = load_gguf_tensor(f16_gguf, moe)
+                if W.ndim == 3 and W.shape[1] == d:
+                    edits[moe] = np.stack(
+                        [_orthogonalize_output_rows(W[e], basis) for e in range(W.shape[0])]
+                    )
+
+    if not edits:
+        raise ValueError(f"no residual-writing tensors matched for layers {layers}")
+    logger.info(
+        "orthogonalizing a rank-%d subspace (%d directions) from %d tensors across %d layers",
+        basis.shape[1], len(directions), len(edits), len(layers),
+    )
     return copy_gguf_with_tensor_edits(f16_gguf, out_f16, edits, edit_dtype=np.float16)
 
 

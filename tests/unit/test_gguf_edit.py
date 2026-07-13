@@ -84,6 +84,35 @@ def test_orthogonalize_removes_output_direction():
     np.testing.assert_allclose(We @ x, y0 - (v @ y0) * v, atol=1e-4)
 
 
+def test_orthogonalize_subspace_removes_span():
+    from quant_tuner.lens.bake import _orthonormal_basis
+
+    rng = np.random.default_rng(2)
+    W = rng.standard_normal((32, 16)).astype(np.float32)
+    dirs = rng.standard_normal((3, 32)).astype(np.float32)
+    dirs[1] = 0.7 * dirs[0] + 0.3 * dirs[1]  # correlated -> basis should drop to rank 3
+    Q = _orthonormal_basis(dirs)
+    We = _orthogonalize_output_rows(W, Q)
+    # every direction in the span is zeroed out of the output
+    for i in range(3):
+        u = dirs[i] / np.linalg.norm(dirs[i])
+        assert np.abs(u @ We).max() < 1e-4
+    # a direction orthogonal to the span is preserved
+    rand = rng.standard_normal(32).astype(np.float32)
+    perp = rand - Q @ (Q.T @ rand)
+    perp /= np.linalg.norm(perp)
+    x = rng.standard_normal(16).astype(np.float32)
+    np.testing.assert_allclose(perp @ We @ x, perp @ W @ x, atol=1e-4)
+
+
+def test_orthonormal_basis_drops_duplicates():
+    from quant_tuner.lens.bake import _orthonormal_basis
+
+    v = np.array([[1.0, 0, 0, 0], [1.0, 0, 0, 0], [0, 1.0, 0, 0]], dtype=np.float32)
+    Q = _orthonormal_basis(v)
+    assert Q.shape[1] == 2  # duplicate row dropped
+
+
 def test_direction_save_load(tmp_path):
     v = np.arange(8, dtype=np.float32)
     d = Direction(v=v, layers=[10, 11], method="loop_mean_diff", source={"run_id": "abc"})

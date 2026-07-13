@@ -102,14 +102,38 @@ def iter_decision_points(
         )
 
 
+def _template_safe_messages(messages: list[dict]) -> list[dict]:
+    """Coerce a strip_for_api prefix into {role, content:str} the server's simple
+    chat template accepts. Assistant tool-call turns carry ``content: None`` (and
+    ``tool_calls`` the chatml template ignores); render their calls as compact
+    text so the decision context survives templating without a null-content crash.
+    """
+    out: list[dict] = []
+    for m in messages:
+        role = m.get("role", "user")
+        content = m.get("content")
+        if content is None:
+            content = ""
+        if role == "assistant" and m.get("tool_calls"):
+            calls = []
+            for tc in m["tool_calls"]:
+                fn = tc.get("function") or {}
+                calls.append(f"{fn.get('name', '')}({fn.get('arguments', '')})")
+            content = (content + "\n" + "\n".join(calls)).strip()
+        out.append({"role": role, "content": content})
+    return out
+
+
 def render_prefix_tokens(client, dp: DecisionPoint) -> list[int]:
-    """Template + tokenize a decision prefix into the exact model input tokens.
+    """Template + tokenize a decision prefix into model input tokens.
 
     Uses the server's chat-template engine (``add_assistant=True`` opens the
-    assistant turn) and special-token-aware tokenization — the same path the
-    OpenAI endpoints use, so the tokens are what the model would actually see.
+    assistant turn) and special-token-aware tokenization. The server's simple
+    chatml template only handles ``{role, content}`` (not structured
+    ``tool_calls``), so tool-call turns are flattened to text — enough to place
+    the residual at the right decision context for a readout/direction.
     """
-    prompt = client.apply_template(dp.prefix, add_assistant=True)
+    prompt = client.apply_template(_template_safe_messages(dp.prefix), add_assistant=True)
     return client.tokenize(prompt, add_special=True, parse_special=True)
 
 
