@@ -164,6 +164,31 @@ bake cleanly (most architectures have no per-layer bias tensor to absorb it), so
 it stays a runtime-only capability of the OpenAI-compatible jlens-server, which
 you can point an agent framework at to serve a steered model live.
 
+### Combining directions (multi-direction bake)
+
+`orthogonalize_subspace(f16, [dir1, dir2, ...], out_f16)` removes the *span* of
+several directions at once. It builds an SVD orthonormal basis Q (dropping
+near-duplicate directions) and applies `W <- W - Q(QᵀW)` — the correct joint
+edit for non-orthogonal directions; removing them one at a time would over- or
+under-project. `scripts/lens_exp107_multidir_bake.py` folds a loop direction
+together with an **explore-vs-act** direction (a contrastive mean-difference
+vector from the *real* tool-call holdout: residual at "about to call an explore
+tool" minus "about to call an act tool") and bakes the combined subspace.
+
+**Verify against a matched control and a real task holdout — a mechanistic shift
+is not a win.** On Ornith-1.0-9B IQ2_M the multi-direction bake did exactly what
+the directions describe at the readout level — it suppressed explore tokens
+(` inspect` rank 350→7892) and promoted action verbs (` modify` 167418→4817) at
+the commit decision — yet the real 25-session tool-call holdout showed it *broke*
+the model (param accuracy 0.193→0.013, tool-selection 0.40→0.20) and slightly
+worsened looping. Ablating a behavioral subspace from a 2-bit model's weights
+removes capability along with the behavior; the axis is not cleanly separable
+from competence at that bit-width. So for **loops specifically, prefer the
+repetition penalty** (a sampling fix — no weight edit, no capability loss); treat
+weight-space bakes as an experimental capability that must clear a real-task
+eval before it is called a correction. This is exactly why the bake pipeline
+ships with `verify_bake` and the exp-106/107 scripts run a matched control.
+
 ## Repetition penalty (breaking loops without stopping exploration)
 
 Low-bit quants loop during long agent rollouts. The **serving path**
