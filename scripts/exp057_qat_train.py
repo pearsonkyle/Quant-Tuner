@@ -88,6 +88,12 @@ def main() -> int:
     ap.add_argument("--limit-tokens", type=int, default=400_000)
     ap.add_argument("--corpus", type=Path, default=None)
     ap.add_argument("--optim", choices=["adamw", "sgd"], default="adamw")
+    ap.add_argument("--no-foreach", action="store_true",
+                    help="AdamW foreach=False (per-param loop; tests MPS multi-tensor kernel hang)")
+    ap.add_argument("--no-clip", action="store_true", help="skip clip_grad_norm_")
+    ap.add_argument("--no-grad-checkpoint", action="store_true",
+                    help="disable gradient checkpointing (uses more activation memory; "
+                         "diagnoses bf16xcheckpointing MPS hangs)")
     ap.add_argument("--amp", action="store_true",
                     help="bf16 autocast compute with fp32 master latents (faster on MPS, "
                          "keeps latent precision needed for ternary code-flipping)")
@@ -106,7 +112,8 @@ def main() -> int:
     model = AutoModelForCausalLM.from_pretrained(MODEL, dtype=dtype)
     model.to(dev)
     model.config.use_cache = False
-    model.gradient_checkpointing_enable()
+    if not args.no_grad_checkpoint:
+        model.gradient_checkpointing_enable()
     print(f"[qat] model loaded in {time.time()-t0:.0f}s", flush=True)
 
     wrap_model(model, args.train_layers)
@@ -117,7 +124,8 @@ def main() -> int:
     if args.optim == "sgd":
         opt = torch.optim.SGD(trainable, lr=args.lr, momentum=0.9)  # 1 state (frugal)
     else:
-        opt = torch.optim.AdamW(trainable, lr=args.lr)              # 2 fp32 states
+        fe = False if args.no_foreach else None
+        opt = torch.optim.AdamW(trainable, lr=args.lr, foreach=fe)  # 2 states
 
     n_blocks = batches.shape[0]
     step = 0
@@ -143,7 +151,11 @@ def main() -> int:
         loss.backward()
         losses.append(out.loss.item())
         if bi % args.grad_accum == 0:
-            torch.nn.utils.clip_grad_norm_([p for p in model.parameters() if p.requires_grad], 1.0)
+            if not args.no_clip:
+                # foreach=False: MPS multi-tensor kernels deadlock at full-model
+                # scale (the confirmed full-36 bf16 hang) — clip must avoid them too.
+                torch.nn.utils.clip_grad_norm_(
+                    [p for p in model.parameters() if p.requires_grad], 1.0, foreach=False)
             opt.step(); opt.zero_grad()
             step += 1
             if step == 1 or step % 5 == 0:
