@@ -99,6 +99,40 @@ Sketch:
    low LR, a few hundred–thousand steps (fine-tune, not from scratch).
 3. Re-ternarize final latents → pack to Q2_0 (prism format) → bench + SWE-rebench.
 
+### iter-2 RESULT (exp-058): masked-loss QAT changed behavior, did NOT improve outcomes
+
+Ran it end to end — masked-loss (tool-call tokens only) + rendered tool schemas +
+turn-aware 4096 windows, fp32 last-18, 261 steps (~0.5 epoch). Masked training loss
+fell **2.26 → ~1.0**. Exported to Q2_0 (2.03 GiB), tool-calling verified. Full
+10-instance SWE-rebench vs the untrained baseline:
+
+| SWE-rebench (n=10) | Baseline Ternary Q2_0 | **iter-2 QAT** | Δ |
+|:-|-:|-:|-:|
+| Pass rate | 0% | **0%** | — |
+| Patch rate | 50% (5/10) | 40% (4/10) | −1 (within n=10 noise) |
+| Tool-error rate | 79.1% | **67.8%** | **−11 pp** |
+| Mean tool steps | 15.3 | **95.4** | **6.2×** |
+| Mean tokens | 258K | 556K | 2.2× |
+
+**Verdict: the QAT taught tool-call *style*, not issue-resolution *capability*.**
+- ✅ Tool-error rate dropped 11 pp — the masked training genuinely produced cleaner,
+  better-formed tool calls (the signal was real and correctly targeted).
+- ✅ Engagement rose sharply (6× steps, 2× tokens) — training on the agentic logs
+  made the model far more persistent about calling tools.
+- ❌ **Patch rate did not improve** (40 vs 50%, statistically indistinguishable; iter-2
+  patched a strict *subset* — gained NONE of the 5 instances the baseline failed, and
+  lost the hardest one it had, durable-python-494 / 14 F2P tests). The extra
+  engagement did not convert to diffs.
+- ❌ **Pass rate stayed 0%** — no instance resolved, same as every 2-bit model.
+
+The 2-bit ternary **resolution floor is a capability wall a light (0.5-epoch, last-18)
+fine-tune does not break** — consistent with the whole study's finding that ~zero
+issues resolve at 2 bits regardless of model or calibration. The tool-error drop
+shows QAT *is* doing something useful; scaling it (full epochs, all layers via the
+fp32-master trick, or a stronger base) is the next lever, but pass@2-bit may be
+fundamentally capped. What's proven: a **working, reproducible Metal ternary-QAT
+pipeline** that measurably moves the model — the infrastructure for that next attempt.
+
 Cost/risk: full 8B QAT needs a GPU with room for fp16 latents + AdamW states +
 activations (a CUDA box, or a memory-frugal LoRA-on-latent / partial-layer variant on
 Metal). This is real training infra quant-tuner doesn't have yet — the actual build.
