@@ -54,8 +54,10 @@ def main() -> int:
         if base_key in sd:
             sd[base_key].data.copy_(v.to(torch.float32))
             n_over += 1
-    print(f"[export] overwrote {n_over}/{len(latents)} trained tensors "
-          f"(loss {blob.get('loss_first'):.3f}->{blob.get('loss_last'):.3f})", flush=True)
+    lf, ll = blob.get("loss_first"), blob.get("loss_last")
+    loss_note = f" (loss {lf:.3f}->{ll:.3f})" if lf is not None and ll is not None else ""
+    print(f"[export] overwrote {n_over}/{len(latents)} trained tensors{loss_note} "
+          f"(step {blob.get('step','?')})", flush=True)
 
     # 2) ternarize every qualifying linear in the decoder (frozen = no-op)
     n_tern = 0
