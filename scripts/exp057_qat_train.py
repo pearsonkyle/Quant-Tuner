@@ -97,6 +97,8 @@ def main() -> int:
     ap.add_argument("--amp", action="store_true",
                     help="bf16 autocast compute with fp32 master latents (faster on MPS, "
                          "keeps latent precision needed for ternary code-flipping)")
+    ap.add_argument("--ckpt-every", type=int, default=50,
+                    help="save trained_latents.pt every N optimizer steps (0=only at end)")
     ap.add_argument("--out", type=Path, default=REPO / "out" / "exp-057" / "trained")
     args = ap.parse_args()
 
@@ -133,6 +135,27 @@ def main() -> int:
     t_start = time.time()
     opt.zero_grad()
     losses: list[float] = []
+
+    args.out.mkdir(parents=True, exist_ok=True)
+
+    def save_ckpt(at_step: int) -> None:
+        trained = {n: p.detach().cpu() for n, p in model.named_parameters() if p.requires_grad}
+        torch.save({"latents": trained, "args": vars(args), "step": at_step,
+                    "loss_first": losses[0] if losses else None,
+                    "loss_last": (sum(losses[-8:]) / len(losses[-8:])) if losses else None},
+                   args.out / "trained_latents.pt")
+        print(f"[qat] checkpoint @ step {at_step}: {len(trained)} tensors -> "
+              f"{args.out/'trained_latents.pt'}", flush=True)
+
+    # Save-on-signal: SIGTERM/SIGINT set a flag; the loop finishes the current
+    # microbatch, checkpoints, and exits — so an early stop keeps its progress.
+    import signal
+    stop = {"flag": False}
+    def _on_stop(signum, _frame):
+        print(f"[qat] signal {signum} received — will checkpoint and stop", flush=True)
+        stop["flag"] = True
+    signal.signal(signal.SIGTERM, _on_stop)
+    signal.signal(signal.SIGINT, _on_stop)
     import contextlib
     amp_ctx = (torch.autocast(device_type=dev, dtype=torch.bfloat16)
                if args.amp else contextlib.nullcontext())
@@ -164,15 +187,13 @@ def main() -> int:
                 dt = (time.time()-t_start)/step
                 print(f"[qat] step {step}/{args.steps} loss={avg:.4f} "
                       f"mem={mem:.1f}GiB {dt:.1f}s/step", flush=True)
+            if args.ckpt_every and step % args.ckpt_every == 0:
+                save_ckpt(step)
+            if stop["flag"]:
+                break
 
-    args.out.mkdir(parents=True, exist_ok=True)
-    # save only the trained latents (ternary linears in the trained layers)
-    trained = {n: p.detach().cpu() for n, p in model.named_parameters() if p.requires_grad}
-    torch.save({"latents": trained, "args": vars(args),
-                "loss_first": losses[0], "loss_last": sum(losses[-8:])/8},
-               args.out / "trained_latents.pt")
-    print(f"[qat] saved {len(trained)} trained tensors -> {args.out/'trained_latents.pt'}")
-    print(f"[qat] loss {losses[0]:.4f} -> {sum(losses[-8:])/8:.4f}")
+    save_ckpt(step)
+    print(f"[qat] done at step {step}: loss {losses[0]:.4f} -> {sum(losses[-8:])/8:.4f}")
     return 0
 
 
