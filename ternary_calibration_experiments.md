@@ -196,3 +196,23 @@ The one-line lesson, which is also the "KLD isn't everything" thesis in its pure
 form: a model can be a **perfect** quantization of itself (KLD ≈ 0) and still resolve
 **0%** of real issues — and no amount of *quantization* calibration changes that,
 because there was never any quantization loss to recover.
+
+### Penalty sweep (4-way) + the layer-selection pivot
+
+Full A/B of sampling penalty on the iter-2 (last-18) QAT model:
+
+| run | patch | tool-err | mean steps | dup/calls |
+|:-|-:|-:|-:|-:|
+| baseline (no QAT) | **50%** | 79% | 15.3 | 116/153 |
+| QAT pen 1.1 | 40% | 68% | 95.4 | 912/953 (loops) |
+| QAT pen 1.25 + freq 0.4 | 30% | 76% | 2.9 | 3/29 (quits) |
+| QAT pen 1.15 / last-n 512 | 30% | **61%** | 13.7 | 56/137 (healthy) |
+
+Penalty 1.15 restored *healthy behavior* (steps ≈ baseline, lowest tool-err) but
+patch rate did NOT recover — **no penalty beats the plain baseline's 50%**. The loop
+was a symptom; the last-18 QAT genuinely lowered patch capability. Combined with the
+**layer-importance probe** (grad signal on the masked tool-call loss: blk.0 dominates,
+early layers 0-14 carry the signal, layers 18-31 — exactly what iter-2 trained — are
+the WEAKEST, 32/34/35 spike), the likely cause is that iter-2 trained the wrong half.
+**iter-3** retrains the grad-influential set (0-14, 32, 34, 35) at the same budget to
+test whether smart layer selection beats naive last-18.
