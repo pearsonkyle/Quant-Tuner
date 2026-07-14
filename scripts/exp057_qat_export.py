@@ -68,6 +68,15 @@ def main() -> int:
                     n_tern += 1
     print(f"[export] ternarized {n_tern} linears", flush=True)
 
+    # The unpacked tokenizer ships NO chat_template, so convert_hf_to_gguf bakes a
+    # thinking-enabled Qwen3 default that breaks tool-use in the agent harness.
+    # Restore the ORIGINAL prism Ternary template (extracted from the shipped GGUF)
+    # so the QAT model behaves identically to the baseline in llama-server.
+    tmpl = REPO / "out" / "exp-057" / "chat_template.jinja"
+    if tmpl.exists():
+        tok.chat_template = tmpl.read_text()
+        print("[export] restored original prism chat template", flush=True)
+
     out_hf.mkdir(parents=True, exist_ok=True)
     model.save_pretrained(out_hf)
     tok.save_pretrained(out_hf)
