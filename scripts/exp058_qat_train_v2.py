@@ -34,9 +34,28 @@ from quant_tuner.qat.ternary import TernaryLinear
 MODEL = REPO / "out" / "exp-057" / "model"
 
 
-def wrap_model(model, n_train: int) -> int:
+def parse_layers(spec: str, n_layers: int) -> set[int]:
+    """Parse '0-14,32,34,35' -> {0..14,32,34,35}. Empty -> all."""
+    out: set[int] = set()
+    for part in spec.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        if "-" in part:
+            a, b = part.split("-"); out |= set(range(int(a), int(b) + 1))
+        else:
+            out.add(int(part))
+    return {l for l in out if 0 <= l < n_layers}
+
+
+def wrap_model(model, n_train: int, layer_spec: str | None = None) -> int:
     layers = model.model.layers
-    train_from = max(0, len(layers) - n_train)
+    if layer_spec:
+        trainable_idx = parse_layers(layer_spec, len(layers))
+        label = f"explicit layers {sorted(trainable_idx)}"
+    else:
+        trainable_idx = set(range(max(0, len(layers) - n_train), len(layers)))
+        label = f"last {n_train} layers"
 
     def swap(mod, trainable):
         c = 0
@@ -47,12 +66,13 @@ def wrap_model(model, n_train: int) -> int:
                 c += swap(child, trainable)
         return c
 
-    nw = sum(swap(layer, i >= train_from) for i, layer in enumerate(layers))
+    nw = sum(swap(layer, i in trainable_idx) for i, layer in enumerate(layers))
     for name, p in model.named_parameters():
-        p.requires_grad_(".linear.weight" in name and "layers." in name
-                         and int(name.split("layers.")[1].split(".")[0]) >= train_from)
+        ok = (".linear.weight" in name and "layers." in name
+              and int(name.split("layers.")[1].split(".")[0]) in trainable_idx)
+        p.requires_grad_(ok)
     nt = sum(p.numel() for p in model.parameters() if p.requires_grad)
-    print(f"[qat] training last {n_train} layers (from {train_from}); wrapped {nw}; "
+    print(f"[qat] training {label} ({len(trainable_idx)} layers); wrapped {nw}; "
           f"trainable {nt/1e9:.2f}B", flush=True)
     return nw
 
@@ -69,6 +89,9 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--corpus", type=Path, required=True)
     ap.add_argument("--train-layers", type=int, default=18)
+    ap.add_argument("--layers", type=str, default=None,
+                    help="explicit layer indices to train, e.g. '0-14,32,34,35' (from the "
+                         "grad-importance probe); overrides --train-layers")
     ap.add_argument("--epochs", type=float, default=3.0)
     ap.add_argument("--grad-accum", type=int, default=8)
     ap.add_argument("--lr", type=float, default=5e-5)
@@ -91,7 +114,7 @@ def main() -> int:
     model = AutoModelForCausalLM.from_pretrained(MODEL, dtype=dtype).to(dev)
     model.config.use_cache = False
     model.gradient_checkpointing_enable()
-    wrap_model(model, args.train_layers)
+    wrap_model(model, args.train_layers, layer_spec=args.layers)
     model.train()
 
     trainable = [p for p in model.parameters() if p.requires_grad]
