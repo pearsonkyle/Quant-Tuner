@@ -47,9 +47,43 @@ def parse_session(s: dict) -> list[dict]:
     return [json.loads(m) if isinstance(m, str) else m for m in s["messages"]]
 
 
+def reconstruct_tools(msgs: list[dict]) -> list[dict]:
+    """Build per-session OpenAI-function schemas from the tools the session ACTUALLY
+    calls (name -> observed argument keys). The logtrain sessions store no schema
+    block, so without this the `# Tools` section never renders and the model would
+    train to emit tool_calls with no schema context (train/inference mismatch)."""
+    import collections
+    argk: dict[str, set] = collections.defaultdict(set)
+    for m in msgs:
+        for tc in (m.get("tool_calls") or []):
+            fn = tc.get("function", tc)
+            name = fn.get("name") or tc.get("name")
+            if not name:
+                continue
+            a = fn.get("arguments") or tc.get("arguments")
+            if isinstance(a, str):
+                try:
+                    a = json.loads(a)
+                except Exception:
+                    a = {}
+            if isinstance(a, dict):
+                argk[name] |= {k for k in a if isinstance(k, str) and k.isidentifier()}
+    return [{"type": "function", "function": {
+        "name": n, "description": f"{n} tool",
+        "parameters": {"type": "object",
+                       "properties": {k: {"type": "string"} for k in sorted(ks)}}}}
+            for n, ks in argk.items()]
+
+
 def masked_ids_for_session(msgs: list[dict], tok) -> tuple[list[int], list[int]]:
-    """Return (ids, labels) with labels = ids on assistant tokens, -100 elsewhere."""
-    text = tok.apply_chat_template(msgs, tokenize=False, add_generation_prompt=False)
+    """Return (ids, labels) with labels = ids on assistant tokens, -100 elsewhere.
+
+    The reconstructed tool schemas render in a system turn (# Tools block), so the
+    assistant-span mask below naturally excludes them — schemas are context, only
+    the assistant's tool_calls/text are trained."""
+    tools = reconstruct_tools(msgs)
+    text = tok.apply_chat_template(msgs, tools=tools or None, tokenize=False,
+                                   add_generation_prompt=False)
     enc = tok(text, add_special_tokens=False, return_offsets_mapping=True)
     ids, offs = enc["input_ids"], enc["offset_mapping"]
     # char spans of assistant *content* (group 1 = between the header and <|im_end|>)
@@ -66,11 +100,18 @@ def masked_ids_for_session(msgs: list[dict], tok) -> tuple[list[int], list[int]]
     return ids, labels
 
 
-def pack(stream_ids: list[int], stream_lbl: list[int], window: int) -> list[dict]:
+def pack(stream_ids: list[int], stream_lbl: list[int], window: int,
+         min_trainable: int = 8) -> list[dict]:
+    """Chunk the stream into windows, DROPPING windows with < ``min_trainable``
+    non-(-100) label tokens. An all-masked window (a 4096 chunk landing entirely in
+    a long tool output — 18.7% of them at window 4096) has no gradient and yields a
+    NaN CE loss (0/0); near-empty windows waste a full forward on a few tokens."""
     n = (len(stream_ids) // window) * window
     out = []
     for i in range(0, n, window):
-        out.append({"ids": stream_ids[i:i+window], "labels": stream_lbl[i:i+window]})
+        lbl = stream_lbl[i:i+window]
+        if sum(1 for x in lbl if x != -100) >= min_trainable:
+            out.append({"ids": stream_ids[i:i+window], "labels": lbl})
     return out
 
 
