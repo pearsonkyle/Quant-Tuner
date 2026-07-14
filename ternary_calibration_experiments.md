@@ -125,6 +125,24 @@ fell **2.26 → ~1.0**. Exported to Q2_0 (2.03 GiB), tool-calling verified. Full
   engagement did not convert to diffs.
 - ❌ **Pass rate stayed 0%** — no instance resolved, same as every 2-bit model.
 
+**Follow-up — the looping cause + a repetition-penalty A/B.** The 6× step count was
+pathological looping: the QAT model repeated whole commands (up to **553/556 duplicate
+tool calls** on one instance, several hitting max_turns / crashing the server). The
+masked training on long agentic sessions taught *persistence* but not *when to stop*,
+and at 2-bit that degraded into repetition. A stronger server-side penalty
+(`--repeat-penalty 1.25 --repeat-last-n 1024 --frequency-penalty 0.4`, now env-tunable)
+**killed the loops** (mean steps 95→2.9, tokens 556K→11K, dup_cmds→~0) — but
+**over-corrected**: the model now quits after ~3 calls and patches even fewer (30%).
+
+| SWE-rebench (n=10) | patch | tool-err | mean steps | mean tok |
+|:-|-:|-:|-:|-:|
+| baseline (no QAT) | **50%** | 79% | 15.3 | 258K |
+| iter-2 QAT (pen 1.1) | 40% | 68% | 95.4 (loops) | 556K |
+| iter-2 QAT (pen 1.25+freq) | 30% | 76% | 2.9 (gives up) | 11K |
+
+So there's a Goldilocks band (an intermediate penalty might land ~40%), but **no
+setting beat the plain baseline's 50% patch, and pass stayed 0% everywhere.**
+
 The 2-bit ternary **resolution floor is a capability wall a light (0.5-epoch, last-18)
 fine-tune does not break** — consistent with the whole study's finding that ~zero
 issues resolve at 2 bits regardless of model or calibration. The tool-error drop
