@@ -216,3 +216,26 @@ early layers 0-14 carry the signal, layers 18-31 — exactly what iter-2 trained
 the WEAKEST, 32/34/35 spike), the likely cause is that iter-2 trained the wrong half.
 **iter-3** retrains the grad-influential set (0-14, 32, 34, 35) at the same budget to
 test whether smart layer selection beats naive last-18.
+
+### iter-3: train the grad-INFLUENTIAL layers (0-14,32,34,35) + error-feedback harness
+
+Retrained the layers the gradient probe ranked highest (early layers 0-14 dominate;
+naive last-18 trained the weakest, 18-31), same masked 4096 corpus + budget. Also made
+the openai-agents backend feed BadRequest-style errors back and restart instead of
+aborting the instance.
+
+| SWE-rebench (n=10) | pass | patch | tool-err | mean steps | dup/calls | exits |
+|:-|-:|-:|-:|-:|-:|:-|
+| baseline (no QAT) | 0% | **50%** | 79% | 15.3 | 116/153 | — |
+| iter-2 (last-18) | 0% | 40% | 68% | 95.4 | 912/953 | looped / crashed |
+| iter-3 (influential) + errfix | 0% | 40% | 60% | 22.6 | 184/226 | **10/10 completed** |
+
+**What the right layers + error-feedback fixed:** the LOOPING (steps 95->22.6,
+dup-commands 912->184) and the instance CRASHES (10/10 completed, no BadRequest
+aborts). Training the influential early layers is clearly better-behaved than the naive
+last-18. **What it did NOT fix:** patch rate (still 40%, below baseline's 50%) and pass
+rate (still 0%). Layer selection + harness robustness recovered iter-2's behavior
+regressions but did not push capability past the untrained baseline. The 2-bit
+resolution wall holds; a light half-epoch fine-tune (any layer set, any sampling) does
+not beat it. The remaining levers are scale (full epochs / all layers via fp32-master /
+more data) or accepting the wall.
