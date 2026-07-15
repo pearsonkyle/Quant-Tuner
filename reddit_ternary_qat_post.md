@@ -42,13 +42,23 @@ Init from the shipped weights reproduces the model exactly at step 0, so you fin
 
 Task: make it a better agentic coder, measured on SWE-rebench (10 held-out real issues).
 
-| run | patch rate | pass rate | notes |
-| --- | --- | --- | --- |
-| base 8B (no fine-tune) | 50% | 0% | - |
-| QAT, last 18 layers | 40% | 0% | looped badly (one command repeated up to 553x) |
-| QAT, gradient-influential layers | 40% | 0% | looping fixed, clean runs |
+| run | patch rate | pass rate | training loss | notes |
+| --- | --- | --- | --- | --- |
+| base 8B (no fine-tune) | 50% | 0% | - | - |
+| QAT, last 18 layers | 40% | 0% | ~1.0 | looped badly (one command repeated up to 553x) |
+| QAT, gradient-influential layers | 40% | 0% | ~1.0 | looping fixed, clean runs |
+| QAT, ALL 36 layers | 30% | 0% | 0.91 | best-behaved, worst patch rate |
 
-Read honestly: the fine-tune fixed behavior (formatting, loops) but has not yet beaten the base model on issue-resolution. But I do not read this as a hard 2-bit wall, for two reasons. First, PrismML's own paper says this 8B was never built for reasoning or reliable tool use, so I was pushing a base that starts weak at the exact task. Second, every training signal says under-trained, not capped: the masked loss keeps dropping (2.26 to ~1.0), and a preliminary run that trains all 36 layers drives it lower still. These were half-epoch runs on a small, noisy corpus. More epochs, the full network, and cleaner data, plus a stronger base like the new 27B, are the obvious next moves.
+Here is the twist, and it is the most useful thing I learned. The all-layers run drove the training loss LOWER than any other, and it produced the WORST patch rate. The lowest loss gave the least capable agent. It was the tidiest (fewest steps, no loops, cleanest tool calls) and it solved the fewest issues.
+
+That kills the "just under-trained" idea. The problem is what the loss measures. My corpus is scraped agent logs (Claude Code, Gemini CLI), which are imitation data, not verified successful solutions. So minimizing the loss teaches the model to mimic the STYLE of those logs (be terse, emit clean tool calls, stop early), not to SOLVE. Lower loss = better log-mimicry = a neater agent that does less. The metric and the goal were misaligned.
+
+So the real lever is not more training or more layers, it is better DATA:
+- Distill from a strong solver: generate verified successful trajectories with a capable model and train on those (outcome data, not log-style data).
+- Or reward actual test-pass with RL, instead of next-token imitation.
+- And start from a stronger base. PrismML's own paper says this 8B was never built for reasoning or reliable tool use; their new capable model is a 27B.
+
+The honest takeaway: imitation-fine-tuning a 2-bit agent on scraped logs cleans up its behavior but does not add problem-solving ability. The loss went down; the thing I cared about did not. The pipeline works, the negative result is clear, and the next attempt should change the data, not the training knobs.
 
 ## Try it
 
