@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import socket
 import subprocess
 import time
@@ -92,10 +93,17 @@ def spawn_server(
         # loops, generating toward the token cap (minutes per step). The
         # openai-agents backend can't forward a penalty, so set it here as the
         # default; callers that send their own (tool-call reps send 1.0) override.
-        "--repeat-penalty", "1.1",
-        "--repeat-last-n", "256",
+        # Tunable via env for models that loop harder (e.g. the ternary QAT model,
+        # which repeats whole commands): QT_REPEAT_PENALTY / QT_REPEAT_LAST_N /
+        # QT_PRESENCE_PENALTY / QT_FREQUENCY_PENALTY (long-range loop control).
+        "--repeat-penalty", os.environ.get("QT_REPEAT_PENALTY", "1.1"),
+        "--repeat-last-n", os.environ.get("QT_REPEAT_LAST_N", "256"),
         "--host", "127.0.0.1",
     ]
+    if os.environ.get("QT_PRESENCE_PENALTY"):
+        cmd += ["--presence-penalty", os.environ["QT_PRESENCE_PENALTY"]]
+    if os.environ.get("QT_FREQUENCY_PENALTY"):
+        cmd += ["--frequency-penalty", os.environ["QT_FREQUENCY_PENALTY"]]
     if mmproj_path is not None:
         cmd += ["--mmproj", str(mmproj_path)]
     if chat_template_kwargs is not None:

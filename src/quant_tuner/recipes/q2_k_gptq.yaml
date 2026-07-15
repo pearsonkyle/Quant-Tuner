@@ -33,11 +33,26 @@ calibration:
     ctx: 2048
     dampen: 0.01
     actorder: true
+    # Stack the hybrid imatrix on the rounded model (parity with q2_k_awq):
+    # the imatrix is collected on the GPTQ-rounded F16 and re-weighted with
+    # the published-winner variant before llama-quantize.
+    imatrix_variant: hybrid_custom
+    # grid_mix: Q2_K        # auto — Q2_K is a tensor MIX: llama-quantize bumps
+    #                       # attn_v -> Q4_K (GQA>=4) / Q3_K and attn_output +
+    #                       # ffn_down (every layer) -> Q3_K, so those tensors
+    #                       # are rounded on their real grid, not 2-bit.
+    #                       # Pinning n_bits/group_size/sym opts out of the mix;
+    #                       # set grid_mix explicitly to stack with a pinned grid.
     # n_bits: 2             # auto from quantize.type (Q2 -> 2-bit asym g16)
     # group_size: 16
     # sym: false
     # sanity_max_rel: 1.0   # auto-relaxed for 2-bit
     # ppl_max_ratio: 4.0    # auto-relaxed for 2-bit
+    # Mac (Apple Silicon):
+    # device: mps           # auto already prefers mps when present
+    # dtype: float16        # M1-generation GPUs lack bf16
+    # hessian_device: auto  # default: Hessians stay on-device under MPS
+    # layers_per_pass: 4    # bound peak Hessian RAM on big models
 
 quantize:
   type: Q2_K

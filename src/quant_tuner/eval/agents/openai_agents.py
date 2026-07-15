@@ -19,6 +19,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import json
+import os
 import time
 from typing import Any
 
@@ -72,6 +73,60 @@ _EMPTY_PATCH_NUDGE = (
     "stop again until `git -C /testbed diff` shows a non-empty change to a source file."
 )
 _MAX_EMPTY_PATCH_RETRIES = 2
+
+# A retriable server error mid-loop (e.g. a 400 BadRequest from a malformed turn,
+# often after the model loops on one command and corrupts the message state) used
+# to abort the whole instance. Instead, feed the error back and RESTART the
+# conversation fresh: the container's file edits persist, so any real progress is
+# kept and graded, and the note steers the model off the repetition that caused it.
+_MAX_ERROR_RETRIES = 3
+_ERROR_RETRY_NOTE = (
+    "\n\n[Your previous attempt hit a server error and was restarted: {err}. "
+    "Any file edits you already made are still in /testbed — run "
+    "`git -C /testbed diff` to see them, then continue fixing the bug. Do NOT "
+    "repeat the same command over and over; if a command already ran, use its "
+    "result and move on.]"
+)
+
+# Optional, opt-in extra guidance appended to the system prompt. Kept OUT of the
+# default so published runs (Ornith/Qwythos/gemma) are unaffected; set it to A/B a
+# scaffolding change on a weak model without leaking hidden test names. The bundled
+# _SCAFFOLD_INSTRUCTIONS below target the failure modes seen on Ternary-Bonsai
+# (hallucinated pytest flags, running modules as scripts, treating a reproducing
+# test's non-zero exit as an error). Enable with QT_SWE_EXTRA_INSTRUCTIONS=scaffold
+# (the built-in text) or QT_SWE_EXTRA_INSTRUCTIONS="<your own text>".
+_SCAFFOLD_INSTRUCTIONS = """\
+
+## Extra operating rules
+
+Running tests: do NOT guess test commands or invent flags. First discover how \
+this project runs its tests by inspecting the repo (setup.py, setup.cfg, tox.ini, \
+pytest.ini, pyproject.toml, Makefile, or the tests/ layout). Run a single test \
+file with a plain `python -m pytest <path/to/test_file.py> -x -q`, or use the \
+project's documented runner. Never pass a pytest flag you have not confirmed \
+exists (e.g. there is no `--format=json`).
+
+Read before you run: before executing a file, confirm it exists with `ls` / \
+`find . -name '<file>'` and read the relevant lines with `sed -n`. Do NOT run a \
+library module directly as a script (`python path/to/module.py`) unless it has a \
+`if __name__ == "__main__"` block — import it or call it via the test suite \
+instead.
+
+Non-zero exits are normal: a failing test exits non-zero. When you are \
+REPRODUCING the bug, that failure is the expected, useful signal — not an error \
+to avoid. Read the traceback, find the responsible source file, fix it, then \
+re-run the SAME test and confirm it now passes.
+"""
+
+
+def _system_prompt() -> str:
+    """Base prompt plus optional opt-in scaffolding (``QT_SWE_EXTRA_INSTRUCTIONS``)."""
+    extra = os.environ.get("QT_SWE_EXTRA_INSTRUCTIONS", "").strip()
+    if not extra:
+        return _SYSTEM_PROMPT
+    if extra.lower() == "scaffold":
+        return _SYSTEM_PROMPT + _SCAFFOLD_INSTRUCTIONS
+    return _SYSTEM_PROMPT + "\n\n" + extra
 
 
 def _truncate_output(text: str, limit: int = _MAX_TOOL_OUTPUT_CHARS) -> str:
@@ -191,7 +246,7 @@ class OpenAIAgentsBackend:
         )
         agent = Agent(
             name="swe-agent",
-            instructions=_SYSTEM_PROMPT,
+            instructions=_system_prompt(),
             model=model,
             tools=[bash],
             model_settings=settings,
@@ -220,7 +275,9 @@ class OpenAIAgentsBackend:
             total_tokens += t
             hooks.usage = None
 
-        for attempt in range(_MAX_EMPTY_PATCH_RETRIES + 1):
+        attempt = 0
+        n_errors = 0
+        while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 exit_status = "wall_timeout"
@@ -240,9 +297,15 @@ class OpenAIAgentsBackend:
                 exit_status = "max_turns"
                 _accumulate_usage()
                 break
-            except Exception as e:  # keep the suite going; the diff (if any) is still graded
-                exit_status = f"error:{type(e).__name__}"
+            except Exception as e:  # retriable server error -> feed back + restart
                 _accumulate_usage()
+                if n_errors < _MAX_ERROR_RETRIES and (deadline - time.monotonic()) > 0:
+                    n_errors += 1
+                    exit_status = f"retried:{type(e).__name__}"
+                    agent_input = ctx.instance["problem_statement"] + _ERROR_RETRY_NOTE.format(
+                        err=f"{type(e).__name__}: {str(e)[:200]}")
+                    continue
+                exit_status = f"error:{type(e).__name__}"
                 break
             _accumulate_usage()
 
@@ -250,8 +313,9 @@ class OpenAIAgentsBackend:
             # an empty diff on a clean stop resumes with the forcing nudge.
             if _extract_submission(ctx.env, step_timeout=ctx.step_timeout).strip():
                 break
-            if attempt == _MAX_EMPTY_PATCH_RETRIES:
+            if attempt >= _MAX_EMPTY_PATCH_RETRIES:
                 break
+            attempt += 1
             n_nudges += 1
             agent_input = messages + [{"role": "user", "content": _EMPTY_PATCH_NUDGE}]
 
@@ -275,6 +339,7 @@ class OpenAIAgentsBackend:
                         "exit_status": exit_status,
                         "n_model_calls": n_calls,
                         "n_empty_patch_nudges": n_nudges,
+                        "n_error_retries": n_errors,
                     },
                     indent=2,
                     default=str,
@@ -291,5 +356,5 @@ class OpenAIAgentsBackend:
             completion_tokens=completion_tokens,
             total_tokens=total_tokens,
             exit_status=exit_status,
-            extra={"n_empty_patch_nudges": n_nudges},
+            extra={"n_empty_patch_nudges": n_nudges, "n_error_retries": n_errors},
         )

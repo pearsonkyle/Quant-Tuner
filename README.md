@@ -117,7 +117,8 @@ uv run quant-tuner run --recipe iq2_xs_awq \
 uv run quant-tuner run --recipe iq2_xs_awq --model X --logs Y --workspace W --dry-run
 
 # Bench any GGUF against FP16 → CSV row, then aggregate to markdown
-uv run quant-tuner bench --quant out/run/gguf/IQ2_XS-awq.gguf \
+# (recipes that stack params.imatrix_variant carry it in the GGUF name)
+uv run quant-tuner bench --quant out/run/gguf/IQ2_XS-awq-hybrid_custom.gguf \
     --reference out/run/gguf/model-f16.gguf \
     --eval out/run/corpus/corpus.eval.txt --out out/run/results.csv
 uv run quant-tuner leaderboard --results out/run/results.csv --out LEADERBOARD.md
@@ -126,6 +127,7 @@ uv run quant-tuner leaderboard --results out/run/results.csv --out LEADERBOARD.m
 **Shipped recipes:**
 - **4-bit baselines:** `q4_k_m_{imatrix,awq,gptq,none}`
 - **Low-bit (2–3 bpw):** `q2_k_awq`, `iq2_xs_awq`, `iq2_m_awq` (AWQ + hybrid imatrix, codebook proxies auto-selected); `q2_k_gptq`, `iq3_s_gptq`
+- **GPTQ ladder (2–4.5 bpw):** `iq2_xs_gptq`, `iq2_m_gptq`, `iq3_m_gptq`, `iq4_xs_gptq` (+ the two above and `q4_k_m_gptq`) — per-tensor grid mix matching llama-quantize's tensor bumps, imatrix collected on the rounded F16, `imatrix_variant: hybrid_custom` stacked on the 2-bit rungs
 - **Model-specific:** `q4_k_m_qwen3_5_4b`, `{q4_k_m,q5_k_s}_qwen3_6_mtp{,_awq,_none}`, `iq3_s_9b_mtp` (MTP heads retained)
 
 A recipe is just YAML — copy any of them and pass the path to `--recipe` to

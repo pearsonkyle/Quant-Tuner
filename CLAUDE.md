@@ -109,9 +109,10 @@ Pipeline behaviors worth knowing:
     attn_v → Q4_K (GQA/MoE ≥ 4), attn_output → IQ3_S (IQ2_S/M) / Q3_K (Q2_K),
     ffn_down a tier up for the first eighth of layers (every layer for Q2_K);
     under Q3_K_M/L attn_v/attn_output/ffn_down all land on Q4_K–Q5_K; under
-    IQ3_M attn_output + first-eighth ffn_down → Q4_K — so `proxy_for_member`
+    IQ3_M attn_v (always) + attn_output + first-eighth ffn_down → Q4_K; under
+    IQ3_S/XS attn_v → Q4_K when GQA/MoE ≥ 4 — so `proxy_for_member`
     scores those members with the proxy matching their *real* target. Pure
-    ftypes (Q3_K_S, IQ3_S) resolve to zero overrides. Pinning `params.proxy`
+    ftypes (Q3_K_S; IQ3_S without GQA) resolve to zero overrides. Pinning `params.proxy`
     disables both the auto-selection and the mix (set `proxy_mix` explicitly
     to stack them). `iq2_m_awq` pins `proxy: q2k_b16`: pure-`iq2_s` scoring
     regressed IQ2_M top_p — the codebook's steep α penalty plus v_proj's
@@ -125,13 +126,39 @@ Pipeline behaviors worth knowing:
   `verify_perplexity` guardrail. The rounding grid auto-matches `quantize.type`
   (`grid_for_quant_type`): 2-3-bit targets → **asymmetric min+scale** per-16 block
   (all `2^n` levels; a symmetric 2-bit grid has only 3 usable levels and destroys the
-  model), 4-bit+ → symmetric g32. PPL/logit guardrails are auto-relaxed at 2-3 bits
-  (`ppl_max_ratio` 4.0/2.0, `sanity_max_rel` 1.0/0.75). `gptq.apply` runs on CPU by
-  design (Cholesky); calibration honors `device`.
+  model), Q6_K → sym g16 6-bit, Q5_K → sym g32 5-bit, else symmetric g32.
+  - **Per-tensor grid mix** (`grid_for_member`, `params.grid_mix` pipeline-defaulted to
+    `quantize.type`): mixed ftypes bump members above the base grid — at 2 bits
+    attn_v → Q4_K (GQA/MoE ≥ 4), Q4_K_M attn_v/ffn_down → Q6_K (`use_more_bits`
+    schedule), IQ4_XS attn_v → Q5_K under GQA — so each tensor is rounded on the
+    grid llama-quantize actually stores it at. The tensor→target table lives in
+    `calibrate/_quant_mix.target_type_for_member` and is **shared with AWQ's**
+    `proxy_for_member` (now a thin proxy-vocabulary wrapper). Pinning
+    `n_bits`/`group_size`/`sym` opts out of the mix (set `grid_mix` explicitly to
+    stack); pure ftypes resolve to zero overrides.
+  - PPL/logit guardrails are auto-relaxed at 2-3 bits (`ppl_max_ratio` 4.0/2.0,
+    `sanity_max_rel` 1.0/0.75). `gptq.apply` runs on CPU by design — the
+    damp/Cholesky/inverse chain runs in fp64 there for 2-3-bit grids (4-bit+
+    keeps the cheaper fp32 path) and **retries under escalating damping**
+    (×2.5, up to 4 escalations, recorded in `GPTQStats.dampen_used`)
+    instead of dying on near-singular low-bit Hessians. Dead columns (zero H-diag)
+    are plain-RTN'd on the group grid, not zeroed. Calibration honors `device`.
+  - **The imatrix is collected on the GPTQ-rounded F16** (after the PPL guardrail —
+    weight-aware variants must see the weights llama-quantize sees) and can be
+    re-weighted via `params.imatrix_variant`, same stacking as AWQ. The final GGUF
+    name gains a `-{imatrix_variant}` suffix (idempotency, both methods).
+  - Mac/memory knobs on `gptq.calibrate`: `hessian_device: auto` keeps the `[in,in]`
+    accumulators on-device under MPS (avoids an H-sized copy per hook call, per
+    chunk); `layers_per_pass: N` forwards the corpus once per N-layer slice so peak
+    Hessian RAM is Σ_slice in² instead of Σ_all (completed slices recorded in
+    `hessians/_complete`, keyed to a tokens/ctx/corpus fingerprint and skipped on
+    re-run only when the key matches). Use `dtype: float16` on
+    M1-generation GPUs (no bf16).
 - **Recipe param routing**: calibrate-stage and apply/fold-stage kwargs live in the
   same `calibration.params` dict but go to different functions — the pipeline splits
   them via `_AWQ_APPLY_PARAMS` (`rmsnorm_plus_one`, `sanity_max_rel`, `sanity_tokens`)
-  and `_GPTQ_APPLY_PARAMS` (`n_bits`, `group_size`, `dampen`, `actorder`, `sym`, …).
+  and `_GPTQ_APPLY_PARAMS` (`n_bits`, `group_size`, `dampen`, `actorder`, `sym`,
+  `grid_mix`, …).
   When adding a new calibrator kwarg, decide which stage owns it and update the
   corresponding tuple, or the recipe will crash with a TypeError.
 - All calibrators default to `device: "auto"` (cuda → mps → cpu via
@@ -331,6 +358,9 @@ creates `model_extracted/`, `corpus/`, `calibration/`, `gguf/`, `eval/` and rese
 - Low-bit presets (2-3 bpw): `q2_k_awq`, `iq2_xs_awq`, `iq2_m_awq` (AWQ +
   `hybrid_custom` imatrix stacked, codebook proxies auto-selected),
   `q2_k_gptq`, `iq3_s_gptq` (asym grid + relaxed guardrails auto-derived).
+- GPTQ ladder (2-4.5 bpw): `iq2_xs_gptq`, `iq2_m_gptq`, `iq3_m_gptq`,
+  `iq4_xs_gptq` — grid mix + relaxed guardrails auto-derived; the 2-bit rungs
+  stack `imatrix_variant: hybrid_custom` (as does `q2_k_gptq`).
 - Model-specific: `q4_k_m_qwen3_5_4b`, `{q4_k_m,q5_k_s}_qwen3_6_mtp{,_awq,_none}`,
   `iq3_s_9b_mtp` (MTP heads kept via `extract.keep_mtp`).
 A unit test (`test_all_packaged_recipes_parse`) requires every shipped recipe to

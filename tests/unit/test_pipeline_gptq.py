@@ -46,15 +46,22 @@ def _stub_gptq_steps(monkeypatch, calls: dict) -> None:
         return dst
 
     def fake_imatrix(model, corpus, out, ctx=512, log=None, **kw):
+        calls.setdefault("imatrix", []).append({"model": Path(model).name})
         out.parent.mkdir(parents=True, exist_ok=True)
         out.touch()
         return out
+
+    def fake_variant(**kw):
+        calls["imatrix_variant"] = kw
+        Path(kw["out_path"]).touch()
+        return kw["out_path"]
 
     monkeypatch.setattr(pipeline.gptq, "calibrate", fake_calibrate)
     monkeypatch.setattr(pipeline.gptq, "apply", fake_apply)
     monkeypatch.setattr(pipeline.gptq, "verify_perplexity", fake_verify)
     monkeypatch.setattr(pipeline.convert, "hf_to_f16_gguf", fake_convert)
     monkeypatch.setattr(pipeline.llama_cpp, "imatrix", fake_imatrix)
+    monkeypatch.setattr(pipeline.imatrix, "calibrate", fake_variant)
 
 
 def _run(cfg, monkeypatch) -> tuple[dict, dict]:
@@ -89,6 +96,20 @@ def test_gptq_params_routed_to_apply_not_calibrate(tmp_path, monkeypatch):
     }
 
 
+def test_gptq_mac_knobs_routed_to_calibrate(tmp_path, monkeypatch):
+    """hessian_device / layers_per_pass are calibrate-stage params and must
+    not leak into gptq.apply."""
+    cfg = _make_cfg(tmp_path, {
+        "tokens": 1024, "hessian_device": "mps", "layers_per_pass": 4,
+    })
+    calls, _ = _run(cfg, monkeypatch)
+
+    assert calls["calibrate"]["hessian_device"] == "mps"
+    assert calls["calibrate"]["layers_per_pass"] == 4
+    assert "hessian_device" not in calls["apply"]
+    assert "layers_per_pass" not in calls["apply"]
+
+
 def test_gptq_grid_auto_derived_from_quant_type(tmp_path, monkeypatch):
     """With no explicit grid params, Q2_K must get the 2-bit asym g16 grid and
     the relaxed 2-bit guardrails."""
@@ -119,6 +140,85 @@ def test_gptq_explicit_params_override_auto_grid(tmp_path, monkeypatch):
     assert calls["apply"]["group_size"] == 16          # still from the grid
     assert calls["apply"]["sanity_max_rel"] == 0.75    # relaxed for n_bits=3
     assert calls["verify"][1]["max_ratio"] == 9.0
+
+
+def test_gptq_grid_mix_defaults_to_quant_type(tmp_path, monkeypatch):
+    """With no pinned grid, apply gets grid_mix=<quantize.type> so mixed
+    ftypes round each tensor on its real target's grid."""
+    for qt in ("Q2_K", "IQ2_M", "IQ3_M", "IQ4_XS", "Q4_K_M"):
+        cfg = _make_cfg(tmp_path / qt.lower(), {"tokens": 1024}, quant_type=qt)
+        calls, _ = _run(cfg, monkeypatch)
+        assert calls["apply"]["grid_mix"] == qt
+
+
+def test_gptq_pinned_grid_suppresses_grid_mix(tmp_path, monkeypatch):
+    """Pinning any base-grid param opts out of the mix (mirror of AWQ's
+    pinned-proxy semantics); an explicit grid_mix stacks with it."""
+    cfg = _make_cfg(tmp_path / "a", {"n_bits": 2}, quant_type="Q2_K")
+    calls, _ = _run(cfg, monkeypatch)
+    assert "grid_mix" not in calls["apply"]
+
+    cfg = _make_cfg(
+        tmp_path / "b", {"n_bits": 2, "grid_mix": "Q2_K"}, quant_type="Q2_K")
+    calls, _ = _run(cfg, monkeypatch)
+    assert calls["apply"]["grid_mix"] == "Q2_K"
+
+
+def test_gptq_imatrix_collected_on_rounded_f16(tmp_path, monkeypatch):
+    """The imatrix must be collected on the GPTQ-rounded F16 (after the PPL
+    guardrail), not the original — llama-quantize sees the rounded weights."""
+    cfg = _make_cfg(tmp_path, {"tokens": 1024}, quant_type="Q2_K")
+    calls, artifacts = _run(cfg, monkeypatch)
+
+    assert calls["imatrix"] == [{"model": "model-f16-gptq.gguf"}]
+    assert artifacts["imatrix"].name == "imatrix-gptq.gguf"
+    assert artifacts["f16"].name == "model-f16-gptq.gguf"
+    # guardrail ran before the imatrix collection existed in `calls` order
+    assert len(calls["verify"]) == 2
+
+
+def test_gptq_imatrix_variant_stacks_on_rounded_model(tmp_path, monkeypatch):
+    """params.imatrix_variant re-weights the rounded-model imatrix, mirroring
+    the AWQ stacking; the variant must not leak into gptq.calibrate/apply."""
+    cfg = _make_cfg(
+        tmp_path, {"tokens": 1024, "imatrix_variant": "hybrid_custom"},
+        quant_type="Q2_K",
+    )
+    calls, artifacts = _run(cfg, monkeypatch)
+
+    assert "imatrix_variant" not in calls["calibrate"]
+    assert "imatrix_variant" not in calls["apply"]
+    kw = calls["imatrix_variant"]
+    assert kw["variant"] == "hybrid_custom"
+    assert Path(kw["f16_gguf"]).name == "model-f16-gptq.gguf"
+    assert Path(kw["base_imatrix"]).name == "imatrix-gptq.gguf"
+    assert Path(kw["model_dir"]).name == "model_gptq"
+    assert artifacts["imatrix"].name == "imatrix-gptq-hybrid_custom.gguf"
+
+
+def test_quantize_filename_includes_imatrix_variant(tmp_path, monkeypatch):
+    """Changing params.imatrix_variant must change the GGUF name, or a re-run
+    in the same workspace would bench a stale file under the new label."""
+    import quant_tuner.quantize.gguf as gguf_mod
+
+    monkeypatch.setattr(
+        gguf_mod, "quantize",
+        lambda src, out, qtype, imatrix=None, log=None: (out.touch(), out)[1],
+    )
+    cfg = RunConfig(
+        name="t", model="m", workspace=tmp_path / "ws",
+        calibration=CalibrationConfig(
+            method="gptq", params={"imatrix_variant": "hybrid_custom"}),
+        quantize=QuantizeConfig(type="Q2_K"),
+    )
+    ws = pipeline.prepare_workspace(cfg)
+    f16 = ws.gguf_dir / "model-f16.gguf"
+    f16.touch()
+    imx = ws.calibration_dir / "imatrix-gptq-hybrid_custom.gguf"
+    imx.parent.mkdir(parents=True, exist_ok=True)
+    imx.touch()
+    out = pipeline.quantize_model(cfg, ws, f16, {"imatrix": imx, "f16": f16})
+    assert out.name == "Q2_K-gptq-hybrid_custom.gguf"
 
 
 def test_quantize_iq2_without_imatrix_rejected(tmp_path):

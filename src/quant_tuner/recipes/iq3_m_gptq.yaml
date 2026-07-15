@@ -1,16 +1,15 @@
-# Hessian-based weight rounding (GPTQ) → IQ3_S (~3.4 bpw).
+# Hessian-based weight rounding (GPTQ) → IQ3_M (~3.7 bpw).
 #
-# Low-bit preset: 3-bit asymmetric per-16-element-block grid auto-derived
-# from quantize.type, guardrails auto-relaxed for 3-bit (sanity_max_rel
-# 0.75, ppl_max_ratio 2.0). This is the configuration that guards against
-# the catastrophic `gptq__IQ3_S` blowup from the source experiment
-# leaderboard — verify_perplexity aborts before the final quantize if the
-# rounded F16 diverges.
-name: iq3_s_gptq
+# 3-bit ladder rung. Grid auto-derived (3-bit asym min+scale per-16); the
+# per-tensor grid mix rounds the tensors llama-quantize bumps (attn_v and
+# attn_output -> Q4_K always, first-eighth ffn_down -> Q4_K) on the 4-bit
+# grid. Guardrails auto-relaxed for 3-bit (sanity_max_rel 0.75,
+# ppl_max_ratio 2.0).
+name: iq3_m_gptq
 
 model: PLACEHOLDER
 
-workspace: ./out/iq3_s_gptq
+workspace: ./out/iq3_m_gptq
 
 data:
   logs: PLACEHOLDER
@@ -31,12 +30,7 @@ calibration:
     dampen: 0.01
     actorder: true
     # imatrix_variant: hybrid_custom  # optional second-stage re-weighting
-    # grid_mix: IQ3_S       # auto — nearly pure: the only bump is
-    #                       # attn_v -> Q4_K under GQA/MoE >= 4; every other
-    #                       # tensor keeps the 3-bit asym g16 base grid.
-    # n_bits: 3             # auto from quantize.type (IQ3 -> 3-bit asym g16)
-    # group_size: 16
-    # sym: false
+    # grid_mix: IQ3_M       # auto from quantize.type
     # sanity_max_rel: 0.75  # auto-relaxed for 3-bit
     # ppl_max_ratio: 2.0    # auto-relaxed for 3-bit
     # Mac (Apple Silicon):
@@ -46,7 +40,7 @@ calibration:
     # layers_per_pass: 4    # bound peak Hessian RAM on big models
 
 quantize:
-  type: IQ3_S
+  type: IQ3_M
 
 bench:
   suite: full
