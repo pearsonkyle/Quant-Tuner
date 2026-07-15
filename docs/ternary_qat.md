@@ -31,57 +31,106 @@ straight-through estimator that reproduces the shipped weights *exactly* at step
 # 0. trainable checkpoint -> out/<exp>/model/, and the F16 GGUF for the chat template
 #    (extract tokenizer.chat_template from the shipped GGUF -> out/<exp>/chat_template.jinja)
 
-# 1. masked, schema-rendered, turn-aware corpus (window <= 4096 on MPS; see limits)
+# 1. masked, schema-rendered, turn-aware corpora (train + val; window <= 4096 on MPS)
 PYTHONPATH=src .venv/bin/python scripts/build_qat_masked_corpus.py \
-    --window 4096 --wiki-tokens 300000 --out out/<exp>/masked_corpus_4096.pt
+    --window 4096 --wiki-tokens 300000 --max-tool-tokens 1024 \
+    --out out/<exp>/masked_corpus_4096_v2.pt
+PYTHONPATH=src .venv/bin/python scripts/build_qat_masked_corpus.py \
+    --window 4096 --wiki-tokens 0 --max-tool-tokens 1024 --split test \
+    --out out/<exp>/masked_val_4096_v2.pt
+# read the printed density deciles; re-run with --min-density if the low tail is fat
 
-# 2. train — pick influential layers via the grad probe, not naive last-N
-PYTHONPATH=src .venv/bin/python scripts/exp058_layer_importance.py \
-    --corpus out/<exp>/masked_corpus_4096.pt --windows 24        # ranks layers
+# 2. LR probe FIRST (3 x ~40 steps): at 5e-5 the expected code-flip count is ~zero —
+#    pick the highest LR whose val masked-CE is stable and whose flip telemetry moves
+for LR in 5e-5 3e-4 1e-3; do
+  PYTORCH_ENABLE_MPS_FALLBACK=1 PYTHONPATH=src .venv/bin/python scripts/exp058_qat_train_v2.py \
+    --corpus out/<exp>/masked_corpus_4096_v2.pt --val-corpus out/<exp>/masked_val_4096_v2.pt \
+    --layers 0-35 --optim adafactor --epochs 0.08 --grad-accum 4 --lr $LR \
+    --ckpt-every 20 --out out/<exp>/probe_$LR
+done
+
+# 3. the real run: all 36 layers via Adafactor (~66-75 GB), >=1 full epoch, resumable
 PYTORCH_ENABLE_MPS_FALLBACK=1 PYTHONPATH=src .venv/bin/python scripts/exp058_qat_train_v2.py \
-    --corpus out/<exp>/masked_corpus_4096.pt --layers 0-14,32,34,35 \
-    --epochs 0.5 --grad-accum 4 --lr 5e-5 --dtype fp32
+    --corpus out/<exp>/masked_corpus_4096_v2.pt --val-corpus out/<exp>/masked_val_4096_v2.pt \
+    --layers 0-35 --optim adafactor --epochs 1 --grad-accum 8 --lr <probe-winner> \
+    --train-norms --out out/<exp>/trained
+#   ... interrupted? continue with:  --resume out/<exp>/trained/trained_latents.pt
+#   capability lever (adds ~16 GB): --kd-teacher <dense parent, e.g. Qwen/Qwen3-8B>
+#   speed lever (validate parity):  --compute-dtype bf16
 
-# 3. export -> Q2_0 GGUF (restores the original chat template, packs embd/output at Q2_0)
+# 4. export -> Q2_0 GGUF (prints code-flips vs shipped — ~0% means the run only
+#    drifted scales: raise LR / train longer before burning a SWE-rebench eval)
 LLAMA_CPP_DIR=vendor/llama.cpp-prism PYTHONPATH=src .venv/bin/python \
     scripts/exp057_qat_export.py --latents out/<exp>/trained/trained_latents.pt --tag mytune
 ```
 
 To point at a different model, update `MODEL` / `CHAT_TEMPLATE` at the top of the
-three scripts (currently `out/exp-057/model`), and reconstruct the tool schemas for
-your log format in `build_qat_masked_corpus.reconstruct_tools`.
+three scripts (currently `out/exp-057/model`). Tool schemas are read from the logs
+(`session["tools"]` or `messages[0]["tools"]` via `data.split.session_tools`); only
+log formats with no stored schemas fall back to `reconstruct_tools` stubs.
 
-## Hard constraints on Metal (learned the hard way — see `memory` / experiments doc)
+## Hard constraints on Metal (learned the hard way — see the audit doc)
 
 - **`foreach=False` is mandatory.** MPS multi-tensor (foreach) kernels *deadlock* at
-  full-model scale — the "step-5 hang." Both AdamW and `clip_grad_norm_` must pass it.
-- **Window ≤ 4096.** seq 8192 errors with *"MPSGraph tensor dims larger than INT_MAX"*
-  (no flash-attention → the `[heads × 8192²]` scores tensor is too big). Throughput is
-  token-bound (~10 ms/token) regardless of window.
+  full-model scale — the "step-5 hang." AdamW, Adafactor (per-tensor by construction),
+  `clip_grad_norm_`, and the fp32-master wrapper all stay per-tensor.
+- **Window ≤ 4096** (now enforced by the trainer). seq 8192 errors with *"MPSGraph
+  tensor dims larger than INT_MAX"*: torch 2.12 has **no MPS training kernel for
+  SDPA** (fused paths are inference-only), so training materializes the full
+  `[B, heads, S, S]` scores tensor — and 32·8192² = 2³¹ overflows INT_MAX exactly.
+  Same math rules out B≥4 at 4096; B=2 is legal but compute-bound → grad-accum is
+  equivalent. Throughput is token-bound (~10 ms/token) regardless of window.
 - **fp32 latents, not bf16.** bf16 either destabilizes (high lr) or *underflows* the
-  ternary threshold so no codes flip (low lr). fp32 registers updates at any lr.
-- **Fit by training a subset of layers.** Full-36 fp32 AdamW swaps (Adam's 2 fp32
-  states ~56 GB over budget on 128 GB); ~18 layers fit at ~58 GB. Use the grad probe
-  to pick *which* 18 (early layers 0-14 dominate the tool-call signal, not last-N).
+  ternary threshold so no codes flip (low lr) — a ~lr update is below one bf16 ulp of
+  a ~1e-2 latent. `--compute-dtype bf16` is the supported middle path: fp32 masters
+  own the latents (updates accumulate exactly), only forward/backward run in bf16.
+- **Fitting all 36 layers**: fp32 AdamW needs ≈ 116 GB (model 32.8 + grads 27.8 +
+  2 fp32 states 55.6) → swaps. **`--optim adafactor` fits all-36 at ≈ 66-75 GB**
+  (factored second moment is ~MBs). Real budget is the MPS working-set cap
+  (~75-80% of unified memory ≈ 96-102 GB on 128 GB), not the nominal 128;
+  `PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0` lifts the allocator cap in a pinch.
+  Partial-layer training remains available (`--layers` + the grad probe) and is now
+  cheaper: frozen layers whose weights are provably on-grid are left unwrapped.
 
 ## Corpus / masking rules (why the training is "on tool" properly)
 
 - **Loss is masked to assistant/tool-call tokens** (`<|im_start|>assistant … <|im_end|>`
-  spans, tool_calls included); everything else is `-100`. Uniform loss dilutes the
-  signal with boilerplate.
-- **Tool schemas are reconstructed and rendered** (`tools=` → the `# Tools` block) so
-  the model trains *schema-conditioned*, matching inference. The logs don't store
-  schemas; we synthesize them from the observed `name → arg-keys`.
+  spans, tool_calls included) **plus the terminating `<|im_end|>`** — the stop/EOS
+  decision. (Before this fix no position in the corpus had `<|im_end|>` as a CE
+  target, so the model was never trained to end its turn — the mechanistic cause of
+  the iter-2/3 looping. The builder now asserts labeled stop-token targets exist.)
+  Everything else is `-100`.
+- **The session's REAL tool schemas are rendered** (`tools=` → the `# Tools` block) so
+  the model trains *schema-conditioned*, matching inference. logtrain stores them on
+  the system message; `reconstruct_tools` name→arg-key stubs are only the fallback for
+  schema-less log formats.
 - **All-masked windows are dropped** (a 4096 chunk landing in a long tool output has 0
-  trainable tokens → NaN CE); windows keep ≥8 trainable tokens.
-- **Train slice only** (seed-42 split), disjoint from the eval/holdout slices.
+  trainable tokens → NaN CE); windows keep ≥8 trainable tokens, plus an optional
+  `--min-density` floor. `--max-tool-tokens` head+tail-truncates giant tool outputs —
+  density is the wall-time lever (attention is only ~17% of FLOPs at 4096, so shorter
+  windows barely help; fewer masked tokens do).
+- **Train slice only** (seed-42 split), disjoint from the eval/holdout slices;
+  `--split test` builds the validation corpus for `--val-corpus` from the disjoint
+  test slice.
+- Known limitation: windows can straddle session boundaries (a window may start
+  mid-conversation under the previous session's residual context). Accepted packing
+  noise; a session-aligned packer is a possible follow-up.
+- ⚠️ Corpus rebuilds change the content fingerprint; `--resume` refuses a checkpoint
+  from a different corpus, and loss values across corpus versions are NOT comparable
+  (the stop-token class and real schemas shift both loss level and density).
 
 ## What we found (Ternary-Bonsai-8B, the first target)
 
 The pipeline **works end to end and measurably moves the model** (masked loss
 2.26→1.0, tool-error 79→68%), but a light (0.5-epoch, partial-layer) fine-tune did
 **not** raise SWE-rebench patch/pass at 2-bit — the resolution floor is a capability
-wall. Likely under-trained (subsampled data, half the layers). The infrastructure is
-here for the fuller attempt (more epochs, all layers via an fp32-master trick, more
-data) and for the **next models we fine-tune in this style**. Full write-up:
-`ternary_calibration_experiments.md`.
+wall. The follow-up audit (`docs/qat_optimization_audit.md`) found this outcome
+over-determined: the corpus never trained the stop token (hence the looping), real
+tool schemas were discarded for stubs, AdamW's default weight decay eroded latents,
+and at lr 5e-5 the flip-distance math predicts ~zero ternary code flips — the loss
+drop was likely scale drift, not capacity re-allocation. The infrastructure for the
+fuller attempt is now in place: all-36 layers via `--optim adafactor` (~66-75 GB),
+`--resume` for multi-day runs, code-flip telemetry + an LR probe, KD from the dense
+parent (`--kd-teacher`), bf16 compute over fp32 masters (`--compute-dtype bf16`), and
+the corrected corpus. Historical loss numbers are not comparable to post-fix runs.
+Full write-up: `ternary_calibration_experiments.md`.
