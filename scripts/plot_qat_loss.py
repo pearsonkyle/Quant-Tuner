@@ -68,7 +68,7 @@ def main() -> int:
     fig.tight_layout()
     args.out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.out, dpi=140)
-    print(f"[plot] {len(steps)} points -> {args.out}  (loss {loss[0]:.3f} -> {sm[-1]:.3f})")
+    print(f"[plot] {len(steps)} points -> {args.out}  (loss {loss[0]:.3f} -> {loss[-1]:.3f})")
     return 0
 
 
