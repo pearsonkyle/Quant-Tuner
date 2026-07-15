@@ -261,3 +261,40 @@ issue-resolution *capability* past the base model. The 2-bit resolution floor (p
 is a capability wall this class of fine-tune does not break. Next real lever = scale
 (full epochs + all 36 layers via fp32-master + more/curated data), or accept the wall.
 The pipeline (docs/ternary_qat.md) is ready for that scaled attempt and for other models.
+
+### iter-4: ALL 36 layers (Adafactor). Lowest loss, WORST patch rate. The lever is DATA QUALITY.
+
+Trained all 36 layers (Adafactor factored state fits fp32 at ~33GB where AdamW swaps).
+It drove the masked loss lower than any prior run (2.26 -> 0.91 vs iter-3's ~1.0 floor).
+
+| SWE-rebench (n=10) | pass | patch | tool-err | mean steps | dup/calls | train loss |
+|:-|-:|-:|-:|-:|-:|-:|
+| baseline (no QAT) | 0% | **50%** | 79% | 15.3 | 116/153 | - |
+| iter-3 influential-18 | 0% | 40% | 60% | 22.6 | 184/226 | ~1.0 |
+| iter-4 all-36 | 0% | **30%** | 55% | **9.5** | 33/70 | **0.91** |
+
+**The lowest training loss gave the worst patch rate.** iter-4 is the best-BEHAVED run
+(fewest steps, least looping, all 10 completed, lowest tool-error) but produces the
+fewest patches. This kills the "just under-trained" hypothesis: training the full
+network to a lower loss did not raise capability, it *lowered* patch rate.
+
+The reason is what the loss actually measures. The masked loss rewards mimicking the
+tool-call TEXT in our corpus, which is scraped Claude-Code / Gemini-CLI agent logs, NOT
+verified successful problem solutions. So fitting it better teaches the model to imitate
+the *style* of those logs (be terse, emit clean tool calls, stop early) rather than to
+*solve* issues. Lower loss = better log-mimicry = a tidier agent that does less. The
+metric and the goal are misaligned.
+
+**Corrected conclusion.** The lever is not more training or more layers on this data; it
+is BETTER data. The corpus is noisy imitation data, not outcome data. The paths that
+should actually move issue-resolution:
+- Distill from a strong solver (generate verified successful trajectories with a
+  capable model and train on those) - i.e. outcome-quality data, not log-style data.
+- A stronger base: PrismML's own paper says this 8B was never built for reasoning or
+  reliable tool use; the new capable base is the 27B.
+- RL / reward on actual test-pass, not next-token imitation of logs.
+
+What is proven and shippable: a working, reproducible Metal ternary-QAT pipeline, and a
+clean negative result - imitation-fine-tuning a 2-bit agent on scraped logs tidies its
+behavior but does not add problem-solving ability. Loss went down; the thing we cared
+about did not.
