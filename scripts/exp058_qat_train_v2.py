@@ -95,6 +95,8 @@ def main() -> int:
     ap.add_argument("--epochs", type=float, default=3.0)
     ap.add_argument("--grad-accum", type=int, default=8)
     ap.add_argument("--lr", type=float, default=5e-5)
+    ap.add_argument("--optim", choices=["adamw", "adafactor"], default="adamw",
+                    help="adafactor = factored state, fits ALL 36 layers in fp32 (adamw swaps)")
     ap.add_argument("--dtype", choices=["fp32", "bf16"], default="fp32")
     ap.add_argument("--ckpt-every", type=int, default=40)
     ap.add_argument("--out", type=Path, default=REPO / "out" / "exp-058" / "trained")
@@ -118,7 +120,15 @@ def main() -> int:
     model.train()
 
     trainable = [p for p in model.parameters() if p.requires_grad]
-    opt = torch.optim.AdamW(trainable, lr=args.lr, foreach=False)
+    if args.optim == "adafactor":
+        # Factored second moments -> tiny optimizer state, so ALL 36 layers fit in
+        # fp32 without swapping (AdamW's two fp32 states would be ~56GB). Fixed-lr
+        # config (no internal relative-step schedule); our cosine schedule drives lr.
+        from transformers.optimization import Adafactor
+        opt = Adafactor(trainable, lr=args.lr, scale_parameter=False,
+                        relative_step=False, warmup_init=False)
+    else:
+        opt = torch.optim.AdamW(trainable, lr=args.lr, foreach=False)
 
     args.out.mkdir(parents=True, exist_ok=True)
     stop = {"f": False}
