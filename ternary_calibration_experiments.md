@@ -239,3 +239,25 @@ regressions but did not push capability past the untrained baseline. The 2-bit
 resolution wall holds; a light half-epoch fine-tune (any layer set, any sampling) does
 not beat it. The remaining levers are scale (full epochs / all layers via fp32-master /
 more data) or accepting the wall.
+
+### Final: no sampling/penalty on the influential-layer model beats baseline
+
+| SWE-rebench (n=10) | pass | patch | tool-err | mean steps | dup/calls |
+|:-|-:|-:|-:|-:|-:|
+| baseline (no QAT) | 0% | **50%** | 79% | 15.3 | 116/153 |
+| iter-3 influential + errfix (pen 1.1) | 0% | 40% | 60% | 22.6 | 184/226 |
+| iter-3 influential + pen 1.15 / T0.3 | 0% | 30% | 72% | 7.2 | 34/71 |
+
+Same Goldilocks curve as iter-2: more repetition penalty removes the looping but the
+model then under-engages and patches less (30%). The best-behaved QAT config
+(influential layers + error-feedback + pen 1.1) reaches 40% patch with clean 10/10
+completion and no loops — a real fix of iter-2's regressions — but still below the
+untrained baseline's 50%, and pass stays 0% throughout.
+
+**Bottom line for Ternary-Bonsai-8B at 2-bit:** a light (0.5-epoch) continued-QAT
+fine-tune, even on the gradient-influential layers with a robust harness and tuned
+sampling, fixes *behavior* (looping, crashes, tool-errors) but does not raise
+issue-resolution *capability* past the base model. The 2-bit resolution floor (pass 0%)
+is a capability wall this class of fine-tune does not break. Next real lever = scale
+(full epochs + all 36 layers via fp32-master + more/curated data), or accept the wall.
+The pipeline (docs/ternary_qat.md) is ready for that scaled attempt and for other models.
