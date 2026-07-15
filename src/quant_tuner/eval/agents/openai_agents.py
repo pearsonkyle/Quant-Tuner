@@ -74,6 +74,20 @@ _EMPTY_PATCH_NUDGE = (
 )
 _MAX_EMPTY_PATCH_RETRIES = 2
 
+# A retriable server error mid-loop (e.g. a 400 BadRequest from a malformed turn,
+# often after the model loops on one command and corrupts the message state) used
+# to abort the whole instance. Instead, feed the error back and RESTART the
+# conversation fresh: the container's file edits persist, so any real progress is
+# kept and graded, and the note steers the model off the repetition that caused it.
+_MAX_ERROR_RETRIES = 3
+_ERROR_RETRY_NOTE = (
+    "\n\n[Your previous attempt hit a server error and was restarted: {err}. "
+    "Any file edits you already made are still in /testbed — run "
+    "`git -C /testbed diff` to see them, then continue fixing the bug. Do NOT "
+    "repeat the same command over and over; if a command already ran, use its "
+    "result and move on.]"
+)
+
 # Optional, opt-in extra guidance appended to the system prompt. Kept OUT of the
 # default so published runs (Ornith/Qwythos/gemma) are unaffected; set it to A/B a
 # scaffolding change on a weak model without leaking hidden test names. The bundled
@@ -261,7 +275,9 @@ class OpenAIAgentsBackend:
             total_tokens += t
             hooks.usage = None
 
-        for attempt in range(_MAX_EMPTY_PATCH_RETRIES + 1):
+        attempt = 0
+        n_errors = 0
+        while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 exit_status = "wall_timeout"
@@ -281,9 +297,15 @@ class OpenAIAgentsBackend:
                 exit_status = "max_turns"
                 _accumulate_usage()
                 break
-            except Exception as e:  # keep the suite going; the diff (if any) is still graded
-                exit_status = f"error:{type(e).__name__}"
+            except Exception as e:  # retriable server error -> feed back + restart
                 _accumulate_usage()
+                if n_errors < _MAX_ERROR_RETRIES and (deadline - time.monotonic()) > 0:
+                    n_errors += 1
+                    exit_status = f"retried:{type(e).__name__}"
+                    agent_input = ctx.instance["problem_statement"] + _ERROR_RETRY_NOTE.format(
+                        err=f"{type(e).__name__}: {str(e)[:200]}")
+                    continue
+                exit_status = f"error:{type(e).__name__}"
                 break
             _accumulate_usage()
 
@@ -291,8 +313,9 @@ class OpenAIAgentsBackend:
             # an empty diff on a clean stop resumes with the forcing nudge.
             if _extract_submission(ctx.env, step_timeout=ctx.step_timeout).strip():
                 break
-            if attempt == _MAX_EMPTY_PATCH_RETRIES:
+            if attempt >= _MAX_EMPTY_PATCH_RETRIES:
                 break
+            attempt += 1
             n_nudges += 1
             agent_input = messages + [{"role": "user", "content": _EMPTY_PATCH_NUDGE}]
 
@@ -316,6 +339,7 @@ class OpenAIAgentsBackend:
                         "exit_status": exit_status,
                         "n_model_calls": n_calls,
                         "n_empty_patch_nudges": n_nudges,
+                        "n_error_retries": n_errors,
                     },
                     indent=2,
                     default=str,
@@ -332,5 +356,5 @@ class OpenAIAgentsBackend:
             completion_tokens=completion_tokens,
             total_tokens=total_tokens,
             exit_status=exit_status,
-            extra={"n_empty_patch_nudges": n_nudges},
+            extra={"n_empty_patch_nudges": n_nudges, "n_error_retries": n_errors},
         )
