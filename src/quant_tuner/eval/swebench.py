@@ -339,6 +339,7 @@ def run_swebench_eval(
     spec_draft_n_max: int | None = None,
     api_key: str = "sk-no-key",
     progress: bool = False,
+    resume: bool = False,
 ) -> SweSummary:
     """Run the agentic SWE-rebench benchmark over ``holdout``.
 
@@ -396,9 +397,24 @@ def run_swebench_eval(
             "model_class": model_class,
         }
         for i, instance in enumerate(instances, 1):
+            iid = instance.get("instance_id", "?")
             if progress:
-                iid = instance.get("instance_id", "?")
                 print(f"[{i}/{len(instances)}] {iid}", flush=True)
+            # Resume: skip an instance whose result.json already exists and parses
+            # (long generation runs shouldn't re-run completed work after a crash).
+            if resume:
+                done = trajectory_dir / f"{iid}.result.json"
+                if done.exists():
+                    try:
+                        prev = json.loads(done.read_text())
+                        records.append({k: v for k, v in prev.items()
+                                        if k not in ("submission", "grade")})
+                        if progress:
+                            print(f"  [{iid}] resume: skip (already graded, "
+                                  f"resolved={prev.get('resolved')})", flush=True)
+                        continue
+                    except Exception:
+                        pass  # corrupt/partial result -> re-run it
             records.append(
                 run_instance(
                     instance,

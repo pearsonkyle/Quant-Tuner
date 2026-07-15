@@ -140,6 +140,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "--use-datasets", action="store_true",
         help="Use datasets.load_dataset(streaming) instead of the datasets-server API",
     )
+    p.add_argument(
+        "--exclude", type=Path, default=None,
+        help="A jsonl of instances to EXCLUDE by instance_id (e.g. the eval holdout, so "
+             "a training/generation pool stays disjoint from what the student is graded on)",
+    )
     p.add_argument("--out", type=Path, default=_REPO / "out" / "external" / "swe-rebench" / "holdout.jsonl")
     return p
 
@@ -170,6 +175,15 @@ def main() -> int:
         r for r in candidates
         if r.get("FAIL_TO_PASS") and (r.get("image_name") or r.get("docker_image"))
     ]
+    if args.exclude and args.exclude.exists():
+        excluded = {
+            json.loads(ln)["instance_id"]
+            for ln in args.exclude.read_text().splitlines() if ln.strip()
+        }
+        before = len(candidates)
+        candidates = [r for r in candidates if r["instance_id"] not in excluded]
+        print(f"  excluded {before - len(candidates)} instances present in {args.exclude.name}",
+              flush=True)
     print(
         f"  {len(candidates)} candidates after filters "
         f"(lite_only={args.lite_only}, max_difficulty={args.max_difficulty})",
