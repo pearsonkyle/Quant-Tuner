@@ -26,8 +26,9 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--traj-dir", type=Path, required=True, action="append",
                     help="a <model> trajectory dir (repeatable to pool several runs)")
-    ap.add_argument("--results", type=Path, required=True, action="append",
-                    help="the results.csv paired with each --traj-dir (same order)")
+    ap.add_argument("--results", type=Path, default=None, action="append",
+                    help="results.csv paired with each --traj-dir (same order); optional — "
+                         "if omitted, resolved status is read from per-instance result.json")
     ap.add_argument("--all-patched", action="store_true",
                     help="train on all patched trajectories, not just resolved (mimicry risk)")
     ap.add_argument("--window", type=int, default=4096)

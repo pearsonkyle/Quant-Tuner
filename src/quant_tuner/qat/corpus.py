@@ -372,11 +372,33 @@ def resolved_instance_ids(results_csv: Path) -> set[str]:
     return ids
 
 
-def build_distill_corpus(*, traj_dirs: list[Path], results: list[Path],
+def resolved_from_result_jsons(traj_dir: Path) -> set[str]:
+    """Resolved instance_ids from the per-instance ``<inst>.result.json`` sidecars.
+
+    The eval writes ``results.csv`` only at the very END of a run; the per-instance
+    result.json is written as each instance is graded. This lets the distill corpus be
+    built from a run that is still in flight or crashed before the CSV was emitted —
+    same source of truth (``grade.resolved``), just per-file."""
+    ids: set[str] = set()
+    for rj in Path(traj_dir).glob("*.result.json"):
+        try:
+            if bool(json.loads(rj.read_text()).get("resolved")):
+                ids.add(rj.name[: -len(".result.json")])
+        except Exception:
+            continue
+    return ids
+
+
+def build_distill_corpus(*, traj_dirs: list[Path], results: list[Path] | None = None,
                          all_patched: bool = False, window: int = 4096,
                          max_tool_tokens: int = 1024, min_density: float = 0.0,
                          out: Path | None = None, tok=None) -> dict:
-    """Distill corpus from a strong solver's VERIFIED trajectories (resolved-only)."""
+    """Distill corpus from a strong solver's VERIFIED trajectories (resolved-only).
+
+    ``results`` (a results.csv per traj_dir) is optional: when omitted (or an entry is
+    None/missing), resolved status is read from the per-instance ``<inst>.result.json``
+    sidecars in the traj_dir, so the corpus can be built from an in-flight/crashed run."""
+    results = results or [None] * len(traj_dirs)
     if len(traj_dirs) != len(results):
         sys.exit("[distill] traj_dirs and results must be the same length")
     tok = tok or load_tokenizer()
@@ -388,9 +410,15 @@ def build_distill_corpus(*, traj_dirs: list[Path], results: list[Path],
 
     for traj_dir, res in zip(traj_dirs, results, strict=True):
         traj_dir = Path(traj_dir)
-        keep = None if all_patched else resolved_instance_ids(res)
-        if keep is not None:
+        if all_patched:
+            keep = None
+        elif res is not None and Path(res).exists():
+            keep = resolved_instance_ids(res)
             print(f"[distill] {Path(res).name}: {len(keep)} resolved instances", flush=True)
+        else:
+            keep = resolved_from_result_jsons(traj_dir)
+            print(f"[distill] {traj_dir.name}: {len(keep)} resolved (from result.json sidecars)",
+                  flush=True)
         traj_files = sorted(traj_dir.glob("*.traj.json"))
         kept_here = 0
         for tf in traj_files:
