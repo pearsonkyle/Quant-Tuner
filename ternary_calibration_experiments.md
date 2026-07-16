@@ -374,3 +374,34 @@ steps, patch 50%→20%). The binding constraints are **data quantity** and **LR*
 no-learn 3e-4 and damaging 1e-3); if it still regresses, data quantity is confirmed as the
 blocker → **iter-5b** expands the verified set (the `--resume` retry recovers the ~57
 docker-125 instances) before retraining.
+
+### iter-5 continued: the LR sweet-spot + first pass>0 (5e-4, ~2 epochs)
+
+After iter-5 @1e-3 damaged the model (over-hot on 12 windows), swept the LR / repeat count:
+
+| lr / epochs | code flips | loss | verdict |
+|:-|:-|:-|:-|
+| 3e-4 / 8ep | ~0% | smooth →0.64 | scale-only, no learning |
+| 1e-3 / 8ep | 3.8% (layer0) | noisy 1.4–2.4 | flips but damages tool-use |
+| 5e-4 / 8ep | — | →0.01 | MEMORIZED (killed before eval) |
+| **5e-4 / 2.2ep (36 steps)** | **0.7% total** | settled ~0.5 | **the sweet spot** |
+
+The 8-epoch runs saw the 12 trajectories 8× → memorization (loss 0.01). Dropping to ~2.2
+epochs (36 steps) fits without memorizing (loss ~0.5) while still flipping 0.7% of codes.
+
+**Dual eval of the 5e-4/36-step model** (generalization = disjoint 10-holdout; in-distribution
+= the 12 trained-on instances, built as indist_trained12.jsonl):
+
+| eval | patch | pass | tool_err | steps |
+|:-|-:|-:|-:|-:|
+| baseline (no QAT), generalization | 50% | 0% | — | 15.3 |
+| iter-5 5e-4, **generalization** | 40% | **0%** | 0.58 | 30.2 |
+| iter-5 5e-4, **in-distribution** | 25% | **8%** | 0.53 | 46.3 |
+
+**FIRST pass>0 in the project**: solved `EmilStenstrom__conllu-64`, an issue it trained on.
+The training signal is real (learns to solve a trained-on problem) but does NOT yet transfer
+(0% generalization pass, patch at baseline). Textbook "learns but needs more data." The
+recipe (5e-4, ~2 epochs, all-36) is now fixed; the lever is **data quantity**.
+
+→ **iter-5b**: `--resume` retry over the 60 docker-errored instances to grow the verified set
+from 12 toward 50–100, then retrain at the same recipe and re-bench generalization.

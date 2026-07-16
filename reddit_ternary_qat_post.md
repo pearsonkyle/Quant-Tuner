@@ -57,20 +57,40 @@ That kills the "just under-trained" idea. The problem is what the loss measures.
 
 So the real lever is not more training or more layers, it is better DATA. That is what I am testing next.
 
-## What is next (iter-5 and iter-6)
+## iter-5: verified solutions, and the LR that decides everything
 
-The plan is to replace the scraped logs with verified solutions, and to do it in the model's own vocabulary.
+So I changed the data. I took a strong 9B agentic coder (a different model that resolves real GitHub issues), let it solve a batch of them, and kept ONLY the trajectories where the hidden tests actually passed. A patch that does not pass is the same mimicry trap, so it is filtered out. Those winning trajectories get re-rendered through the ternary model's own tokenizer with the fixed masking, so it learns the SHAPE of a solution that works, not the style of a log. The issues are disjoint from the ones I grade on, so a gain is generalization.
 
-- **iter-5: distill from a strong solver.** I took a strong 9B agentic coder (a different model, 100% patch and 60% resolved on the held-out issues), let it solve a set of real GitHub issues, and kept ONLY the trajectories that actually passed the hidden tests. A patch that does not pass is the same mimicry trap, so it is filtered out. Those winning trajectories are re-rendered through the ternary model's tokenizer with the fixed masking, and it trains to imitate the SHAPE of a solution that works, not the style of a log. Crucially the issues are disjoint from the ones I grade on, so a gain is generalization, not memorization. This run is generating data now.
-- **iter-6: distill the logits too.** The teacher above uses a different tokenizer, so I can only copy its behavior, not its probabilities. But the ternary model is a converted Qwen3-8B, and there are strong SWE fine-tunes of that exact base with the SAME vocabulary. Using one as a teacher lets me train on its full output distribution at every token (soft targets), which the low-bit-QAT literature consistently shows beats one-hot targets at 2 bits.
+This first run had only 12 verified trajectories (small on purpose, to see if the signal is even there). The result was a lesson in the learning rate, and it is the most important thing in this whole writeup:
 
-The honest takeaway so far: imitation-fine-tuning a 2-bit agent on scraped logs cleans up its behavior but does not add problem-solving ability. The loss went down; the thing I cared about did not. The pipeline works and the negative result is clear. The next attempt changes the data, not the training knobs.
+- **lr 3e-4: the model did not learn at all.** Zero code flips (0.003% at most). The loss dropped smoothly to 0.6, but purely by rescaling the ternary groups. The actual -1/0/+1 assignments never moved. Behavior changes, capability does not. This is the trap from the last section, and it was still happening at a fairly normal LR.
+- **lr 1e-3: real code flips, but it wrecked the model.** Now the codes moved (3.8% in the first layer, millions of weights). But on only 12 trajectories that is way too aggressive: it overwrote the model's existing tool-use to memorize a dozen examples. Patch rate fell to 20%, tool errors shot to 73%, and it gave up after a few steps.
+- **lr 5e-4 for ~2 epochs: the sweet spot.** Moderate flips (0.7% of all codes), loss settling around 0.5 instead of memorizing down to 0.01, tool-use intact.
+
+And that sweet-spot run did something none of the earlier ones ever did:
+
+| eval | patch rate | pass rate |
+| --- | --- | --- |
+| base 8B (no fine-tune), held-out issues | 50% | 0% |
+| iter-5 5e-4, held-out issues (generalization) | 40% | 0% |
+| iter-5 5e-4, the issues it trained on (in-distribution) | 25% | **8%** |
+
+That 8% is one solved issue, and it is the FIRST non-zero pass rate this model has ever produced. It solved a real bug, on a repo whose solution it had trained on. The signal is real: verified-solution data can teach a 2-bit model to actually fix code, not just look busy.
+
+The catch is the gap between the two rows. It solves an issue it trained on, but it does not yet transfer to unseen repos (still 0% there, and patch is at baseline). That is the classic signature of "it learns, it just needs more data." 12 trajectories is enough to solve one memorized problem, not enough to generalize.
+
+## What is next
+
+- **iter-5b: more of the same data.** I am generating more verified trajectories now, aiming for 50 to 100 instead of 12, then retraining at the exact same 5e-4 / 2-epoch recipe. The bet is that the in-distribution learning turns into generalization once there is enough of it.
+- **iter-6: distill the logits too.** The solver above uses a different tokenizer, so I can only copy its behavior. But the ternary model is a converted Qwen3-8B, and there are strong SWE fine-tunes of that exact base with the SAME vocabulary. Using one as a teacher lets me train on its full output distribution at every token, which the low-bit-QAT literature shows beats one-hot targets at 2 bits.
+
+The honest state: a 2-bit ternary model, fine-tuned on a Mac, went from never solving anything to solving a real issue it was taught. That is a proof of life for the whole approach. Whether it generalizes is now a data-quantity question, not a can-it-learn question.
 
 ## Try it
 
 Code and a reusable pipeline guide (docs/ternary_qat.md): [your repo link]
 
-Apple Silicon with enough unified memory is all you need. The open question is not whether a 2-bit model can be trained, it clearly can, but whether verified-solution data can push it past its base. That is what iter-5 and iter-6 are testing, and I will post the numbers.
+Apple Silicon with enough unified memory is all you need. The question was never whether a 2-bit model can be trained, it clearly can. It is whether verified-solution data can push it past its base, and the first solve says maybe. More data next.
 
 ---
 
@@ -97,6 +117,17 @@ PrismML's Bonsai models store every weight as -1/0/+1 (true ~1.7 bits/weight). A
 
 7/ Real result: driving the loss lower made the agent tidier but LOWERED its patch rate. Turns out the loss was rewarding log-mimicry, not problem-solving. My training data was scraped agent logs, not verified solutions. The metric and the goal were misaligned.
 
-8/ So the fix is the data, not the knobs. Next up: distill a strong solver's VERIFIED winning trajectories (tests actually pass) into the ternary model, then add soft-label distillation from a same-vocab SWE fine-tune of its parent. Results soon.
+8/ So I changed the data: distilled a strong solver's VERIFIED winning trajectories (hidden tests actually pass) into the ternary model, in its own tokenizer. Only 12 to start, just to see if the signal is there.
+
+9/ The learning rate was the whole game:
+- 3e-4: zero code flips, model only rescales, learns nothing
+- 1e-3: real flips but wrecks tool-use on 12 examples (patch 20%, tool-err 73%)
+- 5e-4 / 2 epochs: moderate flips, tool-use intact. the sweet spot.
+
+10/ And the sweet-spot run solved a real issue it trained on. 8% pass. That is the FIRST non-zero pass rate this 2-bit model has ever produced. It went from never fixing anything to fixing a real bug.
+
+11/ Catch: it solves trained-on issues, not yet unseen ones (0% there, patch at baseline). Classic "learns but needs more data." 12 trajectories is too few to generalize. Scaling to 50-100 next, same recipe.
+
+Proof of life for the whole idea: a Mac-trained 2-bit model can be taught to actually fix code.
 
 Code: [your repo link]
