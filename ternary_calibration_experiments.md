@@ -343,3 +343,34 @@ masked-loss values from iter-2/3 (2.26→1.0) are **not comparable** to post-fix
 (new supervised token class + real schemas), and `--resume` refuses checkpoints across
 corpus rebuilds by fingerprint. The scaled iter-4 run (all-36, ≥1 epoch, probed LR,
 KD) is what actually tests whether the 2-bit wall is real.
+
+### iter-5: VERIFIED-solution distillation from a strong solver (Ornith-9B). LR is the crux.
+
+Replaced the scraped agent logs with **12 verified SWE-rebench trajectories** (Ornith-1.0-9B
+Q5_K_M solved them and the hidden FAIL_TO_PASS/PASS_TO_PASS tests actually passed), re-rendered
+through the corrected corpus (stop token labeled, real bash schema), all-36 Adafactor. The
+instances are disjoint from the eval holdout, so a gain would be generalization.
+
+The **LR probe (folded into the run via flip telemetry) was the whole story**:
+
+| lr | code flips @ step 20 | loss | verdict |
+|:-|:-|:-|:-|
+| 3e-4 | ~0% (max 0.003%) | smooth 1.49→0.64 | **scale-only** — the model rescaled groups, never re-allocated ternary codes (the iter-2/3/4 dead regime) |
+| 1e-3 | REAL (layer0 q_proj 3.8%, layer35 1.1%, millions of codes) | noisy 1.4–2.4, never converged | **over-hot on 12 windows** — flipped codes aggressively but damaged tool-calling |
+
+iter-5 (1e-3) SWE-rebench, 10-instance holdout:
+
+| run | pass | patch | tool-err | mean steps |
+|:-|-:|-:|-:|-:|
+| baseline (no QAT) | 0% | **50%** | — | 15.3 |
+| iter-4 (log data, scale-only) | 0% | 30% | — | 9.5 |
+| iter-5 (verified data, 1e-3) | 0% | **20%** | **73%** | 5.2 |
+
+**Findings.** (1) The ternary model CAN be taught — 1e-3 flips real codes (the audit was
+right; 3e-4 was too low). (2) But 12 trajectories × an aggressive LR = the model overwrites
+its tool-calling competence to memorize a dozen trajectories (tool_err 73%, bails at 5.2
+steps, patch 50%→20%). The binding constraints are **data quantity** and **LR**, not the data
+*quality* (which is now good). Next: a **5e-4 sweet-spot** trial on the same 12 (between
+no-learn 3e-4 and damaging 1e-3); if it still regresses, data quantity is confirmed as the
+blocker → **iter-5b** expands the verified set (the `--resume` retry recovers the ~57
+docker-125 instances) before retraining.
