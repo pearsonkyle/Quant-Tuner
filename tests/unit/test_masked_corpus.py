@@ -9,16 +9,12 @@ turn (the mechanistic cause of the looping pathology in iter-2/iter-3).
 Uses a small offline fake tokenizer (character-offset faithful) — no downloads.
 """
 
-import importlib.util
 import json
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
 
-_spec = importlib.util.spec_from_file_location(
-    "build_qat_masked_corpus", REPO / "scripts" / "build_qat_masked_corpus.py")
-bqmc = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(bqmc)
+from quant_tuner.qat import corpus as bqmc  # noqa: E402
 
 SPECIALS = ("<|im_start|>", "<|im_end|>")
 

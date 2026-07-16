@@ -14,7 +14,6 @@ width the g128 ternarizer accepts). The load-bearing checks:
     fixes the bf16 sub-ulp underflow (the "no codes flip" failure).
 """
 
-import importlib.util
 import json
 import math
 import sys
@@ -25,11 +24,7 @@ import torch
 
 REPO = Path(__file__).resolve().parents[2]
 
-_spec = importlib.util.spec_from_file_location(
-    "exp058_qat_train_v2", REPO / "scripts" / "exp058_qat_train_v2.py")
-trainer = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(trainer)
-
+from quant_tuner.qat import train as trainer  # noqa: E402
 from quant_tuner.qat.master_opt import MasterOptimizer  # noqa: E402
 from quant_tuner.qat.ternary import TernaryLinear, ternarize_group  # noqa: E402
 

@@ -82,6 +82,7 @@ ignore = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 addopts = "-ra"
 markers = [
     "integration: needs a built jlens-server + a tiny GGUF (QT_LENS_IT=1, QT_TINY_GGUF=…)",
