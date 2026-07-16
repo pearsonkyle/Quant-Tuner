@@ -18,10 +18,10 @@ CORPUS=out/exp-058/distill_corpus_iter5_4096.pt
 TRAIN_OUT=out/exp-058/trained_iter5
 GGUF=out/exp-057/Ternary-Bonsai-8B-iter5-Q2_0.gguf
 
-echo "=== [$(date)] iter-5 TRAIN (all-36, adafactor, lr 3e-4, ~8 epochs) ==="
+echo "=== [$(date)] iter-5 TRAIN (all-36, adafactor, lr 1e-3, ~8 epochs) ==="
 $PY -u scripts/exp058_qat_train_v2.py \
   --corpus "$CORPUS" \
-  --layers 0-35 --optim adafactor --epochs 8 --grad-accum 2 --lr 3e-4 \
+  --layers 0-35 --optim adafactor --epochs 8 --grad-accum 2 --lr 1e-3 \
   --dtype fp32 --ckpt-every 20 --flip-sample 12 \
   --out "$TRAIN_OUT"
 
