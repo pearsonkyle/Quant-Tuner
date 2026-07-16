@@ -24,5 +24,5 @@ $PY -u scripts/run_swebench_eval.py \
   --agent openai-agents \
   --temperature 0.25 \
   --max-steps 100 \
-  --resume --progress
+  --resume --cleanup-images --progress
 echo "=== [$(date)] Ornith distill-gen DONE ==="

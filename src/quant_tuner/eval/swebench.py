@@ -29,6 +29,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import subprocess
 import time
 from collections.abc import Iterable
 from contextlib import nullcontext
@@ -184,6 +185,7 @@ def run_instance(
     conn: dict[str, Any],
     trajectory_dir: Path,
     progress: bool = False,
+    cleanup_images: bool = False,
 ) -> dict:
     """Run one instance through ``backend``, grade it, return a metrics record.
 
@@ -192,8 +194,16 @@ def run_instance(
     fields of :class:`~quant_tuner.eval.agents.base.AgentRunContext`
     (``base_url``, ``served_model``, ``sampling``, limits, ``api_key``,
     ``model_class``).
+
+    ``cleanup_images`` removes THIS instance's SWE-rebench image (only) after the
+    container is torn down, keeping Docker slim during a long run — the eval never
+    reuses an image across instances mid-run, so at most one is resident at a time.
+    Never touches any non-SWE image.
     """
-    from minisweagent.run.benchmarks.swebench import get_sb_environment
+    from minisweagent.run.benchmarks.swebench import (
+        get_sb_environment,
+        get_swebench_docker_image_name,
+    )
 
     instance_id = instance.get("instance_id", "unknown")
     traj_path = trajectory_dir / f"{instance_id}.traj.json"
@@ -282,6 +292,16 @@ def run_instance(
             if cleanup is not None:
                 with contextlib.suppress(Exception):
                     cleanup()
+        if cleanup_images:
+            # Remove ONLY this instance's SWE-rebench image (never a blanket prune).
+            # The container is gone (cleanup() above / --rm), so the image is now
+            # unused; -f tolerates the rare "still referenced" race by no-op'ing.
+            with contextlib.suppress(Exception):
+                image = get_swebench_docker_image_name(instance)
+                subprocess.run(["docker", "image", "rm", "-f", image],
+                               capture_output=True, timeout=120)
+                if progress:
+                    print(f"  [{instance_id}] removed SWE image {image}", flush=True)
     return record
 
 
@@ -340,6 +360,7 @@ def run_swebench_eval(
     api_key: str = "sk-no-key",
     progress: bool = False,
     resume: bool = False,
+    cleanup_images: bool = False,
 ) -> SweSummary:
     """Run the agentic SWE-rebench benchmark over ``holdout``.
 
@@ -422,6 +443,7 @@ def run_swebench_eval(
                     conn=conn,
                     trajectory_dir=trajectory_dir,
                     progress=progress,
+                    cleanup_images=cleanup_images,
                 )
             )
 

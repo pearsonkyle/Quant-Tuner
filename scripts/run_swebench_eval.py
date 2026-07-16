@@ -112,6 +112,9 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--resume", action="store_true",
                    help="skip instances that already have a result.json (restart a "
                         "long generation run without re-doing completed instances)")
+    p.add_argument("--cleanup-images", action="store_true",
+                   help="remove each instance's SWE-rebench image after grading (keeps "
+                        "Docker slim on long runs; only SWE images, never a global prune)")
     p.add_argument("--skip-docker-check", action="store_true")
     return p
 
@@ -181,6 +184,7 @@ def main() -> int:
                     spec_draft_n_max=args.spec_draft_n_max,
                     progress=args.progress,
                     resume=args.resume,
+                    cleanup_images=args.cleanup_images,
                 )
             for rec in s.per_instance:
                 instance_rows.append({"model": model.name, "rep": rep, **rec})
