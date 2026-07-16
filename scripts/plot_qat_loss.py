@@ -51,14 +51,12 @@ def main() -> int:
     steps, loss, lr = parse_log(args.log)
     if not steps:
         print(f"[plot] no step/loss lines in {args.log}"); return 1
-    sm = ema(loss)
 
     fig, ax = plt.subplots(figsize=(8, 4.5))
-    ax.plot(steps, loss, color="#9ecae1", lw=1.0, alpha=0.7, label="masked loss (per step)")
-    ax.plot(steps, sm, color="#08519c", lw=2.2, label="EMA (trend)")
+    ax.plot(steps, loss, color="#08519c", lw=1.6)
     ax.set_xlabel("optimizer step"); ax.set_ylabel("masked cross-entropy loss")
-    ax.set_title(f"{args.title} — loss over {steps[-1]} steps ({loss[0]:.2f} → {sm[-1]:.2f})")
-    ax.grid(True, alpha=0.25); ax.legend(loc="upper right", frameon=False)
+    ax.set_title(args.title)
+    ax.grid(True, alpha=0.25)
 
     # LR on a twin axis if present
     if any(x == x for x in lr):  # not all-nan
@@ -70,7 +68,7 @@ def main() -> int:
     fig.tight_layout()
     args.out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(args.out, dpi=140)
-    print(f"[plot] {len(steps)} points -> {args.out}  (loss {loss[0]:.3f} -> {sm[-1]:.3f})")
+    print(f"[plot] {len(steps)} points -> {args.out}  (loss {loss[0]:.3f} -> {loss[-1]:.3f})")
     return 0
 
 
