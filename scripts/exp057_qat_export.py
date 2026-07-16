@@ -44,20 +44,46 @@ def main() -> int:
     tok = AutoTokenizer.from_pretrained(MODEL)
     model = AutoModelForCausalLM.from_pretrained(MODEL, dtype=torch.float32)
 
-    # 1) overwrite trained-layer weights with the QAT latents
+    # 1) overwrite trained-layer weights with the QAT latents, reporting the
+    #    artifact-level code-flip stats: the shipped base is exactly ternary, so
+    #    pre-overwrite codes are sign(W); the trained latents re-ternarize to
+    #    the codes llama-quantize will store. Zero flips across the board means
+    #    the run only drifted scales (the lr-too-low signature — see the audit).
     blob = torch.load(args.latents, map_location="cpu", weights_only=False)
     latents = blob["latents"]
     sd = dict(model.named_parameters())
     n_over = 0
-    for k, v in latents.items():
-        base_key = k.replace(".linear.weight", ".weight")
-        if base_key in sd:
+    tot_flips = 0
+    tot_codes = 0
+    per_layer: dict[str, tuple[int, int, float]] = {}
+    with torch.no_grad():
+        for k, v in latents.items():
+            base_key = k.replace(".linear.weight", ".weight")
+            if base_key not in sd:
+                continue
+            if ".linear.weight" in k:  # ternary latent: measure flips + scale drift
+                base_codes = torch.sign(sd[base_key].data)
+                new_codes, new_scale, _ = ternarize_group(v.to(torch.float32))
+                _, base_scale, _ = ternarize_group(sd[base_key].data)
+                flips = int((new_codes != base_codes).sum())
+                drift = float(((new_scale - base_scale).abs()
+                               / base_scale.clamp_min(1e-8)).mean())
+                per_layer[k] = (flips, base_codes.numel(), drift)
+                tot_flips += flips
+                tot_codes += base_codes.numel()
             sd[base_key].data.copy_(v.to(torch.float32))
             n_over += 1
     lf, ll = blob.get("loss_first"), blob.get("loss_last")
     loss_note = f" (loss {lf:.3f}->{ll:.3f})" if lf is not None and ll is not None else ""
     print(f"[export] overwrote {n_over}/{len(latents)} trained tensors{loss_note} "
           f"(step {blob.get('step','?')})", flush=True)
+    if tot_codes:
+        worst = sorted(per_layer.items(), key=lambda kv: -kv[1][0])[:5]
+        for k, (fl, n, dr) in worst:
+            print(f"[export]   {k}: {fl} flips ({100*fl/n:.4f}%) scale-drift {dr*100:.2f}%",
+                  flush=True)
+        print(f"[export] TOTAL code flips vs shipped: {tot_flips}/{tot_codes} "
+              f"({100*tot_flips/max(1,tot_codes):.4f}%)", flush=True)
 
     # 2) ternarize every qualifying linear in the decoder (frozen = no-op)
     n_tern = 0

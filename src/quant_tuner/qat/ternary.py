@@ -46,6 +46,15 @@ def ternarize_group(
     ``scale`` is per-group ([out, n_groups]), and ``w_hat = scale_g * codes`` is
     the dequantized ternary weight ([out, in]). ``in`` must be divisible by
     ``group_size`` (true for every Qwen3-8B linear: 4096/12288 are multiples of 128).
+
+    The group scale is quantized to **fp16** before use: the deployed artifact
+    stores one fp16 scale per group (F16 GGUF -> Q2_0), so the training forward
+    must see the same numerics or a tiny train/serve gap opens after training.
+    This is exact at step 0 — the shipped scales are fp16-native, and the fp32
+    mean of N identical fp16 values round-trips through fp16 unchanged. Under a
+    bf16 ``W`` the fp16 scale is re-rounded to bf16 (the closest bf16
+    approximation of the deployed value); the bf16-latents path remains
+    unsupported for training regardless (threshold underflow).
     """
     out, inn = W.shape
     if inn % group_size != 0:
@@ -57,6 +66,7 @@ def ternarize_group(
     mask = (absW > delta).to(W.dtype)                        # kept positions
     cnt = mask.sum(dim=2, keepdim=True).clamp_min(1.0)
     scale = (absW * mask).sum(dim=2, keepdim=True) / cnt     # mean of kept magnitudes
+    scale = scale.to(torch.float16).to(W.dtype)              # deployed Q2_0 numerics
     codes = torch.sign(Wg) * mask                            # {-1,0,+1}
     w_hat = (scale * codes).reshape(out, inn)
     return codes.reshape(out, inn), scale.squeeze(-1), w_hat

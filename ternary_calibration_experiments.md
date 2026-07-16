@@ -261,3 +261,41 @@ issue-resolution *capability* past the base model. The 2-bit resolution floor (p
 is a capability wall this class of fine-tune does not break. Next real lever = scale
 (full epochs + all 36 layers via fp32-master + more/curated data), or accept the wall.
 The pipeline (docs/ternary_qat.md) is ready for that scaled attempt and for other models.
+
+### iter-4 prep: the optimization audit (why the wall verdict was premature)
+
+A full memory/technique/speed audit of the pipeline (`docs/qat_optimization_audit.md`)
+found the iter-2/3 null result **over-determined by fixable defects** — the "capability
+wall" conclusion should be re-tested only after the corrected re-run:
+
+1. **The corpus never trained the stop token.** The assistant-span regex labeled
+   content only (regex group 1 ends before `<|im_end|>`), so under HF's label shift no
+   position in the whole corpus had `<|im_end|>` as a CE target. The looping pathology
+   (912/953 dup tool calls) wasn't just "training taught persistence" — the model was
+   *structurally never trained to end its turn*. Fixed in
+   `build_qat_masked_corpus.py`; the builder now asserts labeled stop-token targets.
+2. **Real tool schemas were discarded.** logtrain stores full schemas on
+   `messages[0]["tools"]` (types, required lists, the whole tool set);
+   `reconstruct_tools` claimed none existed and fabricated all-string stubs for only
+   the called tools. The QAT model trained schema-conditioned on fake schemas. Fixed
+   (real schemas via `data.split.session_tools`; stubs are now the fallback).
+3. **AdamW default weight decay (0.01) was active on the latents** — systematic
+   shrinkage toward the TWN threshold (code erosion). Now defaults to 0.
+4. **lr 5e-5 flips ~zero codes.** Latents sit at |w| ∈ {0, s}; the nearest flip
+   boundary is 0.3-0.5·s ≈ 1e-2 away; Adam-normalized steps move ~lr per step → a flip
+   needs O(10²-10³) consistently-signed steps, and the runs were 261 steps total. The
+   2.26→1.0 loss drop is consistent with pure *scale* drift — i.e. iter-2/3 likely
+   never re-allocated ternary capacity at all. The trainer now prints code-flip
+   telemetry each checkpoint and the export prints artifact-level flips vs shipped;
+   the runbook's first step is a 3-point LR probe (5e-5 / 3e-4 / 1e-3).
+5. **All-36 now fits without swap**: `--optim adafactor` (factored second moment,
+   per-tensor loop, MPS-safe) ≈ 66-75 GB vs AdamW's ~116; plus `--resume`,
+   atomic checkpoints, a masked-CE loss head (lm_head only at labeled positions),
+   `--train-norms`, online KD from the dense parent (`--kd-teacher`), and a bf16-
+   compute/fp32-master path (`--compute-dtype bf16`) for ~1.5-2× step speed.
+
+⚠️ Comparability: the corpus fixes change the training distribution on purpose —
+masked-loss values from iter-2/3 (2.26→1.0) are **not comparable** to post-fix runs
+(new supervised token class + real schemas), and `--resume` refuses checkpoints across
+corpus rebuilds by fingerprint. The scaled iter-4 run (all-36, ≥1 epoch, probed LR,
+KD) is what actually tests whether the 2-bit wall is real.
