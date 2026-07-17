@@ -18,16 +18,19 @@ set -u
 SWE_RE='swe(re)?bench/sweb\.eval'
 
 sweep() {
-  local imgs
+  local imgs n=0
+  # 1) SWE-tagged images (swerebench/sweb.eval.*) with no container.
   imgs=$(docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' 2>/dev/null \
          | grep -iE "$SWE_RE" | awk '{print $2}' | sort -u)
-  [ -z "$imgs" ] && { echo "[housekeep $(date +%H:%M:%S)] no SWE images resident"; return; }
-  local n=0
   for id in $imgs; do
-    # -f no-op's (nonzero) if the image still backs a container -> that one is kept
-    docker image rm -f "$id" >/dev/null 2>&1 && n=$((n+1))
+    docker image rm -f "$id" >/dev/null 2>&1 && n=$((n+1))  # no-op if a container holds it
   done
-  echo "[housekeep $(date +%H:%M:%S)] removed $n idle SWE image(s); $(docker system df --format '{{.Type}} {{.Size}}' 2>/dev/null | grep -i '^Images')"
+  # 2) DANGLING (<none>, untagged) images -- run_swebench_eval's --cleanup-images UNTAGS
+  #    each SWE image, leaving its layers as <none>; `prune -f` removes ONLY dangling
+  #    images (never a tagged image, so deckdoctor etc. stay; never a global -a prune).
+  local d
+  d=$(docker image prune -f 2>/dev/null | grep -Eo 'Total reclaimed space:.*' || true)
+  echo "[housekeep $(date +%H:%M:%S)] removed $n tagged SWE image(s); dangling: ${d:-none}; $(docker system df --format '{{.Type}} {{.Size}}' 2>/dev/null | grep -i '^Images')"
 }
 
 if [ "${1:-}" = "--guard" ]; then
