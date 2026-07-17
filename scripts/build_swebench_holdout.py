@@ -25,6 +25,7 @@ import json
 import random
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -73,13 +74,23 @@ def _fetch_rows_page(dataset: str, config: str, split: str, offset: int, length:
     )
     url = f"{_DS_SERVER}?{params}"
     last_err: Exception | None = None
-    for attempt in range(4):
+    # HF's datasets-server rate-limits hard (HTTP 429); it needs minutes of backoff, not
+    # seconds. Exponential backoff, honoring Retry-After when present, up to ~8 min total.
+    for attempt in range(8):
         try:
             with urllib.request.urlopen(url, timeout=60) as r:
                 return json.load(r)
-        except Exception as e:  # transient 5xx / network blips
+        except urllib.error.HTTPError as e:
             last_err = e
-            time.sleep(2 * (attempt + 1))
+            if e.code == 429:
+                retry_after = e.headers.get("Retry-After")
+                wait = int(retry_after) if (retry_after and retry_after.isdigit()) else min(300, 15 * 2 ** attempt)
+            else:
+                wait = min(60, 3 * 2 ** attempt)
+            time.sleep(wait)
+        except Exception as e:  # transient network blips
+            last_err = e
+            time.sleep(min(60, 3 * 2 ** attempt))
     raise RuntimeError(f"datasets-server request failed after retries: {last_err}")
 
 
