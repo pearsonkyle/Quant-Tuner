@@ -152,6 +152,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="Use datasets.load_dataset(streaming) instead of the datasets-server API",
     )
     p.add_argument(
+        "--from-local", type=Path, default=None,
+        help="Sample from a local jsonl (from download_swebench_dataset.py) instead of the "
+             "rate-limited datasets-server — the whole split, offline, no throttling",
+    )
+    p.add_argument(
         "--exclude", type=Path, default=None,
         help="A jsonl of instances to EXCLUDE by instance_id (e.g. the eval holdout, so "
              "a training/generation pool stays disjoint from what the student is graded on)",
@@ -164,14 +169,18 @@ def main() -> int:
     args = _build_arg_parser().parse_args()
     args.out.parent.mkdir(parents=True, exist_ok=True)
 
-    print(f"Scanning up to {args.scan_limit} rows of {args.dataset} [{args.split}]…", flush=True)
-    if args.use_datasets:
-        rows = _scan_via_datasets(args.dataset, args.split, scan_limit=args.scan_limit)
+    if args.from_local:
+        rows = [json.loads(ln) for ln in args.from_local.read_text().splitlines() if ln.strip()]
+        print(f"Read {len(rows)} rows from local {args.from_local} (no datasets-server)", flush=True)
     else:
-        rows = _scan_via_datasets_server(
-            args.dataset, args.config, args.split, scan_limit=args.scan_limit
-        )
-    print(f"  fetched {len(rows)} rows", flush=True)
+        print(f"Scanning up to {args.scan_limit} rows of {args.dataset} [{args.split}]…", flush=True)
+        if args.use_datasets:
+            rows = _scan_via_datasets(args.dataset, args.split, scan_limit=args.scan_limit)
+        else:
+            rows = _scan_via_datasets_server(
+                args.dataset, args.config, args.split, scan_limit=args.scan_limit
+            )
+        print(f"  fetched {len(rows)} rows", flush=True)
 
     candidates = rows
     if args.lite_only:

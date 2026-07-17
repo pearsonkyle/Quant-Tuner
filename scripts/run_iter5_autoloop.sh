@@ -20,12 +20,13 @@ export PYTHONPATH=src PYTORCH_ENABLE_MPS_FALLBACK=1
 export LLAMA_CPP_DIR=vendor/llama.cpp-prism
 PY=.venv/bin/python
 
-MAX_ROUNDS=5
-BATCH=100                       # fresh instances to add per expansion round
+MAX_ROUNDS=6
+BATCH=150                       # fresh instances to add per expansion round
 TARGET_PATCH=0.60               # stop if generalization patch >= this ...
 # (stop also if generalization pass_rate > 0 -- checked in python below)
 POOL=out/external/swe-rebench/distill_train.jsonl
 EVAL=out/external/swe-rebench/holdout.jsonl
+ALL_LOCAL=out/external/swe-rebench/all_test.jsonl  # full split on disk (no datasets-server throttle)
 GEN_WS=out/swe-rebench/ornith-distill-gen
 TRAJ="$GEN_WS/trajectories/Ornith-1.0-9B-Q5_K_M"
 ORNITH=uploads/pearsonkyle/Ornith-1.0-9B-imatrix-GGUF/Ornith-1.0-9B-Q5_K_M.gguf
@@ -40,6 +41,14 @@ log "AUTO-LOOP start. Waiting for any in-flight generation to finish..."
 while pgrep -f run_swebench_eval >/dev/null; do sleep 120; done
 sleep 15
 
+# Ensure the FULL split is on disk (one-time) so fresh-instance sourcing is a local read,
+# never the rate-limited datasets-server.
+if [ ! -s "$ALL_LOCAL" ]; then
+  log "downloading full nebius/SWE-rebench test split to disk (one-time)..."
+  $PY scripts/download_swebench_dataset.py --out "$ALL_LOCAL" || { log "dataset download failed"; exit 1; }
+fi
+log "local pool: $(grep -c . "$ALL_LOCAL") gradeable instances available"
+
 round=0
 while [ $round -lt $MAX_ROUNDS ]; do
   round=$((round + 1))
@@ -51,17 +60,22 @@ while [ $round -lt $MAX_ROUNDS ]; do
   G_WS="out/swe-rebench/ternary-${TAG}-swe"
   I_WS="out/swe-rebench/ternary-${TAG}-indist-swe"
 
+  # Resume: if this round's dual-eval already exists (e.g. a prior loop run), skip straight
+  # to the verdict instead of re-training/re-evaluating.
+  if [ -f "$G_WS/summary.json" ] && [ -f "$I_WS/summary.json" ]; then
+    R=$(resolved_count)
+    log "round $round ($TAG): already evaluated ($R traj) -> reusing results"
+  else
   # ---- 1. expand data (rounds after the first) ------------------------------------------
   if [ $round -gt 1 ]; then
-    log "round $round: sourcing $BATCH fresh instances (disjoint from eval + everything tried)"
+    log "round $round: sourcing $BATCH fresh instances from the local split (no throttling)"
     cat "$EVAL" "$POOL" > /tmp/exclude_all.jsonl
-    scan=$((3000 + round * 3000))
-    if ! $PY scripts/build_swebench_holdout.py --n $BATCH --scan-limit $scan \
+    if ! $PY scripts/build_swebench_holdout.py --n $BATCH --from-local "$ALL_LOCAL" \
          --exclude /tmp/exclude_all.jsonl --out /tmp/fresh_batch.jsonl; then
-      log "round $round: fresh-batch build failed (datasets-server?); stopping loop"; break
+      log "round $round: fresh-batch build failed; stopping loop"; break
     fi
     nfresh=$(grep -c . /tmp/fresh_batch.jsonl || echo 0)
-    if [ "$nfresh" -eq 0 ]; then log "round $round: no fresh instances left; stopping loop"; break; fi
+    if [ "$nfresh" -eq 0 ]; then log "round $round: no fresh instances left in the split; stopping loop"; break; fi
     cat /tmp/fresh_batch.jsonl >> "$POOL"
     log "round $round: added $nfresh fresh instances (pool now $(grep -c . "$POOL"))"
     log "round $round: generating Ornith trajectories over the new instances"
@@ -99,6 +113,7 @@ print('in-dist instances:', len(picked))
   $PY -u scripts/run_swebench_eval.py --models "$GGUF" --holdout "$INDIST" --workspace "$I_WS" \
     --agent openai-agents --temperature 0.25 --max-steps 100 --resume --cleanup-images --progress
   docker image prune -f >/dev/null 2>&1 || true
+  fi  # end resume-guard (skip train/eval if this round was already evaluated)
 
   # ---- 4. verdict ------------------------------------------------------------------------
   log "round $round ($TAG, $R traj) RESULTS:"
