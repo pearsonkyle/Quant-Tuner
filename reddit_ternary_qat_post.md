@@ -67,30 +67,34 @@ This first run had only 12 verified trajectories (small on purpose, to see if th
 - **lr 1e-3: real code flips, but it wrecked the model.** Now the codes moved (3.8% in the first layer, millions of weights). But on only 12 trajectories that is way too aggressive: it overwrote the model's existing tool-use to memorize a dozen examples. Patch rate fell to 20%, tool errors shot to 73%, and it gave up after a few steps.
 - **lr 5e-4 for ~2 epochs: the sweet spot.** Moderate flips (0.7% of all codes), loss settling around 0.5 instead of memorizing down to 0.01, tool-use intact.
 
-And that sweet-spot run did something none of the earlier ones ever did:
+I then scaled the same recipe from 12 to 30 verified trajectories and re-measured, on two splits: the disjoint held-out issues (generalization) and the exact issues it trained on (in-distribution). Every eval is 5e-4, ~2 epochs, all 36 layers, so this is directly reproducible.
 
-| eval | patch rate | pass rate |
-| --- | --- | --- |
-| base 8B (no fine-tune), held-out issues | 50% | 0% |
-| iter-5 5e-4, held-out issues (generalization) | 40% | 0% |
-| iter-5 5e-4, the issues it trained on (in-distribution) | 25% | **8%** |
+| run | eval split | patch rate | pass rate |
+| --- | --- | --- | --- |
+| base 8B (no fine-tune) | held-out | 50% | 0% |
+| 5e-4, 12 trajectories | held-out (generalization) | 40% | 0% |
+| 5e-4, 12 trajectories | trained-on (in-distribution) | 25% | 8% |
+| 5e-4, 30 trajectories | held-out (generalization) | **50%** | **0%** |
+| 5e-4, 30 trajectories | trained-on (in-distribution) | 43% | 0% |
 
-That 8% is one solved issue, and it is the FIRST non-zero pass rate this model has ever produced. It solved a real bug, on a repo whose solution it had trained on. The signal is real: verified-solution data can teach a 2-bit model to actually fix code, not just look busy.
+Read the last two rows carefully, because this is the honest, reproducible state: with 30 verified trajectories the model sits right at the base model's **50% patch rate on unseen issues, and 0% pass rate**. It writes patches at the same rate as the base, and none of them pass the hidden tests. Behavior is actually healthier than at 12 (tool-error rate dropped, it stays engaged instead of bailing), but it solves nothing on held-out repos.
 
-The catch is the gap between the two rows. It solves an issue it trained on, but it does not yet transfer to unseen repos (still 0% there, and patch is at baseline). That is the classic signature of "it learns, it just needs more data." 12 trajectories is enough to solve one memorized problem, not enough to generalize.
+The one bright spot at 12 trajectories, that single 8% in-distribution solve, did NOT replicate at 30. So I now read it as noise, not a trend: one lucky solved issue, washed out once the training distribution shifted. What survives is the patch rate, which climbs back to baseline as you add data, and the pass rate, which stubbornly stays at zero on unseen issues.
+
+So the reproducible headline is deliberately unglamorous: **you can fine-tune this 2-bit model to match its base model's generalization patch rate, but not (yet) to actually pass more tests.** Getting a real, repeatable pass on unseen issues is the open problem, not a solved one.
 
 ## What is next
 
-- **iter-5b: more of the same data.** I am generating more verified trajectories now, aiming for 50 to 100 instead of 12, then retraining at the exact same 5e-4 / 2-epoch recipe. The bet is that the in-distribution learning turns into generalization once there is enough of it.
-- **iter-6: distill the logits too.** The solver above uses a different tokenizer, so I can only copy its behavior. But the ternary model is a converted Qwen3-8B, and there are strong SWE fine-tunes of that exact base with the SAME vocabulary. Using one as a teacher lets me train on its full output distribution at every token, which the low-bit-QAT literature shows beats one-hot targets at 2 bits.
+- **More data, on autopilot.** I have a loop that keeps generating fresh verified trajectories, retraining at the fixed 5e-4 / 2-epoch recipe, and re-measuring both splits, until the generalization pass rate finally breaks zero (or it plateaus). 12 to 30 recovered the patch rate to baseline but did nothing for passing, so the open question is whether 60, 120, 200 trajectories eventually bend the pass curve up, or whether it stays pinned at zero.
+- **Distill the logits, not just the behavior.** If more data plateaus, the likely lever is soft-label distillation. The solver I harvested from uses a different tokenizer, so I can only copy its behavior. But the ternary model is a converted Qwen3-8B, and there are strong SWE fine-tunes of that exact base with the SAME vocabulary. Training on a teacher's full output distribution at every token beats one-hot targets at 2 bits in the low-bit-QAT literature, and it is the natural next thing to try when imitation of tokens is not enough.
 
-The honest state: a 2-bit ternary model, fine-tuned on a Mac, went from never solving anything to solving a real issue it was taught. That is a proof of life for the whole approach. Whether it generalizes is now a data-quantity question, not a can-it-learn question.
+The honest state: a 2-bit ternary model, fine-tuned on a Mac from verified solutions, reaches its base model's patch rate on unseen issues without degrading, but does not yet pass more tests than the base. It clearly learns (codes flip, in-distribution behavior changes); turning that into a repeatable pass on held-out repos is still unsolved.
 
 ## Try it
 
 Code and a reusable pipeline guide (docs/ternary_qat.md): [your repo link]
 
-Apple Silicon with enough unified memory is all you need. The question was never whether a 2-bit model can be trained, it clearly can. It is whether verified-solution data can push it past its base, and the first solve says maybe. More data next.
+Apple Silicon with enough unified memory is all you need. A 2-bit model can be trained on a Mac and matched to its base on generalization patch rate. Pushing it past the base, to actually pass more tests on unseen issues, is the part I have not cracked yet. If you get there, I want to hear how.
 
 ---
 
@@ -124,10 +128,16 @@ PrismML's Bonsai models store every weight as -1/0/+1 (true ~1.7 bits/weight). A
 - 1e-3: real flips but wrecks tool-use on 12 examples (patch 20%, tool-err 73%)
 - 5e-4 / 2 epochs: moderate flips, tool-use intact. the sweet spot.
 
-10/ And the sweet-spot run solved a real issue it trained on. 8% pass. That is the FIRST non-zero pass rate this 2-bit model has ever produced. It went from never fixing anything to fixing a real bug.
+10/ Reproducible result (5e-4, ~2 epochs, all 36 layers):
 
-11/ Catch: it solves trained-on issues, not yet unseen ones (0% there, patch at baseline). Classic "learns but needs more data." 12 trajectories is too few to generalize. Scaling to 50-100 next, same recipe.
+              held-out   trained-on
+base 8B       50% / 0%      -
+12 traj       40% / 0%    25% / 8%
+30 traj       50% / 0%    43% / 0%
+(patch / pass)
 
-Proof of life for the whole idea: a Mac-trained 2-bit model can be taught to actually fix code.
+11/ Read it honestly: with 30 verified trajectories it matches the BASE model's 50% patch on unseen issues, 0% pass. The one 8% in-dist solve at 12 traj did NOT replicate at 30, so it was noise. It learns (codes flip, behavior gets healthier) but passes nothing new on held-out repos.
+
+12/ So: a Mac-trained 2-bit model can be fine-tuned to its base model's generalization patch rate without degrading. Making it actually pass MORE tests on unseen issues is still unsolved. More data on autopilot next; logit-distillation from a same-vocab teacher if that plateaus.
 
 Code: [your repo link]
