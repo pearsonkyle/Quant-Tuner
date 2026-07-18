@@ -41,6 +41,14 @@ log "AUTO-LOOP start. Waiting for any in-flight generation to finish..."
 while pgrep -f run_swebench_eval >/dev/null; do sleep 120; done
 sleep 15
 
+# Self-managed dangling-image guard for the WHOLE loop lifetime: --cleanup-images untags
+# each SWE image (-> <none> dangling) and nothing prunes those mid-generation, so they pile
+# up and eventually cause docker-run exit-125. Prune dangling every 3 min while we live.
+( LOOP_PID=$$; while kill -0 "$LOOP_PID" 2>/dev/null; do docker image prune -f >/dev/null 2>&1; sleep 180; done ) &
+GUARD_PID=$!
+trap 'kill "$GUARD_PID" 2>/dev/null' EXIT
+log "dangling-image guard started (pid $GUARD_PID)"
+
 # Ensure the FULL split is on disk (one-time) so fresh-instance sourcing is a local read,
 # never the rate-limited datasets-server.
 if [ ! -s "$ALL_LOCAL" ]; then
