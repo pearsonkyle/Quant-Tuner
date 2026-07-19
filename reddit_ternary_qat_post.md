@@ -8,7 +8,7 @@ A new family of true sub-2-bit LLMs is out: PrismML's Bonsai line. Every weight 
 
 Two things worth knowing:
 
-- **They are not made the BitNet way.** BitNet pretrains a 1.58-bit model from scratch. Bonsai instead converts an existing pretrained model (a Qwen3) into ternary with a proprietary method, so you keep the model you already wanted. Their new flagship is a 27B; the release I used is an earlier 8B (Ternary-Bonsai-8B, a ternary Qwen3-8B). PrismML themselves note those earlier 1.7B-8B releases did not target reasoning or reliable tool use, which matters for my results below.
+- **They are not made the BitNet way.** BitNet pretrains a 1.58-bit model from scratch. Bonsai instead converts an existing pretrained model (a Qwen3) into ternary with a proprietary method, so you keep the model you already wanted. Their new flagship is a 27B; the release I used is an earlier 8B ([Ternary-Bonsai-8B](https://huggingface.co/prism-ml/Ternary-Bonsai-8B), a ternary [Qwen3-8B](https://huggingface.co/Qwen/Qwen3-8B)). PrismML themselves note those earlier 1.7B-8B releases did not target reasoning or reliable tool use, which matters for my results below.
 - **They run at ~2 GB for an 8B**, but the format is new, so you need PrismML's llama.cpp fork to run it (upstream PR pending).
 
 The question I cared about: can you specialize one on your own data. Here is what I found.
@@ -28,6 +28,8 @@ Bonsai's *creation* is proprietary, but *continuing to train* a released ternary
 5. Re-ternarize and re-pack to the 2-bit GGUF.
 
 Init from the shipped weights reproduces the model exactly at step 0, so you fine-tune the real thing. All on Metal, no CUDA.
+
+One piece of vocabulary I use throughout, because it turns out to be the whole story. In a native-ternary model, every weight is stored as one of three values: -1, 0, or +1. Call that the weight's **code**. Each group of 128 weights also shares one fp16 **scale**, so the real number a weight represents is `code * scale`. A **code flip** is when training changes a weight's code, for example from 0 to +1, or from +1 to -1. That is the only way the model's actual logic changes. Training can also just nudge the shared scales, which turns the volume knobs up and down but rewires nothing. As you will see, "did the codes flip, or did we only move scales" is exactly the line between the model learning something and the model only appearing to.
 
 ## The Metal / MPS traps (the useful part)
 
@@ -51,15 +53,17 @@ Task: make it a better agentic coder, measured on SWE-rebench (10 held-out real 
 | QAT, gradient-influential layers | 40% | 0% | ~1.0 | looping fixed, clean runs |
 | QAT, ALL 36 layers | 30% | 0% | 0.91 | best-behaved, worst patch rate |
 
-Two caveats I found after the fact, and both point the same way. First, these runs trained on a corpus with the stop-token masking bug above, so some of the budget went to a broken target. Second, and more important: the all-layers run drove the training loss LOWER than any other and produced the WORST patch rate. The lowest loss gave the least capable agent. It was the tidiest (fewest steps, no loops, cleanest tool calls) and it solved the fewest issues.
+Two caveats I found after the fact, and both point the same way. First, these runs trained on a corpus with the stop-token masking bug above, so some of the budget went to a broken target. Second, and more important: the all-layers run drove the training loss LOWER than any other and produced the WORST patch rate. The lowest loss gave the least capable agent. It was the tidiest (fewest steps, no loops, cleanest tool calls) and it solved the fewest issues perhaps suggesting some level of over-fitting and that the logs do not adequately teach the problem solving process since I'm guilty of having really long conversation logs that trail on rather than short, succinct conversations that specifically focus on one task at a time.
 
-That kills the "just under-trained" idea. The problem is what the loss measures. My corpus was scraped agent logs (Claude Code, Gemini CLI), which are imitation data, not verified successful solutions. So minimizing the loss teaches the model to mimic the STYLE of those logs (be terse, emit clean tool calls, stop early), not to SOLVE. Lower loss = better log-mimicry = a neater agent that does less. The metric and the goal were misaligned.
+That kills the "just under-trained" idea. The problem is what the loss measures. My corpus was agent logs I had scraped from my own coding sessions across Claude Code, OpenCode, and Qwen Code, pulled with a little tool I wrote called [LogMiner](https://github.com/pearsonkyle/LogMiner). Those are imitation data, records of how the tools ran, not verified successful solutions. So minimizing the loss teaches the model to mimic the STYLE of those logs (be terse, emit clean tool calls, stop early), not to SOLVE. Lower loss = better log-mimicry = a neater agent that does less. The metric and the goal were misaligned.
 
-So the real lever is not more training or more layers, it is better DATA. That is what I am testing next.
+So the real lever is better DATA. That is what I am testing next before trying a student-teacher model.
 
-## iter-5: verified solutions, and the LR that decides everything
+## Verified agent solutions, and the LR that decides everything
 
-So I changed the data. I took a strong 9B agentic coder (a different model that resolves real GitHub issues), let it solve a batch of them, and kept ONLY the trajectories where the hidden tests actually passed. A patch that does not pass is the same mimicry trap, so it is filtered out. Those winning trajectories get re-rendered through the ternary model's own tokenizer with the fixed masking, so it learns the SHAPE of a solution that works, not the style of a log. The issues are disjoint from the ones I grade on, so a gain is generalization.
+So I changed the data. I took a strong 9B agentic coder ([Ornith-1.0-9B](https://huggingface.co/pearsonkyle/Ornith-1.0-9B), a different model of mine that resolves real GitHub issues), pointed it at a batch of real issues from [SWE-rebench](https://huggingface.co/datasets/nebius/SWE-rebench), and kept ONLY the trajectories where the hidden tests actually passed.
+
+A word on what a "trajectory" is, because it is not a question-and-answer pair. A trajectory is the entire agentic session for one bug: the model reads the issue, then over many steps it runs shell commands, reads files, greps the codebase, edits source, runs the test suite, reads the failures, edits again, and finally submits a patch. Each step is a tool call plus the output it gets back. A single trajectory can be 50-plus steps and tens of thousands of tokens. That whole multi-step problem-solving process, taken only from runs that actually ended in passing tests, is what I train on, re-rendered through the ternary model's own tokenizer with the fixed masking. So it learns the SHAPE of a solution that works, not the style of a log. A patch that does not pass is the same mimicry trap, so it is filtered out. The issues are disjoint from the ones I grade on, so a gain is generalization.
 
 This first run had only 12 verified trajectories (small on purpose, to see if the signal is even there). The result was a lesson in the learning rate, and it is the most important thing in this whole writeup:
 
@@ -90,9 +94,16 @@ So the reproducible headline is deliberately unglamorous: **you can fine-tune th
 
 The honest state: a 2-bit ternary model, fine-tuned on a Mac from verified solutions, reaches its base model's patch rate on unseen issues without degrading, but does not yet pass more tests than the base. It clearly learns (codes flip, in-distribution behavior changes); turning that into a repeatable pass on held-out repos is still unsolved.
 
-## Try it
+## Links
 
-Code and a reusable pipeline guide (docs/ternary_qat.md): [your repo link]
+- **QAT code (this project):** [github.com/pearsonkyle/Quant-Tuner](https://github.com/pearsonkyle/Quant-Tuner), the repo I used to do all of this, with a reusable pipeline guide in `docs/ternary_qat.md`.
+- **LogMiner:** [github.com/pearsonkyle/LogMiner](https://github.com/pearsonkyle/LogMiner), the tool that scraped my Claude Code / OpenCode / Qwen Code sessions into the first (log) training corpus.
+- **The 2-bit model:** [prism-ml/Ternary-Bonsai-8B](https://huggingface.co/prism-ml/Ternary-Bonsai-8B) (a ternary [Qwen3-8B](https://huggingface.co/Qwen/Qwen3-8B)). The whole [prism-ml](https://huggingface.co/prism-ml) org has the Bonsai line, including the 27B flagship.
+- **The solver I distilled from:** [Ornith-1.0-9B](https://huggingface.co/pearsonkyle/Ornith-1.0-9B), my own agentic coder.
+- **The issues:** [nebius/SWE-rebench](https://huggingface.co/datasets/nebius/SWE-rebench), real GitHub bugs with hidden pass/fail tests.
+- **Same-vocab teachers for the logit-distillation idea (iter-6):** [SWE-Lego/SWE-Lego-Qwen3-8B](https://huggingface.co/SWE-Lego/SWE-Lego-Qwen3-8B) and [Open-Bee/Bee-8B-RL](https://huggingface.co/Open-Bee/Bee-8B-RL), both Qwen3-8B fine-tunes, so they share the Bonsai tokenizer.
+
+## Try it
 
 Apple Silicon with enough unified memory is all you need. A 2-bit model can be trained on a Mac and matched to its base on generalization patch rate. Pushing it past the base, to actually pass more tests on unseen issues, is the part I have not cracked yet. If you get there, I want to hear how.
 
@@ -117,11 +128,11 @@ PrismML's Bonsai models store every weight as -1/0/+1 (true ~1.7 bits/weight). A
 
 5/ The trap that cost the most: if your fine-tune loops, check that your loss labels the stop token. Mine ended the masked span one token short of it, so the model got zero gradient toward ending its turn. That was the looping, not "training taught persistence."
 
-6/ Also watch code flips, not just loss. A ternary weight only changes when its latent crosses the sign threshold. At a low LR the optimizer just drifts the scales and flips nothing, so loss falls while the weights barely move.
+6/ Watch "code flips," not just loss. Every weight is stored as -1/0/+1 (its "code") plus a shared scale. A code flip = that value actually changes (0 -> +1 etc), the only way the model rewires. At low LR the optimizer just drifts the scales and flips nothing: loss falls, model unchanged.
 
-7/ Real result: driving the loss lower made the agent tidier but LOWERED its patch rate. Turns out the loss was rewarding log-mimicry, not problem-solving. My training data was scraped agent logs, not verified solutions. The metric and the goal were misaligned.
+7/ Real result: driving the loss lower made the agent tidier but LOWERED its patch rate. The loss was rewarding log-mimicry, not problem-solving. My data was my own Claude Code / OpenCode / Qwen Code session logs (scraped with a tool I wrote, LogMiner), not verified solutions. Metric != goal.
 
-8/ So I changed the data: distilled a strong solver's VERIFIED winning trajectories (hidden tests actually pass) into the ternary model, in its own tokenizer. Only 12 to start, just to see if the signal is there.
+8/ So I changed the data: distilled a strong solver's VERIFIED winning trajectories (hidden tests actually pass) into the ternary model, in its own tokenizer. A trajectory = one full agentic run: read the issue, run commands, edit files, run tests, submit a patch. 50+ steps, not a Q&A. Only 12 to start.
 
 9/ The learning rate was the whole game:
 - 3e-4: zero code flips, model only rescales, learns nothing
@@ -140,4 +151,5 @@ base 8B       50% / 0%      -
 
 12/ So: a Mac-trained 2-bit model can be fine-tuned to its base model's generalization patch rate without degrading. Making it actually pass MORE tests on unseen issues is still unsolved. More data on autopilot next; logit-distillation from a same-vocab teacher if that plateaus.
 
-Code: [your repo link]
+Code: github.com/pearsonkyle/Quant-Tuner
+Model: prism-ml/Ternary-Bonsai-8B · Data: nebius/SWE-rebench
