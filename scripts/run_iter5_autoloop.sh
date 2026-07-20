@@ -111,9 +111,19 @@ print('in-dist instances:', len(picked))
 " || { log "in-dist build failed"; break; }
 
   # ---- 3. train -> export -> dual-bench --------------------------------------------------
-  $PY -u scripts/exp058_qat_train_v2.py --corpus "$CORPUS" --layers 0-35 --optim adafactor \
-    --epochs 2.2 --grad-accum 2 --lr 5e-4 --dtype fp32 --ckpt-every 20 --flip-sample 12 \
-    --out "$TRAIN_OUT" || { log "train failed"; break; }
+  # bf16 compute + fp32 masters: ~2x less memory and faster than pure fp32, which OOM-killed
+  # round 2 at step 180/210 (fp32 all-36 on the growing corpus swapped to death). Masters stay
+  # fp32 so the exported artifact is unchanged.
+  if ! $PY -u scripts/exp058_qat_train_v2.py --corpus "$CORPUS" --layers 0-35 --optim adafactor \
+       --epochs 2.2 --grad-accum 2 --lr 5e-4 --dtype fp32 --compute-dtype bf16 \
+       --ckpt-every 20 --flip-sample 12 --out "$TRAIN_OUT"; then
+    # OOM/crash: if a checkpoint survived, export+eval from it instead of aborting the loop
+    if [ -f "$TRAIN_OUT/trained_latents.pt" ]; then
+      log "train exited nonzero but a checkpoint exists -> salvaging from it"
+    else
+      log "train failed with no checkpoint"; break
+    fi
+  fi
   $PY -u scripts/exp057_qat_export.py --latents "$TRAIN_OUT/trained_latents.pt" --tag "$TAG" \
     || { log "export failed"; break; }
   $PY -u scripts/run_swebench_eval.py --models "$GGUF" --holdout "$EVAL" --workspace "$G_WS" \
