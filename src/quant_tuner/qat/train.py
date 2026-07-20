@@ -424,6 +424,11 @@ def train_qat(cfg: QATConfig) -> int:
             opt_step()
             n_acc = 0
             step += 1
+            # Periodic MPS cache release: over a long all-36 run the allocator fragments and
+            # working-set creeps until it swaps (s/step balloons) and macOS OOM-kills the
+            # process. Emptying every 25 steps at the post-step memory trough keeps it bounded.
+            if dev == "mps" and step % 25 == 0:
+                torch.mps.empty_cache()
             if step == 1 or step % 5 == 0:
                 mem = torch.mps.current_allocated_memory() / 1024**3 if dev == "mps" else 0
                 avg = sum(recent) / len(recent)
