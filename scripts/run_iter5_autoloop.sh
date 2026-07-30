@@ -111,11 +111,13 @@ print('in-dist instances:', len(picked))
 " || { log "in-dist build failed"; break; }
 
   # ---- 3. train -> export -> dual-bench --------------------------------------------------
-  # bf16 compute + fp32 masters: ~2x less memory and faster than pure fp32, which OOM-killed
-  # round 2 at step 180/210 (fp32 all-36 on the growing corpus swapped to death). Masters stay
-  # fp32 so the exported artifact is unchanged.
+  # PURE fp32 (measured 31 GiB) — NOT --compute-dtype bf16, which measured 54.5 GiB and OOM'd
+  # round 3 at step 20: MasterOptimizer clones a full fp32 master copy AND holds the bf16
+  # model + bf16 grads, so at all-36 it is strictly worse than fp32 (where the params ARE the
+  # masters). The real OOM trigger was the checkpoint's ~28 GB CPU-copy spike, now mitigated
+  # in save_ckpt (cache released before the copy) + periodic empty_cache.
   if ! $PY -u scripts/exp058_qat_train_v2.py --corpus "$CORPUS" --layers 0-35 --optim adafactor \
-       --epochs 2.2 --grad-accum 2 --lr 5e-4 --dtype fp32 --compute-dtype bf16 \
+       --epochs 2.2 --grad-accum 2 --lr 5e-4 --dtype fp32 \
        --ckpt-every 20 --flip-sample 12 --out "$TRAIN_OUT"; then
     # OOM/crash: if a checkpoint survived, export+eval from it instead of aborting the loop
     if [ -f "$TRAIN_OUT/trained_latents.pt" ]; then

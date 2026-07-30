@@ -355,6 +355,13 @@ def train_qat(cfg: QATConfig) -> int:
         if snaps:
             flip_stats, lines = flip_report(model, snaps)
             print(f"[qat] code flips vs run start:\n{lines}", flush=True)
+        # The whole-dict .cpu() copy below is a ~28 GB transient at all-36. Both observed
+        # OOM kills happened exactly at a checkpoint boundary (steps 180 and 20, both
+        # multiples of --ckpt-every), i.e. peak-training memory + this spike. Release the
+        # cached MPS blocks and the flip-report temporaries FIRST so the copy has headroom.
+        gc.collect()
+        if dev == "mps":
+            torch.mps.empty_cache()
         if isinstance(opt, MasterOptimizer):
             latents = {n: m.detach().cpu() for n, m in zip(t_names, opt.masters, strict=True)}
         else:
