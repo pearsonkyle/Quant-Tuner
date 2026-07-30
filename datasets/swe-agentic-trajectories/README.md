@@ -16,20 +16,17 @@ configs:
   data_files:
   - split: resolved
     path: data/resolved.jsonl
-  - split: all
-    path: data/all.jsonl
 ---
 
 # SWE Agentic Trajectories (verified)
 
 Multi-step agentic software-engineering trajectories on real GitHub issues, graded by running the hidden tests. Chat-template ready.
 
-**Version `0.1.0`** · built 2026-07-30T11:38:05
+**Version `0.1.0`** · built 2026-07-30T16:28:40
 
 | split | rows | verified (tests pass) | mean tool calls | size |
 | --- | ---: | ---: | ---: | ---: |
 | `resolved` | 71 | 71 | 34.3 | 4.0 MB |
-| `all` | 278 | 71 | 39.2 | 19.4 MB |
 
 ## What one row is
 
@@ -50,12 +47,11 @@ average ~39 tool calls and tens of thousands of tokens.
   `resolved=true` means the hidden tests **passed** — these are verified solutions, not merely
   plausible-looking diffs.
 
-## Splits
+## What is included
 
-* `resolved` — only trajectories whose hidden tests passed. Use this for distillation /
-  behavior cloning where you want outcome-correct supervision.
-* `all` — every graded trajectory, including failed and empty-patch attempts. Useful for
-  preference/critic data or failure analysis. Check the `resolved` field per row.
+Every row here is a **verified solution**: the hidden tests passed. Failed and empty-patch
+attempts are deliberately excluded, so you can train on this directly without filtering and
+without risking unverified trajectories leaking into supervision.
 
 ## Using it
 
@@ -77,9 +73,11 @@ tool use trains correctly.
 ## Caveats
 
 * The solver is a 9B model: trajectories are competent but not expert, and often take
-  exploratory detours before landing the fix.
-* `all` contains failures by design. Filter on `resolved` unless you want them.
+  exploratory detours before landing the fix. "Verified" means the tests pass, not that the
+  path taken was optimal.
 * Tool outputs are raw container stdout/stderr and can be long; truncate as needed.
+* Passing the hidden tests is the grading signal, so the usual caveat applies: a patch can
+  satisfy the tests without being the ideal fix.
 * **Licensing**: the issue text and repository content originate from the upstream GitHub
   projects via SWE-rebench and retain their own licenses. Treat this as a derived research
   artifact and check upstream terms before commercial use.

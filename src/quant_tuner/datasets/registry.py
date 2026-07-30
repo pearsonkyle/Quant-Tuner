@@ -30,11 +30,16 @@ DATASETS_DIR = REPO / "datasets"
 
 @dataclass(frozen=True)
 class SplitSpec:
-    """One output file. ``builder`` yields dicts, one per line of the jsonl."""
+    """One output file. ``builder`` yields dicts, one per line of the jsonl.
+
+    ``publish=False`` builds the split locally but keeps it OFF the Hub — useful for slices
+    we want for internal analysis (e.g. failed attempts) without shipping them.
+    """
 
     name: str
     builder: Callable[[], Iterator[dict]]
     description: str = ""
+    publish: bool = True
 
 
 @dataclass(frozen=True)
@@ -91,12 +96,11 @@ average ~39 tool calls and tens of thousands of tokens.
   `resolved=true` means the hidden tests **passed** — these are verified solutions, not merely
   plausible-looking diffs.
 
-## Splits
+## What is included
 
-* `resolved` — only trajectories whose hidden tests passed. Use this for distillation /
-  behavior cloning where you want outcome-correct supervision.
-* `all` — every graded trajectory, including failed and empty-patch attempts. Useful for
-  preference/critic data or failure analysis. Check the `resolved` field per row.
+Every row here is a **verified solution**: the hidden tests passed. Failed and empty-patch
+attempts are deliberately excluded, so you can train on this directly without filtering and
+without risking unverified trajectories leaking into supervision.
 
 ## Using it
 
@@ -118,9 +122,11 @@ tool use trains correctly.
 ## Caveats
 
 * The solver is a 9B model: trajectories are competent but not expert, and often take
-  exploratory detours before landing the fix.
-* `all` contains failures by design. Filter on `resolved` unless you want them.
+  exploratory detours before landing the fix. "Verified" means the tests pass, not that the
+  path taken was optimal.
 * Tool outputs are raw container stdout/stderr and can be long; truncate as needed.
+* Passing the hidden tests is the grading signal, so the usual caveat applies: a patch can
+  satisfy the tests without being the ideal fix.
 * **Licensing**: the issue text and repository content originate from the upstream GitHub
   projects via SWE-rebench and retain their own licenses. Treat this as a derived research
   artifact and check upstream terms before commercial use.
@@ -138,8 +144,11 @@ REGISTRY: list[DatasetSpec] = [
         splits=[
             SplitSpec("resolved", _swe_trajectories(True),
                       "trajectories whose hidden tests PASSED (verified solutions)"),
+            # built locally for failure analysis, deliberately NOT published: the point of
+            # this release is verified solutions, and shipping failed attempts alongside them
+            # invites training on unverified data by accident.
             SplitSpec("all", _swe_trajectories(False),
-                      "every graded trajectory, including failures"),
+                      "every graded trajectory, including failures", publish=False),
         ],
         tags=["agentic", "swe-bench", "code", "tool-use", "distillation", "trajectories"],
         body=_SWE_BODY,

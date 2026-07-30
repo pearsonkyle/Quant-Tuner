@@ -111,6 +111,53 @@ def test_failed_push_does_not_record_a_publish(tmp_path, monkeypatch):
     assert read_manifest(spec).get("published") == []
 
 
+def test_unpublished_split_is_withheld_from_upload_and_card(tmp_path, monkeypatch):
+    """publish=False must keep a split off the Hub AND out of the card."""
+    import quant_tuner.datasets.registry as reg
+    monkeypatch.setattr(reg, "DATASETS_DIR", tmp_path / "datasets")
+
+    spec = DatasetSpec(
+        name="demo-set",
+        title="Demo",
+        summary="s",
+        splits=[
+            SplitSpec("resolved", lambda: iter([{"resolved": True, "n_tool_calls": 1}]), "ok"),
+            SplitSpec("all", lambda: iter([{"resolved": False, "n_tool_calls": 1}] * 4),
+                      "local", publish=False),
+        ],
+    )
+    manifest = build(spec)
+    # built locally...
+    assert (spec.stage_dir / "data" / "all.jsonl").exists()
+    assert manifest["splits"]["all"]["publish"] is False
+
+    # ...but absent from the card (no viewer config, no stats row)
+    card = render_card(spec, manifest)
+    assert "path: data/resolved.jsonl" in card
+    assert "data/all.jsonl" not in card
+    assert "| `all` |" not in card
+
+    captured = {}
+
+    class _Api:
+        def __init__(self, *a, **k):
+            pass
+
+        def create_repo(self, *a, **k):
+            pass
+
+        def upload_folder(self, **kw):
+            captured.update(kw)
+
+        def create_tag(self, *a, **k):
+            pass
+
+    monkeypatch.setattr("huggingface_hub.HfApi", _Api)
+    push(spec, version="0.1.0", note="n")
+    assert "data/all.jsonl" in captured["ignore_patterns"]
+    assert "data/resolved.jsonl" not in captured["ignore_patterns"]
+
+
 def test_dry_run_push_skips_upload_and_records_nothing(tmp_path, monkeypatch):
     import quant_tuner.datasets.registry as reg
     monkeypatch.setattr(reg, "DATASETS_DIR", tmp_path / "datasets")

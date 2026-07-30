@@ -82,6 +82,7 @@ def build(spec: DatasetSpec) -> dict:
         splits[split.name] = {
             "file": f"data/{split.name}.jsonl",
             "description": split.description,
+            "publish": split.publish,
             "rows": n_rows,
             "resolved_rows": n_resolved,
             "mean_tool_calls": round(n_tool_calls / n_rows, 1) if n_rows else 0.0,
@@ -89,7 +90,8 @@ def build(spec: DatasetSpec) -> dict:
             "sha256": _sha256(out),
         }
         print(f"[dataset] {spec.name}:{split.name}  {n_rows} rows  "
-              f"({splits[split.name]['bytes'] / 1024**2:.1f} MB)", flush=True)
+              f"({splits[split.name]['bytes'] / 1024**2:.1f} MB)"
+              f"{'' if split.publish else '   [local only, not published]'}", flush=True)
 
     manifest["splits"] = splits
     write_manifest(spec, manifest)
@@ -99,7 +101,9 @@ def build(spec: DatasetSpec) -> dict:
 # ------------------------------------------------------------------------------------- card
 def render_card(spec: DatasetSpec, manifest: dict) -> str:
     """Dataset card: HF YAML frontmatter + stats table + the spec's prose."""
-    splits = manifest.get("splits", {})
+    # Only published splits appear on the Hub: they drive the viewer config, the stats
+    # table and the size bucket. Local-only splits stay out of the card entirely.
+    splits = {n: i for n, i in manifest.get("splits", {}).items() if i.get("publish", True)}
     cfg_lines = ["configs:", "- config_name: default", "  data_files:"]
     for name, info in splits.items():
         cfg_lines.append(f'  - split: {name}')
@@ -211,6 +215,14 @@ def push(spec: DatasetSpec, *, version: str, note: str = "", private: bool = Fal
         print(f"[dataset] DRY RUN — would push {spec.stage_dir} -> {spec.repo_id} as v{version}")
         return spec.repo_id
 
+    # Splits marked publish=False are built locally but must never leave the machine.
+    ignore = [CHANGELOG] + [
+        i["file"] for i in manifest.get("splits", {}).values() if not i.get("publish", True)
+    ]
+    held_back = [n for n, i in manifest.get("splits", {}).items() if not i.get("publish", True)]
+    if held_back:
+        print(f"[dataset] withholding local-only split(s): {', '.join(held_back)}", flush=True)
+
     from huggingface_hub import HfApi
     api = HfApi()
     api.create_repo(spec.repo_id, repo_type="dataset", private=private, exist_ok=True)
@@ -218,7 +230,7 @@ def push(spec: DatasetSpec, *, version: str, note: str = "", private: bool = Fal
         repo_id=spec.repo_id,
         repo_type="dataset",
         folder_path=str(spec.stage_dir),
-        ignore_patterns=[CHANGELOG],        # changelog is repo-side history
+        ignore_patterns=ignore,             # changelog is repo-side history; + local-only splits
         commit_message=f"v{version}: {note or 'dataset refresh'}",
     )
     try:
