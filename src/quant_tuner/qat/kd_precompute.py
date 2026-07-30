@@ -3,8 +3,14 @@
 Why offline: the in-loop KD path (``train.py --kd-teacher``) holds a dense teacher in memory
 *alongside* the student, which does not fit when the student is already training all 36 layers
 at the memory ceiling. Running the teacher once over the corpus and storing only the top-K
-logprobs per labeled position costs ~1-2 GB on disk (vs ~16 GB resident) and makes KD training
-CHEAPER than plain CE, because the teacher never runs during training at all.
+logprobs per labeled position costs ~0.4 KB/position (measured: 125 MB for a 217-window corpus,
+vs ~16 GB resident) and makes KD training CHEAPER than plain CE, because the teacher never runs
+during training at all.
+
+Measured on SWE-Lego-Qwen3-8B over the iter-5 verified-trajectory corpus: top-64 captures
+99.8% of the teacher's probability mass (median 100%), the teacher's top-1 matches the gold
+label 83.7% of the time, and the gold label falls inside the stored top-64 at 98.9% of
+positions — i.e. the truncation keeps essentially all of the usable KD signal.
 
 Storage: one ``.pt`` per corpus with a flat table over labeled positions
 
@@ -261,7 +267,7 @@ def precompute_topk(
     torch.save(payload, out)
     mb = out.stat().st_size / 1024**2
     print(f"[kd] saved {n_pos_total} positions x top-{topk} -> {out} ({mb:.1f} MB; "
-          f"{mb/max(1,n_pos_total)*1000:.2f} KB/1k positions)", flush=True)
+          f"{mb * 1024 / max(1, n_pos_total):.2f} KB/position)", flush=True)
     return payload
 
 
