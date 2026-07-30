@@ -29,3 +29,7 @@ htmlcov/
 # jlens-server build artifacts (source is tracked; binaries/objects are not)
 native/jlens_server/jlens-server
 native/jlens_server/*.o
+
+# Published dataset payloads are regenerable (scripts/dataset.py build) and live on the Hub;
+# the card, manifest and changelog ARE tracked so the repo records what was published.
+datasets/**/data/

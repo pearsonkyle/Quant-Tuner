@@ -1,0 +1,27 @@
+{
+  "name": "swe-agentic-trajectories",
+  "version": "0.0.0",
+  "splits": {
+    "resolved": {
+      "file": "data/resolved.jsonl",
+      "description": "trajectories whose hidden tests PASSED (verified solutions)",
+      "rows": 71,
+      "resolved_rows": 71,
+      "mean_tool_calls": 34.3,
+      "bytes": 4221470,
+      "sha256": "2615a46c5914203ab9a03c99d27198aed0e2f91b79f7313de8c2fbe6e8cd3f06"
+    },
+    "all": {
+      "file": "data/all.jsonl",
+      "description": "every graded trajectory, including failures",
+      "rows": 278,
+      "resolved_rows": 71,
+      "mean_tool_calls": 39.2,
+      "bytes": 20312191,
+      "sha256": "25934018b5e6b1a986ef5c0f0db1c130ce6f8bf7fd99927afce4328ef4460a98"
+    }
+  },
+  "published": [],
+  "hf_repo": "pearsonkyle/swe-agentic-trajectories",
+  "built_at": "2026-07-30T11:38:05"
+}

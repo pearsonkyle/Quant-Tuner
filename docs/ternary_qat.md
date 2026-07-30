@@ -204,3 +204,24 @@ genuinely divergent tokenizers (per-token KD across different tokenizers is sile
 `resolve_vocab_size()` walks nested configs so composite architectures (e.g.
 `BeeForConditionalGeneration`) resolve to their LM vocab, and malformed configs (SWE-Lego ships
 `max_position_embeddings: 163840.0`, a float) are sanitized on load.
+
+### Publishing datasets
+
+Datasets are staged under `datasets/<name>/` and versioned independently of the code. The
+payloads are gitignored (regenerable, and they live on the Hub); the card, `manifest.json`
+and `CHANGELOG.md` are tracked so the repo records exactly what was published.
+
+```bash
+.venv/bin/python scripts/dataset.py list
+.venv/bin/python scripts/dataset.py build swe-agentic-trajectories
+.venv/bin/python scripts/dataset.py push  swe-agentic-trajectories --bump minor -m "add round-3 trajectories"
+.venv/bin/python scripts/dataset.py push  swe-agentic-trajectories --dry-run   # verify first
+```
+
+`push` rebuilds, bumps the version, uploads the folder, and tags the Hub repo `v<version>` so
+earlier releases stay pinnable via `load_dataset(..., revision="v0.1.0")`. The manifest only
+records a release **after** a successful upload, so a failed push cannot claim one.
+
+**Adding a new dataset is a one-entry change**: write a builder that yields dicts, then append
+a `DatasetSpec` to `REGISTRY` in `src/quant_tuner/datasets/registry.py`. Staging layout, card
+rendering, versioning, changelog and push are shared.
