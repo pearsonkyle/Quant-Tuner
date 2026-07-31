@@ -31,11 +31,17 @@ dev = [
     "ruff>=0.6",
     "mypy>=1.10",
 ]
+# Red-team safety eval (eval/red_team.py). deepteam drives the attack simulation
+# and judging; deepeval supplies the model wrapper base class. Both are imported
+# LAZILY inside the functions that need them, so the scoring/pairing layers stay
+# importable — and unit-testable — without this extra installed.
+#
+# ⚠️ Python <= 3.12 only. deepteam 1.0.7's test_case.py imports `nntplib`, which
+# was removed in 3.13, so `import deepteam` fails there despite its metadata
+# advertising `<3.14`.
 redteam = [
-    "deepteam>=0.5",
-    "deepeval>=2.0",
-    "hydra-core>=1.3",
-    "omegaconf>=2.3",
+    "deepteam>=1.0.7",  # pin: _VULN_SPECS/_ATTACK_SPECS + reuse_simulated_test_cases verified here
+    "deepeval>=3.6.2",  # LocalModel/DeepEvalBaseLLM surface used by eval/red_team.LocalLLM
 ]
 # Agentic SWE-rebench benchmark (eval/swebench.py). mini-swe-agent drives the
 # model over the OpenAI-compatible llama-server endpoint inside a per-instance
@@ -79,6 +85,21 @@ ignore = [
 "src/quant_tuner/lens/*.py" = ["E741"]
 "tests/unit/test_lens_*.py" = ["E741"]
 "tests/integration/test_lens_*.py" = ["E741"]
+
+[tool.mypy]
+# Optional-extra and untyped third-party modules. These are imported lazily
+# (inside the functions that need them) so the rest of the package stays usable
+# without the extra installed — which also means mypy will never find stubs for
+# them in a base env. Silencing the import errors keeps real type errors visible.
+[[tool.mypy.overrides]]
+module = [
+    "deepteam.*",
+    "deepeval.*",
+    "minisweagent.*",
+    "agents.*",
+    "yaml",
+]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

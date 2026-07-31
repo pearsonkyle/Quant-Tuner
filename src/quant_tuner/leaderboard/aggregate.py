@@ -56,6 +56,13 @@ COLUMNS: tuple[tuple[str, str], ...] = (
     ("lens_gold_rank", "Gold Rank"),
     ("lens_emerge_layer", "Emerge L"),
     ("lens_decision_kld", "Decision KLD"),
+    # Red-team safety columns (merged in from scripts/redteam_ladder.py).
+    # Display-only; never feed SQS — see merge_redteam. `RT Drift` and
+    # `RT ->Unsafe` are paired against the F16 reference, so they answer
+    # "what did the quantization do to refusal", not "how safe is this".
+    ("rt_pass_rate", "RT Pass"),
+    ("rt_net_drift", "RT Drift"),
+    ("rt_flip_unsafe", "RT →Unsafe"),
     ("sqs", "SQS"),
 )
 
@@ -246,6 +253,51 @@ def merge_lens(rows: list[dict], lens_csv: Path) -> list[dict]:
     return rows
 
 
+_REDTEAM_KEYS = ("rt_pass_rate", "rt_net_drift", "rt_flip_unsafe")
+
+
+def merge_redteam(rows: list[dict], redteam_csv: Path) -> list[dict]:
+    """Join red-team safety columns into bench rows by basename(quant_path).
+
+    Accepts either shape written by the red-team scripts, keyed on ``model``
+    (the quant filename, the same join key ``merge_toolcall``/``merge_lens`` use):
+
+      * ``ladder.csv`` (``scripts/redteam_ladder.py``) — the paired comparison
+        against the F16 reference. ``net_drift`` and ``n_flip_unsafe`` come from
+        here, and they are the numbers worth reading: an *unpaired* pass rate
+        cannot separate "this quant is less safe" from "this run drew different
+        attacks".
+      * ``*_aggregated.csv`` (``scripts/eval_redteam.py``) — ``pass_rate_mean``
+        only, when no reference was run.
+
+    Display-only: red-team columns deliberately do **not** feed SQS. SQS trades
+    fidelity against size and speed, and folding a safety score into that
+    tradeoff would imply a bit of refusal is worth a bit of throughput.
+    """
+    if not redteam_csv.exists():
+        return rows
+    with redteam_csv.open() as f:
+        by_filename = {r.get("model", ""): r for r in csv.DictReader(f)}
+
+    for r in rows:
+        qp = r.get("quant_path") or ""
+        rt = by_filename.get(os.path.basename(qp)) or by_filename.get(
+            os.path.basename(qp).removesuffix(".gguf")
+        )
+        if not rt:
+            continue
+        pass_rate = rt.get("pass_rate")
+        if pass_rate in (None, ""):
+            pass_rate = rt.get("pass_rate_mean")
+        if pass_rate not in (None, ""):
+            r["rt_pass_rate"] = pass_rate
+        if rt.get("net_drift") not in (None, ""):
+            r["rt_net_drift"] = rt["net_drift"]
+        if rt.get("n_flip_unsafe") not in (None, ""):
+            r["rt_flip_unsafe"] = rt["n_flip_unsafe"]
+    return rows
+
+
 SortOrder = Literal["asc", "desc"]
 
 
@@ -339,9 +391,10 @@ def aggregate(
     order: SortOrder | None = None,
     toolcall_csv: Path | None = None,
     lens_csv: Path | None = None,
+    redteam_csv: Path | None = None,
 ) -> str:
-    """End-to-end: load a results.csv, optionally merge tool-call + lens columns,
-    compute SQS, sort, render markdown.
+    """End-to-end: load a results.csv, optionally merge tool-call + lens + red-team
+    columns, compute SQS, sort, render markdown.
 
     Raises ``RuntimeError`` if no FP16 baseline row is present — SQS is only
     meaningful relative to a reference, so we'd rather fail loud than silently
@@ -352,6 +405,8 @@ def aggregate(
         rows = merge_toolcall(rows, toolcall_csv)
     if lens_csv is not None:
         rows = merge_lens(rows, lens_csv)
+    if redteam_csv is not None:
+        rows = merge_redteam(rows, redteam_csv)
     f16 = find_f16_baseline(rows)
     if f16 is None:
         raise RuntimeError(
@@ -374,6 +429,8 @@ __all__ = [
     "compute_sqs",
     "find_f16_baseline",
     "load_results",
+    "merge_lens",
+    "merge_redteam",
     "merge_toolcall",
     "render_markdown",
     "sort_rows",

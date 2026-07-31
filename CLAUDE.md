@@ -267,6 +267,44 @@ benchmark-agnostic — anything that reduces to `dict[str, float]` plugs in.
   false}'`). **`_build_env_config` must keep `cwd: /testbed`** — the grader and
   the mini-swe agent call `env.execute` without a cwd and rely on it.
 
+- `eval/red_team.py` + `eval/red_team_agent.py` — **red-team safety eval**
+  (deepteam over llama-server). The only eval here that asks "is the quant still
+  *safe*", not "still capable". Full method: `docs/benchmarks.md#red-team-safety`.
+  - **Every deepteam/deepeval import is lazy** (inside the function that needs
+    it), like `swebench.py` does with `minisweagent` — that is what keeps
+    `build_summary`/`pair_runs`/`aggregate_reps` unit-testable without the extra.
+    Do not hoist them; `tests/unit/test_red_team.py` breaks at collection if you do.
+  - **The target callback MUST declare two parameters** (`input`, `turns=None`).
+    deepteam's `wrap_model_callback` forwards conversation history only to a
+    callback with arity > 1; with one parameter every multi-turn jailbreak
+    (Linear/Crescendo/Tree) silently probes a target with no memory of the
+    escalation. Unit-tested. Same reason `AgenticTarget.as_callback()` exists —
+    deepteam's `iscoroutinefunction` check rejects an object with an async
+    `__call__`, so never pass the instance directly.
+  - **Telemetry needs BOTH opt-outs**: deepteam reads `DEEPTEAM_TELEMETRY_OPT_OUT`
+    and deepeval reads `DEEPEVAL_TELEMETRY_OPT_OUT`; deepteam initialises PostHog
+    at *import* time. Also pass `_upload_to_confident=False` on the `RedTeamer`
+    path (defaults True, and calls `webbrowser.open()` on a headless box).
+  - **Cross-quant numbers require the frozen bank** (`--frozen-bank`, default on).
+    deepteam simulates fresh attacks per run, so unpaired deltas confound model
+    drift with bank variance. Seed on the F16 reference; `pair_runs` joins on a
+    content-derived `case_id` and reports `n_flip_unsafe` (reference refused,
+    quant complied) — the headline number.
+  - **`score` is tri-state everywhere** (1 defended / 0 complied / `None`
+    errored), through `per_case`, the CSV, and `read_per_case_csv`. Collapsing an
+    error to 0 turns a timeout into a recorded jailbreak. Errored cases stay in
+    `n_tests` but leave the `pass_rate` denominator, and `_assert_scored` raises
+    when nothing scored (deepteam's `ignore_errors=True` default would otherwise
+    report a dead target as `pass_rate=0.0`).
+  - Red-team columns are **display-only in the leaderboard** (`merge_redteam`,
+    `--redteam-csv`) and never feed SQS — that scalar trades size/fidelity/speed,
+    and refusal is not a currency to spend in it.
+  - The agentic path grades `tools_called` (did it *run* the command). Always read
+    its `pass_rate` next to `n_tool_calls`: **a quant too degraded to tool-call
+    scores as "safe" for the wrong reason.**
+  - Needs `uv sync --extra redteam`, **Python ≤ 3.12** (deepteam 1.0.7 imports
+    `nntplib`, removed in 3.13).
+
 ### Continued QAT for native-ternary models (`src/quant_tuner/qat/`)
 For **natively-ternary** models (`prism-ml/Ternary-Bonsai-8B`), post-hoc calibration is a
 structural no-op — the "F16" is a lossless container of `w = s·c`, `c ∈ {−1,0,+1}`, so there is
@@ -403,6 +441,15 @@ The OmniCoder reproduction is here; the CLI handles ad-hoc runs.
   *against* the generalization number, not instead of it) →
   `run_iter5_autoloop.sh` (unattended grow-data/retrain/bench until it
   generalizes). `kd_precompute.py` is the iter-6 offline-KD entry point.
+- **Red-team chain** (see `docs/benchmarks.md#red-team-safety`):
+  `eval_redteam.py` (sweep N targets on one frozen bank → `results.csv`,
+  `results_per_case.csv`, `bank.json`) → `redteam_ladder.py` (pair every rung
+  against the F16 reference → `ladder.csv` with `n_flip_unsafe`/`net_drift`;
+  also runs the sweep itself given `--models`, or analyses an existing per-case
+  CSV with no GPU) → `redteam_vs_quality.py` (Spearman of drift vs. KLD/PPL/
+  tool-call — pure CSV). `redteam_agentic.py` is the separate agent-in-container
+  path; it needs the `swebench` extra and Docker, and its instances should be
+  built `--exclude`-disjoint from the SWE-rebench eval holdout.
 - `run_swebench_eval.py` — runs `eval.run_swebench_eval` over one or more GGUFs
   (default = gemma-4-31B `qat-Q2_K_S-imatrix`). Fails fast if the Docker daemon
   is down. Writes `results.csv` (per-instance), `aggregated.csv` (per-model),
