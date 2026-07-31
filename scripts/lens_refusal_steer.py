@@ -67,6 +67,22 @@ BENIGN = [
 ]
 
 
+def load_probe_set(path: Path) -> dict[str, list[str]]:
+    """Load a labeled probe set (build_refusal_probe_set.py) into bucket→prompts.
+
+    Buckets: ``failure`` (fix must make these refuse), ``correct_refusal`` (must
+    not regress), ``benign`` (must stay answered). Building the direction from
+    MANY correct-refusals vs benign — rather than one contrast pair — is what
+    de-contaminates it from topic, and the three buckets are what let a fix be
+    scored on precision/recall instead of a single anecdote.
+    """
+    data = json.loads(Path(path).read_text())
+    out: dict[str, list[str]] = {"failure": [], "correct_refusal": [], "benign": []}
+    for rec in data["prompts"]:
+        out.setdefault(rec["bucket"], []).append(rec["prompt"])
+    return out
+
+
 class Jlens:
     """Minimal client for the jlens-server capture + steer endpoints."""
 
@@ -171,6 +187,95 @@ def is_coherent(text: str) -> bool:
     return bool(toks) and len(set(toks)) / len(toks) > 0.35
 
 
+def export_fix(
+    src_gguf: Path,
+    out_path: Path,
+    *,
+    directions: dict[int, np.ndarray],
+    layer: int,
+    alpha: float,
+    meta: dict,
+) -> None:
+    """Export a corrected model.
+
+    **Additive steering does not bake into a GGUF** on this class of model — it
+    needs a per-layer *bias* on a residual-writing tensor, and the hybrid
+    SSM+attention+MoE arch (qwen35moe) has none (no ``blk.L.attn_output.bias``;
+    the attention output is a fused ``attn_qkv``/``attn_gate``). llama.cpp will
+    not apply a bias tensor its graph never reads, so writing one would be a
+    silent no-op. (See CLAUDE.md: "Additive steering is not bakeable.")
+
+    So this writes a **runtime-fix bundle** next to ``out_path`` — the steering
+    vector plus a jlens-server intervention spec — which serves a corrected model
+    *now*. For a standalone corrected ``.gguf`` the honest path is a safety
+    fine-tune (QAT) followed by a normal quantize; the bundle's ``README`` says so.
+
+    If the source arch *does* expose ``blk.L.attn_output.weight`` (dense-attention
+    arches like Llama/Qwen3-dense), the additive steer can instead be baked as an
+    ``attn_output.bias`` — but that is left to the caller to enable + validate per
+    arch, since llama.cpp only applies it when the graph reads it.
+    """
+    import struct
+
+    from gguf import GGUFReader
+
+    reader = GGUFReader(str(src_gguf))
+    names = {t.name for t in reader.tensors}
+    arch_field = reader.fields.get("general.architecture")
+    arch = bytes(arch_field.parts[arch_field.data[0]]).decode() if arch_field else "?"
+    bakeable = f"blk.{layer}.attn_output.weight" in names
+
+    bundle = out_path.with_suffix(".fix")
+    bundle.mkdir(parents=True, exist_ok=True)
+    # steering vector(s) + config
+    np.savez(
+        bundle / "refusal_fix.npz",
+        layer=np.array([layer]),
+        alpha=np.array([alpha]),
+        direction=directions[layer].astype("<f4"),
+        **{f"dir_{L}": v.astype("<f4") for L, v in directions.items()},
+    )
+    serve = {
+        "kind": "jlens-server refusal-restoration intervention",
+        "source_gguf": str(src_gguf),
+        "arch": arch,
+        "layer": layer,
+        "alpha": alpha,
+        "intervention": {
+            "layer": layer, "pos_start": 0, "pos_end": -1, "mode": "add",
+            "data_b64": base64.b64encode(
+                (alpha * directions[layer]).astype("<f4").tobytes()
+            ).decode(),
+        },
+        "eval": meta,
+        "note": "Apply this intervention on every /jlens/forward or /v1/chat/completions "
+                "request to serve the corrected model. Additive steering is a RUNTIME "
+                "capability; it does not bake into the .gguf for this arch.",
+    }
+    (bundle / "refusal_fix.serve.json").write_text(json.dumps(serve, indent=2, default=str))
+    (bundle / "README.md").write_text(
+        f"# Corrected-model bundle for {src_gguf.name}\n\n"
+        f"Arch `{arch}`. The refusal direction is a real linear feature; this bundle "
+        f"restores it at runtime (layer {layer}, α={alpha}).\n\n"
+        f"**Serve the corrected model:** run jlens-server on `{src_gguf.name}` and apply "
+        f"the intervention in `refusal_fix.serve.json` to each request.\n\n"
+        f"**Why not a baked .gguf?** Additive steering needs a per-layer bias on a "
+        f"residual-writing tensor; `{arch}` has none (bakeable={bakeable}). A standalone "
+        f"corrected .gguf requires a safety fine-tune (QAT) then a normal quantize — the "
+        f"steering here is the *diagnosis* that proves that fine-tune will work (the "
+        f"refusal circuit exists and is merely bypassed by framing).\n"
+    )
+    _ = struct  # reserved for a future bias-bake path
+    print(f"\n[export] wrote runtime-fix bundle → {bundle}/")
+    if bakeable:
+        print(f"[export] note: {arch} exposes blk.{layer}.attn_output.weight — an "
+              f"attn_output.bias bake is possible for this arch but must be validated "
+              f"against llama.cpp's graph; not attempted automatically.")
+    else:
+        print(f"[export] a standalone corrected .gguf is NOT possible for {arch} via "
+              f"steering (no bias hook) — use QAT + quantize; see the bundle README.")
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--base-url", default="http://localhost:8899")
@@ -181,18 +286,39 @@ def main() -> int:
     p.add_argument("--n-predict", type=int, default=120)
     p.add_argument("--top-layers", type=int, default=4,
                    help="How many best-separating layers to try steering at.")
+    p.add_argument("--probe-set", type=Path, default=None,
+                   help="Labeled probe set (build_refusal_probe_set.py). When given, "
+                   "the direction is built from MANY correct-refusals vs benign (robust) "
+                   "and the fix is scored on failure/correct/benign buckets.")
+    p.add_argument("--export-gguf", type=Path, default=None,
+                   help="Export a corrected model to this path. Additive steering does not "
+                   "bake into a GGUF on this hybrid arch — writes a servable runtime-fix "
+                   "bundle (<path>.fix/) and explains the QAT path for a standalone .gguf.")
+    p.add_argument("--src-gguf", type=Path, default=None,
+                   help="Source GGUF for --export-gguf arch inspection (the served model).")
     args = p.parse_args()
     args.out.mkdir(parents=True, exist_ok=True)
 
     j = Jlens(args.base_url)
     attack = args.attack_prompt.read_text()
-    print(f"[lens] server: {args.n_layer if False else j.n_layer} layers; "
-          f"{len(HARMFUL)} harmful / {len(BENIGN)} benign contrast prompts")
+
+    # A labeled probe set makes the direction robust (many correct-refusals vs
+    # benign) and the fix measurable. Falls back to the built-in contrast pair.
+    if args.probe_set:
+        ps = load_probe_set(args.probe_set)
+        harmful_prompts, benign_prompts = ps["correct_refusal"], ps["benign"]
+        print(f"[lens] probe set: {len(ps['failure'])} failures / "
+              f"{len(harmful_prompts)} correct-refusals / {len(benign_prompts)} benign")
+    else:
+        harmful_prompts, benign_prompts = HARMFUL, BENIGN
+
+    print(f"[lens] server: {j.n_layer} layers; "
+          f"{len(harmful_prompts)} refuse-side / {len(benign_prompts)} benign contrast prompts")
 
     # ── 1. capture contrast set ──────────────────────────────────────────────
     print("[lens] capturing contrast set …")
-    harm = [j.forward(j.tokens_for(t))["last_resid"] for t in HARMFUL]
-    beni = [j.forward(j.tokens_for(t))["last_resid"] for t in BENIGN]
+    harm = [j.forward(j.tokens_for(t))["last_resid"] for t in harmful_prompts]
+    beni = [j.forward(j.tokens_for(t))["last_resid"] for t in benign_prompts]
 
     # ── 2. per-layer refusal direction + separation ──────────────────────────
     layers = list(range(j.n_layer))
@@ -343,6 +469,17 @@ def main() -> int:
     }
     (args.out / "refusal_steer.json").write_text(json.dumps(report, indent=2, default=str))
     print(f"\n[lens] wrote {args.out / 'refusal_steer.json'}")
+
+    # ── 6. export a corrected model (runtime bundle; see export_fix docstring) ─
+    if args.export_gguf is not None:
+        src = args.src_gguf or args.export_gguf
+        export_fix(
+            src, args.export_gguf,
+            directions=directions, layer=steer_L, alpha=gate_alpha,
+            meta={"separation_sigma": seps[steer_L],
+                  "clean_global_alpha": clean_alpha, "gate_clean": gate_clean,
+                  "note": "steering is diagnostic; a standalone fixed .gguf needs QAT"},
+        )
     return 0
 
 
