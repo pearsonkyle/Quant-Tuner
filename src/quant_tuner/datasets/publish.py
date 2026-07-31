@@ -110,11 +110,20 @@ def build(spec: DatasetSpec) -> dict:
 
 
 # ------------------------------------------------------------------------------------- card
-def render_card(spec: DatasetSpec, manifest: dict) -> str:
-    """Dataset card: HF YAML frontmatter + stats table + the spec's prose."""
-    # Only published splits appear on the Hub: they drive the viewer config, the stats
-    # table and the size bucket. Local-only splits stay out of the card entirely.
-    splits = {n: i for n, i in manifest.get("splits", {}).items() if i.get("publish", True)}
+def render_card(spec: DatasetSpec, manifest: dict, *, include_withheld: bool = False) -> str:
+    """Dataset card: HF YAML frontmatter + stats table + the spec's prose.
+
+    ``include_withheld=True`` (only used for a deliberate ``--private`` upload of
+    a dual-use dataset) makes the normally-withheld splits visible in the card's
+    viewer config + stats, so the private repo's dataset viewer works.
+    """
+    # Published splits drive the viewer config, the stats table and the size bucket.
+    # Local-only splits stay out of the card unless we are deliberately uploading
+    # everything to a private repo.
+    splits = {
+        n: i for n, i in manifest.get("splits", {}).items()
+        if include_withheld or i.get("publish", True)
+    }
     cfg_lines = ["configs:", "- config_name: default", "  data_files:"]
     for name, info in splits.items():
         cfg_lines.append(f'  - split: {name}')
@@ -203,9 +212,9 @@ def _size_bucket(n: int) -> str:
     return "1M<n<10M"
 
 
-def write_card(spec: DatasetSpec, manifest: dict) -> Path:
+def write_card(spec: DatasetSpec, manifest: dict, *, include_withheld: bool = False) -> Path:
     card = spec.stage_dir / "README.md"
-    card.write_text(render_card(spec, manifest))
+    card.write_text(render_card(spec, manifest, include_withheld=include_withheld))
     return card
 
 
@@ -225,28 +234,46 @@ def append_changelog(spec: DatasetSpec, version: str, manifest: dict, note: str)
 
 
 def push(spec: DatasetSpec, *, version: str, note: str = "", private: bool = False,
-         dry_run: bool = False) -> str:
+         dry_run: bool = False, include_withheld: bool = False) -> str:
     """Upload the staging dir to the Hub, then record the version locally.
 
     The manifest/changelog are only updated after a successful upload, so a failed push never
     leaves the repo claiming a release that is not on the Hub.
+
+    ``include_withheld`` uploads the ``publish=False`` splits too. It is **gated on
+    ``private``** — a dual-use dataset's harmful content may go to your own private
+    repo on purpose, but must never be pushed to a public one by accident.
     """
+    if include_withheld and not private:
+        raise ValueError(
+            "refusing to upload withheld (publish=False) splits to a PUBLIC repo. "
+            "These splits are withheld for a reason (e.g. dual-use content); pass "
+            "--private to send them to your own private repo, or drop --include-withheld."
+        )
+
     manifest = read_manifest(spec)
     manifest["version"] = version
     write_manifest(spec, manifest)          # card should show the version being published
-    write_card(spec, manifest)
+    write_card(spec, manifest, include_withheld=include_withheld)
 
     if dry_run:
-        print(f"[dataset] DRY RUN — would push {spec.stage_dir} -> {spec.repo_id} as v{version}")
+        scope = "ALL splits incl. withheld" if include_withheld else "published splits only"
+        print(f"[dataset] DRY RUN — would push {spec.stage_dir} -> {spec.repo_id} as v{version} "
+              f"({scope}, {'PRIVATE' if private else 'public'})")
         return spec.repo_id
 
-    # Splits marked publish=False are built locally but must never leave the machine.
-    ignore = [CHANGELOG] + [
-        i["file"] for i in manifest.get("splits", {}).values() if not i.get("publish", True)
-    ]
-    held_back = [n for n, i in manifest.get("splits", {}).items() if not i.get("publish", True)]
-    if held_back:
-        print(f"[dataset] withholding local-only split(s): {', '.join(held_back)}", flush=True)
+    # Splits marked publish=False are built locally and, by default, must never leave
+    # the machine — unless include_withheld + private opts them into a private repo.
+    withheld = [n for n, i in manifest.get("splits", {}).items() if not i.get("publish", True)]
+    ignore = [CHANGELOG]
+    if not include_withheld:
+        ignore += [i["file"] for i in manifest.get("splits", {}).values()
+                   if not i.get("publish", True)]
+        if withheld:
+            print(f"[dataset] withholding local-only split(s): {', '.join(withheld)}", flush=True)
+    elif withheld:
+        print(f"[dataset] ⚠ uploading withheld split(s) {', '.join(withheld)} to a "
+              f"PRIVATE repo (dual-use content — keep the repo private)", flush=True)
 
     from huggingface_hub import HfApi
     api = HfApi()

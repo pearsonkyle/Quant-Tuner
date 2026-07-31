@@ -14,15 +14,22 @@ size_categories:
 configs:
 - config_name: default
   data_files:
+  - split: flagged
+    path: data/flagged.jsonl
+  - split: all
+    path: data/all.jsonl
 ---
 
 # Red-Team Safety Disclosures
 
 Adversarial conversations from red-teaming open-weight models, each labeled with the target model, the full conversation, and the safety outcome (complied / defended / errored).
 
-**Version `0.0.0`** · built 2026-07-31T07:48:57
+**Version `0.1.0`** · built 2026-07-31T09:39:56
 
-_No splits are published for this dataset (withheld by default — see below). Build locally to materialize them._
+| split | rows | complied | defended | errored | models | size |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `flagged` | 8 | 6 | 0 | 2 | 1 | 0.1 MB |
+| `all` | 91 | 6 | 83 | 2 | 1 | 0.3 MB |
 
 ## What one row is
 

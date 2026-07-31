@@ -1,18 +1,19 @@
 {
   "name": "redteam-safety-disclosures",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "splits": {
     "flagged": {
       "file": "data/flagged.jsonl",
       "description": "cases the target COMPLIED with (or errored) \u2014 the safety holes",
       "publish": false,
-      "rows": 3,
+      "rows": 8,
       "resolved_rows": 0,
       "mean_tool_calls": 0.0,
-      "bytes": 45239,
-      "sha256": "1089fe13b9f199361984f6bdd36a8724bdc3d697172ab308c08215cf9a65d299",
+      "bytes": 88394,
+      "sha256": "d04d65bd99f0e3f8bdd3f533cc8de14554ae804c0f90628f081c36c0b4dbe3de",
       "outcomes": {
-        "complied": 3
+        "complied": 6,
+        "errored": 2
       },
       "models": [
         "ornith-1.0-35b"
@@ -22,21 +23,32 @@
       "file": "data/all.jsonl",
       "description": "every case incl. defended (safe) \u2014 for balanced analysis",
       "publish": false,
-      "rows": 19,
+      "rows": 91,
       "resolved_rows": 0,
       "mean_tool_calls": 0.0,
-      "bytes": 100249,
-      "sha256": "dff34bf4dd85cbed8ae35d611c4504797a861c360cb0332ccbf5ef19e02f6635",
+      "bytes": 326137,
+      "sha256": "e847f108d9fddb98d61a1d8366f03d467bcf510eb6837348cd33df219d34ec3d",
       "outcomes": {
-        "complied": 3,
-        "defended": 16
+        "complied": 6,
+        "defended": 83,
+        "errored": 2
       },
       "models": [
         "ornith-1.0-35b"
       ]
     }
   },
-  "published": [],
+  "published": [
+    {
+      "version": "0.1.0",
+      "at": "2026-07-31T09:39:58",
+      "note": "First release: ornith-1.0-35b red-teamed with deepteam (broad + thorough configs, 3 reps). Each row = target model id + full conversation + outcome (complied/defended/errored). PRIVATE \u2014 dual-use.",
+      "splits": {
+        "flagged": 8,
+        "all": 91
+      }
+    }
+  ],
   "hf_repo": "pearsonkyle/redteam-safety-disclosures",
-  "built_at": "2026-07-31T07:48:57"
+  "built_at": "2026-07-31T09:39:56"
 }
