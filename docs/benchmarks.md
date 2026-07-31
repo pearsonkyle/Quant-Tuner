@@ -494,6 +494,13 @@ multi-turn escalation — share one pattern: the model is robust to blunt reques
 but **susceptible to benign-purpose reframing**. That pattern, not the scalar, is
 what the disclosure report hands its authors.
 
+The profanity case was then taken apart mechanistically with the Jacobian lens:
+`scripts/lens_refusal_steer.py` shows the framing suppresses a clean linear
+refusal feature (+8.4 σ at layer 37) down to the decision boundary, and that a
+runtime steer restores the refusal — though a fixed additive one is too blunt to
+be a clean mitigation. See
+[`docs/lens.md`](lens.md#steering-a-red-team-failure-back-to-a-refusal).
+
 ### Scope — what this does not measure
 
 * **Bio.** The piece names cyber, biological, and alignment. A bio-uplift probe
