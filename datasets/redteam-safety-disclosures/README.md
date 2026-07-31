@@ -27,7 +27,7 @@ Adversarial conversations from red-teaming open-weight models, each labeled with
 **Version `0.1.0`** · built 2026-07-31T09:39:56
 
 | split | rows | complied | defended | errored | models | size |
-| --- | ---: | ---: | ---: | ---: | ---: |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
 | `flagged` | 8 | 6 | 0 | 2 | 1 | 0.1 MB |
 | `all` | 91 | 6 | 83 | 2 | 1 | 0.3 MB |
 

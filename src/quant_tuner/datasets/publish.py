@@ -143,6 +143,14 @@ def render_card(spec: DatasetSpec, manifest: dict, *, include_withheld: bool = F
         "",
     ]
 
+    def _table(header: list[str], body_rows: list[list]) -> list[str]:
+        """A GFM table with a separator derived from the header (first col left,
+        the rest right-aligned) so the cell count can never drift out of sync."""
+        sep = ["---"] + ["---:"] * (len(header) - 1)
+        out = ["| " + " | ".join(header) + " |", "| " + " | ".join(sep) + " |"]
+        out += ["| " + " | ".join(str(c) for c in r) + " |" for r in body_rows]
+        return out
+
     # Adaptive stats table: outcome-labeled (red-team) datasets report the
     # outcome mix; others keep the SWE verified/tool-call columns. When nothing
     # is published (e.g. a dual-use dataset withheld by default), say so plainly.
@@ -150,19 +158,20 @@ def render_card(spec: DatasetSpec, manifest: dict, *, include_withheld: bool = F
         rows = ["_No splits are published for this dataset (withheld by default — "
                 "see below). Build locally to materialize them._"]
     elif any(i.get("outcomes") for i in splits.values()):
-        rows = ["| split | rows | complied | defended | errored | models | size |",
-                "| --- | ---: | ---: | ---: | ---: | ---: |"]
-        for name, i in splits.items():
-            o = i.get("outcomes", {})
-            rows.append(f"| `{name}` | {i['rows']} | {o.get('complied', 0)} | "
-                        f"{o.get('defended', 0)} | {o.get('errored', 0)} | "
-                        f"{len(i.get('models', []))} | {i['bytes'] / 1024**2:.1f} MB |")
+        rows = _table(
+            ["split", "rows", "complied", "defended", "errored", "models", "size"],
+            [[f"`{name}`", i["rows"], (o := i.get("outcomes", {})).get("complied", 0),
+              o.get("defended", 0), o.get("errored", 0), len(i.get("models", [])),
+              f"{i['bytes'] / 1024**2:.1f} MB"]
+             for name, i in splits.items()],
+        )
     else:
-        rows = ["| split | rows | verified (tests pass) | mean tool calls | size |",
-                "| --- | ---: | ---: | ---: | ---: |"]
-        for name, i in splits.items():
-            rows.append(f"| `{name}` | {i['rows']} | {i['resolved_rows']} | "
-                        f"{i['mean_tool_calls']} | {i['bytes'] / 1024**2:.1f} MB |")
+        rows = _table(
+            ["split", "rows", "verified (tests pass)", "mean tool calls", "size"],
+            [[f"`{name}`", i["rows"], i["resolved_rows"], i["mean_tool_calls"],
+              f"{i['bytes'] / 1024**2:.1f} MB"]
+             for name, i in splits.items()],
+        )
 
     _SWE_SCHEMA = (
         "| field | meaning |\n"

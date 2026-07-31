@@ -111,6 +111,40 @@ def test_failed_push_does_not_record_a_publish(tmp_path, monkeypatch):
     assert read_manifest(spec).get("published") == []
 
 
+def _stats_table_lines(card: str) -> list[str]:
+    """The contiguous run of table lines just under the version header."""
+    lines = card.splitlines()
+    start = next(i for i, ln in enumerate(lines) if ln.startswith("| split |"))
+    out = []
+    for ln in lines[start:]:
+        if not ln.startswith("|"):
+            break
+        out.append(ln)
+    return out
+
+
+@pytest.mark.parametrize("records,kind", [
+    ([{"resolved": True, "n_tool_calls": 3}], "swe"),
+    ([{"outcome": "complied", "model": "m"}, {"outcome": "defended", "model": "m"}], "redteam"),
+])
+def test_stats_table_is_well_formed_markdown(tmp_path, monkeypatch, records, kind):
+    """Header, separator and every body row must have the SAME column count.
+
+    A mismatched separator (the classic off-by-one) makes GFM/Hub silently refuse
+    to render the table — this pins both the SWE and the red-team shapes.
+    """
+    import quant_tuner.datasets.registry as reg
+    monkeypatch.setattr(reg, "DATASETS_DIR", tmp_path / "datasets")
+    spec = DatasetSpec(name=f"{kind}-set", title="T", summary="s",
+                       splits=[SplitSpec("s", lambda records=records: iter(records), "d")])
+    manifest = build(spec)
+    table = _stats_table_lines(render_card(spec, manifest))
+    assert len(table) >= 3  # header + separator + >=1 body row
+    counts = {ln.count("|") for ln in table}
+    assert len(counts) == 1, f"ragged table ({kind}): pipe counts {counts}\n" + "\n".join(table)
+    assert set(table[1].replace("|", "").replace(":", "").split()) == {"---"}  # real separator
+
+
 def test_unpublished_split_is_withheld_from_upload_and_card(tmp_path, monkeypatch):
     """publish=False must keep a split off the Hub AND out of the card."""
     import quant_tuner.datasets.registry as reg
