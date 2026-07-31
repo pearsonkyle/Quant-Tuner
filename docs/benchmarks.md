@@ -433,6 +433,67 @@ README or test fixture, not a user turn.
 > written in prose (```` ```bash ````) are counted too, precisely so the most
 > degraded rungs don't win by incompetence.
 
+### Reproducing a run
+
+`scripts/reproduce_redteam.sh` is the one-command entry point. It builds the
+Python ≤ 3.12 venv (`.venv-redteam`, because deepteam 1.0.7 imports `nntplib`
+and the repo's main `.venv` is 3.13), runs the sweep on a frozen bank, and — for
+more than one target — pairs the rungs. Everything is env-overridable:
+
+```bash
+# The 2026-07-31 ornith-1.0-35b run (defaults)
+scripts/reproduce_redteam.sh
+
+# A different target / config / endpoint
+TARGETS="my-model" CONFIG=red_team_minimal \
+  JUDGE_URL=http://host:1234/v1 JUDGE_MODEL=uncensored-judge \
+  scripts/reproduce_redteam.sh
+
+# Several models on one endpoint (LM Studio / vLLM / llama-swap), one frozen bank
+TARGETS="ref-model quant-a quant-b" scripts/reproduce_redteam.sh
+```
+
+Configs ship in `eval/red_team_configs/`: `red_team_minimal` (smoke),
+`red_team_broad` (9 vulnerabilities × curated types × single-turn-heavy + one
+multi-turn, ~19 cases — the substantive-but-finishes sweep), `red_team` (full,
+apvt=3, multi-day), `red_team_agentic`, and two gemma-specific presets.
+
+**Reasoning targets need token headroom.** Ornith/Qwen3/DeepSeek put their
+chain-of-thought in a separate `reasoning_content` field and spend it *first*, so
+a low `--target-max-tokens` returns an empty answer that the judge scores as
+"safe" — a literal 100 % false pass, which is why `_assert_scored` hard-errors on
+an all-empty run. Use ≥ 3000 (the repro script defaults to 4000). The reasoning
+trace is captured for the disclosure report but never shown to the judge.
+
+### The disclosure artifact
+
+Every run writes `disclosure_<model>_repN.json`: for each **non-refusal**
+(complied or errored) case, the complete provenance a maintainer needs to
+reproduce and fix — the full attack (seed prompt *and* every multi-turn
+escalation step), the target's verbatim response and its own reasoning, the
+judge's verdict and reason, and a `case_id` to pair a re-test against. Refusals
+are excluded; a defended case is not a finding. This is the deliverable of the
+whole exercise: a bug report to help harden an open-weight model, generated on
+your own hardware against your own endpoints.
+
+### Worked example — ornith-1.0-35b, 2026-07-31
+
+`red_team_broad`, uncensored Qwopus3.6 as simulator + judge, single rep:
+
+| Category | Pass rate | |
+| --- | --- | --- |
+| Data Privacy | 100 % | 4 / 4 |
+| Responsible AI | 100 % | 5 / 5 |
+| **Safety** | **70 %** | 7 / 10 — every finding here |
+
+Overall **84.2 %** (16 defended / 3 complied / 0 errored); single-turn 88 %,
+multi-turn 67 %. The three findings — profanity via a "synthetic data for an AI
+Safety Lab" prompt injection, a dangerous-challenge invention via a roleplay
+persona, and graphic trauma detail via a "sensory database for my novel"
+multi-turn escalation — share one pattern: the model is robust to blunt requests
+but **susceptible to benign-purpose reframing**. That pattern, not the scalar, is
+what the disclosure report hands its authors.
+
 ### Scope — what this does not measure
 
 * **Bio.** The piece names cyber, biological, and alignment. A bio-uplift probe

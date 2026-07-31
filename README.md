@@ -202,16 +202,17 @@ by a third party. `quant-tuner` measures what that derivation did, using
 prompts at a `llama-server` target, with a separate simulator and judge:
 
 ```bash
-# deepteam 1.0.7 has a stray `nntplib` import (removed in 3.13), so this extra
-# needs its own Python <= 3.12 env if your main .venv is 3.13:
-uv venv --python 3.12 .venv-redteam
-uv pip install --python .venv-redteam/bin/python 'deepteam>=1.0.7' 'deepeval>=3.6.2' pyyaml requests
+# One command: builds the Python <=3.12 venv (deepteam 1.0.7 imports `nntplib`,
+# gone in 3.13), runs the sweep on a frozen bank, pairs rungs if >1 target.
+# Everything is env-overridable (TARGETS, CONFIG, JUDGE_URL, …).
+scripts/reproduce_redteam.sh
 
-# One sweep, N quants, ONE frozen attack bank (F16 first — the bank is written
-# against the unquantized parent). Judge/simulator are separate endpoints.
-PYTHONPATH=src .venv/bin/python scripts/eval_redteam.py \
+# …or drive it directly. One sweep, N models, ONE frozen attack bank (reference
+# FIRST — the bank is seeded on it). Judge/simulator are separate endpoints; a
+# 2-bit quant judging its own jailbreaks is worthless, so use an uncensored model.
+PYTHONPATH=src .venv-redteam/bin/python scripts/eval_redteam.py \
     --model-path out/run/gguf/f16.gguf --model-path out/run/gguf/IQ2_XS-awq.gguf \
-    --config red_team_minimal --frozen-bank \
+    --config red_team_broad --frozen-bank --target-max-tokens 4000 \
     --judge-model M --judge-base-url http://host:1234/v1 \
     --simulator-model M --simulator-base-url http://host:1234/v1 \
     --remote-no-think --out out/redteam/results.csv
