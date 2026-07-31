@@ -267,6 +267,58 @@ benchmark-agnostic — anything that reduces to `dict[str, float]` plugs in.
   false}'`). **`_build_env_config` must keep `cwd: /testbed`** — the grader and
   the mini-swe agent call `env.execute` without a cwd and rely on it.
 
+### Continued QAT for native-ternary models (`src/quant_tuner/qat/`)
+For **natively-ternary** models (`prism-ml/Ternary-Bonsai-8B`), post-hoc calibration is a
+structural no-op — the "F16" is a lossless container of `w = s·c`, `c ∈ {−1,0,+1}`, so there is
+no quantization error for imatrix/AWQ/GPTQ to recover. The only lever is **more training with
+the ternarization in the loop** (BitNet/TWN STE). Full guide: `docs/ternary_qat.md`.
+- `qat/ternary.py` — per-group TWN straight-through estimator; reproduces the shipped weights
+  **exactly** at step 0 (the fine-tune must start from the real model, not a re-derived one).
+- `qat/corpus.py` — masking/packing shared by the log corpus and the trajectory corpus. Loss is
+  masked to assistant/tool-call tokens **plus the terminating `<|im_end|>`** — omitting the stop
+  token is what caused the iter-2/3 looping, and the builder now asserts labeled stop targets
+  exist. `trajectory_to_messages` is also what `datasets/swe_trajectories.py` publishes, so the
+  released dataset and the training corpus cannot drift.
+- `qat/train.py` — `QATConfig` + `train_qat()`; `scripts/exp058_qat_train_v2.py` is a CLI shim.
+- `qat/export.py` — latents → **Q2_0** GGUF; needs `LLAMA_CPP_DIR=vendor/llama.cpp-prism`
+  (ftype 41 is fork-only).
+- `qat/kd_precompute.py` — offline top-K teacher logits (iter-6). Deliberately
+  architecture-agnostic (`resolve_vocab_size` walks `text_config`/`llm_config`/`decoder`;
+  configs with float ints are sanitized; `logits_to_keep` with a full-gather fallback) so a
+  larger-vocab teacher needs no format change. `tokenizer_compatibility()` compares id→token
+  **strings**, not `vocab_size` — a padded embedding matrix is fine, a different tokenizer is
+  refused (per-token KD across tokenizers is silently wrong). `kd_loss_from_topk` must
+  renormalize **both** sides over the stored top-K; normalizing only the teacher leaves a
+  constant offset (an identical student scored 0.89 instead of 0 — pinned by a unit test).
+- **Two training methods, one pipeline**: Method A = masked CE on verified trajectories
+  (run end-to-end); Method B = CE + KL against the precomputed top-K table (precompute and loss
+  validated, trainer wiring still open — `train.py` today only has the in-loop `--kd-teacher`,
+  which does not fit alongside an all-36 student).
+- **Metal constraints are hard, not preferences**: `foreach=False` (MPS multi-tensor kernels
+  deadlock at full-model scale), window ≤ 4096 (`32·8192²` overflows INT_MAX in the unfused
+  training SDPA path), **fp32 latents** (bf16 underflows the ternary threshold → no code flips),
+  `--optim adafactor` to fit all 36 layers (~66-75 GB vs AdamW's ~116 GB). `--compute-dtype bf16`
+  is a **pessimization** at all-36 (54.5 GiB vs 31 GiB — the fp32 master copy stacks on top).
+- **Read the code-flip telemetry, not the loss.** A ternary model only learns by flipping codes;
+  lr 3e-4 flips ~0% (scale drift only) while the loss still falls. 5e-4 for ~2.2 epochs is the
+  measured sweet spot; 8 epochs memorizes.
+- Peak memory spikes on `--ckpt-every` boundaries (`save_ckpt`'s whole-dict `.cpu()` transient);
+  both observed OOM kills landed exactly there. Keep the MPS-cache release before that copy.
+- Trajectory generation (`scripts/run_ornith_distill_gen.sh`) is Docker-heavy and slow under
+  amd64 emulation. `--cleanup-images` *untags* images, leaving `<none>` dangling layers — run
+  `scripts/docker_housekeep.sh` alongside long runs (SWE images + dangling only; never `-a`).
+
+### Publishable datasets (`src/quant_tuner/datasets/`)
+Staged under `datasets/<name>/`; payloads are gitignored, but the card, `manifest.json` and
+`CHANGELOG.md` are tracked so the repo records exactly what shipped. **Adding a dataset is a
+one-entry change**: write a builder yielding dicts, append a `DatasetSpec` to `REGISTRY`.
+- `SplitSpec.publish=False` builds a split locally but withholds it from the Hub **and** the
+  card (viewer config, stats, size bucket) — that is how the `all` split stays available for
+  failure analysis while only verified trajectories ship.
+- `push()` records a release in the manifest **only after** a successful upload, so a failed
+  push cannot leave the repo claiming one; each push tags `v<version>` for `revision=` pinning.
+- CLI: `scripts/dataset.py {list,build,push}` (`--bump`, `--version`, `--dry-run`, `--no-build`).
+
 ### Experiment scripts (`scripts/`)
 The OmniCoder reproduction is here; the CLI handles ad-hoc runs.
 - `gen_iq2_grids.py` — regenerates `calibrate/_iq2_grids.py` (the IQ2 E8-lattice
@@ -338,7 +390,19 @@ The OmniCoder reproduction is here; the CLI handles ad-hoc runs.
   datasets-server `/rows` API (the full `test` split is multi-GB and the
   streaming reader stalls). Default: 10 `is_lite` instances, seeded shuffle
   (seed 42) over the first `--scan-limit` rows; `--no-lite-only` /
-  `--max-difficulty` widen the pool.
+  `--max-difficulty` widen the pool. `--from-local` reads a downloaded split
+  instead (the `/rows` preview API rate-limits with 429s on repeated calls);
+  `--exclude <holdout.jsonl>` builds a training pool **disjoint** from what we
+  grade on — that invariant is what makes the QAT generalization number mean
+  anything. `download_swebench_dataset.py` fetches the full split once.
+- **Ternary-QAT chain** (see `docs/ternary_qat.md` for the end-to-end guide):
+  `run_ornith_distill_gen.sh` (harvest verified solver trajectories) →
+  `build_ornith_distill_corpus.py` (resolved-only, student tokenizer, masked) →
+  `run_iter5_pipeline.sh LR TAG EPOCHS` (train → export Q2_0 → bench) +
+  `run_iter5_indist_eval.sh TAG` (the in-distribution diagnostic — read it
+  *against* the generalization number, not instead of it) →
+  `run_iter5_autoloop.sh` (unattended grow-data/retrain/bench until it
+  generalizes). `kd_precompute.py` is the iter-6 offline-KD entry point.
 - `run_swebench_eval.py` — runs `eval.run_swebench_eval` over one or more GGUFs
   (default = gemma-4-31B `qat-Q2_K_S-imatrix`). Fails fast if the Docker daemon
   is down. Writes `results.csv` (per-instance), `aggregated.csv` (per-model),
