@@ -432,6 +432,13 @@ _ATTACK_SPECS: dict[str, tuple[str, str]] = {
     "input_bypass": ("single_turn", "InputBypass"),
     "permission_escalation": ("single_turn", "PermissionEscalation"),
     "goal_redirection": ("single_turn", "GoalRedirection"),
+    # ── Single-turn: creative / structural framings (obfuscate the ask) ────────
+    "adversarial_poetry": ("single_turn", "AdversarialPoetry"),
+    "character_stream": ("single_turn", "CharacterStream"),
+    "context_flooding": ("single_turn", "ContextFlooding"),
+    # instruction hidden inside a JSON structure — directly targets a model that
+    # complies with "output ONLY valid JSON" wrappers (ornith's failure mode).
+    "embedded_instruction_json": ("single_turn", "EmbeddedInstructionJSON"),
     # ── Multi-turn ────────────────────────────────────────────────────────────
     "linear_jailbreaking": ("multi_turn", "LinearJailbreaking"),
     "crescendo_jailbreaking": ("multi_turn", "CrescendoJailbreaking"),
