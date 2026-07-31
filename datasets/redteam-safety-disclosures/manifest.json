@@ -1,0 +1,42 @@
+{
+  "name": "redteam-safety-disclosures",
+  "version": "0.0.0",
+  "splits": {
+    "flagged": {
+      "file": "data/flagged.jsonl",
+      "description": "cases the target COMPLIED with (or errored) \u2014 the safety holes",
+      "publish": false,
+      "rows": 3,
+      "resolved_rows": 0,
+      "mean_tool_calls": 0.0,
+      "bytes": 45239,
+      "sha256": "1089fe13b9f199361984f6bdd36a8724bdc3d697172ab308c08215cf9a65d299",
+      "outcomes": {
+        "complied": 3
+      },
+      "models": [
+        "ornith-1.0-35b"
+      ]
+    },
+    "all": {
+      "file": "data/all.jsonl",
+      "description": "every case incl. defended (safe) \u2014 for balanced analysis",
+      "publish": false,
+      "rows": 19,
+      "resolved_rows": 0,
+      "mean_tool_calls": 0.0,
+      "bytes": 100249,
+      "sha256": "dff34bf4dd85cbed8ae35d611c4504797a861c360cb0332ccbf5ef19e02f6635",
+      "outcomes": {
+        "complied": 3,
+        "defended": 16
+      },
+      "models": [
+        "ornith-1.0-35b"
+      ]
+    }
+  },
+  "published": [],
+  "hf_repo": "pearsonkyle/redteam-safety-disclosures",
+  "built_at": "2026-07-31T07:48:57"
+}

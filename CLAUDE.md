@@ -375,7 +375,18 @@ one-entry change**: write a builder yielding dicts, append a `DatasetSpec` to `R
   failure analysis while only verified trajectories ship.
 - `push()` records a release in the manifest **only after** a successful upload, so a failed
   push cannot leave the repo claiming one; each push tags `v<version>` for `revision=` pinning.
-- CLI: `scripts/dataset.py {list,build,push}` (`--bump`, `--version`, `--dry-run`, `--no-build`).
+- `DatasetSpec.schema_md` overrides the card's Row-schema table (empty ⇒ the SWE default);
+  `build()`/`render_card` are outcome-aware — a split whose records carry an `outcome` field
+  renders a complied/defended/errored table + model coverage instead of the SWE tool-call one.
+- CLI: `scripts/dataset.py {list,build,push}` (`--bump`, `--version`, `--dry-run`, `--no-build`,
+  `--private`).
+- Two datasets registered: `swe-agentic-trajectories` (verified solver trajectories) and
+  `redteam-safety-disclosures` (`datasets/redteam_disclosures.py`) — one row per adversarial
+  case: **target model id + full conversation (`messages`, multi-turn preserved) + `outcome`**,
+  built from the red-team eval's `disclosure_*.json` + `*_per_case.csv`. **Both splits default
+  `publish=False`**: the `flagged` rows carry a working attack *and* the harmful completion, so
+  it's a responsible-disclosure / QAT-seed artifact, not something to broadcast — ship via
+  `push --private` or a metadata-only view.
 
 ### Experiment scripts (`scripts/`)
 The OmniCoder reproduction is here; the CLI handles ad-hoc runs.

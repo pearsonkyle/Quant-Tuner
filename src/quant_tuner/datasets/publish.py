@@ -73,13 +73,20 @@ def build(spec: DatasetSpec) -> dict:
         n_rows = 0
         n_resolved = 0
         n_tool_calls = 0
+        outcomes: dict[str, int] = {}
+        models: set[str] = set()
         with out.open("w") as fh:
             for rec in split.builder():
                 fh.write(json.dumps(rec) + "\n")
                 n_rows += 1
                 n_resolved += bool(rec.get("resolved"))
                 n_tool_calls += int(rec.get("n_tool_calls") or 0)
-        splits[split.name] = {
+                # red-team datasets label an `outcome` + a target `model` instead
+                if rec.get("outcome"):
+                    outcomes[rec["outcome"]] = outcomes.get(rec["outcome"], 0) + 1
+                if rec.get("model"):
+                    models.add(rec["model"])
+        stats = {
             "file": f"data/{split.name}.jsonl",
             "description": split.description,
             "publish": split.publish,
@@ -89,6 +96,10 @@ def build(spec: DatasetSpec) -> dict:
             "bytes": out.stat().st_size,
             "sha256": _sha256(out),
         }
+        if outcomes:  # red-team split: surface the outcome mix + model coverage
+            stats["outcomes"] = dict(sorted(outcomes.items()))
+            stats["models"] = sorted(models)
+        splits[split.name] = stats
         print(f"[dataset] {spec.name}:{split.name}  {n_rows} rows  "
               f"({splits[split.name]['bytes'] / 1024**2:.1f} MB)"
               f"{'' if split.publish else '   [local only, not published]'}", flush=True)
@@ -123,28 +134,42 @@ def render_card(spec: DatasetSpec, manifest: dict) -> str:
         "",
     ]
 
-    rows = ["| split | rows | verified (tests pass) | mean tool calls | size |",
-            "| --- | ---: | ---: | ---: | ---: |"]
-    for name, i in splits.items():
-        rows.append(f"| `{name}` | {i['rows']} | {i['resolved_rows']} | "
-                    f"{i['mean_tool_calls']} | {i['bytes'] / 1024**2:.1f} MB |")
+    # Adaptive stats table: outcome-labeled (red-team) datasets report the
+    # outcome mix; others keep the SWE verified/tool-call columns. When nothing
+    # is published (e.g. a dual-use dataset withheld by default), say so plainly.
+    if not splits:
+        rows = ["_No splits are published for this dataset (withheld by default — "
+                "see below). Build locally to materialize them._"]
+    elif any(i.get("outcomes") for i in splits.values()):
+        rows = ["| split | rows | complied | defended | errored | models | size |",
+                "| --- | ---: | ---: | ---: | ---: | ---: |"]
+        for name, i in splits.items():
+            o = i.get("outcomes", {})
+            rows.append(f"| `{name}` | {i['rows']} | {o.get('complied', 0)} | "
+                        f"{o.get('defended', 0)} | {o.get('errored', 0)} | "
+                        f"{len(i.get('models', []))} | {i['bytes'] / 1024**2:.1f} MB |")
+    else:
+        rows = ["| split | rows | verified (tests pass) | mean tool calls | size |",
+                "| --- | ---: | ---: | ---: | ---: |"]
+        for name, i in splits.items():
+            rows.append(f"| `{name}` | {i['rows']} | {i['resolved_rows']} | "
+                        f"{i['mean_tool_calls']} | {i['bytes'] / 1024**2:.1f} MB |")
 
-    schema = [
-        "## Row schema",
-        "",
-        "| field | meaning |",
-        "| --- | --- |",
-        "| `instance_id`, `repo` | the upstream issue and its repository |",
-        "| `messages` | the full session in chat format (`system`/`user`/`assistant`+`tool_calls`/`tool`) |",
-        "| `tools` | tool schema the agent was given (`bash(command)`) |",
-        "| `submission` | the final `git diff` the agent produced |",
-        "| `resolved` | **true = the hidden tests passed** (verified solution) |",
-        "| `patch_produced`, `patch_chars` | whether a non-empty patch was submitted, and its size |",
-        "| `n_messages`, `n_tool_calls`, `tools_used`, `tool_errors` | session shape |",
-        "| `n_fail_to_pass[_passed]`, `n_pass_to_pass[_passed]` | grading detail |",
-        "| `prompt_tokens`, `completion_tokens`, `total_tokens`, `wall_sec` | cost |",
-        "| `exit_status` | how the agent loop ended (`completed` / `max_turns` / …) |",
-    ]
+    _SWE_SCHEMA = (
+        "| field | meaning |\n"
+        "| --- | --- |\n"
+        "| `instance_id`, `repo` | the upstream issue and its repository |\n"
+        "| `messages` | the full session in chat format (`system`/`user`/`assistant`+`tool_calls`/`tool`) |\n"
+        "| `tools` | tool schema the agent was given (`bash(command)`) |\n"
+        "| `submission` | the final `git diff` the agent produced |\n"
+        "| `resolved` | **true = the hidden tests passed** (verified solution) |\n"
+        "| `patch_produced`, `patch_chars` | whether a non-empty patch was submitted, and its size |\n"
+        "| `n_messages`, `n_tool_calls`, `tools_used`, `tool_errors` | session shape |\n"
+        "| `n_fail_to_pass[_passed]`, `n_pass_to_pass[_passed]` | grading detail |\n"
+        "| `prompt_tokens`, `completion_tokens`, `total_tokens`, `wall_sec` | cost |\n"
+        "| `exit_status` | how the agent loop ended (`completed` / `max_turns` / …) |"
+    )
+    schema = ["## Row schema", "", spec.schema_md.strip() or _SWE_SCHEMA]
 
     return "\n".join([
         *fm,
