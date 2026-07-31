@@ -63,6 +63,7 @@ from quant_tuner.eval.red_team import (  # noqa: E402
     render_reps_table,
     render_summary,
     run_frozen_bank_sweep,
+    write_disclosure_report,
     write_per_case_csv,
 )
 
@@ -112,8 +113,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "exclusive with --model-path).",
     )
     p.add_argument(
-        "--target-model-name", default="local",
-        help="Served model name to send to the --base-url target (default: local).",
+        "--target-model-name", action="append", default=[],
+        help="Served model id for the --base-url target (default: 'local'). "
+        "Repeatable: one endpoint (LM Studio, vLLM, llama-swap) often serves "
+        "several models, and then this is the ONLY thing distinguishing rungs — "
+        "so repeating it gives a multi-target frozen-bank sweep with no GGUF paths.",
     )
     p.add_argument(
         "--target-purpose", default=None,
@@ -190,7 +194,15 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--min-p", type=float, default=None)
     p.add_argument("--repeat-penalty", type=float, default=None)
     p.add_argument("--target-max-tokens", type=int, default=None,
-                   help="Max tokens for the target's reply (default: server default).")
+                   help="Max tokens for the target's reply (default: server default). "
+                   "Reasoning models (Ornith, Qwen3, DeepSeek) need generous room: the "
+                   "chain-of-thought is spent FIRST, and the answer is empty if the "
+                   "budget runs out before it starts. 3000+ is a safe floor.")
+    p.add_argument("--allow-empty-output", action="store_true",
+                   help="Record a run even if every scored case had an empty target "
+                   "response (normally a hard error — it means the token budget was "
+                   "spent on reasoning, so pass_rate is a truncation artifact, not "
+                   "safety). Prefer raising --target-max-tokens.")
 
     # ── Server (local --model-path only) ─────────────────────────────────────
     p.add_argument("--ctx", type=int, default=8192)
@@ -198,6 +210,16 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--chat-template-kwargs", default=None,
                    help='JSON, forwarded to llama-server --chat-template-kwargs.')
     p.add_argument("--server-startup-timeout", type=float, default=300.0)
+    p.add_argument(
+        "--target-timeout", type=float, default=600.0,
+        help="Per-request timeout for the TARGET (s). Raise it when the box is "
+        "shared with other jobs: a timeout is recorded as an errored case, which "
+        "drops it from the pass_rate denominator and shrinks the paired bank.",
+    )
+    p.add_argument(
+        "--remote-timeout", type=float, default=600.0,
+        help="Per-request timeout for the judge + simulator endpoints (s).",
+    )
 
     # ── Output ───────────────────────────────────────────────────────────────
     p.add_argument("--out", type=Path, required=True, help="CSV to append rows to.")
@@ -283,10 +305,18 @@ def main() -> int:
     per_case_out = args.out.with_name(args.out.stem + "_per_case" + args.out.suffix)
     reps = max(1, args.reps)
 
+    served = args.target_model_name or ["local"]
     if args.model_path:
+        if len(served) > 1:
+            raise SystemExit(
+                "--target-model-name is repeatable only with --base-url; each "
+                "--model-path already names its own target"
+            )
         targets = [Target(label=mp.stem, model_path=mp) for mp in args.model_path]
     else:
-        targets = [Target(label=args.target_model_name, base_url=args.base_url)]
+        targets = [
+            Target(label=name, base_url=args.base_url, served_model=name) for name in served
+        ]
 
     if args.frozen_bank and len(targets) > 1:
         print(f"[bank] frozen: attacks simulated against {targets[0].label!r}, "
@@ -295,11 +325,29 @@ def main() -> int:
         print("[bank] NOT frozen — cross-target deltas confound model drift with "
               "attack-bank variance; absolute rates only")
 
-    def _on_rep(label: str, rep: int, summary: RedTeamSummary) -> None:
+    def _on_rep(label: str, rep: int, summary: RedTeamSummary,
+                transcript: list | None = None) -> None:
         print(f"\n----- {label} · rep {rep}/{reps} -----")
         print(render_summary(summary))
         _append_csv_row(args.out, summary, args.config, rep)
         write_per_case_csv(per_case_out, summary, rep)
+        # Disclosure artifact: full prompts + conversation history + the model's
+        # own reasoning for every complied/errored case, to share with the
+        # model's authors so they can reproduce and fix.
+        rp = write_disclosure_report(
+            json_dir / f"disclosure_{label}_rep{rep}.json",
+            summary,
+            target_base_url=args.base_url,
+            target_model=label,
+            judge_model=args.judge_model,
+            simulator_model=args.simulator_model,
+            config_name=args.config,
+            target_transcript=transcript,
+            rep=rep,
+        )
+        n_find = summary.n_failing + summary.n_errored
+        if n_find:
+            print(f"  ⚑ {n_find} finding(s) (complied/errored) → {rp}")
 
     sweep_kwargs = dict(
         judge_model=args.judge_model,
@@ -310,7 +358,7 @@ def main() -> int:
         simulator_api_key=args.simulator_api_key,
         judge_chat_template_kwargs=judge_ctk,
         simulator_chat_template_kwargs=sim_ctk,
-        target_model_name=args.target_model_name,
+        target_model_name=served[0],
         target_purpose=args.target_purpose,
         target_sampling=sampling,
         api_key=args.api_key,
@@ -324,6 +372,9 @@ def main() -> int:
         log_dir=json_dir,
         server_startup_timeout=args.server_startup_timeout,
         chat_template_kwargs=args.chat_template_kwargs,
+        target_timeout=args.target_timeout,
+        remote_timeout=args.remote_timeout,
+        allow_empty_output=args.allow_empty_output,
         on_rep=_on_rep,
     )
 

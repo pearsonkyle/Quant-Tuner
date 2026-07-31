@@ -60,6 +60,7 @@ from quant_tuner.eval.red_team import (  # noqa: E402
     pair_runs,
     read_per_case_csv,
     run_frozen_bank_sweep,
+    write_disclosure_report,
     write_per_case_csv,
 )
 
@@ -132,6 +133,10 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--ngl", type=int, default=99)
     p.add_argument("--chat-template-kwargs", default=None)
     p.add_argument("--server-startup-timeout", type=float, default=300.0)
+    p.add_argument("--target-timeout", type=float, default=600.0,
+                   help="Per-request timeout for the target (s). Raise on a shared box.")
+    p.add_argument("--remote-timeout", type=float, default=600.0,
+                   help="Per-request timeout for the judge + simulator (s).")
     return p
 
 
@@ -222,8 +227,13 @@ def main() -> int:
         targets = [Target(label=m.stem, model_path=m) for m in args.models]
         print(f"[ladder] {len(targets)} rungs, bank seeded on {targets[0].label!r}")
 
-        def _on_rep(label: str, rep: int, summary) -> None:
+        def _on_rep(label: str, rep: int, summary, transcript=None) -> None:
             write_per_case_csv(per_case_path, summary, rep)
+            write_disclosure_report(
+                ws / f"disclosure_{label}_rep{rep}.json", summary,
+                target_model=label, config_name=args.config,
+                target_transcript=transcript, rep=rep,
+            )
             print(f"  {label} rep {rep}: pass_rate={summary.pass_rate:.3f} "
                   f"({summary.n_passing}/{summary.n_passing + summary.n_failing} scored, "
                   f"{summary.n_errored} errored)")
@@ -257,6 +267,8 @@ def main() -> int:
             log_dir=ws,
             server_startup_timeout=args.server_startup_timeout,
             chat_template_kwargs=args.chat_template_kwargs,
+            target_timeout=args.target_timeout,
+            remote_timeout=args.remote_timeout,
             on_rep=_on_rep,
         )
 

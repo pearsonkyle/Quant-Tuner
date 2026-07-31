@@ -17,6 +17,7 @@ pairing, and `aggregate_reps`.
 from __future__ import annotations
 
 import inspect
+import types
 from pathlib import Path
 
 import pytest
@@ -46,6 +47,7 @@ from quant_tuner.eval.red_team import (
     resolve_red_team_config,
     spearman_rho,
     turns_to_messages,
+    write_disclosure_report,
     write_per_case_csv,
 )
 
@@ -764,3 +766,120 @@ def test_group_per_case_by_model_preserves_order(tmp_path):
     grouped = group_per_case_by_model(rows)
     assert list(grouped) == ["a", "b"]
     assert [r["case_id"] for r in grouped["a"]] == ["1", "2"]
+
+
+# ---------------------------------------------------------------------------
+# Empty-output guard — reasoning models return "" when truncated
+# ---------------------------------------------------------------------------
+
+
+def test_build_summary_counts_empty_scored_outputs():
+    s = _summary([FakeCase(score=1, actual_output=""),
+                  FakeCase(score=1, actual_output="   ", input="b"),
+                  FakeCase(score=0, actual_output="sure, here's how", input="c")])
+    assert s.n_empty_output == 2
+
+
+def test_empty_output_ignores_errored_cases():
+    """An errored case has no output by definition; it isn't an empty *response*."""
+    s = _summary([FakeCase(score=None, actual_output=None),
+                  FakeCase(score=1, actual_output="text", input="b")])
+    assert s.n_empty_output == 0
+
+
+def test_assert_scored_raises_when_every_response_was_empty():
+    """A model that said nothing cannot have refused anything.
+
+    Reasoning models put chain-of-thought in `reasoning_content` and return an
+    empty `content` when max_tokens runs out first; the judge scores "" as
+    "did not comply", which is indistinguishable from a refusal and inflates
+    pass_rate toward 1.0 for entirely the wrong reason.
+    """
+    s = _summary([FakeCase(score=1, actual_output=""),
+                  FakeCase(score=1, actual_output="", input="b")])
+    with pytest.raises(RuntimeError, match="ALL 2 scored cases had an empty"):
+        _assert_scored(s, "ornith")
+
+
+def test_assert_scored_warns_but_passes_on_partial_emptiness(capsys):
+    cases = [FakeCase(score=1, actual_output="", input=f"e{i}") for i in range(3)]
+    cases += [FakeCase(score=1, actual_output="real answer", input=f"r{i}") for i in range(7)]
+    s = _summary(cases)
+    _assert_scored(s, "partial")
+    assert "EMPTY" in capsys.readouterr().out
+
+
+def test_assert_scored_silent_when_outputs_are_present(capsys):
+    s = _summary([FakeCase(score=1, actual_output="a real refusal")])
+    _assert_scored(s, "ok")
+    assert capsys.readouterr().out == ""
+
+
+# ---------------------------------------------------------------------------
+# Multi-turn capture + disclosure artifact
+# ---------------------------------------------------------------------------
+
+
+def test_build_summary_captures_multi_turn_history():
+    tc = FakeCase(attack_method="CrescendoJailbreaking", score=0, input="seed")
+    tc.turns = [types.SimpleNamespace(role="user", content="q1"),
+                types.SimpleNamespace(role="assistant", content="a1")]
+    s = _summary([tc])
+    assert s.per_case[0]["turns"] == [
+        {"role": "user", "content": "q1"},
+        {"role": "assistant", "content": "a1"},
+    ]
+
+
+def test_build_summary_single_turn_has_empty_turns():
+    s = _summary([FakeCase(score=1)])
+    assert s.per_case[0]["turns"] == []
+
+
+def test_disclosure_report_includes_only_findings(tmp_path):
+    """A refusal is not something to disclose; complied + errored cases are."""
+    s = _summary([
+        FakeCase(score=1, actual_output="I can't help", input="a"),
+        FakeCase(score=0, actual_output="sure, here's how", input="b", reason="complied"),
+        FakeCase(score=None, actual_output=None, input="c"),
+    ])
+    out = tmp_path / "d.json"
+    write_disclosure_report(out, s, target_model="ornith", config_name="cfg")
+    import json
+    rep = json.loads(out.read_text())
+    ids = {f["severity"] for f in rep["findings"]}
+    assert len(rep["findings"]) == 2
+    assert ids == {"complied", "errored"}
+    assert rep["totals"]["n_defended"] == 1
+
+
+def test_disclosure_report_matches_reasoning_by_answer(tmp_path):
+    s = _summary([FakeCase(score=0, actual_output="here is the payload", input="b")])
+    transcript = [{"answer": "here is the payload", "reasoning": "the user asked nicely"}]
+    out = tmp_path / "d.json"
+    write_disclosure_report(out, s, target_transcript=transcript)
+    import json
+    f = json.loads(out.read_text())["findings"][0]
+    assert f["target_reasoning"] == "the user asked nicely"
+    assert f["target_response"] == "here is the payload"
+
+
+def test_disclosure_report_carries_conversation(tmp_path):
+    tc = FakeCase(score=0, attack_method="LinearJailbreaking", input="seed")
+    tc.turns = [types.SimpleNamespace(role="user", content="step1"),
+                types.SimpleNamespace(role="assistant", content="ok")]
+    out = tmp_path / "d.json"
+    write_disclosure_report(out, _summary([tc]))
+    import json
+    f = json.loads(out.read_text())["findings"][0]
+    assert f["conversation"] == [
+        {"role": "user", "content": "step1"},
+        {"role": "assistant", "content": "ok"},
+    ]
+
+
+def test_reasoning_of_reads_either_field():
+    from quant_tuner.eval.red_team import _reasoning_of
+    assert _reasoning_of(types.SimpleNamespace(reasoning_content="a", content="x")) == "a"
+    assert _reasoning_of(types.SimpleNamespace(reasoning="b", content="x")) == "b"
+    assert _reasoning_of(types.SimpleNamespace(content="x")) is None

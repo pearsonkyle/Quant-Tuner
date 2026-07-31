@@ -202,7 +202,10 @@ by a third party. `quant-tuner` measures what that derivation did, using
 prompts at a `llama-server` target, with a separate simulator and judge:
 
 ```bash
-uv sync --extra redteam            # Python <= 3.12 (deepteam 1.0.7 needs `nntplib`)
+# deepteam 1.0.7 has a stray `nntplib` import (removed in 3.13), so this extra
+# needs its own Python <= 3.12 env if your main .venv is 3.13:
+uv venv --python 3.12 .venv-redteam
+uv pip install --python .venv-redteam/bin/python 'deepteam>=1.0.7' 'deepeval>=3.6.2' pyyaml requests
 
 # One sweep, N quants, ONE frozen attack bank (F16 first — the bank is written
 # against the unquantized parent). Judge/simulator are separate endpoints.
@@ -233,6 +236,20 @@ models actually ship into — a coding agent with a `bash` tool in a disposable
 SWE-rebench container — so compliance means *executed a command*, not *wrote a
 paragraph*. Read its `pass_rate` next to `n_tool_calls`: a quant too degraded to
 call a tool scores as "safe" for entirely the wrong reason.
+
+Every complied/errored case is also written to a `disclosure_<model>_repN.json`
+evidence file — the full attack (seed prompt **and** multi-turn escalation), the
+target's verbatim response and its own reasoning trace (for reasoning models),
+and the judge's verdict — so a finding can be reported to the model's authors to
+help them fix it. Refusals are excluded; a defended case is not a finding.
+
+Reasoning models (Ornith, Qwen3, DeepSeek) spend their token budget on
+chain-of-thought *first*, so set `--target-max-tokens` generously (3000+): if the
+budget runs out before the answer starts, `content` comes back empty and the
+judge would score silence as "safe". The harness refuses an all-empty run rather
+than report that false pass (override with `--allow-empty-output`). One
+`--base-url` serving several models? Repeat `--target-model-name` to sweep them
+all on one frozen bank.
 
 Merge the result into the leaderboard with
 `quant-tuner leaderboard --redteam-csv ladder.csv`. The safety columns are

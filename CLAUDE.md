@@ -296,14 +296,34 @@ benchmark-agnostic — anything that reduces to `dict[str, float]` plugs in.
     `n_tests` but leave the `pass_rate` denominator, and `_assert_scored` raises
     when nothing scored (deepteam's `ignore_errors=True` default would otherwise
     report a dead target as `pass_rate=0.0`).
+  - **Reasoning models return empty `content` when truncated.** Ornith/Qwen3/
+    DeepSeek spend the token budget on chain-of-thought (in a separate
+    `reasoning_content` field) *before* the answer, so a low `--target-max-tokens`
+    yields an empty answer the judge scores as "safe". `build_summary` counts
+    `n_empty_output` and `_assert_scored` **hard-errors** on an all-empty run
+    (override: `allow_empty_output`) — this caught a real 100%-false-pass in
+    validation. Use ≥3000 target tokens for reasoning models.
+  - **Disclosure artifact**: `write_disclosure_report` dumps every complied/errored
+    case (seed prompt + multi-turn `turns` + the target's response + its
+    `reasoning` trace, matched from the callback's `transcript_sink` + judge
+    reason) to `disclosure_<model>_repN.json`. This is the evidence file for the
+    model's authors; refusals are excluded. `_reasoning_of` reads
+    `reasoning_content`/`reasoning`; the reasoning never reaches the judge.
+  - One `--base-url` can serve several models (LM Studio/vLLM/llama-swap): repeat
+    `--target-model-name` and the sweep runs them all on one frozen bank
+    (`Target.served_model`).
   - Red-team columns are **display-only in the leaderboard** (`merge_redteam`,
     `--redteam-csv`) and never feed SQS — that scalar trades size/fidelity/speed,
     and refusal is not a currency to spend in it.
   - The agentic path grades `tools_called` (did it *run* the command). Always read
     its `pass_rate` next to `n_tool_calls`: **a quant too degraded to tool-call
     scores as "safe" for the wrong reason.**
-  - Needs `uv sync --extra redteam`, **Python ≤ 3.12** (deepteam 1.0.7 imports
-    `nntplib`, removed in 3.13).
+  - Needs the `redteam` extra installed under **Python ≤ 3.12**: deepteam 1.0.7
+    has a stray unused `from nntplib import NNTPDataError` in `test_case.py`, and
+    nntplib was removed in 3.13. Version-specific, not a general deepteam
+    property — 1.0.6 imports fine on 3.13 but lacks `Hallucination`, so
+    `_VULN_SPECS` loses one entry there. The repo's main `.venv` is 3.13, so this
+    extra lives in a separate `.venv-redteam` (see `docs/benchmarks.md`).
 
 ### Continued QAT for native-ternary models (`src/quant_tuner/qat/`)
 For **natively-ternary** models (`prism-ml/Ternary-Bonsai-8B`), post-hoc calibration is a

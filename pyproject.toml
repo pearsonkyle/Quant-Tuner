@@ -36,12 +36,15 @@ dev = [
 # LAZILY inside the functions that need them, so the scoring/pairing layers stay
 # importable — and unit-testable — without this extra installed.
 #
-# ⚠️ Python <= 3.12 only. deepteam 1.0.7's test_case.py imports `nntplib`, which
-# was removed in 3.13, so `import deepteam` fails there despite its metadata
-# advertising `<3.14`.
+# ⚠️ Install this extra under Python <= 3.12. deepteam 1.0.7 carries a stray
+# (unused) `from nntplib import NNTPDataError` at the top of test_case.py, and
+# nntplib was removed in 3.13 — so `import deepteam` fails there despite the
+# package metadata advertising `<3.14`. This is specific to 1.0.7: 1.0.6 has no
+# such import and does run on 3.13, but it predates the `Hallucination`
+# vulnerability, so `_VULN_SPECS` loses one entry (verified against both).
 redteam = [
-    "deepteam>=1.0.7",  # pin: _VULN_SPECS/_ATTACK_SPECS + reuse_simulated_test_cases verified here
-    "deepeval>=3.6.2",  # LocalModel/DeepEvalBaseLLM surface used by eval/red_team.LocalLLM
+    "deepteam>=1.0.7",  # pin: all 36 _VULN_SPECS + 22 _ATTACK_SPECS resolve here; reuse_simulated_test_cases verified
+    "deepeval>=3.6.2",  # DeepEvalBaseLLM surface used by eval/red_team.LocalLLM (tested against 4.1.4)
 ]
 # Agentic SWE-rebench benchmark (eval/swebench.py). mini-swe-agent drives the
 # model over the OpenAI-compatible llama-server endpoint inside a per-instance
