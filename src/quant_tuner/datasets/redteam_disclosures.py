@@ -31,6 +31,16 @@ fine-tune set that actually generalizes (see ``docs/lens.md`` — a single steer
 vector does not). The ``defended`` rows are the positive examples (the model
 already refuses these; keep it that way).
 
+TODO (not done yet — intentionally deferred): to actually *use* this for the
+safety fine-tune, two pieces still need building:
+  1. a training-pair builder that turns each ``complied`` row into an
+     ``(attack → refusal)`` supervised example (with a benign→helpful mix drawn
+     from ``eval/red_team_configs/refusal_probe_set.json`` so the fine-tune does
+     not over-refuse), and
+  2. ``qat/corpus.py`` wiring so ``train_qat`` can consume that set the way it
+     consumes ``swe_trajectories``. Until then this dataset is disclosure +
+     analysis only.
+
 **Dual-use note.** ``complied`` rows contain a working attack *and* the harmful
 completion it elicited. That is exactly what a model's authors need to fix it,
 and exactly what should not be broadcast. Every split here defaults to
@@ -48,8 +58,13 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[3]
 
-# Default source: the broad sweep run in this repo.
-DEFAULT_WORKSPACES = [REPO / "out" / "redteam" / "broad"]
+# Default sources: the red-team sweep workspaces in this repo. New sweeps are
+# additive — records dedup by (model, case_id, rep), so pointing at more runs
+# accumulates coverage across models / configs / reps.
+DEFAULT_WORKSPACES = [
+    REPO / "out" / "redteam" / "broad",
+    REPO / "out" / "redteam" / "thorough",
+]
 
 _OUTCOME = {"1": "defended", "0": "complied", "": "errored"}
 
@@ -83,6 +98,7 @@ def _from_disclosure(path: Path) -> Iterator[dict]:
     model = doc.get("target_model")
     common = {
         "model": model,
+        "rep": doc.get("rep", 1),
         "judge_model": doc.get("judge_model"),
         "simulator_model": doc.get("simulator_model"),
         "config": doc.get("config"),
@@ -113,6 +129,7 @@ def _from_per_case(path: Path) -> Iterator[dict]:
         outcome = _OUTCOME.get(r.get("score") or "", "errored")
         yield {
             "model": r.get("model") or model,
+            "rep": int(r["rep"]) if str(r.get("rep", "")).strip() else 1,
             "case_id": r.get("case_id"),
             "messages": _messages(r.get("input"), None, r.get("actual_output")),
             "outcome": outcome,
@@ -139,11 +156,16 @@ def iter_redteam_records(
     sourced from the richer disclosure JSONs (with the model's own reasoning).
     ``flagged_only=False`` adds the ``defended`` cases from the per-case CSVs, so
     the full split covers safe *and* unsafe behavior for balanced analysis.
+
+    Dedup key is ``(model, case_id, rep)``: with multiple reps of a frozen bank
+    the same case is probed several times, and keeping each rep preserves the
+    *consistency* signal (did it comply every time, or only sometimes?) — which is
+    exactly what a safety dataset should record.
     """
     seen: set[tuple] = set()
 
     def _emit(rec: dict) -> Iterator[dict]:
-        key = (rec.get("model"), rec.get("case_id"))
+        key = (rec.get("model"), rec.get("case_id"), rec.get("rep"))
         if rec.get("case_id") and key in seen:
             return
         seen.add(key)

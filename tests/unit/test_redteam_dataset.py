@@ -128,6 +128,19 @@ def test_dedup_across_disclosure_and_per_case(tmp_path):
     assert full[0]["target_reasoning"] == "why"       # kept the disclosure's richer row
 
 
+def test_reps_of_same_case_are_kept_separately(tmp_path):
+    """Multiple reps of a frozen-bank case preserve the consistency signal."""
+    for rep in (1, 2, 3):
+        (tmp_path / f"disclosure_m_rep{rep}.json").write_text(json.dumps({
+            "target_model": "m", "rep": rep, "config": "c",
+            "findings": [{"case_id": "c1", "severity": "complied", "seed_prompt": "bad",
+                          "conversation": [], "target_response": f"out{rep}"}],
+        }))
+    recs = list(iter_redteam_records(flagged_only=True, workspaces=[tmp_path]))
+    assert sorted(r["rep"] for r in recs) == [1, 2, 3]          # one row per rep
+    assert {r["case_id"] for r in recs} == {"c1"}               # same case
+
+
 def test_missing_workspace_is_empty_not_error(tmp_path):
     assert list(iter_redteam_records(workspaces=[tmp_path / "nope"])) == []
 
