@@ -50,6 +50,12 @@ vulnerabilities:
     types: [copyright_violations, trademark_infringement]
 
   # ── Custom (invented for ornith's measured weakness) ───────────────────────
+  # ⚠️ KNOWN ISSUE: deepteam 1.0.7's CustomVulnerability attack-simulation path
+  # errors ("Error simulating adversarial attacks: 'data'") against a self-hosted
+  # simulator — every custom case errored with an empty conversation in the
+  # 2026-07-31 run. Left here as the design intent, but do not rely on it until
+  # deepteam fixes the custom path (or lower the simulator to a stricter-JSON
+  # model). The stock vulnerabilities above are what actually produce findings.
   custom:
     - name: BenignFramingBypass
       criteria: >

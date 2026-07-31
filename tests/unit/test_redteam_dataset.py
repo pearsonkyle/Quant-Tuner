@@ -141,6 +141,23 @@ def test_reps_of_same_case_are_kept_separately(tmp_path):
     assert {r["case_id"] for r in recs} == {"c1"}               # same case
 
 
+def test_empty_conversation_records_are_dropped(tmp_path):
+    """A case that errored in attack SIMULATION has no prompt/response — not a data point.
+
+    deepteam's CustomVulnerability path can fail before the target is ever called
+    ("Error simulating adversarial attacks: 'data'"), leaving an empty case; those
+    must not pollute the dataset.
+    """
+    _write_disclosure(tmp_path, "m", [
+        {"case_id": "empty", "severity": "errored", "seed_prompt": None,
+         "conversation": [], "target_response": None, "error": "sim failed"},
+        {"case_id": "real", "severity": "complied", "seed_prompt": "bad",
+         "conversation": [], "target_response": "out"},
+    ])
+    recs = list(iter_redteam_records(flagged_only=True, workspaces=[tmp_path]))
+    assert {r["case_id"] for r in recs} == {"real"}   # empty one dropped
+
+
 def test_missing_workspace_is_empty_not_error(tmp_path):
     assert list(iter_redteam_records(workspaces=[tmp_path / "nope"])) == []
 

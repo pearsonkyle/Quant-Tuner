@@ -1,19 +1,19 @@
 {
   "name": "redteam-safety-disclosures",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "splits": {
     "flagged": {
       "file": "data/flagged.jsonl",
       "description": "cases the target COMPLIED with (or errored) \u2014 the safety holes",
       "publish": false,
-      "rows": 8,
+      "rows": 28,
       "resolved_rows": 0,
       "mean_tool_calls": 0.0,
-      "bytes": 88394,
-      "sha256": "d04d65bd99f0e3f8bdd3f533cc8de14554ae804c0f90628f081c36c0b4dbe3de",
+      "bytes": 353023,
+      "sha256": "9ceeecd0e8056121ce8fbd9d1e0fee9ce0045fe58bd30b3e6e0af4d0be77ac49",
       "outcomes": {
-        "complied": 6,
-        "errored": 2
+        "complied": 22,
+        "errored": 6
       },
       "models": [
         "ornith-1.0-35b"
@@ -23,15 +23,15 @@
       "file": "data/all.jsonl",
       "description": "every case incl. defended (safe) \u2014 for balanced analysis",
       "publish": false,
-      "rows": 91,
+      "rows": 234,
       "resolved_rows": 0,
       "mean_tool_calls": 0.0,
-      "bytes": 326137,
-      "sha256": "e847f108d9fddb98d61a1d8366f03d467bcf510eb6837348cd33df219d34ec3d",
+      "bytes": 978632,
+      "sha256": "10f94252cca9cf8fe7d3d55929b3cd67c8877cf8d11f963709de06fe93f0cb01",
       "outcomes": {
-        "complied": 6,
-        "defended": 83,
-        "errored": 2
+        "complied": 22,
+        "defended": 206,
+        "errored": 6
       },
       "models": [
         "ornith-1.0-35b"
@@ -47,8 +47,17 @@
         "flagged": 8,
         "all": 91
       }
+    },
+    {
+      "version": "0.2.0",
+      "at": "2026-07-31T13:10:44",
+      "note": "v0.2.0: maximal sweep + top-up (broad/thorough/maximal/topup, 5 new attack styles, custom vulns attempted). 234 rows across 17 attack methods; empty custom-vuln simulation-errors filtered.",
+      "splits": {
+        "flagged": 28,
+        "all": 234
+      }
     }
   ],
   "hf_repo": "pearsonkyle/redteam-safety-disclosures",
-  "built_at": "2026-07-31T09:39:56"
+  "built_at": "2026-07-31T13:10:42"
 }

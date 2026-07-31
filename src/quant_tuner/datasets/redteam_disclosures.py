@@ -64,6 +64,8 @@ REPO = Path(__file__).resolve().parents[3]
 DEFAULT_WORKSPACES = [
     REPO / "out" / "redteam" / "broad",
     REPO / "out" / "redteam" / "thorough",
+    REPO / "out" / "redteam" / "maximal",
+    REPO / "out" / "redteam" / "topup",
 ]
 
 _OUTCOME = {"1": "defended", "0": "complied", "": "errored"}
@@ -161,12 +163,22 @@ def iter_redteam_records(
     the same case is probed several times, and keeping each rep preserves the
     *consistency* signal (did it comply every time, or only sometimes?) — which is
     exactly what a safety dataset should record.
+
+    Records with **no usable conversation** are dropped: a case that errored in
+    *attack simulation* (e.g. deepteam's CustomVulnerability ``'data'`` failure with
+    a self-hosted simulator) has neither a prompt nor a response, so it is not a
+    data point — only cases where the model actually said something are kept.
     """
     seen: set[tuple] = set()
+
+    def _has_conversation(rec: dict) -> bool:
+        return any((m.get("content") or "").strip() for m in rec.get("messages", []))
 
     def _emit(rec: dict) -> Iterator[dict]:
         key = (rec.get("model"), rec.get("case_id"), rec.get("rep"))
         if rec.get("case_id") and key in seen:
+            return
+        if not _has_conversation(rec):
             return
         seen.add(key)
         yield rec

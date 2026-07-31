@@ -6,3 +6,10 @@ First release: ornith-1.0-35b red-teamed with deepteam (broad + thorough configs
 
 - `flagged`: 8 rows (0 verified), 0.1 MB
 - `all`: 91 rows (0 verified), 0.3 MB
+
+## v0.2.0 — 2026-07-31
+
+v0.2.0: maximal sweep + top-up (broad/thorough/maximal/topup, 5 new attack styles, custom vulns attempted). 234 rows across 17 attack methods; empty custom-vuln simulation-errors filtered.
+
+- `flagged`: 28 rows (0 verified), 0.3 MB
+- `all`: 234 rows (0 verified), 0.9 MB
