@@ -206,6 +206,22 @@ def load_red_team_config(config: str | Path | dict) -> dict:
 # ── deepteam model wrapper for the simulator + judge ──────────────────────────
 
 
+def schema_response_format(schema: Any) -> dict[str, Any] | None:
+    """Build an OpenAI ``json_schema`` ``response_format`` from a pydantic schema.
+
+    Returns ``None`` when ``schema`` isn't a pydantic model class (no
+    ``model_json_schema``), so the caller can fall back to the raw-text path.
+    Module-level (not a method) so it's unit-testable without the ``redteam``
+    extra installed.
+    """
+    fn = getattr(schema, "model_json_schema", None)
+    if not callable(fn):
+        return None
+    name = getattr(schema, "__name__", "Schema")
+    return {"type": "json_schema",
+            "json_schema": {"name": name, "strict": True, "schema": fn()}}
+
+
 def _local_llm_class() -> type:
     """Build (once) the ``DeepEvalBaseLLM`` subclass wrapping an OpenAI endpoint.
 
@@ -222,11 +238,23 @@ def _local_llm_class() -> type:
     class LocalLLM(DeepEvalBaseLLM):  # type: ignore[misc]
         """Wraps an OpenAI-compatible endpoint (local GGUF *or* enterprise API).
 
-        * ``schema`` kwarg -> raises ``TypeError`` so deepteam uses its raw-text +
-          ``trimAndLoadJson`` fallback (required for non-native models). The
-          prompt is remembered, so deepteam's schema-free retry of that same
-          prompt is sent with ``response_format={"type": "json_object"}``.
-        * ``<think>``/``<thinking>`` blocks are stripped from every response.
+        **Schema handling.** When deepteam requests a pydantic ``schema=`` (attack
+        simulation, judging), we honor it via llama.cpp's grammar-constrained
+        ``response_format={"type": "json_schema", ...}`` and return the schema-
+        conforming JSON string, which deepteam then validates with
+        ``schema(**trimAndLoadJson(str))``. This is what makes simulation reliable:
+        deepteam's *only* other path is a raw-text fallback that needs the model to
+        freely emit exactly ``{"data": [...]}`` — probabilistic on a self-hosted
+        model, and the reason ``CustomVulnerability`` (5 types, any single miss
+        errors the whole vulnerability) consistently failed with ``'data'`` before.
+
+        If the server rejects ``json_schema`` (older llama.cpp) we fall back —
+        once and for the rest of the run — to raising ``TypeError`` so deepteam
+        uses its raw-text path; the schema-free retry of that same prompt is then
+        sent with the looser ``response_format={"type": "json_object"}``.
+
+        ``<think>``/``<thinking>`` blocks are stripped from free-text (non-schema)
+        responses.
         """
 
         # Bounded FIFO of prompts that deepteam asked for structured output on.
@@ -244,6 +272,7 @@ def _local_llm_class() -> type:
             extra_body: dict[str, Any] | None = None,
             timeout: float = 600.0,
             json_mode: bool = True,
+            structured_output: bool = True,
         ):
             self._model = model
             self.base_url = base_url.rstrip("/")
@@ -265,6 +294,11 @@ def _local_llm_class() -> type:
             # prompt-and-hope (`trim_and_load_json`, no grammar), and a weak judge
             # emitting one stray token of prose loses the whole case to an error.
             self.json_mode = json_mode
+            self.structured_output = structured_output
+            # Flips False the first time the server rejects a json_schema request,
+            # so a server without grammar support degrades to the raw-text path
+            # for the rest of the run instead of erroring every schema call.
+            self._structured_ok = structured_output
             self._schema_prompts: deque[str] = deque(maxlen=self._SCHEMA_PROMPT_CAP)
             self._schema_seen: set[str] = set()
             self.client = openai.AsyncOpenAI(
@@ -274,7 +308,9 @@ def _local_llm_class() -> type:
             )
             super().__init__(model)
 
-        # -- schema bookkeeping -------------------------------------------------
+        # -- schema handling ----------------------------------------------------
+        _schema_response_format = staticmethod(schema_response_format)
+
         def _note_schema_prompt(self, prompt: str) -> None:
             if not self.json_mode:
                 return
@@ -298,24 +334,56 @@ def _local_llm_class() -> type:
             return self
 
         def generate(self, prompt: str, schema: Any = None, **kwargs: Any) -> str:
-            if schema is not None:
-                raise self._reject_schema(prompt)
             # deepteam may call this from inside a running event loop.
             try:
                 loop = asyncio.get_running_loop()
             except RuntimeError:
                 loop = None
-
             if loop and loop.is_running():
                 import concurrent.futures
 
                 with concurrent.futures.ThreadPoolExecutor() as pool:
-                    return pool.submit(asyncio.run, self.a_generate(prompt)).result()
-            return asyncio.run(self.a_generate(prompt))
+                    return pool.submit(asyncio.run, self.a_generate(prompt, schema)).result()
+            return asyncio.run(self.a_generate(prompt, schema))
 
         async def a_generate(self, prompt: str, schema: Any = None, **kwargs: Any) -> str:
+            # -- schema-constrained path (grammar) --------------------------------
             if schema is not None:
-                raise self._reject_schema(prompt)
+                rf = self._schema_response_format(schema) if self._structured_ok else None
+                if rf is None:
+                    # no pydantic schema / structured output disabled → raw-text path
+                    raise self._reject_schema(prompt)
+                body = dict(self.extra_body or {})
+                body["response_format"] = rf
+                try:
+                    resp = await self.client.chat.completions.create(
+                        model=self._model,
+                        messages=[{"role": "user", "content": prompt}],
+                        max_tokens=self.max_tokens,
+                        extra_body=body,
+                    )
+                    content = resp.choices[0].message.content or ""
+                    # Return the VALIDATED pydantic object, not the string.
+                    # deepteam is inconsistent: `attack_simulator/utils.py` accepts
+                    # a str or an object, but `vulnerabilities/custom/custom.py`
+                    # does ``res.data`` directly and requires the object. Grammar-
+                    # constrained output means json.loads always succeeds.
+                    import json as _json
+
+                    return schema(**_json.loads(content))
+                except openai.BadRequestError:
+                    # server doesn't support json_schema → stop trying, fall back.
+                    self._structured_ok = False
+                    raise self._reject_schema(prompt) from None
+                except (ValueError, TypeError) as e:  # json/validation slipped through
+                    # not a schema-support problem; surface a schema-free retry so
+                    # deepteam's raw-text path can attempt it, but keep trying
+                    # structured output for other prompts.
+                    if isinstance(e, TypeError) and "schema parameter" in str(e):
+                        raise
+                    raise self._reject_schema(prompt) from None
+
+            # -- free-text path (no schema) ---------------------------------------
             resp = await self.client.chat.completions.create(
                 model=self._model,
                 messages=[{"role": "user", "content": prompt}],

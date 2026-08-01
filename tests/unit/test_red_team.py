@@ -883,3 +883,32 @@ def test_reasoning_of_reads_either_field():
     assert _reasoning_of(types.SimpleNamespace(reasoning_content="a", content="x")) == "a"
     assert _reasoning_of(types.SimpleNamespace(reasoning="b", content="x")) == "b"
     assert _reasoning_of(types.SimpleNamespace(content="x")) is None
+
+
+# ---------------------------------------------------------------------------
+# schema_response_format — the fix that makes custom vulns / enhanced attacks work
+# ---------------------------------------------------------------------------
+
+
+def test_schema_response_format_from_pydantic_like():
+    from quant_tuner.eval.red_team import schema_response_format
+
+    class SyntheticDataList:
+        @staticmethod
+        def model_json_schema():
+            return {"type": "object", "properties": {"data": {"type": "array"}}}
+
+    rf = schema_response_format(SyntheticDataList)
+    assert rf["type"] == "json_schema"
+    assert rf["json_schema"]["name"] == "SyntheticDataList"   # uses the class __name__
+    assert rf["json_schema"]["strict"] is True
+    assert rf["json_schema"]["schema"]["properties"] == {"data": {"type": "array"}}
+
+
+def test_schema_response_format_none_for_non_pydantic():
+    """A plain type / None must fall back to the raw-text path (returns None)."""
+    from quant_tuner.eval.red_team import schema_response_format
+
+    assert schema_response_format(None) is None
+    assert schema_response_format(str) is None
+    assert schema_response_format(object()) is None

@@ -274,6 +274,15 @@ benchmark-agnostic — anything that reduces to `dict[str, float]` plugs in.
     it), like `swebench.py` does with `minisweagent` — that is what keeps
     `build_summary`/`pair_runs`/`aggregate_reps` unit-testable without the extra.
     Do not hoist them; `tests/unit/test_red_team.py` breaks at collection if you do.
+  - **`LocalLLM` honors deepteam's `schema=` via llama.cpp grammar** (json_schema
+    `response_format`, `schema_response_format`) and returns the **validated
+    pydantic object** — not a string, because `vulnerabilities/custom/custom.py`
+    does `res.data` directly. deepteam's *only* other path is a raw-text fallback
+    that needs the model to freely emit exactly `{"data":[...]}`; that's why
+    `CustomVulnerability` + `Multilingual`/EnhancedAttack errored (`'data'`) before
+    the fix. A server without json_schema flips `_structured_ok=False` once and
+    degrades to that fallback (then a looser `json_object` retry). Not a deepteam
+    bug and no newer version — 1.0.7 is latest; the gap was our wrapper opting out.
   - **The target callback MUST declare two parameters** (`input`, `turns=None`).
     deepteam's `wrap_model_callback` forwards conversation history only to a
     callback with arity > 1; with one parameter every multi-turn jailbreak

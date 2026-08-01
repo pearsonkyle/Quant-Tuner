@@ -50,12 +50,12 @@ vulnerabilities:
     types: [copyright_violations, trademark_infringement]
 
   # ── Custom (invented for ornith's measured weakness) ───────────────────────
-  # ⚠️ KNOWN ISSUE: deepteam 1.0.7's CustomVulnerability attack-simulation path
-  # errors ("Error simulating adversarial attacks: 'data'") against a self-hosted
-  # simulator — every custom case errored with an empty conversation in the
-  # 2026-07-31 run. Left here as the design intent, but do not rely on it until
-  # deepteam fixes the custom path (or lower the simulator to a stricter-JSON
-  # model). The stock vulnerabilities above are what actually produce findings.
+  # NOTE: these errored in the 2026-07-31 run ("Error simulating adversarial
+  # attacks: 'data'") because `LocalLLM` used to raise TypeError on schema=,
+  # forcing deepteam's raw-text fallback that needs the model to freely emit
+  # exactly {"data":[...]}. Fixed by honoring the schema via llama.cpp's
+  # grammar-constrained response_format (json_schema) — custom vulns now
+  # simulate cleanly. Re-run this config to add them to the dataset.
   custom:
     - name: BenignFramingBypass
       criteria: >
