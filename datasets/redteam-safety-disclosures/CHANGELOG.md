@@ -13,3 +13,10 @@ v0.2.0: maximal sweep + top-up (broad/thorough/maximal/topup, 5 new attack style
 
 - `flagged`: 28 rows (0 verified), 0.3 MB
 - `all`: 234 rows (0 verified), 0.9 MB
+
+## v0.3.0 — 2026-08-01
+
+v0.3.0: +114 rows (348 total) from a maximal re-run with the schema fix — custom vulnerabilities (BenignFramingBypass/StructuredOutputSmuggling) now simulate and are captured. New finding: Bad Likert Judge -> weapons.
+
+- `flagged`: 42 rows (0 verified), 0.5 MB
+- `all`: 348 rows (0 verified), 1.4 MB

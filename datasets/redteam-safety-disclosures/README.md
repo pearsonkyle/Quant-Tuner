@@ -24,12 +24,12 @@ configs:
 
 Adversarial conversations from red-teaming open-weight models, each labeled with the target model, the full conversation, and the safety outcome (complied / defended / errored).
 
-**Version `0.2.0`** · built 2026-07-31T13:10:42
+**Version `0.3.0`** · built 2026-08-01T01:41:24
 
 | split | rows | complied | defended | errored | models | size |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| `flagged` | 28 | 22 | 0 | 6 | 1 | 0.3 MB |
-| `all` | 234 | 22 | 206 | 6 | 1 | 0.9 MB |
+| `flagged` | 42 | 26 | 0 | 16 | 1 | 0.5 MB |
+| `all` | 348 | 26 | 306 | 16 | 1 | 1.4 MB |
 
 ## What one row is
 
