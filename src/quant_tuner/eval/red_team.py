@@ -273,6 +273,7 @@ def _local_llm_class() -> type:
             timeout: float = 600.0,
             json_mode: bool = True,
             structured_output: bool = True,
+            temperature: float | None = 0.0,
         ):
             self._model = model
             self.base_url = base_url.rstrip("/")
@@ -282,6 +283,14 @@ def _local_llm_class() -> type:
             # a thinking pass first. Too low a cap → empty/truncated `content` →
             # deepteam's trimAndLoadJson raises "invalid JSON".
             self.max_tokens = max_tokens
+            # **Deterministic by default.** The judge/simulator otherwise samples,
+            # which (a) scores the same case differently across reps — noise that
+            # masquerades as target-behavior flips — and (b) occasionally emits an
+            # unparseable verdict, the source of the intermittent custom-vuln
+            # "Error evaluating target LLM output". temperature=0 makes scoring
+            # reproducible; pass None to use the server default (e.g. if you want a
+            # diverse simulator on apvt>1).
+            self.temperature = temperature
             # Forwarded into every request body (merged at top level by the OpenAI
             # client). Use it to pass llama.cpp's per-request ``chat_template_kwargs``
             # — e.g. ``{"chat_template_kwargs": {"enable_thinking": False}}`` to turn
@@ -333,6 +342,9 @@ def _local_llm_class() -> type:
         def load_model(self):
             return self
 
+        def _sampling_kwargs(self) -> dict[str, Any]:
+            return {} if self.temperature is None else {"temperature": self.temperature}
+
         def generate(self, prompt: str, schema: Any = None, **kwargs: Any) -> str:
             # deepteam may call this from inside a running event loop.
             try:
@@ -355,33 +367,44 @@ def _local_llm_class() -> type:
                     raise self._reject_schema(prompt)
                 body = dict(self.extra_body or {})
                 body["response_format"] = rf
+                import json as _json
                 try:
                     resp = await self.client.chat.completions.create(
                         model=self._model,
                         messages=[{"role": "user", "content": prompt}],
                         max_tokens=self.max_tokens,
                         extra_body=body,
+                        **self._sampling_kwargs(),
                     )
                     content = resp.choices[0].message.content or ""
                     # Return the VALIDATED pydantic object, not the string.
                     # deepteam is inconsistent: `attack_simulator/utils.py` accepts
                     # a str or an object, but `vulnerabilities/custom/custom.py`
-                    # does ``res.data`` directly and requires the object. Grammar-
-                    # constrained output means json.loads always succeeds.
-                    import json as _json
-
+                    # does ``res.data`` directly and requires the object.
                     return schema(**_json.loads(content))
                 except openai.BadRequestError:
                     # server doesn't support json_schema → stop trying, fall back.
                     self._structured_ok = False
                     raise self._reject_schema(prompt) from None
-                except (ValueError, TypeError) as e:  # json/validation slipped through
-                    # not a schema-support problem; surface a schema-free retry so
-                    # deepteam's raw-text path can attempt it, but keep trying
-                    # structured output for other prompts.
-                    if isinstance(e, TypeError) and "schema parameter" in str(e):
+                except (ValueError, TypeError) as first_err:
+                    if isinstance(first_err, TypeError) and "schema parameter" in str(first_err):
                         raise
-                    raise self._reject_schema(prompt) from None
+                    # A grammar-constrained reply that still failed to parse/validate
+                    # is almost always a transient server hiccup (truncation, an
+                    # empty completion). Retry ONCE before dropping to the raw-text
+                    # path — this is what eliminates the intermittent custom-vuln
+                    # judging errors seen over long runs.
+                    try:
+                        resp = await self.client.chat.completions.create(
+                            model=self._model,
+                            messages=[{"role": "user", "content": prompt}],
+                            max_tokens=self.max_tokens,
+                            extra_body=body,
+                            **self._sampling_kwargs(),
+                        )
+                        return schema(**_json.loads(resp.choices[0].message.content or ""))
+                    except (ValueError, TypeError, openai.APIError):
+                        raise self._reject_schema(prompt) from None
 
             # -- free-text path (no schema) ---------------------------------------
             resp = await self.client.chat.completions.create(
@@ -389,6 +412,7 @@ def _local_llm_class() -> type:
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=self.max_tokens,
                 extra_body=self._body_for(prompt),
+                **self._sampling_kwargs(),
             )
             return _strip_thinking(resp.choices[0].message.content)
 
