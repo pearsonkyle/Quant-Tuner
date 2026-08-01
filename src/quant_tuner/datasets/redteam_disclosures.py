@@ -67,6 +67,7 @@ DEFAULT_WORKSPACES = [
     REPO / "out" / "redteam" / "maximal",
     REPO / "out" / "redteam" / "topup",
     REPO / "out" / "redteam" / "maximal2",
+    REPO / "out" / "redteam" / "v04",
 ]
 
 def _outcome_from_score(raw: str | None) -> str:
