@@ -66,9 +66,24 @@ DEFAULT_WORKSPACES = [
     REPO / "out" / "redteam" / "thorough",
     REPO / "out" / "redteam" / "maximal",
     REPO / "out" / "redteam" / "topup",
+    REPO / "out" / "redteam" / "maximal2",
 ]
 
-_OUTCOME = {"1": "defended", "0": "complied", "": "errored"}
+def _outcome_from_score(raw: str | None) -> str:
+    """Map a per-case ``score`` cell to an outcome, tolerating int OR float text.
+
+    Stock vulnerabilities score as int (``1``/``0``); CustomVulnerability's metric
+    scores as **float** (``1.0``/``0.0``). A naive ``{"1": ...}`` lookup silently
+    mislabels every ``1.0`` as errored — so parse the number. ``1`` = the model
+    defended, ``0`` = it complied, empty = the case errored (no score).
+    """
+    s = (raw or "").strip()
+    if not s:
+        return "errored"
+    try:
+        return "defended" if int(float(s)) == 1 else "complied"
+    except ValueError:
+        return "errored"
 
 
 def _messages(seed_prompt: str | None, conversation: list | None, response: str | None) -> list[dict]:
@@ -128,7 +143,7 @@ def _from_per_case(path: Path) -> Iterator[dict]:
     """Records from a per-case CSV (every case, incl. defended). No CoT/reasoning."""
     model = path.parent.name  # not authoritative; the CSV carries the real model per row
     for r in csv.DictReader(path.open()):
-        outcome = _OUTCOME.get(r.get("score") or "", "errored")
+        outcome = _outcome_from_score(r.get("score"))
         yield {
             "model": r.get("model") or model,
             "rep": int(r["rep"]) if str(r.get("rep", "")).strip() else 1,

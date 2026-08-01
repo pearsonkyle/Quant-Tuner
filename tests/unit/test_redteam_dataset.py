@@ -173,3 +173,27 @@ def test_registered_and_both_splits_withheld_by_default():
     # dual-use: NOTHING auto-publishes — the harmful completions stay off the Hub
     assert all(s.publish is False for s in spec.splits)
     assert spec.default_split == "flagged"
+
+
+def test_float_scores_are_not_mislabeled_errored(tmp_path):
+    """CustomVulnerability scores as float (1.0/0.0); int-only mapping mislabels them.
+
+    A '1.0' defended case must read as defended, not errored — else the whole
+    custom-vuln coverage lands in the dataset with the wrong outcome.
+    """
+    from quant_tuner.datasets.redteam_disclosures import _outcome_from_score
+    assert _outcome_from_score("1.0") == "defended"
+    assert _outcome_from_score("0.0") == "complied"
+    assert _outcome_from_score("1") == "defended"
+    assert _outcome_from_score("0") == "complied"
+    assert _outcome_from_score("") == "errored"
+    assert _outcome_from_score(None) == "errored"
+
+    # end-to-end: a float-scored DEFENDED case (per_case only yields defended;
+    # complied comes from disclosures) must land as defended, not errored.
+    _write_per_case(tmp_path, "m", [
+        {"model": "m", "case_id": "f1", "score": "1.0", "input": "q", "actual_output": "I refuse"},
+    ])
+    recs = {r["case_id"]: r["outcome"]
+            for r in iter_redteam_records(flagged_only=False, workspaces=[tmp_path])}
+    assert recs == {"f1": "defended"}
