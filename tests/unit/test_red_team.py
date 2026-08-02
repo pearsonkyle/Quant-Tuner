@@ -912,3 +912,24 @@ def test_schema_response_format_none_for_non_pydantic():
     assert schema_response_format(None) is None
     assert schema_response_format(str) is None
     assert schema_response_format(object()) is None
+
+
+@pytest.mark.parametrize("name", PACKAGED_CONFIGS)
+def test_turn_level_attacks_reference_known_single_turn(name):
+    """A multi-turn attack's turn_level_attacks must be known SINGLE-turn keys.
+
+    Layering a multi-turn attack inside another multi-turn attack is invalid, and
+    a typo'd key would only blow up at run time — pin it here (no deepteam needed).
+    """
+    from quant_tuner.eval.red_team import _ATTACK_SPECS
+
+    cfg = load_red_team_config(name)
+    for key, entry in (cfg.get("attacks") or {}).items():
+        tla = entry.get("turn_level_attacks") if isinstance(entry, dict) else None
+        if not tla:
+            continue
+        assert _ATTACK_SPECS.get(key, ("",))[0] == "multi_turn", \
+            f"{name}: turn_level_attacks on non-multi-turn attack {key!r}"
+        for sub in tla:
+            assert _ATTACK_SPECS.get(sub, ("",))[0] == "single_turn", \
+                f"{name}: turn_level entry {sub!r} is not a known single-turn attack"

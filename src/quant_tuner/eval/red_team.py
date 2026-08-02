@@ -612,11 +612,29 @@ def build_vulnerabilities(cfg: dict) -> list:
     return vulns
 
 
+def _build_single_turn_attack(name: str) -> Any:
+    """Instantiate one single-turn attack by config key (for turn_level_attacks)."""
+    spec = _ATTACK_SPECS.get(name)
+    if spec is None or spec[0] != "single_turn":
+        raise ValueError(
+            f"turn_level_attacks entry {name!r} must be a known SINGLE-turn attack; "
+            f"got {spec}"
+        )
+    return _resolve(f"deepteam.attacks.{spec[0]}", spec[1], name)()
+
+
 def build_attacks(cfg: dict) -> list:
     """Instantiate deepteam attack objects from the config dict.
 
     A value of ``true`` uses the attack's defaults; a mapping is passed through
     as constructor kwargs (``weight``, ``num_turns``, ``persona``, …).
+
+    A multi-turn attack may carry ``turn_level_attacks: [name, ...]`` — a list of
+    single-turn attack *keys* that deepteam layers on **each turn** of the
+    escalation (e.g. base64/roleplay applied per Crescendo round). This is the
+    "smart" combination: adaptive escalation *plus* per-turn obfuscation, which is
+    much harder for a target than either alone. We build those single-turn attacks
+    into objects here, since deepteam wants instances, not names.
     """
     attacks: list = []
     a = cfg.get("attacks", {}) or {}
@@ -634,7 +652,14 @@ def build_attacks(cfg: dict) -> list:
             )
         module, cls_name = spec
         cls = _resolve(f"deepteam.attacks.{module}", cls_name, key)
-        attacks.append(cls(**_entry_options(entry)))
+        opts = _entry_options(entry)
+        if "turn_level_attacks" in opts:
+            if module != "multi_turn":
+                raise ValueError(f"turn_level_attacks is only valid on multi-turn attacks, not {key!r}")
+            opts["turn_level_attacks"] = [
+                _build_single_turn_attack(n) for n in opts["turn_level_attacks"]
+            ]
+        attacks.append(cls(**opts))
 
     return attacks
 
