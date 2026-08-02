@@ -25,6 +25,15 @@ This repository includes code adapted from third-party projects:
 
 Vendored third-party components (each under its own license):
 
+- SWE-rebench-V2 (SWE-rebench, MIT, https://github.com/SWE-rebench/SWE-rebench-V2)
+  — src/quant_tuner/eval/_swerebench_v2_parsers.py, vendored verbatim from
+  lib/agent/log_parsers.py (the multi-language test-log parsers, plus the
+  TestStatus enum inlined from lib/agent/swe_constants.py). Grading a
+  SWE-rebench-V2 instance is only correct if these parsers stay byte-compatible
+  with the harness that produced the dataset's recorded FAIL_TO_PASS /
+  PASS_TO_PASS ids, so the file is excluded from linting and must not be
+  hand-edited.
+
 - cpp-httplib (Yuji Hirose, MIT) — native/jlens_server/vendor/cpp-httplib/
 - nlohmann/json (Niels Lohmann, MIT) — native/jlens_server/vendor/nlohmann/
 - d3 v7 (Mike Bostock, ISC) — src/quant_tuner/lens/web/vendor/d3.min.js

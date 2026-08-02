@@ -88,6 +88,10 @@ ignore = [
 "src/quant_tuner/lens/*.py" = ["E741"]
 "tests/unit/test_lens_*.py" = ["E741"]
 "tests/integration/test_lens_*.py" = ["E741"]
+# Vendored VERBATIM from SWE-rebench-V2 (MIT) — see the module docstring and NOTICE.
+# Grading is only correct if these parsers stay byte-compatible with the harness that
+# produced the dataset's recorded test ids, so we do not reformat them.
+"src/quant_tuner/eval/_swerebench_v2_parsers.py" = ["ALL"]
 
 [tool.mypy]
 # Optional-extra and untyped third-party modules. These are imported lazily

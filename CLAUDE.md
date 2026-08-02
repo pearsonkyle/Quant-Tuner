@@ -211,6 +211,21 @@ benchmark-agnostic — anything that reduces to `dict[str, float]` plugs in.
   `base_seed + rep_idx`), aggregates mean ± stdev across reps. CSV writers
   emit one row per (model, rep) and one row per model. Used by both
   `scripts/run_toolcall_reps.py` and `scripts/run_mmlu_pro_reps.py`.
+- **SWE-rebench V1 vs V2**: `swebench_grade.grade_instance` dispatches on
+  `install_config.log_parser` (`is_v2_instance`). V1 = Python/pytest, checkout at
+  `/testbed`, `conda run -n testbed`. **V2** = 20 languages, checkout at
+  `/<repo-name>` (`v2_workdir`, also fed to `_build_env_config` so the *agent*
+  starts in the right directory), the instance's own `install_config.test_cmd`
+  with **no conda wrapper**, and the log parser the instance names. Those parsers
+  are vendored **verbatim** (MIT) as `eval/_swerebench_v2_parsers.py` — never
+  hand-edit; re-vendor via `scripts/vendor_swerebench_parsers.py` (`--check`
+  detects drift) and it is `ALL`-ignored by ruff on purpose. The recorded
+  FAIL_TO_PASS ids are exactly what those functions emitted at dataset-build
+  time, so a reimplementation that is 99% right parses **zero** matching ids and
+  reports every trajectory unresolved — indistinguishable from a bad model.
+  Ids are timing-normalized on both sides (`… [20.82 ms]` differs per run).
+  `diagnose_container_error` classifies `docker run` exit-125 (registry
+  unreachable vs. full VM disk), which otherwise looks like a model failure.
 - `eval/swebench.py` + `eval/swebench_grade.py` — **agentic** SWE-rebench
   benchmark (does the quant actually solve real GitHub issues?). Same shape as
   the others: `SweSummary` float-metrics dataclass + `run_swebench_eval(holdout,
@@ -493,7 +508,17 @@ The OmniCoder reproduction is here; the CLI handles ad-hoc runs.
 - `run_swebench_eval.py` — runs `eval.run_swebench_eval` over one or more GGUFs
   (default = gemma-4-31B `qat-Q2_K_S-imatrix`). Fails fast if the Docker daemon
   is down. Writes `results.csv` (per-instance), `aggregated.csv` (per-model),
-  `summary.json`, and the trajectory tree under `<workspace>/`.
+  `summary.json`, and the trajectory tree under `<workspace>/`. Two target modes:
+  `--models a.gguf …` spawns a llama-server per GGUF, or `--base-url URL
+  --target-model-name NAME` (repeatable) reuses an already-running
+  OpenAI-compatible server (LM Studio / vLLM / llama-swap) — mutually exclusive.
+- **Multi-language trajectories** (`nebius/SWE-rebench-V2`, 32k instances / 20
+  languages): `validate_swebench_v2_grading.py` (golden-patch gate — run it
+  BEFORE generating) → `run_multilang_distill_gen.sh`. Pools are built by
+  `build_swebench_holdout.py` with `--languages` + `--balanced` (round-robin, so
+  Python/Go/JS can't crowd out the rest), `--clean-only` (annotator code `A`) and
+  `--max-f2p` (drop rows whose FAIL_TO_PASS is the whole suite — some list 16k+
+  ids). See `docs/ternary_qat.md#stage-1b`.
 
 ### Workspace layout
 `paths.Workspace(root)` is the canonical per-run output directory; `workspace.ensure()`

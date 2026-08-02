@@ -27,6 +27,7 @@ import base64
 import json
 import re
 import shlex
+import subprocess
 from typing import Any, Protocol
 
 # pytest's ``-rA`` short test summary prints one line per test, e.g.
@@ -123,6 +124,155 @@ def evaluate_results(
     }
 
 
+# ---------------------------------------------------------------------------
+# SWE-rebench-V2 (multi-language) support
+# ---------------------------------------------------------------------------
+#
+# V1 instances are Python/pytest and are graded by the path above. V2 instances carry
+# ``install_config.log_parser`` naming one of the dataset's own parsers, plus a
+# per-instance ``test_cmd`` and a repo-named workdir. We reproduce V2's harness
+# (SWE-rebench-V2 ``scripts/eval.py``) rather than approximating it, because the
+# recorded FAIL_TO_PASS/PASS_TO_PASS ids are literally whatever that parser emitted.
+
+# Some runners embed timings in the test name ("... [1.34 ms]"), so the recorded ids
+# and a fresh run's ids differ by the timing alone. Upstream normalizes BOTH sides;
+# so do we. Ported verbatim from SWE-rebench-V2 scripts/eval.py.
+_TIMING_NORMALIZE_RES = [
+    re.compile(r"\s*\[\s*\d+(?:\.\d+)?\s*(?:ms|s)\s*\]\s*$", re.IGNORECASE),
+    re.compile(r"\s+in\s+\d+(?:\.\d+)?\s+(?:msec|sec)\b", re.IGNORECASE),
+    re.compile(r"\s*\(\s*\d+(?:\.\d+)?\s*(?:ms|s)\s*\)\s*$", re.IGNORECASE),
+]
+
+
+def normalize_test_name(name: str) -> str:
+    """Strip known timing suffixes/infixes so ids compare across runs."""
+    for pattern in _TIMING_NORMALIZE_RES:
+        name = pattern.sub("", name)
+    return name.strip()
+
+
+def install_config_of(instance: dict) -> dict:
+    """``install_config`` as a dict (some mirrors store it JSON-encoded)."""
+    cfg = instance.get("install_config")
+    if isinstance(cfg, str):
+        try:
+            cfg = json.loads(cfg)
+        except (json.JSONDecodeError, ValueError):
+            return {}
+    return cfg if isinstance(cfg, dict) else {}
+
+
+def is_v2_instance(instance: dict) -> bool:
+    """True for SWE-rebench-V2 rows — they name their own log parser."""
+    return bool(install_config_of(instance).get("log_parser"))
+
+
+def v2_workdir(instance: dict) -> str:
+    """V2 images check the repo out at ``/<repo-name>``, not ``/testbed``."""
+    repo = instance.get("repo") or ""
+    name = repo.split("/")[-1].strip()
+    if not name:
+        raise ValueError(f"instance {instance.get('instance_id')!r} has no usable repo field")
+    return f"/{name}"
+
+
+def parser_for_instance(instance: dict):
+    """Resolve the instance's named log parser from the vendored V2 registry."""
+    name = install_config_of(instance).get("log_parser")
+    if not name:
+        raise ValueError("instance has no install_config.log_parser")
+    from quant_tuner.eval import _swerebench_v2_parsers as parsers
+
+    fn = parsers.NAME_TO_PARSER.get(name) or getattr(parsers, name, None)
+    if fn is None:
+        raise ValueError(f"unknown log parser {name!r} (vendored registry is stale?)")
+    return fn
+
+
+def v2_test_script(instance: dict, cwd: str) -> str:
+    """The V2 test script: cd into the repo, then run the instance's own test_cmd(s).
+
+    Deliberately does **not** wrap in ``conda run -n testbed`` (that is a Python-image
+    convention; a Go/Node/JVM image has no such env) and does not append node ids —
+    V2's ``test_cmd`` already selects the suite, and the parser maps the whole log.
+    """
+    cmds = install_config_of(instance).get("test_cmd") or []
+    if isinstance(cmds, str):
+        cmds = [cmds]
+    cmds = [str(c) for c in cmds if str(c).strip()]
+    if not cmds:
+        raise ValueError("instance has no install_config.test_cmd")
+    return "\n".join([f"cd {shlex.quote(cwd)}", "set -e", *cmds])
+
+
+def evaluate_results_v2(
+    fail_to_pass: list[str],
+    pass_to_pass: list[str],
+    statuses: dict[str, str],
+) -> dict[str, Any]:
+    """Set-based grading over timing-normalized ids (mirrors V2's build_report_item)."""
+    passed = {normalize_test_name(k) for k, v in statuses.items() if v == "PASSED"}
+    f2p = {n: normalize_test_name(n) in passed for n in fail_to_pass}
+    p2p = {n: normalize_test_name(n) in passed for n in pass_to_pass}
+    resolved = bool(fail_to_pass) and all(f2p.values()) and all(p2p.values())
+    return {
+        "resolved": resolved,
+        "fail_to_pass": f2p,
+        "pass_to_pass": p2p,
+        "n_fail_to_pass": len(fail_to_pass),
+        "n_fail_to_pass_passed": sum(f2p.values()),
+        "n_pass_to_pass": len(pass_to_pass),
+        "n_pass_to_pass_passed": sum(p2p.values()),
+    }
+
+
+def diagnose_container_error(exc: BaseException) -> str:
+    """Turn an opaque ``docker run`` failure into an actionable message.
+
+    ``docker run`` exits **125** for every "the daemon refused to start it" reason, so a
+    registry outage, a full VM disk and a missing image all surface identically as
+    ``CalledProcessError ... exit status 125``. Instances then fail in seconds and the
+    run looks like a model problem. Probe the daemon and say which it is.
+    """
+    text = f"{type(exc).__name__}: {exc}"
+    if "125" not in text and "exit status 125" not in text:
+        return text
+
+    hints: list[str] = []
+    try:
+        probe = subprocess.run(
+            ["docker", "pull", "hello-world:latest"],
+            capture_output=True, text=True, timeout=45,
+        )
+        blob = (probe.stderr or "") + (probe.stdout or "")
+        if probe.returncode != 0:
+            if any(s in blob for s in ("context deadline exceeded", "no such host",
+                                       "dial tcp", "TLS handshake", "i/o timeout")):
+                hints.append("Docker cannot reach the registry (network/DNS/VPN down) — "
+                             "image pulls will fail until connectivity returns")
+            elif "no space left" in blob:
+                hints.append("Docker VM disk is full — free space or raise the disk limit")
+            else:
+                hints.append(f"`docker pull hello-world` also failed: {blob.strip()[:200]}")
+    except subprocess.TimeoutExpired:
+        hints.append("`docker pull hello-world` timed out — the daemon or its network is stuck")
+    except FileNotFoundError:
+        hints.append("`docker` executable not found on PATH")
+    except Exception:  # diagnosis must never mask the original failure
+        pass
+
+    try:
+        df = subprocess.run(["docker", "system", "df"], capture_output=True,
+                            text=True, timeout=20)
+        for line in (df.stdout or "").splitlines():
+            if line.startswith("Images"):
+                hints.append(f"docker system df -> {line.strip()}")
+    except Exception:
+        pass
+
+    return text + (("  [diagnosis] " + "; ".join(hints)) if hints else "")
+
+
 def _apply_patch_command(patch_text: str, remote_path: str) -> str:
     """Shell command that materializes ``patch_text`` in the container and applies it.
 
@@ -190,7 +340,7 @@ def grade_instance(
     *,
     image: str | None = None,
     env: _ExecEnv | None = None,
-    cwd: str = "/testbed",
+    cwd: str | None = None,
     test_timeout: int = 1800,
     container_timeout: str = "2h",
     executable: str = "docker",
@@ -201,11 +351,19 @@ def grade_instance(
     ``image`` to spin up a fresh container (cleaned up here). Returns a dict
     with ``resolved`` plus per-id detail, an ``error`` string (``None`` on a
     clean grade), and a clipped ``log``.
+
+    Handles both dataset generations. SWE-rebench **V1** (Python/pytest) runs the
+    pytest path with ``cwd=/testbed``; **V2** (20 languages) runs the instance's own
+    ``install_config.test_cmd`` at ``/<repo-name>`` and parses with the parser the
+    instance names. ``cwd`` defaults per generation; pass it to override.
     """
     fail_to_pass = as_test_list(instance.get("FAIL_TO_PASS"))
     pass_to_pass = as_test_list(instance.get("PASS_TO_PASS"))
     base_commit = instance.get("base_commit", "")
     test_patch = instance.get("test_patch") or ""
+    v2 = is_v2_instance(instance)
+    if cwd is None:
+        cwd = v2_workdir(instance) if v2 else "/testbed"
 
     if not model_patch or not model_patch.strip():
         return _empty_result("empty model patch (agent produced no diff)")
@@ -249,7 +407,12 @@ def grade_instance(
         return out
 
     try:
-        reset = f"cd {shlex.quote(cwd)} && git reset --hard {shlex.quote(base_commit)} && git clean -fd"
+        # Reset to base_commit when the sha is present and known to the checkout;
+        # fall back to HEAD (V2 images are already checked out at base, and some
+        # ship a shallow clone where the sha is not a resolvable ref).
+        target = f"git reset --hard {shlex.quote(base_commit)}" if base_commit else ""
+        reset_cmd = f"({target} || git reset --hard HEAD)" if target else "git reset --hard HEAD"
+        reset = f"cd {shlex.quote(cwd)} && {reset_cmd} && git clean -fd"
         r = _run("reset", reset)
         if r.get("returncode") != 0:
             return _empty_result("git reset/clean failed") | {"log": _clip("\n".join(log_parts))}
@@ -267,18 +430,29 @@ def grade_instance(
                     "log": _clip("\n".join(log_parts))
                 }
 
-        r = _run(
-            "pytest",
-            test_command(instance, fail_to_pass + pass_to_pass),
-            timeout=test_timeout,
-        )
-        statuses = parse_pytest_statuses(r.get("output", ""))
-        result = evaluate_results(fail_to_pass, pass_to_pass, statuses)
-        # A run that collected nothing usually means a non-pytest runner.
-        if not statuses:
-            result["error"] = "no pytest results parsed (non-pytest runner or collection error)"
+        if v2:
+            parser = parser_for_instance(instance)
+            r = _run("tests", v2_test_script(instance, cwd), timeout=test_timeout)
+            statuses = parser(r.get("output", ""))
+            result = evaluate_results_v2(fail_to_pass, pass_to_pass, statuses)
+            empty_msg = (
+                f"no results parsed by {install_config_of(instance)['log_parser']} "
+                f"(build/setup failure, or the suite never ran)"
+            )
         else:
-            result["error"] = None
+            r = _run(
+                "pytest",
+                test_command(instance, fail_to_pass + pass_to_pass),
+                timeout=test_timeout,
+            )
+            statuses = parse_pytest_statuses(r.get("output", ""))
+            result = evaluate_results(fail_to_pass, pass_to_pass, statuses)
+            # A run that collected nothing usually means a non-pytest runner.
+            empty_msg = "no pytest results parsed (non-pytest runner or collection error)"
+        # An unparseable log is an INFRA failure, not a failed patch. Surfacing it as
+        # an error (rather than a silent resolved=False) is what keeps a broken image
+        # or a stale parser from masquerading as "the model didn't solve it".
+        result["error"] = None if statuses else empty_msg
         result["log"] = _clip("\n".join(log_parts))
         return result
     finally:

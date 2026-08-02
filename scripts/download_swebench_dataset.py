@@ -26,7 +26,13 @@ _KEEP_FIELDS = [
     "instance_id", "repo", "base_commit", "environment_setup_commit",
     "problem_statement", "patch", "test_patch", "FAIL_TO_PASS", "PASS_TO_PASS",
     "image_name", "docker_image", "version", "install_config", "meta",
+    # V2 only: the language, and the PR description some rows carry as extra context.
+    "language", "pr_description",
 ]
+
+# nebius ships two generations. V1 is Python/pytest with a ``test`` split; V2 spans 20
+# languages and lives in ``train``, so the split default has to follow the dataset.
+_V2_DATASET = "nebius/SWE-rebench-V2"
 
 
 def _slim(row: dict) -> dict:
@@ -38,13 +44,24 @@ def _gradeable(row: dict) -> bool:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--dataset", default="nebius/SWE-rebench")
-    ap.add_argument("--split", default="test")
-    ap.add_argument("--out", type=Path,
-                    default=_REPO / "out" / "external" / "swe-rebench" / "all_test.jsonl")
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--dataset", default="nebius/SWE-rebench",
+                    help=f"'nebius/SWE-rebench' (Python) or '{_V2_DATASET}' (20 languages)")
+    ap.add_argument("--split", default=None,
+                    help="default: 'test' for V1, 'train' for V2")
+    ap.add_argument("--out", type=Path, default=None,
+                    help="default: all_test.jsonl (V1) / v2_all.jsonl (V2)")
     ap.add_argument("--force", action="store_true", help="re-download even if --out exists")
     args = ap.parse_args()
+
+    # V2 defaults follow the dataset so `--dataset …-V2` alone does the right thing.
+    is_v2 = "V2" in args.dataset
+    if args.split is None:
+        args.split = "train" if is_v2 else "test"
+    if args.out is None:
+        name = "v2_all.jsonl" if is_v2 else "all_test.jsonl"
+        args.out = _REPO / "out" / "external" / "swe-rebench" / name
 
     args.out.parent.mkdir(parents=True, exist_ok=True)
     if args.out.exists() and args.out.stat().st_size > 0 and not args.force:
@@ -60,6 +77,7 @@ def main() -> int:
 
     n_written = 0
     n_lite = 0
+    langs: dict[str, int] = {}
     with args.out.open("w") as f:
         for row in ds:
             row = dict(row)
@@ -69,7 +87,12 @@ def main() -> int:
             n_written += 1
             if (row.get("meta") or {}).get("is_lite"):
                 n_lite += 1
+            lang = row.get("language") or "python"
+            langs[lang] = langs.get(lang, 0) + 1
     print(f"[download] wrote {n_written} gradeable instances ({n_lite} lite) -> {args.out}")
+    if len(langs) > 1:
+        spread = ", ".join(f"{k}={v}" for k, v in sorted(langs.items(), key=lambda kv: -kv[1]))
+        print(f"[download] languages: {spread}")
     return 0
 
 

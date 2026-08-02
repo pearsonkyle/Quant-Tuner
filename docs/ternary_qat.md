@@ -230,6 +230,68 @@ Practicalities, all learned the hard way:
   (78 GB of dangling images once stalled a run with a bare `exit 125`).
 - Docker Desktop's VM disk is the real cap, and it is shared with everything else you run.
 
+### Stage 1b — going multi-language (SWE-rebench-V2)
+
+Stage 1 as written harvests **Python only** — SWE-rebench V1 is a Python/pytest dataset.
+To stop the student overfitting to one language, generate from
+[**SWE-rebench-V2**](https://huggingface.co/datasets/nebius/SWE-rebench-V2): 32,079
+instances across 20 languages, same instance schema plus a `language` field.
+
+```bash
+# 0. full V2 split to disk (defaults follow the dataset: split=train, v2_all.jsonl)
+.venv/bin/python scripts/download_swebench_dataset.py --dataset nebius/SWE-rebench-V2
+
+# 1. a language-BALANCED eval holdout, then a training pool disjoint from it
+LANGS=python,go,ts,js,rust,java,php,kotlin
+PYTHONPATH=src .venv/bin/python scripts/build_swebench_holdout.py \
+    --from-local out/external/swe-rebench/v2_all.jsonl \
+    --languages $LANGS --difficulty medium --max-f2p 25 --n 24 --seed 42 \
+    --out out/external/swe-rebench/holdout_multilang.jsonl
+PYTHONPATH=src .venv/bin/python scripts/build_swebench_holdout.py \
+    --from-local out/external/swe-rebench/v2_all.jsonl \
+    --languages $LANGS --difficulty medium --max-f2p 25 --n 240 --seed 7 \
+    --exclude out/external/swe-rebench/holdout_multilang.jsonl \
+    --out out/external/swe-rebench/distill_train_multilang.jsonl
+
+# 2. PROVE THE GRADER WORKS before burning hours (gold patches must resolve)
+PYTHONPATH=src .venv/bin/python scripts/validate_swebench_v2_grading.py \
+    --holdout out/external/swe-rebench/holdout_multilang.jsonl --per-language 1
+
+# 3. generate — against a server you already have running (LM Studio etc.)
+BASE_URL=http://localhost:1234/v1 MODEL=ornith-1.0-35b \
+    bash scripts/run_multilang_distill_gen.sh
+```
+
+**Selection knobs that matter.** `--balanced` (auto-on with `--languages`) samples
+round-robin, so Python/Go/JS — the three biggest buckets — can't crowd out the rest.
+`--clean-only` (default) keeps only annotator-code `A` tasks; the `B1..B6` codes flag
+underspecified issues and tests keyed to implementation details, which yield trajectories
+that are either garbage or accidentally-correct. `--max-f2p 25` drops rows whose
+FAIL_TO_PASS lists the **whole suite** (some have 16,000+ ids), where "resolved" would
+demand every test in the repo pass.
+
+**Three things differ per instance, and getting any of them wrong is silent:**
+
+| | V1 (Python) | V2 (20 languages) |
+|---|---|---|
+| checkout dir | `/testbed` | `/<repo-name>` |
+| test command | pytest + node ids, wrapped in `conda run -n testbed` | the instance's own `install_config.test_cmd`, no conda |
+| log → statuses | our pytest `-rA` parser | the parser the instance names in `install_config.log_parser` |
+
+The parsers are **vendored verbatim** from SWE-rebench-V2 (MIT) into
+`src/quant_tuner/eval/_swerebench_v2_parsers.py` — 76 of them — because the recorded
+FAIL_TO_PASS ids are literally whatever *that exact function* emitted at dataset-build
+time. A near-miss reimplementation parses zero matching ids and marks every trajectory
+unresolved, which reads exactly like "the model failed." Re-vendor with
+`scripts/vendor_swerebench_parsers.py` (`--check` for drift), then re-run the golden
+check. Some runners embed timings in the test name (`… [20.82 ms]`), so both the recorded
+and the freshly-parsed ids are timing-normalized before comparison.
+
+**Always run the golden-patch check first.** It applies each instance's own gold patch and
+requires `resolved=True`; a failure there means the *harness* is wrong, not the model.
+It also distinguishes the recurring `docker run` exit-125 (registry unreachable vs. full
+Docker VM disk) instead of leaving an opaque `CalledProcessError`.
+
 ## Stage 2 — masked corpus from the resolved trajectories
 
 ```bash
