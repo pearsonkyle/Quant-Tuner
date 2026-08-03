@@ -11,17 +11,31 @@ import subprocess
 
 import pytest
 
+from quant_tuner.eval.agents.openai_agents import (
+    _EMPTY_PATCH_NUDGE,
+    _ERROR_RETRY_NOTE,
+    _SUBMISSION_CMD,
+    _run_bash_tool,
+    _system_prompt,
+    language_name,
+)
 from quant_tuner.eval.swebench import _build_env_config
-from quant_tuner.eval.swebench_grade import (
+from quant_tuner.eval.swebench_grade import (  # noqa: E402
+    _apply_patch_command,
     diagnose_container_error,
     evaluate_results_v2,
     install_config_of,
     is_v2_instance,
     normalize_test_name,
     parser_for_instance,
+    revert_test_files_command,
     v2_test_script,
     v2_workdir,
+    workdir_for,
 )
+
+# aliased: pytest would collect a module-level `test_*` name as a test case
+from quant_tuner.eval.swebench_grade import test_patch_paths as gold_test_paths  # noqa: E402
 
 
 def _v2(**over) -> dict:
@@ -171,6 +185,108 @@ def test_missing_test_counts_as_failure_not_success():
 
 def test_no_fail_to_pass_is_never_resolved():
     assert evaluate_results_v2([], [], {"x": "PASSED"})["resolved"] is False
+
+
+# ------------------------------------------------------- agent uses the per-instance dir
+def test_workdir_for_covers_both_generations():
+    assert workdir_for(_v2()) == "/synthetics"
+    assert workdir_for(_v1()) == "/testbed"
+
+
+def test_agent_prompt_and_submission_use_the_instance_repo_dir():
+    """The bug this pins: a /testbed-hardcoded agent in a V2 container gets an OCI
+    chdir error as the output of every command, and that error string becomes the
+    submitted "patch" — the run looks like a model failure, not a harness bug."""
+    repo_dir = workdir_for(_v2())
+    prompt = _system_prompt(repo_dir, language_name(_v2()))
+    assert "/synthetics" in prompt
+    assert "/testbed" not in prompt
+    assert "{repo_dir}" not in prompt          # template fully rendered
+
+    cmd = _SUBMISSION_CMD.format(repo_dir=repo_dir)
+    assert cmd == "git -C /synthetics add -A && git -C /synthetics diff --cached HEAD"
+
+
+def test_nudges_render_with_no_leftover_placeholders():
+    for template in (_EMPTY_PATCH_NUDGE, _ERROR_RETRY_NOTE):
+        rendered = template.format(repo_dir="/synthetics", err="Boom")
+        assert "/synthetics" in rendered
+        assert "{" not in rendered
+
+
+def test_bash_tool_executes_in_the_instance_repo_dir():
+    seen = {}
+
+    class _Env:
+        def execute(self, action, cwd=None, timeout=None):
+            seen["cwd"] = cwd
+            return {"output": "ok", "returncode": 0}
+
+    _run_bash_tool(_Env(), "ls", step_timeout=5, counters={}, cwd="/synthetics")
+    assert seen["cwd"] == "/synthetics"
+
+
+def test_prompt_names_the_instance_language_not_python():
+    """A 20-language dataset: telling a Go agent it is in 'a Python repository'
+    misdirects which toolchain it reaches for."""
+    assert language_name({"language": "go"}) == "Go "
+    assert language_name({"language": "ts"}) == "TypeScript "
+    assert language_name({}) == "Python "        # V1 rows carry no language
+    assert "Go repository" in _system_prompt("/frostdb", language_name({"language": "go"}))
+
+
+# --------------------------------------------------------------- gold test-file revert
+_TEST_PATCH = """\
+diff --git a/state/state_test.go b/state/state_test.go
+index abc..def 100644
+--- a/state/state_test.go
++++ b/state/state_test.go
+@@ -1 +1 @@
+-old
++new
+diff --git a/types/tx/payload/bond_test.go b/types/tx/payload/bond_test.go
+--- a/types/tx/payload/bond_test.go
++++ b/types/tx/payload/bond_test.go
+@@ -1 +1 @@
+-x
++y
+"""
+
+
+def test_gold_test_paths_extracted():
+    assert gold_test_paths(_TEST_PATCH) == [
+        "state/state_test.go", "types/tx/payload/bond_test.go"]
+    assert gold_test_paths("") == []
+
+
+def test_revert_restores_only_the_gold_test_files():
+    """A repo-wide rename that also rewrote *_test.go makes the gold patch fail to
+    apply ('does not match index'), scoring a possibly-correct fix as an infra error.
+    Only paths the gold patch touches are reverted, so the source fix survives."""
+    cmd = revert_test_files_command("abc123", _TEST_PATCH)
+    assert "git checkout abc123 --" in cmd
+    assert "state/state_test.go" in cmd
+    assert "types/tx/payload/bond_test.go" in cmd
+    # a source file the agent fixed must NOT be reverted
+    assert "types/tx/payload/payload.go" not in cmd
+
+
+def test_revert_is_skipped_when_the_patch_only_adds_files():
+    assert revert_test_files_command("abc123", "") is None
+
+
+def test_revert_falls_back_to_head_without_a_base_commit():
+    assert "git checkout HEAD --" in revert_test_files_command("", _TEST_PATCH)
+
+
+def test_v2_apply_is_lenient_but_v1_chain_is_unchanged():
+    """V2 matches upstream's lenient flags; V1 keeps the exact chain that produced the
+    published Python runs, so those numbers stay reproducible."""
+    v2 = _apply_patch_command("diff --git a/x b/x\n", "/tmp/p.patch", v2=True)
+    v1 = _apply_patch_command("diff --git a/x b/x\n", "/tmp/p.patch")
+    assert "--3way --recount --ignore-space-change --whitespace=nowarn" in v2
+    assert "--recount" not in v1
+    assert "git apply -v /tmp/p.patch" in v1
 
 
 # ------------------------------------------------------------------- docker diagnostics

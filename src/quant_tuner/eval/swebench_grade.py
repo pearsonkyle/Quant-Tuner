@@ -176,6 +176,18 @@ def v2_workdir(instance: dict) -> str:
     return f"/{name}"
 
 
+def workdir_for(instance: dict) -> str:
+    """Where THIS instance's repo is checked out inside its image.
+
+    The single source of truth for the container path: V1 images use ``/testbed``,
+    V2 images use ``/<repo-name>``. The agent backend, the grader and the mini-swe
+    environment must all agree — an agent that ``cd``s to a directory that does not
+    exist gets an OCI ``chdir`` error as the output of *every* command, and its
+    "patch" ends up being that error string.
+    """
+    return v2_workdir(instance) if is_v2_instance(instance) else "/testbed"
+
+
 def parser_for_instance(instance: dict):
     """Resolve the instance's named log parser from the vendored V2 registry."""
     name = install_config_of(instance).get("log_parser")
@@ -273,20 +285,77 @@ def diagnose_container_error(exc: BaseException) -> str:
     return text + (("  [diagnosis] " + "; ".join(hints)) if hints else "")
 
 
-def _apply_patch_command(patch_text: str, remote_path: str) -> str:
+# SWE-rebench-V2's own harness applies both patches with these flags. They matter: the
+# agent's diff and the gold test patch frequently touch neighbouring lines, and a strict
+# `git apply` rejects the second one — which we would otherwise report as "gold test
+# patch did not apply", i.e. an unresolvable instance, for a purely cosmetic conflict.
+_V2_APPLY_FLAGS = "--3way --recount --ignore-space-change --whitespace=nowarn"
+
+
+def _apply_patch_command(patch_text: str, remote_path: str, *, v2: bool = False) -> str:
     """Shell command that materializes ``patch_text`` in the container and applies it.
 
     base64 round-trips the patch so arbitrary diff content (quotes, heredoc
     markers, binary-ish hunks) survives the ``docker exec`` shell boundary.
     Falls back through ``git apply --3way`` then ``patch -p1``.
+
+    ``v2=True`` tries SWE-rebench-V2's own lenient invocation first, so our verdicts
+    match the dataset's harness. The V1 chain is deliberately left untouched: it
+    produced the published Python trajectory runs, and quietly making it more
+    permissive would silently change those numbers.
     """
     b64 = base64.b64encode(patch_text.encode("utf-8")).decode("ascii")
     quoted = shlex.quote(b64)
+    upstream = f"git apply -v {_V2_APPLY_FLAGS} {remote_path} || " if v2 else ""
     return (
         f"printf %s {quoted} | base64 -d > {remote_path} && "
-        f"(git apply -v {remote_path} "
+        f"({upstream}"
+        f"git apply -v {remote_path} "
         f"|| git apply -v --3way {remote_path} "
         f"|| patch --batch --fuzz=5 -p1 -i {remote_path})"
+    )
+
+
+_DIFF_PATH_RE = re.compile(r"^diff --git a/(\S+) b/(\S+)", re.MULTILINE)
+
+
+def test_patch_paths(test_patch: str) -> list[str]:
+    """Repo-relative paths the gold test patch touches."""
+    paths: list[str] = []
+    for a, b in _DIFF_PATH_RE.findall(test_patch or ""):
+        for p in (a, b):
+            if p not in paths:
+                paths.append(p)
+    return paths
+
+
+def revert_test_files_command(base_commit: str, test_patch: str) -> str | None:
+    """Restore the gold test files to their pristine state before applying test_patch.
+
+    Agents routinely edit test files — e.g. a repo-wide symbol rename that also rewrites
+    ``*_test.go``. The gold test patch was cut against the pristine tests, so it then
+    fails with ``does not match index`` and the instance is scored "gold test patch did
+    not apply" — an unresolvable instance for a reason that has nothing to do with the
+    fix being right or wrong.
+
+    Reverting these paths is what the official SWE-bench harness does, and it is what
+    the agent system prompt already promises ("it reverts any edits you make to test
+    files before grading"). Only files the gold patch touches are reverted, so a
+    source-code fix is never undone.
+
+    Returns ``None`` when the patch adds only new files (nothing to restore).
+    """
+    paths = test_patch_paths(test_patch)
+    if not paths:
+        return None
+    quoted = " ".join(shlex.quote(p) for p in paths)
+    ref = shlex.quote(base_commit) if base_commit else "HEAD"
+    # `git checkout <ref> -- <paths>` fails wholesale if ANY path is absent at that ref
+    # (a patch that creates a new test file), so clear those separately and tolerate both.
+    return (
+        f"git checkout {ref} -- {quoted} 2>/dev/null; "
+        f"for f in {quoted}; do git checkout {ref} -- \"$f\" 2>/dev/null || rm -f \"$f\"; done; "
+        f"true"
     )
 
 
@@ -417,14 +486,19 @@ def grade_instance(
         if r.get("returncode") != 0:
             return _empty_result("git reset/clean failed") | {"log": _clip("\n".join(log_parts))}
 
-        r = _run("apply-model", _apply_patch_command(model_patch, "/tmp/model.patch"))
+        r = _run("apply-model", _apply_patch_command(model_patch, "/tmp/model.patch", v2=v2))
         if r.get("returncode") != 0:
             return _empty_result("model patch did not apply") | {
                 "log": _clip("\n".join(log_parts))
             }
 
         if test_patch.strip():
-            r = _run("apply-test", _apply_patch_command(test_patch, "/tmp/test.patch"))
+            # Undo any agent edits to the gold test files first — otherwise a repo-wide
+            # rename that also rewrote *_test.* makes the gold patch fail to apply, and a
+            # possibly-correct fix is scored as an infrastructure failure.
+            if v2 and (revert := revert_test_files_command(base_commit, test_patch)):
+                _run("revert-test-files", revert)
+            r = _run("apply-test", _apply_patch_command(test_patch, "/tmp/test.patch", v2=v2))
             if r.get("returncode") != 0:
                 return _empty_result("gold test patch did not apply") | {
                     "log": _clip("\n".join(log_parts))
