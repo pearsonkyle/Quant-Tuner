@@ -62,9 +62,27 @@ is scored as a failure. When the source fix is complete and you have verified \
 it, stop and give a short summary of what you changed.
 """
 
+# Paths a build/test run regenerates. `git add -A` stages new files (so a brand-new
+# source module shows up in the patch) but that also sweeps in whatever `npm install`,
+# `cargo build` or a test run just created. Observed for real: an agent ran `npm
+# install`, and the resulting 16k-line package-lock.json made the patch so large that
+# `git apply` timed out during grading — the instance was scored "model patch did not
+# apply" even though the source fix was fine. These are never the fix, so exclude them
+# from the diff; it also keeps the published trajectories free of lockfile noise.
+_SUBMISSION_EXCLUDES = [
+    "package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml",
+    "composer.lock", "Gemfile.lock", "poetry.lock", "uv.lock",
+    "node_modules", "__pycache__", ".pytest_cache", ".gradle", ".m2", ".venv",
+    "*.pyc", "*.class", "*.o",
+]
+_EXCLUDE_PATHSPEC = " ".join(f"':(exclude,glob)**/{p}'" for p in _SUBMISSION_EXCLUDES)
+
 # Command that snapshots the working tree as a patch to grade. Stages new files
 # too (`add -A`) so brand-new modules show up in the diff.
-_SUBMISSION_CMD = "git -C {repo_dir} add -A && git -C {repo_dir} diff --cached HEAD"
+_SUBMISSION_CMD = (
+    "git -C {repo_dir} add -A -- . " + _EXCLUDE_PATHSPEC + " && "
+    "git -C {repo_dir} diff --cached HEAD -- . " + _EXCLUDE_PATHSPEC
+)
 
 # If the agent stops cleanly but the working tree is still unchanged — it
 # explored the code, "understood" the bug, and quit without editing (the

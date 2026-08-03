@@ -38,6 +38,8 @@ _STATUS_LINE = re.compile(
 )
 _PASSING = {"PASSED", "XFAIL"}  # XFAIL = expected-fail that behaved as expected
 _LOG_CLIP = 20_000
+# Applying a patch is I/O, not agent interaction — don't inherit the short step timeout.
+_PATCH_APPLY_TIMEOUT = 600
 
 
 class _ExecEnv(Protocol):
@@ -486,7 +488,11 @@ def grade_instance(
         if r.get("returncode") != 0:
             return _empty_result("git reset/clean failed") | {"log": _clip("\n".join(log_parts))}
 
-        r = _run("apply-model", _apply_patch_command(model_patch, "/tmp/model.patch", v2=v2))
+        # Give patch application its own generous timeout: the container's default step
+        # timeout is sized for interactive agent commands, and a large (but legitimate)
+        # diff can exceed it — which surfaces as rc=-1 and reads as "patch did not apply".
+        r = _run("apply-model", _apply_patch_command(model_patch, "/tmp/model.patch", v2=v2),
+                 timeout=_PATCH_APPLY_TIMEOUT)
         if r.get("returncode") != 0:
             return _empty_result("model patch did not apply") | {
                 "log": _clip("\n".join(log_parts))
@@ -498,7 +504,8 @@ def grade_instance(
             # possibly-correct fix is scored as an infrastructure failure.
             if v2 and (revert := revert_test_files_command(base_commit, test_patch)):
                 _run("revert-test-files", revert)
-            r = _run("apply-test", _apply_patch_command(test_patch, "/tmp/test.patch", v2=v2))
+            r = _run("apply-test", _apply_patch_command(test_patch, "/tmp/test.patch", v2=v2),
+                     timeout=_PATCH_APPLY_TIMEOUT)
             if r.get("returncode") != 0:
                 return _empty_result("gold test patch did not apply") | {
                     "log": _clip("\n".join(log_parts))

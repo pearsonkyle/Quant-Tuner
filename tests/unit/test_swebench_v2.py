@@ -204,7 +204,9 @@ def test_agent_prompt_and_submission_use_the_instance_repo_dir():
     assert "{repo_dir}" not in prompt          # template fully rendered
 
     cmd = _SUBMISSION_CMD.format(repo_dir=repo_dir)
-    assert cmd == "git -C /synthetics add -A && git -C /synthetics diff --cached HEAD"
+    assert "git -C /synthetics add -A" in cmd
+    assert "git -C /synthetics diff --cached HEAD" in cmd
+    assert "/testbed" not in cmd
 
 
 def test_nudges_render_with_no_leftover_placeholders():
@@ -287,6 +289,17 @@ def test_v2_apply_is_lenient_but_v1_chain_is_unchanged():
     assert "--3way --recount --ignore-space-change --whitespace=nowarn" in v2
     assert "--recount" not in v1
     assert "git apply -v /tmp/p.patch" in v1
+
+
+def test_submission_excludes_regenerated_dependency_artifacts():
+    """An agent that runs `npm install` regenerates a 16k-line package-lock.json;
+    `git add -A` would sweep it into the patch, blowing up apply time and polluting
+    the published trajectory. Observed for real on babel__babili-543."""
+    cmd = _SUBMISSION_CMD.format(repo_dir="/babili")
+    for junk in ("package-lock.json", "node_modules", "__pycache__", "yarn.lock"):
+        assert f"':(exclude,glob)**/{junk}'" in cmd
+    # ...while still staging genuinely new source files
+    assert "add -A" in cmd
 
 
 # ------------------------------------------------------------------- docker diagnostics
