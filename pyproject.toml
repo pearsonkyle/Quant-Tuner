@@ -41,6 +41,13 @@ redteam = [
 # model over the OpenAI-compatible llama-server endpoint inside a per-instance
 # Docker container; grading runs the instance's FAIL_TO_PASS/PASS_TO_PASS tests.
 # Requires a running Docker daemon — see CLAUDE.md for the Apple-Silicon caveat.
+# vLLM-native PTQ export (vllm_export/): compressed-tensors W4A16 via
+# llm-compressor, calibrated on the same corpora as the GGUF pipeline. Kept
+# optional — it pulls its own torch/accelerate stack; everything in
+# vllm_export/ except run_ptq() imports without it.
+vllm-ptq = [
+    "llmcompressor>=0.8",
+]
 swebench = [
     "mini-swe-agent==2.4.1",  # pin: DefaultAgent/LitellmModel/DockerEnvironment API is version-sensitive
     # OpenAI Agents SDK backend (eval/agents/openai_agents.py). Reuses
