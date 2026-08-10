@@ -23,12 +23,15 @@ def main() -> None:
     ap.add_argument("--max-len", type=int, default=32_768)
     ap.add_argument("--stride", type=int, default=None)
     ap.add_argument("--split", default="train")
+    ap.add_argument("--system-prose-budget", type=int, default=None,
+                    help="tool-dense mode: stub system prose to N tokens (e.g. 200)")
     args = ap.parse_args()
 
     tok = AutoTokenizer.from_pretrained(args.model)
     cfg = WindowConfig(
         logs=args.logs, out=args.out, max_len=args.max_len,
         stride=args.stride, split=args.split,
+        system_prose_budget=args.system_prose_budget,
     )
     audit = write_windows(cfg, tok)
     print(f"wrote {args.out}: {audit}")

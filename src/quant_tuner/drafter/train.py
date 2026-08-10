@@ -67,22 +67,36 @@ class TrainConfig:
             raise ValueError("grad_accum must be >= 1")
 
 
-def load_windows(path: Path, max_len: int) -> list[list[int]]:
-    """Read windows JSONL and slice each into <= max_len chunks (so a 32k window
-    still trains within a smaller step budget). Deterministic order."""
-    chunks: list[list[int]] = []
+def load_windows(path: Path, max_len: int) -> list[tuple[list[int], int]]:
+    """Read windows JSONL as (ids, gen_start) pairs. ``gen_start`` marks the first
+    on-policy (target-generated) position — loss is computed only from there on, so
+    the drafter learns the target's own outputs, not the prompt it was fed. Windows
+    without ``gen_start`` train on all positions (gen_start=0) and long ones are
+    sliced into <= max_len chunks. On-policy windows (prompt+gen, already <= max_len)
+    are kept whole so gen_start stays aligned."""
+    chunks: list[tuple[list[int], int]] = []
     with open(path, encoding="utf-8") as f:
         for line in f:
-            ids = json.loads(line)["input_ids"]
+            rec = json.loads(line)
+            ids = rec["input_ids"]
+            gs = rec.get("gen_start")
+            if gs is not None:
+                ids = ids[:max_len]
+                if len(ids) >= 2 and gs < len(ids):
+                    chunks.append((ids, gs))
+                continue
             for start in range(0, len(ids), max_len):
                 piece = ids[start : start + max_len]
                 if len(piece) >= 2:
-                    chunks.append(piece)
+                    chunks.append((piece, 0))
     return chunks
 
 
-def _teacher_step(target, assistant, input_ids, torch):
+def _teacher_step(target, assistant, input_ids, torch, gen_start=0):
     """One coupled forward. Returns (loss, n_predicted_tokens).
+
+    ``gen_start`` (on-policy): compute loss only on target-generated positions
+    (index >= gen_start), i.e. predicting token t+1 for t >= gen_start-1.
 
     The assistant's EAGLE-style input at position t is
     ``concat(raw_embed(token_t), target_hidden_state_t)`` (2*hidden = 5120), and
@@ -108,8 +122,10 @@ def _teacher_step(target, assistant, input_ids, torch):
     )
     logits = asst_out.logits  # [1, T, vocab] — vocab is 262k, so avoid a single
     # fp32 materialization of the whole thing; chunk CE over the sequence.
-    shift_logits = logits[:, :-1].reshape(-1, logits.shape[-1])
-    shift_labels = input_ids[:, 1:].reshape(-1)
+    # predicting token t+1 sits at logit index t; mask to on-policy positions.
+    lo = max(0, gen_start - 1)
+    shift_logits = logits[:, lo:-1].reshape(-1, logits.shape[-1])
+    shift_labels = input_ids[:, lo + 1 :].reshape(-1)
     n = shift_labels.numel()
     chunk = 512
     total = shift_logits.new_zeros(())
@@ -174,9 +190,9 @@ def train(cfg: TrainConfig) -> Path:
     opt.zero_grad()
     running = 0.0
     for _epoch in range(max(1, int(cfg.epochs + 0.999))):
-        for ids in chunks:
+        for ids, gen_start in chunks:
             input_ids = torch.tensor([ids], device=cfg.target_device)
-            loss, _ = _teacher_step(target, assistant, input_ids, torch)
+            loss, _ = _teacher_step(target, assistant, input_ids, torch, gen_start=gen_start)
             (loss / cfg.grad_accum).backward()
             running += loss.item()
             micro += 1

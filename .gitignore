@@ -33,3 +33,4 @@ native/jlens_server/*.o
 # Published dataset payloads are regenerable (scripts/dataset.py build) and live on the Hub;
 # the card, manifest and changelog ARE tracked so the repo records what was published.
 datasets/**/data/
+unsloth_compiled_cache/
