@@ -21,7 +21,7 @@ from quant_tuner.calibrate import awq, gptq, imatrix
 from quant_tuner.config import RunConfig
 from quant_tuner.data import ingest, split
 from quant_tuner.experiments import log, phase, step
-from quant_tuner.models import extract, llama_cpp
+from quant_tuner.models import extract, llama_cpp, mtp
 from quant_tuner.paths import Workspace
 from quant_tuner.quantize import convert, gguf
 
@@ -426,12 +426,26 @@ def quantize_model(
     imatrix_variant = cfg.calibration.params.get("imatrix_variant", "default")
     if imatrix_path is not None and imatrix_variant != "default":
         suffix += f"-{imatrix_variant}"
+    tensor_types = dict(cfg.quantize.tensor_types or {})
+    if cfg.extract.keep_mtp and cfg.quantize.mtp_pin:
+        # Resolve the draft layer from the GGUF itself; a pattern that matches nothing
+        # would silently quantize the head with the trunk.
+        info = mtp.describe(src_f16, cfg.quantize.mtp_pin)
+        if info["has_mtp"]:
+            tensor_types.update(info["pin"])
+            log(f"  MTP draft layer(s) {info['mtp_layer_indices']} pinned "
+                f"{cfg.quantize.mtp_pin}")
+        else:
+            log("  extract.keep_mtp is set but the F16 GGUF has no draft layer — "
+                "nothing to pin (check the conversion log)")
+        suffix += "-mtp"
     out_quant = ws.gguf_dir / f"{cfg.quantize.type}{suffix}.gguf"
     logs = ws.root / "logs"
 
     step(f"llama-quantize {cfg.quantize.type}", out_quant,
          lambda: gguf.quantize(src_f16, out_quant, cfg.quantize.type,
                                imatrix=imatrix_path,
+                               tensor_types=tensor_types or None,
                                log=logs / f"quantize-{cfg.quantize.type}.log"))
     return out_quant
 

@@ -33,3 +33,18 @@ native/jlens_server/*.o
 # Published dataset payloads are regenerable (scripts/dataset.py build) and live on the Hub;
 # the card, manifest and changelog ARE tracked so the repo records what was published.
 datasets/**/data/
+# That covers datasets/agent-logs/data/ too, deliberately: the CLI usage logs are real
+# captured sessions (prompts, file contents, paths) and this repo is public, so the log
+# corpora stay local-only. The card at datasets/agent-logs/README.md documents what they
+# contain and how to rebuild the pipeline's view of them; the payloads are not versioned.
+
+# Staged HF release packages: hundreds of GB of GGUFs, rebuildable from out/ + the exp
+# scripts, and published to the Hub rather than here.
+uploads/
+
+# Local clone of the prism llama.cpp fork (LLAMA_CPP_DIR for the Q2_0 ternary export).
+# Fetched separately, like vendor/llama.cpp; not vendored into this repo's history.
+vendor/llama.cpp-prism/
+
+# qwen-code local session state
+.qwen/

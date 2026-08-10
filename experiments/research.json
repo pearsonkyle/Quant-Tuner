@@ -1,0 +1,67 @@
+{
+  "schema_version": 2,
+  "name": "improving quantization performance",
+  "problem": "How can we improve the performance of quantized LLMs",
+  "created": "2026-05-25T17:04:13+00:00",
+  "hypotheses": [
+    {
+      "id": 1,
+      "statement": "investigate the imatrix technique and see if we can improve it using custom data or a new optimization metric",
+      "rationale": "",
+      "status": "proposed",
+      "created": "2026-05-25T17:05:02+00:00"
+    }
+  ],
+  "experiments": [
+    {
+      "id": 1,
+      "slug": "imatrix-with-custom-data",
+      "title": "imatrix with custom data",
+      "hypothesis_id": 1,
+      "status": "done",
+      "created": "2026-05-25T17:05:55+00:00"
+    },
+    {
+      "id": 2,
+      "slug": "imatrix-with-additional-term",
+      "title": "imatrix with output-aware re-weighting",
+      "hypothesis_id": 1,
+      "status": "done",
+      "created": "2026-05-25T17:16:38+00:00"
+    },
+    {
+      "id": 3,
+      "slug": "imatrix-token-sensitivity",
+      "title": "imatrix token sensitivity",
+      "hypothesis_id": 1,
+      "status": "planned",
+      "created": "2026-05-25T20:51:10+00:00"
+    },
+    {
+      "id": 4,
+      "slug": "imatrix-combiner-sweep",
+      "title": "imatrix combiner sweep",
+      "hypothesis_id": 1,
+      "status": "planned",
+      "created": "2026-05-25T22:30:00+00:00"
+    },
+    {
+      "id": 5,
+      "slug": "imatrix-block-aware",
+      "title": "block-aware imatrix aggregation",
+      "hypothesis_id": 1,
+      "status": "planned",
+      "created": "2026-05-25T22:30:00+00:00"
+    },
+    {
+      "id": 6,
+      "slug": "heavy-tail-mixing",
+      "title": "outlier_max rescue + heavy-tail signal mixing",
+      "hypothesis_id": 1,
+      "status": "done",
+      "created": "2026-05-26T03:00:00+00:00",
+      "completed": "2026-05-26T08:00:00+00:00",
+      "summary": "F cells (tensor-class signal swap) regressed KLD to ~0.60 vs. outlier_max's 0.562 — per-block bit allocation requires uniform signal type across tensors. H4 (max(L1(E[a²]), L1(√E[a⁴]))) set a new KLD low of 0.493 (vs. outlier_l4 0.499) but tied outlier_l4 on every tool-call metric inside noise. Outlier_l4 remains the recommended default."
+    }
+  ]
+}

@@ -13,7 +13,7 @@ from typing import Any
 from quant_tuner.data.ingest import (
     coerce_tool_call_arguments,
     normalize_messages,
-    session_fingerprint,
+    session_group,
 )
 
 # A window body may begin on a user or assistant turn, but never on a `tool`
@@ -141,6 +141,7 @@ def session_windows(
     system_content: str | None = None,
     max_windows: int = 8,
     tools_after_first: list | None = None,
+    user_anchor: bool = False,
 ) -> list[tuple[str, int]]:
     """Slice one session into ≤max_windows chat-templated windows of ≤cap_tokens.
 
@@ -159,6 +160,16 @@ def session_windows(
     with ``tools`` and every subsequent window with ``tools_after_first``
     (typically ``stub_tools(tools)``), so the full schema boilerplate appears
     once per session instead of once per window.
+
+    ``user_anchor`` rescues windows from STRICT templates. Qwen3.6's official template
+    raises "No user query found" for any window without a user turn, and a long agentic
+    trajectory has one user turn at the top followed by fifty assistant/tool turns — so
+    every window past the first is refused and the rest of the trajectory is dropped
+    (measured: the reasoning source fell from 1.00M to 232k tokens, SWE from 675k to 425k).
+    With this on, a refused window is retried with the session's first user turn — the task
+    statement — prepended. That is on-distribution rather than a workaround: at inference the
+    model always has the original task in context, so ``[system, task, mid-span]`` is exactly
+    the history-truncated context it actually sees.
     """
     coerce_tool_call_arguments(messages)
     if messages and messages[0].get("role") == "system":
@@ -171,8 +182,16 @@ def session_windows(
         prefix = []
         body = messages
 
+    anchor = next((m for m in body if m.get("role") == "user"), None) if user_anchor else None
+
     def render(run: list[dict], w_tools) -> tuple[str, int]:
-        text = tokenizer.apply_chat_template(prefix + run, tools=w_tools, tokenize=False)
+        try:
+            text = tokenizer.apply_chat_template(prefix + run, tools=w_tools, tokenize=False)
+        except Exception:
+            if anchor is None or any(m is anchor for m in run):
+                raise
+            text = tokenizer.apply_chat_template(
+                prefix + [anchor] + run, tools=w_tools, tokenize=False)
         ntok = len(tokenizer(text, add_special_tokens=False)["input_ids"])
         return text, ntok
 
@@ -236,6 +255,7 @@ def stratified_pack(
     max_windows_per_session: int = 8,
     tool_schema_quota: int | None = 1,
     drop_oversize: bool = False,
+    user_anchor: bool = False,
 ) -> tuple[list[str], list[dict], int, dict[str, Any]]:
     """Round-robin across (source, length_bucket) strata. Returns (chunks, kept, total, audit).
 
@@ -385,6 +405,7 @@ def stratified_pack(
                     system_content=sys_content,
                     max_windows=1 if is_full else max_windows_per_session,
                     tools_after_first=rest_tools,
+                    user_anchor=user_anchor,
                 )
             except Exception:
                 continue
@@ -569,6 +590,34 @@ def interleave(a: list[str], b: list[str]) -> list[str]:
     return out
 
 
+def interleave_many(lists: list[list[str]]) -> list[str]:
+    """N-way proportional round-robin merge, preserving each list's internal order.
+
+    The generalization of :func:`interleave` (which it reproduces exactly for two inputs):
+    at each step the list furthest *behind* its proportional pace emits next, so every
+    contiguous span of the output mixes all sources in their budget ratio. That property is
+    what token-budgeted calibrators (AWQ/GPTQ sample a fixed budget across the file, imatrix
+    reads it in ctx-sized chunks) depend on — a corpus written source-by-source calibrates
+    on whichever source happens to sit under the sampler.
+    """
+    nonempty = [lst for lst in lists if lst]
+    if not nonempty:
+        return []
+    totals = [len(lst) for lst in nonempty]
+    cursors = [0] * len(nonempty)
+    out: list[str] = []
+    for _ in range(sum(totals)):
+        # Pick the list with the smallest emitted fraction; ties go to the earlier list,
+        # matching interleave()'s `ia * nb <= ib * na` preference for the first input.
+        best = min(
+            (i for i in range(len(nonempty)) if cursors[i] < totals[i]),
+            key=lambda i: (cursors[i] / totals[i], i),
+        )
+        out.append(nonempty[best][cursors[best]])
+        cursors[best] += 1
+    return out
+
+
 def write_corpus(chunks: list[str], path: Path, supplement: Path | None = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:
@@ -588,27 +637,34 @@ def split_sessions(
     holdout_frac: float = 0.1,
     seed: int = 42,
 ) -> dict[str, list[dict]]:
-    """Disjoint shuffle-split by session fingerprint."""
+    """Disjoint shuffle-split, **by group** (``ingest.session_group``).
+
+    For CLI log sessions the group is the session fingerprint, so this is the historical
+    per-session split, unchanged. For harvested agent trajectories the group is the
+    ``instance_id``: the file holds several attempts at the same GitHub issue by different
+    scaffolds/models, and splitting per row would put one attempt in calibration and another
+    attempt at the *same issue* in the eval holdout — an eval that then measures fit.
+    """
     assert abs(train_frac + test_frac + holdout_frac - 1.0) < 1e-6, "splits must sum to 1.0"
     rng = random.Random(seed)
-    by_fp = {session_fingerprint(s): s for s in sessions}
-    fps = sorted(by_fp.keys())
-    rng.shuffle(fps)
-    n = len(fps)
+    by_group: dict[str, list[dict]] = defaultdict(list)
+    for s in sessions:
+        by_group[session_group(s)].append(s)
+    groups = sorted(by_group.keys())
+    rng.shuffle(groups)
+    n = len(groups)
     n_train = int(n * train_frac)
     n_test = int(n * test_frac)
-    # Iterate the deterministically-shuffled `fps` list (not sets) so the order
-    # within each split is reproducible. Building lists by iterating a set makes
-    # ordering depend on PYTHONHASHSEED, which silently changes which sessions a
-    # downstream token-budgeted stratified_pack selects run-to-run.
-    train_fps = fps[:n_train]
-    test_fps = fps[n_train : n_train + n_test]
-    holdout_fps = fps[n_train + n_test :]
-    return {
-        "train": [by_fp[fp] for fp in train_fps],
-        "test": [by_fp[fp] for fp in test_fps],
-        "holdout": [by_fp[fp] for fp in holdout_fps],
+    # Iterate the deterministically-shuffled `groups` list (not sets) so the order within
+    # each split is reproducible. Building lists by iterating a set makes ordering depend on
+    # PYTHONHASHSEED, which silently changes which sessions a downstream token-budgeted
+    # stratified_pack selects run-to-run.
+    parts = {
+        "train": groups[:n_train],
+        "test": groups[n_train : n_train + n_test],
+        "holdout": groups[n_train + n_test :],
     }
+    return {k: [s for g in gs for s in by_group[g]] for k, gs in parts.items()}
 
 
 def write_split_jsonl(sessions: list[dict], path: Path) -> None:
@@ -622,6 +678,7 @@ __all__ = [
     "cap_session",
     "chunk_text",
     "interleave",
+    "interleave_many",
     "length_bucket",
     "session_tools",
     "session_windows",

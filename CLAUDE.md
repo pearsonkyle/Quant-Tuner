@@ -417,8 +417,11 @@ The OmniCoder reproduction is here; the CLI handles ad-hoc runs.
 - `gen_iq2_grids.py` — regenerates `calibrate/_iq2_grids.py` (the IQ2 E8-lattice
   codebooks) from llama.cpp's `ggml-common.h`. Run after bumping the submodule pin;
   it asserts the ksigns parity convention and records the commit in the header.
-- `build_corpora.py` — **canonical text-corpus builder**. One pass, one seed (42),
-  five corpora written to `--out`:
+- `build_corpora.py` — the **two-source** text-corpus builder, kept for reproducing the
+  published runs. One pass, one seed (42), five corpora written to `--out`. "logtrain"
+  below means the CLI usage logs, now `datasets/agent-logs/data/logs-cli.jsonl.gz`; this
+  builder deliberately does **not** pull in the harvested agent trajectories, because its
+  name already has published numbers attached to it:
   - `corpus.cal.txt` — ALL of `wiki.test.raw` **interleaved** (window-sized chunks,
     round-robin) with ~500k tokens from the logtrain **train** split
     (stratified-packed). Feed to `llama-imatrix` and `awq.calibrate(cal_text=…)`.
@@ -458,12 +461,105 @@ The OmniCoder reproduction is here; the CLI handles ad-hoc runs.
   **Prefer this over the older one-off corpus builders** (`run_omnicoder_mixed_corpus.py`,
   `build_holdout_chunk.py`) when standing up a new model — those scripts predate this
   and build single corpora with overlapping cal/eval distributions.
+
+  **For a NEW model, prefer `build_universal_corpus.py` over this** (see below); keep
+  `build_corpora.py` for reproducing the published two-source runs. Both draw the external
+  eval domains through `data/external.py`, so their eval numbers stay comparable.
+- `build_universal_corpus.py` → `data/universal.py` — the corpus builder that combines
+  **every dataset in `datasets/`** plus raw wiki: the two on-disk log corpora, reasoning-
+  terminal windows, `swe-agentic-trajectories`, `broad-domain-supplement`, and
+  `redteam-safety-disclosures` (refused — see below), interleaved proportionally
+  (`split.interleave_many`) so a token-budgeted calibrator samples all of them. Adds four
+  in-distribution eval holdouts (`corpus.eval.{tools,agentic,broad,redteam}.txt`) alongside
+  the external ones — **each is a separate distribution needing its own `baseline.kld`**;
+  never concatenate them. Invariants it enforces rather than assumes: the chat template is
+  checked against a tool-calling fixture *before* the build, the finished corpus is re-scanned
+  for tool-call markers **per source** (a total stays non-zero even when one source silently
+  loses its calls), tool outputs are head+tail clipped, and cal/eval disjointness is asserted
+  per source. The supplement's `mtp` half is deliberately excluded from calibration — it is
+  reserved for MTP draft-head training. Published-dataset rows are read from the staged
+  `datasets/<name>/data/<split>.jsonl` when present (byte-identical to what was pushed),
+  else from the Hub.
+- **On-disk logs live in `datasets/agent-logs/data/`, gzipped** (`ingest.CLI_LOGS`,
+  `ingest.AGENT_LOGS`; card in `datasets/agent-logs/README.md`). `logs-cli.jsonl.gz` is the
+  old repo-root `logtrain.jsonl`; `logs-agents.jsonl.gz` is 435 verified agent trajectories
+  over 19 languages / 7 scaffolds. `ingest.load_sessions` is gzip-aware, **sniffs both row
+  formats** into one session schema (agent rows get `source="agents:<language>"` so the
+  packer's strata round-robin spreads the budget across languages), and
+  `resolve_log_path` maps the legacy `logtrain.jsonl` name onto the new file so the ~30
+  historical reproduction scripts still run. `split_sessions` splits **by
+  `ingest.session_group`** — the agent logs hold ~4.6 attempts at each issue, and a per-row
+  split would put one attempt in cal and another at the same issue in the eval holdout.
+- `data/reasoning.py` — reasoning arrives inline (`<think>` in content, CLI logs) or as a
+  `reasoning_content` field (agent logs); this normalizes both. **Measured on Qwen3.6: chat
+  templates keep reasoning only on a render's FINAL assistant turn and scrub it from
+  history**, and emit an *empty* `<think></think>` on that turn when none is supplied — so a
+  naive `</think>` count reported healthy coverage on a corpus that had 2 real blocks out of
+  4,291 available. `universal.reasoning_windows` is the fix: extra windows cut so a reasoning
+  turn lands last (the only position that survives, and the context the model actually has
+  while generating it). Coverage is reported per source in the audit.
+- **Strict chat templates need `user_anchor`.** Qwen3.6's *official* template raises "No
+  user query found" for a window with no user turn; an agentic trajectory is one task turn
+  followed by dozens of assistant/tool turns, so every window past the first is refused and
+  the trajectory's tail is silently dropped (measured: reasoning 1.00M → 232k tokens, SWE
+  675k → 425k). `split.session_windows(user_anchor=True)` retries a refused window with the
+  session's task statement prepended — on-distribution, since inference always has the task
+  in context. `data.universal` sets it; `build_corpora.py` does not, so published runs stay
+  byte-identical.
+- **Tokenizer vs template across the Qwen3.x line**: Qwen3.5 and Qwen3.6 share a
+  byte-identical 248,077-token vocab (`5660eab8ed1d73c3`); Qwen3 (151,669) does not. The
+  chat *template* does differ — 3.6 adds `preserve_thinking` (keeps reasoning on every
+  assistant turn, not just the last; `template_check` detects it) and changes tool-call arg
+  serialization. Build corpora against the **official** repo's tokenizer, not a finetune's:
+  Qwopus3.6 ships its own 4,718-char template vs the official 7,764.
+- **An imatrix cannot be precomputed without the weights** — it is per-model `E[a²]`
+  activation statistics. Borrowing another model's (even same-architecture) gives a quant
+  that loads and is quietly worse. Same for AWQ scales and GPTQ Hessians.
+- `data/system_prompt.py` — **SFT-only** system-prompt scrubbing. 90% of system-prompt
+  characters in the logs are blocks repeated verbatim across sessions (tone, git etiquette,
+  worked examples). A repeated block is dropped **unless it names a path/file the same
+  conversation actually touches** — that grounding test is what separates repo context from
+  harness. Neither frequency nor keywords alone works: harness blocks say "repository" and
+  "file paths" constantly, and generic filenames (`package.json`, `CLAUDE.md`) plus library
+  names (`Node.js`) are filtered out by document frequency so they can't ground anything.
+  URLs are blanked first (a `github.com/...` link parses as an absolute path). 6.4M → 0.4M
+  chars. The calibration corpus is deliberately NOT scrubbed — the packer's
+  `system_prose_budget` stub is the right mechanism there.
+- **The corpus is verified for the quantizers that read it, not just built.**
+  `universal.scan_special_tokens` checks the bytes as written (`newline=""` — universal
+  newlines hide the `\r` in agent tool output) and hard-fails if any control token present
+  doesn't tokenize to exactly one id; `llama-imatrix --parse-special` and the HF-side
+  calibrators both depend on that. `universal.sampled_coverage` runs the **production**
+  sampler (`calibrate/_ingest.sample_chunks`) over an index tensor, so it reports the exact
+  slice AWQ (65k) and GPTQ (32k) receive, attributed per source — a build whose GPTQ slice
+  contains zero tool calls fails instead of shipping.
+- `data/refusals.py` — the red-team disclosures enter calibration as **attack prompts +
+  generic refusals**: every assistant turn is replaced from a deterministic bank (varied, so
+  a 22-turn crescendo isn't one sentence eleven times), and the targets' original completions
+  and `target_reasoning` never reach a corpus. `universal.build` asserts that on the built
+  sessions. Refusal behavior is what low-bit quantization erodes first, so the attack
+  distribution belongs in calibration — the harmful responses do not.
+- `verify_chat_template.py` → `data/template_check.py` — run this FIRST for any new model.
+  Renders a fixture (two tools in scope, an assistant turn with prose + a call, a tool
+  result) and hard-fails when the schemas, the argument JSON or the result don't survive,
+  when in-text markers stop tokenizing to single ids, or when `session_windows` returns
+  nothing. Unrecognised marker families are a WARNING (extend `KNOWN_TOOL_CALL_MARKERS`).
+  Both known failures it guards: a template that drops `tools=`, and Qwen3.5-VL's strict
+  "No user query found" that silently dropped 90% of the calibration corpus.
+- `models/mtp.py` — **never hardcode the nextn pin again.** `describe(f16)` reads the draft
+  layer out of the GGUF and returns the `tensor_types` pin; `llama-quantize` accepts a
+  `--tensor-type` pattern that matches nothing, so a stale `blk.64.` silently quantizes the
+  draft head with the trunk and only shows up as a mediocre acceptance rate. Detection needs
+  BOTH signals: on the shipped Qwopus3.6 F16 the head is `blk.64` but `block_count=65`
+  (the converter counts it), so only the `nextn`/`mtp`/`eh_proj` name hint finds it.
+  `config_declares_mtp()` is a *claim* to verify against actual weights (the Ornith trap).
+  Wired into recipes as `quantize.mtp_pin` (default `q8_0`, applied when `extract.keep_mtp`).
 - `reproduce_leaderboard.py` — orchestrator chaining 7 stages (extract → 3 calibration
   stages → holdout → speed rebench → tool-call reps → render). Each subprocess-isolated.
 - `run_omnicoder_{q4_k_m,wiki_vs_custom,mixed_corpus}.py` — the three calibration stages,
   using `experiments.step()` for idempotency.
 - `build_toolcall_holdout.py` — samples the 25-session tool-call holdout from the
-  `test + holdout` slices of `logtrain.jsonl`.
+  `test + holdout` slices of the CLI logs (`datasets/agent-logs/data/logs-cli.jsonl.gz`).
 - `eval_toolcall.py` — thin argparse CLI over `eval.run_toolcall_eval`. Pass `--base-url`
   to reuse a server across calls.
 - `run_toolcall_all.py` — single-rep eval across the 8 OmniCoder GGUFs.
@@ -539,6 +635,10 @@ creates `model_extracted/`, `corpus/`, `calibration/`, `gguf/`, `eval/` and rese
   stack `imatrix_variant: hybrid_custom` (as does `q2_k_gptq`).
 - Model-specific: `q4_k_m_qwen3_5_4b`, `{q4_k_m,q5_k_s}_qwen3_6_mtp{,_awq,_none}`,
   `iq3_s_9b_mtp` (MTP heads kept via `extract.keep_mtp`).
+- Qwen3.8-27B ladder (exp-060): `{iq2_m,iq3_m,iq4_xs,q5_k_m}_qwen3_8_mtp` — universal
+  corpus + `hybrid_custom` + the draft head pinned Q8_0 via `quantize.mtp_pin`. The
+  experiment scripts (`scripts/exp060_{setup,quants,prepare_release}_*.py`) are the
+  canonical path; runbook in `docs/qwen3_8_release.md`.
 A unit test (`test_all_packaged_recipes_parse`) requires every shipped recipe to
 validate, and IQ1/IQ2 recipes to carry a calibration method — keep it green when
 adding recipes.
@@ -626,6 +726,18 @@ Adapted (Apache-2.0, see root `NOTICE`) from `anthropics/jacobian-lens` (the
     numbers are off-distribution. Prefer a raw-text eval corpus —
     `build_corpora.py`'s external `corpus.eval.txt`, wired into a recipe via
     `bench.eval_corpus` — over the pipeline's default log-derived eval slice.
+- **Calibration ctx is a PACKING parameter, not just a runtime flag.** `data.universal`'s
+  `UniversalConfig.ctx` (default **8192**) sizes the windows it emits (`window_cap = ctx -
+  headroom`), and the same value must reach `llama-imatrix -c`, `awq.calibrate(ctx=)` and
+  `gptq.calibrate(ctx=)` — a corpus packed for one ctx and read at another either straddles
+  chunk boundaries or glues unrelated conversations into one context. The corpus records
+  what it was packed for in `corpora_audit.json` (top-level `ctx` / `window_cap`). Measured on the logs: at
+  ctx 4096 / cap 3500, **51% of log windows and 46% of SWE windows ended at the cap** (chains
+  cut mid-chain); repacking for 8192 took mean tool results per agentic window from **6.1 to
+  13.5**. Cost on a 27B F16 on Metal: 48.5 s per 4096-pass (84 tok/s) vs 116.2 s per
+  8192-pass (70 tok/s) — +19% wall-clock for the same tokens, ~17 h for a full 4.4M-token
+  pass. `scripts/build_corpora.py` and the older recipes stay at 4096 so published numbers
+  reproduce; **numbers from different ctxs are not comparable**, including PPL/KLD.
 - `calibration.params.imatrix_ctx` (default **4096**, `pipeline.DEFAULT_IMATRIX_CTX`)
   sets the llama-imatrix context length for all three methods; it is consumed by
   the pipeline and not forwarded to the calibrators. 4096 fits the packer's
@@ -658,7 +770,8 @@ Adapted (Apache-2.0, see root `NOTICE`) from `anthropics/jacobian-lens` (the
   lower. SQS (which weights speed equally with compression) is noisier than KLD; for
   "which imatrix is best?" read **KLD and tool-call** columns.
 - Calibration `train`, eval `test`, and `holdout` slices come from the same source
-  (`logtrain.jsonl`) but are disjoint — preserve this invariant when adding new evals.
+  (the on-disk logs under `datasets/agent-logs/data/`) but are disjoint — preserve this
+  invariant when adding new evals. The split is by GROUP, not by row (`ingest.session_group`).
 - **Slice / source → corpus mapping** (used by `scripts/build_corpora.py` and the
   convention every new experiment should follow):
   - logtrain `train` (80%) + wiki → **calibration** corpus → imatrix + AWQ proxy loss

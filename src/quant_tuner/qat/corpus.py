@@ -2,7 +2,7 @@
 
 Two corpora, one masking convention:
 
-* :func:`build_log_corpus` — turn-aware, assistant-MASKED windows from the logtrain
+* :func:`build_log_corpus` — turn-aware, assistant-MASKED windows from the CLI-log
   slices (the iter-2/3/4 corpus). Renders each session with the model's real chat
   template, masks loss to the ``<|im_start|>assistant … <|im_end|>`` spans INCLUDING the
   terminating ``<|im_end|>`` (the stop decision — without it no position ever trains
@@ -37,7 +37,7 @@ from quant_tuner.data import split
 REPO = Path(__file__).resolve().parents[3]
 MODEL = REPO / "out" / "exp-057" / "model"
 CHAT_TEMPLATE = REPO / "out" / "exp-057" / "chat_template.jinja"
-LOGTRAIN = REPO / "logtrain.jsonl"
+LOGTRAIN = REPO / "datasets" / "agent-logs" / "data" / "logs-cli.jsonl.gz"
 WIKI = REPO / "out" / "exp-001" / "wiki" / "wiki.test.raw"
 
 # assistant span in Qwen render: from "<|im_start|>assistant\n" to the next "<|im_end|>"
@@ -250,7 +250,7 @@ def build_log_corpus(*, window: int = 4096, wiki_tokens: int = 300_000,
                      data_split: str = "train", max_tool_tokens: int = 0,
                      min_density: float = 0.0, out: Path | None = None,
                      tok=None) -> dict:
-    """The turn-aware assistant-masked corpus from a logtrain slice (+ optional wiki)."""
+    """The turn-aware assistant-masked corpus from a CLI-log slice (+ optional wiki)."""
     tok = tok or load_tokenizer()
     sessions = [json.loads(line) for line in LOGTRAIN.read_text().splitlines()]
     splits = split.split_sessions(sessions, seed=42)

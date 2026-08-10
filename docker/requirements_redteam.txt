@@ -1,0 +1,13 @@
+# Minimal dependency set for the red-team safety eval as an API client.
+#
+# The quant-tuner package proper depends on torch + llama-cpp-python (for local
+# GGUF quantization/bench), but the red-team eval only talks to remote
+# OpenAI-compatible endpoints (target / judge / simulator). So this image
+# installs ONLY the red-team client deps and runs the scripts via PYTHONPATH=src
+# — no torch, no llama.cpp, no compiler.
+#
+# Versions pinned to match the repo's uv.lock so behavior matches a local run.
+deepteam==1.0.6
+deepeval==4.0.5
+openai==2.37.0
+pyyaml==6.0.3
