@@ -1,0 +1,317 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: Classical Machine Learning
+Subtopics: learning theory, linear models, trees and ensembles, kernels, clustering,
+dimensionality reduction, imbalanced data, interpretability.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Learning Theory and the Bias-Variance Tradeoff
+
+Supervised learning assumes examples are drawn independently from a fixed but unknown
+distribution, and the goal is to find a function minimizing expected loss on new draws
+from that distribution. Everything difficult about the field follows from the fact that
+you can only measure loss on the sample you have, while you care about the population
+you do not.
+
+The bias-variance decomposition makes the tension precise. Expected squared error at a
+point decomposes into squared bias — how far the average prediction over training sets
+sits from the truth — plus variance — how much the prediction moves across training sets
+— plus irreducible noise. A model that is too simple has high bias and cannot represent
+the truth however much data it sees. A model that is too flexible has high variance and
+fits the particular noise in its training set. The classical picture is a U-shaped test
+error as complexity increases, with an optimum in between.
+
+That classical picture is incomplete, and the modern qualification matters. Very
+overparameterized models — deep networks, wide random forests, high-dimensional
+interpolators — exhibit double descent: test error rises to a peak near the
+interpolation threshold where the model has just enough capacity to fit the training data
+exactly, then falls again as capacity increases further. The explanation involves
+implicit regularization: among the many parameter settings that fit the training data,
+gradient descent finds ones with small norm, and those generalize. This does not repeal
+the bias-variance tradeoff so much as show that "complexity" measured by parameter count
+is the wrong axis.
+
+No free lunch theorems state that averaged over all possible problems, every learning
+algorithm performs identically. The theorem is often quoted as though it counselled
+agnosticism; its real content is the opposite. It says that all performance comes from
+assumptions matching the structure of the actual problem, so the practical question is
+never which algorithm is best but which algorithm's inductive bias matches your data.
+Convolution assumes locality and translation invariance. Trees assume axis-aligned
+piecewise-constant structure. Linear models assume additivity. Kernel methods assume
+smoothness in a chosen metric. Matching the bias to the domain is the work.
+
+Core learning concepts:
+  empirical risk       average loss on the training sample
+  generalization gap   difference between empirical and expected risk
+  overfitting          low training loss, high test loss; variance-dominated
+  underfitting         high loss on both; bias-dominated
+  capacity             VC dimension, Rademacher complexity; formal measures of
+                       how much a model class can fit
+  regularization       any modification reducing variance at some bias cost
+  inductive bias       the assumptions that make generalization possible at all
+  curse of dimension   volume grows exponentially, so data becomes sparse and
+                       distance-based methods degrade
+
+The curse of dimensionality has a specific and often-missed consequence for
+distance-based methods: as dimension grows, the ratio between the nearest and farthest
+neighbour distances approaches one, so "nearest neighbour" ceases to be meaningfully
+different from "any neighbour". This is why k-nearest-neighbours degrades sharply in
+high dimensions, why distance-based clustering needs dimensionality reduction first, and
+why feature selection is not merely a convenience but often a precondition for these
+methods working at all.
+
+Q: A model achieves 99% training accuracy and 71% test accuracy. The most appropriate
+first intervention is:
+A. Increase model capacity
+B. Reduce capacity or add regularization, and get more data if possible
+C. Train for more epochs
+D. Change the evaluation metric
+Reasoning: The 28-point gap is the signature of variance-dominated error — the model is
+fitting the training set's noise. Increasing capacity or training longer worsens it. The
+remedies that reduce variance are regularization, simpler models, more data, and
+ensembling. Answer: B.
+
+## Linear Models
+
+Linear regression fits a hyperplane by least squares, and its enduring value is that it
+is fast, exactly solvable, and interpretable: each coefficient is the expected change in
+the target per unit change in that predictor, holding the others fixed. That "holding
+the others fixed" clause is what makes coefficients hard to interpret when predictors are
+correlated, since the data may contain no examples where one varies and the others do
+not.
+
+Logistic regression models the log-odds of a binary outcome as a linear function,
+producing calibrated probabilities rather than raw scores. It is fit by maximum
+likelihood, has a convex objective so there are no local optima, and its coefficients
+exponentiate to odds ratios. It remains the default in medicine, credit scoring, and any
+domain where the model must be explained and defended, and it is a strong baseline that
+gradient-boosted trees often beat by only a few points on tabular data.
+
+Regularized variants trade bias for variance. Ridge adds an L2 penalty, shrinking
+coefficients smoothly and handling correlated predictors gracefully by splitting the
+effect among them. Lasso adds an L1 penalty, driving coefficients exactly to zero and so
+performing selection, but among correlated predictors it arbitrarily keeps one, making
+the selected set unstable across resamples. Elastic net combines both and recovers
+grouped selection. All require standardized features, since the penalty is scale
+dependent, and none produce valid conventional p-values — post-selection inference is
+genuinely hard and the naive standard errors from a lasso-selected model are
+meaningless.
+
+Linear model reference:
+  OLS solution           beta = (X'X)^{-1} X'y;  compute via QR, never by inverting
+  ridge                  beta = (X'X + lambda I)^{-1} X'y;  always invertible
+  lasso                  no closed form; coordinate descent or LARS
+  logistic link          log(p/(1-p)) = X beta;  p = 1/(1 + exp(-X beta))
+  odds ratio             exp(beta);  multiplicative change in odds per unit
+  multinomial            softmax over K classes; one coefficient vector per class
+  Poisson regression     log link for counts; check for overdispersion
+  regularization path    fit across lambda values; choose by cross-validation
+  standardization        required for penalized models, harmless for plain OLS
+
+Generalized linear models unify these by pairing an exponential-family distribution with
+a link function. The choice of family should follow from the data-generating process:
+binomial for binary outcomes, Poisson or negative binomial for counts, gamma for positive
+continuous quantities with variance growing with the mean, Tweedie for the
+zero-inflated positive continuous data common in insurance. Using ordinary least squares
+on a count or a proportion is a frequent shortcut that produces impossible predictions
+(negative counts, probabilities above one) and heteroskedastic residuals that invalidate
+the standard errors.
+
+## Trees and Ensembles
+
+A decision tree recursively partitions the feature space by axis-aligned splits, choosing
+at each node the split that most reduces impurity — Gini or entropy for classification,
+variance for regression. The result is interpretable, handles mixed data types natively,
+requires no scaling, captures interactions automatically, and is invariant to monotone
+transformations of the features. It is also unstable: a small change in the data can
+produce an entirely different tree, because an early split changes everything below it.
+
+That instability is precisely what makes trees ideal ensemble members. Bagging trains
+many trees on bootstrap resamples and averages them, and the variance of an average of B
+correlated predictors falls with B but is floored by the correlation between them.
+Random forests reduce that correlation further by restricting each split to a random
+subset of features, which is why they outperform plain bagging. The out-of-bag samples —
+those excluded from each bootstrap — provide a free validation estimate without a
+separate holdout.
+
+Boosting takes the opposite approach: fit models sequentially, each correcting the
+errors of the ensemble so far. Gradient boosting fits each new tree to the negative
+gradient of the loss with respect to the current predictions, which for squared error is
+just the residual and for other losses generalizes cleanly. Because each tree is fit to
+what remains, boosting reduces bias where bagging reduces variance, and boosted ensembles
+of shallow trees typically outperform random forests on tabular data — at the cost of
+sensitivity to hyperparameters and a real ability to overfit that random forests largely
+lack.
+
+Ensemble methods compared:
+  bagging            parallel, independent, reduces variance; hard to overfit
+  random forest      bagging plus feature subsampling; strong default, few knobs
+  extra trees        random split thresholds too; faster, more variance reduction
+  gradient boosting  sequential, reduces bias; best tabular accuracy, needs tuning
+  XGBoost            regularized objective, second-order optimization, sparsity-aware
+  LightGBM           histogram binning, leaf-wise growth; fastest on large data
+  CatBoost           ordered target statistics for categoricals; best default
+                     handling of high-cardinality categorical features
+  stacking           train a meta-model on base model predictions; use out-of-fold
+                     predictions or the meta-model learns from leakage
+
+The key boosting hyperparameters interact in a predictable way. Learning rate and number
+of trees trade off directly: halving the rate roughly doubles the trees needed, and lower
+rates with more trees generalize slightly better at proportionally more compute. Tree
+depth controls interaction order — depth 3 captures three-way interactions — and shallow
+trees with many rounds usually beat deep trees with few. Subsampling rows and columns per
+tree adds randomness that reduces variance. Early stopping on a validation set is the
+single most valuable practice, because it removes the tree count from the search entirely.
+
+Feature importance from tree ensembles is widely used and widely misinterpreted. The
+default impurity-based importance is biased toward high-cardinality and continuous
+features, which have more possible split points and therefore more chances to appear
+useful even when uninformative. Permutation importance — measuring the performance drop
+when a feature is randomly shuffled — is unbiased in that respect but attributes shared
+credit arbitrarily among correlated features and can be misleading when permutation
+creates impossible feature combinations. SHAP values provide a theoretically grounded
+attribution with consistency guarantees and are the current best practice, at
+substantially higher computational cost.
+
+[user] Random forest gives 0.84 AUC and XGBoost gives 0.86 on my 50k-row tabular dataset,
+but XGBoost's performance swings a lot between runs.
+[assistant] tool_call ml.compare_models({"rows": 50000, "rf_auc": 0.84,
+"xgb_auc": 0.86, "xgb_cv_std": 0.031, "rf_cv_std": 0.006,
+"xgb_params": {"n_estimators": 1200, "learning_rate": 0.3, "max_depth": 9,
+"subsample": 1.0, "early_stopping": false}})
+[tool] {"diagnosis": "overfit_and_undertuned", "flags": ["learning_rate_high",
+"depth_high_for_n", "no_subsampling", "no_early_stopping"],
+"suggested": {"learning_rate": 0.05, "max_depth": 5, "subsample": 0.8,
+"colsample_bytree": 0.8, "early_stopping_rounds": 50}}
+[assistant] The instability is a tuning problem, and fixing it will probably also raise
+the score. Your current settings are close to worst-case for variance.
+
+Learning rate 0.3 with 1200 trees is a lot of aggressive steps — each tree moves the
+ensemble far, so which trees get built depends heavily on the particular training split,
+and the ensemble lands in a different place each run. Depth 9 compounds this: that
+allows nine-way interactions, which 50k rows cannot support reliably, so the deep trees
+are fitting noise. And with no subsampling and no early stopping, there is nothing
+damping either effect.
+
+Change these together: learning rate 0.05, max_depth 5, subsample 0.8, colsample_bytree
+0.8, and early stopping with 50 rounds patience on a validation fold. Set n_estimators
+high — say 5000 — and let early stopping choose. The lower rate needs more trees, which
+is expected and cheap.
+
+I would predict this lands around 0.87-0.88 AUC with a cross-validation standard
+deviation closer to your random forest's 0.006. The rule of thumb worth carrying: when
+boosting is unstable, the cause is almost always too-large steps, too-deep trees, or no
+early stopping, in that order.
+
+Keep the random forest as a baseline. A 0.02 AUC gap for substantially more tuning
+effort and instability is not always worth it, and if the model needs to be re-fit
+automatically without supervision, the forest's insensitivity to hyperparameters is a
+real operational advantage.
+
+## Kernels, Distance Methods, and Clustering
+
+Support vector machines find the hyperplane maximizing the margin between classes, which
+is a convex optimization with a unique solution. The decision boundary depends only on
+the support vectors — the points at or inside the margin — so the model is sparse in the
+training data. Soft margins introduce slack variables allowing violations, with a
+regularization parameter C controlling the tradeoff between margin width and violations.
+
+The kernel trick is the idea with the widest reach. Because the SVM's optimization
+depends on the data only through inner products, replacing the inner product with a
+kernel function implicitly maps into a higher-dimensional space without ever computing
+the coordinates there. The radial basis function kernel corresponds to an
+infinite-dimensional space, so an RBF SVM can represent arbitrarily complex boundaries
+while remaining a convex problem. The same trick applies to PCA, ridge regression, and
+Gaussian processes, all of which have kernelized forms.
+
+The limitation is scale. Kernel methods require the N-by-N kernel matrix, so memory grows
+quadratically and training typically between quadratic and cubic in the number of
+samples. Beyond a few tens of thousands of points this becomes prohibitive, which is why
+kernel methods lost ground to trees and neural networks as datasets grew, and why
+approximations like random Fourier features and the Nystrom method exist.
+
+Clustering finds structure without labels, and the algorithms differ in what shape of
+cluster they can find. K-means minimizes within-cluster variance and therefore finds
+spherical clusters of similar size; it is fast, requires k in advance, and is sensitive
+to initialization (k-means++ addresses this) and to feature scaling. Hierarchical
+clustering builds a dendrogram permitting any number of clusters after the fact, at
+quadratic or worse cost. DBSCAN groups by density, finding arbitrary shapes, identifying
+outliers as noise, and requiring no k — but needing a density scale that may not be
+uniform across the data. Gaussian mixture models fit soft, elliptical clusters by
+expectation-maximization and give probabilistic assignments.
+
+Clustering guidance:
+  k-means             fast, spherical, needs k, scale-sensitive; use k-means++
+  hierarchical        dendrogram, any linkage; O(n^2) memory, good for small n
+  DBSCAN              density-based, arbitrary shapes, finds outliers, no k needed
+  HDBSCAN             hierarchical DBSCAN; handles varying density, fewer knobs
+  GMM                 soft assignment, elliptical, model-based; use BIC to choose k
+  spectral            uses graph Laplacian eigenvectors; finds non-convex clusters
+  choosing k          elbow on inertia (crude), silhouette score, gap statistic,
+                      BIC for model-based; or a downstream task metric
+  validation          without labels there is no ground truth; stability across
+                      resamples is the most honest internal criterion
+
+The uncomfortable truth about clustering is that it always returns clusters, whether or
+not the data has any. Running k-means with k = 5 on uniform random noise produces five
+tidy-looking clusters with a plausible silhouette score. Before interpreting clusters as
+real structure, it is worth checking whether the clustering tendency exceeds what random
+data of the same shape would produce (the Hopkins statistic, or a gap statistic against
+a null reference), and whether the same clusters appear under resampling.
+
+## Dimensionality Reduction and Imbalanced Data
+
+Principal component analysis projects onto the directions of maximum variance, which are
+the eigenvectors of the covariance matrix or equivalently the right singular vectors of
+the centred data. It is linear, deterministic, and invertible up to the discarded
+components, and the eigenvalues give the variance explained. Two cautions dominate
+practice: PCA is not scale-invariant, so unstandardized features let whichever variable
+has the largest units dominate the components; and variance is not relevance, so the
+components that explain the most variance may not be the ones that predict the target —
+supervised alternatives like partial least squares exist for that reason.
+
+Nonlinear methods preserve local structure at the cost of interpretability and global
+fidelity. t-SNE and UMAP produce visually compelling two-dimensional embeddings and are
+heavily over-interpreted. In both, cluster sizes are meaningless, distances between
+clusters are largely meaningless, and the apparent structure depends strongly on
+hyperparameters — perplexity for t-SNE, n_neighbors and min_dist for UMAP. They are
+excellent for visual exploration and for generating hypotheses, and they are not
+appropriate as a preprocessing step feeding a downstream model, nor as evidence that
+clusters are separable.
+
+Class imbalance is a framing problem more often than an algorithmic one. With 1%
+positives, accuracy is useless, and the first response should be to choose an appropriate
+metric — average precision, or expected cost under the real asymmetry between false
+positives and false negatives — rather than to alter the data. Resampling techniques
+distort the predicted probabilities, which matters whenever the score is used for ranking
+or expected-value decisions rather than a hard classification.
+
+Handling imbalance:
+  do nothing first     train on the natural distribution, optimize log loss, and
+                       choose the threshold afterward from the cost structure.
+                       This is correct more often than the literature suggests.
+  class weights        reweight the loss; equivalent to resampling in expectation
+                       without duplicating data
+  random undersampling discards majority data; fast, loses information
+  random oversampling  duplicates minority data; risks overfitting those points
+  SMOTE                synthesizes minority points by interpolation; can create
+                       implausible examples in high dimensions or across a
+                       nonlinear class boundary
+  threshold tuning     the highest-value intervention; the default 0.5 is almost
+                       never the right operating point
+  calibration          Platt scaling or isotonic regression after resampling, to
+                       restore probability meaning
+
+Interpretability requirements should shape model choice from the start rather than being
+retrofitted. Intrinsically interpretable models — linear models with few terms, shallow
+decision trees, generalized additive models, rule lists — expose their reasoning directly
+and are the right choice when a decision must be explained to a regulator or contested by
+the person it affects. Post-hoc explanation methods applied to black-box models — LIME,
+SHAP, partial dependence plots, counterfactuals — approximate the model's behaviour and
+can be misleading: LIME's local surrogates are unstable across runs, partial dependence
+plots assume feature independence and produce nonsense when features are correlated, and
+SHAP values answer a specific attribution question that may not be the one being asked.
+An accurate model with a plausible-sounding wrong explanation is worse than a slightly
+less accurate model that is genuinely transparent.

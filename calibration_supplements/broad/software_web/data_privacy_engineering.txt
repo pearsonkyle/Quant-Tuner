@@ -1,0 +1,234 @@
+================================================================================
+AREA: Software and Web Engineering
+SUBJECT: Data Privacy Engineering
+Subtopics: data inventory and classification, minimization and retention, identifiers and
+de-identification, access control, consent and rights, cryptographic techniques, practice.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Inventory, Classification, and Data Flow
+
+Privacy engineering starts with knowing what data exists, where it lives, where it goes, and why it
+is held. Most organizations do not know this, and the discovery exercise consistently finds personal
+data in places nobody expected — log files, analytics events, error reports, backups, test fixtures
+copied from production, and third-party services receiving more than anyone intended.
+
+Classification assigns sensitivity levels and determines what handling each requires. The categories
+that matter operationally are direct identifiers, which name a person; indirect identifiers, which
+identify in combination; sensitive categories with elevated legal protection such as health,
+biometrics, and precise location; and derived data, which is inferred rather than collected and
+which people are frequently more surprised by than by anything they provided.
+
+Data flow mapping traces each category from collection through every system that processes it to
+every destination. It is tedious and it is the artifact everything else depends on: a retention
+policy cannot be enforced on data whose locations are unknown, a deletion request cannot be
+fulfilled, and a breach cannot be scoped. The mapping should be maintained as systems change rather
+than produced once for an audit, which requires it to be embedded in the development process rather
+than performed by a separate function.
+
+Inventory and classification:
+  the starting point   what exists, where, where it goes, and why
+  the discovery finding  personal data in logs, analytics, errors, backups, and
+                       test fixtures
+  third-party leakage  services receiving more than intended
+  direct identifiers   name a person
+  indirect identifiers  identify in combination
+  sensitive categories  health, biometrics, precise location, and others with
+                       elevated protection
+  derived data         inferred rather than collected; often the most surprising
+                       to people
+  data flow mapping    collection through processing to destinations
+  the dependency       retention, deletion, and breach scoping all require it
+  maintenance          embedded in development, not produced for audits
+  processing purpose   recorded per category; the basis of every other decision
+  the legal basis      why processing is permitted; distinct from the purpose and
+                       required in several regimes
+  data controller and processor  who decides purposes and who acts on
+                       instructions; the distinction determines obligations
+
+Q: An organization receives a request to delete a user's data and finds the data in production, but
+also in backups, analytics, a third-party service, and several exports. What does this reveal?
+A. Poor engineering practice generally
+B. That data flow mapping was incomplete — deletion can only be executed against known locations, so
+   the inventory is the prerequisite capability rather than the deletion mechanism itself
+C. That deletion is impossible
+D. A legal problem rather than a technical one
+Reasoning: Deletion is a straightforward operation once locations are known. The difficulty is
+knowing them, which is why inventory and flow mapping are the foundational work and why building
+deletion capability without them produces a system that deletes some copies and leaves others.
+Answer: B.
+
+## Minimization, Retention, and Purpose
+
+Data minimization is the principle that collection should be limited to what is necessary for a
+stated purpose, and it is the single most effective privacy control because data not collected
+cannot be breached, misused, subpoenaed, or requested. It conflicts directly with the engineering
+instinct to log everything in case it is useful later, and resolving that conflict requires the
+purpose to be stated before the collection rather than reconstructed afterward.
+
+Retention limits apply the same logic over time. Data held indefinitely accumulates risk without
+accumulating value, since the utility of most operational data declines sharply within months while
+its liability does not. Setting a retention period per data category, implementing automatic deletion
+rather than relying on manual cleanup, and applying it to backups and derived copies is the practical
+programme, and the automation is essential because manual retention enforcement does not happen.
+
+Purpose limitation constrains use to the purposes for which data was collected, and it is the
+principle most often violated inadvertently. Data collected for one function is convenient for
+another, and the new use is proposed by someone with no visibility into the original basis. The
+control is procedural: a review that asks whether a proposed use is within the stated purpose, and a
+mechanism to obtain a new basis when it is not. Systems that make the original purpose visible at
+the point of access make this far easier than systems that do not.
+
+Minimization and retention:
+  minimization         collect only what the purpose requires
+  the effectiveness    uncollected data cannot be breached or misused
+  the conflict         the instinct to log everything for later
+  the resolution       state the purpose before collecting
+  field-level review   each collected field justified individually
+  aggregation at collection  storing a count rather than the events, where the
+                       count is what is used
+  retention periods    per category, with automatic enforcement
+  the liability curve  utility declines faster than risk does
+  automated deletion   manual cleanup does not happen
+  backups              subject to the same policy and frequently exempted in
+                       practice
+  derived copies       exports, caches, and analytics stores
+  purpose limitation   use constrained to the collection purpose
+  the inadvertent violation  a convenient secondary use proposed without
+                       visibility into the basis
+  the procedural control  review, and a mechanism to obtain a new basis
+  visible purpose      systems exposing the original purpose at access time make
+                       compliance substantially easier
+
+## Identifiers and De-identification
+
+Identifier design has large downstream consequences and is decided early. A persistent global
+identifier used across all contexts makes correlation trivial for anyone with access to more than
+one dataset, including adversaries. Per-context identifiers, derived from a master identifier and a
+context salt, allow linkage where it is needed and prevent it elsewhere, and the cost is that
+cross-context linkage requires deliberate mechanism rather than being free.
+
+De-identification removes or obscures identifying information, and the persistent finding of the
+research literature is that it is much harder than it appears. Removing direct identifiers is
+insufficient because combinations of quasi-identifiers — birth date, postal code, and gender being
+the classic triple — uniquely identify a large fraction of a population. Re-identification attacks
+against supposedly anonymized datasets have succeeded repeatedly, including against medical records,
+movie ratings, mobility traces, and browsing histories.
+
+The formal frameworks address this with varying strength. Generalization and suppression approaches
+guarantee that each record is indistinguishable from a number of others on the quasi-identifiers,
+which prevents unique identification and not attribute disclosure when the group shares a sensitive
+value. Differential privacy provides a fundamentally stronger guarantee that holds regardless of what
+auxiliary information an adversary has, which is the property the earlier approaches lack, and it
+applies to computed outputs rather than to released records.
+
+Identifiers and de-identification:
+  persistent global identifiers  make correlation trivial
+  per-context identifiers  derived from a master and a context salt
+  the tradeoff         cross-context linkage requires deliberate mechanism
+  pseudonymization     identifiers replaced with tokens; reversible with the map
+  the legal position   pseudonymized data is generally still personal data
+  quasi-identifiers    combinations identifying uniquely
+  the classic triple   birth date, postal code, and gender
+  re-identification attacks  successful against many released datasets
+  generalization and suppression  coarsening values to create indistinguishable
+                       groups
+  the residual weakness  attribute disclosure when a group shares a sensitive
+                       value
+  differential privacy  a guarantee independent of auxiliary information
+  the mechanism        calibrated noise on computed outputs
+  the scope difference  it protects computations, not released record sets
+  the utility cost     real, and concentrated on rare values and small groups
+  the practical position  aggregate release with formal guarantees is defensible;
+                       record-level release described as anonymous usually is not,
+                       and the burden should be on demonstrating the claim rather
+                       than asserting it
+
+## Access Control, Consent, and Rights
+
+Access control for personal data goes beyond the usual authorization model because the relevant
+question is not only whether an identity may access a resource but whether this access, for this
+purpose, at this time, is appropriate. Role-based access is the baseline; purpose-based access adds
+the requirement that the accessor's task justifies it; and just-in-time access with expiry replaces
+standing privileges that accumulate and are never revoked.
+
+Access logging is the control that makes the others meaningful. A log recording who accessed which
+records, when, and under what justification supports both detection of inappropriate access and the
+investigation that follows a report. Its effectiveness depends on someone reviewing it, which is why
+automated anomaly detection — an accessor viewing records outside their normal pattern — is what
+converts a log from a forensic artifact into a control.
+
+Consent, where it is the basis for processing, must be specific, informed, freely given, and as easy
+to withdraw as to give. The engineering consequences are concrete: consent state must be recorded
+with its scope and timestamp, processing must check it, withdrawal must propagate to every system
+including downstream recipients, and the absence of consent must be a functioning code path rather
+than an untested branch. Subject rights — access, correction, deletion, portability, objection —
+similarly require implemented capability, and a rights process that depends on engineers running
+manual queries does not scale and does not reliably complete.
+
+Access, consent, and rights:
+  the extended question  whether this access for this purpose is appropriate
+  role-based access    the baseline
+  purpose-based access  the task justifying the access
+  just-in-time access  granted for a period and expiring
+  standing privilege accumulation  the default failure of role-based systems
+  access logging       who, what, when, and why
+  review               what makes logging a control rather than an artifact
+  anomaly detection    access outside an accessor's normal pattern
+  consent requirements  specific, informed, freely given, easily withdrawn
+  consent state        recorded with scope and timestamp
+  enforcement          processing checks it
+  withdrawal propagation  to every system including downstream recipients
+  the untested branch  the no-consent path must actually work
+  subject rights       access, correction, deletion, portability, objection
+  implemented capability  a manual process does not scale or reliably complete
+  identity verification  for rights requests, and it must not itself become a
+                       data collection or an attack vector
+
+## Cryptographic Techniques and Practice
+
+Encryption protects data in specific states and it is worth being precise about which. Encryption in
+transit protects against network interception. Encryption at rest protects against physical media
+compromise and is largely irrelevant to an attacker with application-level access, which is the more
+common threat. Application-level encryption, where the application encrypts specific fields before
+storage, protects against database compromise and against overly broad internal access, and it is
+the layer that actually addresses most realistic threat models.
+
+Key management determines whether encryption provides anything. Keys stored beside the data they
+protect provide nothing; keys in a dedicated management service with access control, rotation, and
+audit provide real separation. Envelope encryption — encrypting data with a data key and the data key
+with a master key — is the standard pattern, allowing key rotation without re-encrypting the data.
+And the availability question matters as much as the confidentiality one: a lost key is
+indistinguishable from destroyed data.
+
+Privacy-enhancing computation techniques allow useful work on data without exposing it. Secure
+multi-party computation lets parties jointly compute a function on their combined inputs without
+revealing them. Homomorphic encryption permits computation on encrypted data directly. Private set
+intersection finds common elements between two sets without revealing the rest. These are real and
+deployed for specific applications, and they carry computational costs from substantial to enormous,
+so they are chosen when the alternative is not computing at all rather than as general replacements
+for ordinary processing.
+
+Cryptography and practice:
+  in transit           against network interception
+  at rest              against physical media compromise
+  the limitation       at-rest encryption does not stop application-level access
+  application-level encryption  specific fields encrypted before storage
+  what it addresses    database compromise and overly broad internal access
+  key management       the determinant of whether encryption means anything
+  co-located keys      provide nothing
+  envelope encryption  a data key encrypted by a master key
+  rotation             without re-encrypting the underlying data
+  the availability risk  a lost key is destroyed data
+  secure multi-party computation  joint computation without revealing inputs
+  homomorphic encryption  computation on encrypted data
+  private set intersection  common elements without revealing the rest
+  the cost              substantial to enormous; chosen when the alternative is
+                       not computing at all
+  privacy by design    controls built in rather than added; the difference is
+                       usually an order of magnitude in cost
+  privacy impact assessment  a structured review before building; its value is in
+                       surfacing decisions early enough to change them, which is
+                       precisely why it loses value when performed as a
+                       compliance step after the design is fixed

@@ -1,0 +1,317 @@
+================================================================================
+AREA: Embedded Systems and Hardware
+SUBJECT: Robotics and Control Systems
+Subtopics: control theory, PID, state space, kinematics, actuators, sensing and
+state estimation, motion planning, real-time implementation.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Feedback Control Fundamentals
+
+A control system drives a plant toward a desired state. Open-loop control applies a
+predetermined input with no measurement of the result — adequate when the plant is well
+characterized and disturbances are negligible, as in a stepper motor commanded to a
+position it can always reach. Closed-loop control measures the output, computes the error
+against a reference, and adjusts the input accordingly, which buys robustness to
+disturbances, to modelling error, and to parameter drift, at the cost of the possibility of
+instability.
+
+That tradeoff is the central fact of the subject. Feedback creates a loop, and a loop with
+enough gain and enough phase lag oscillates. Everything in classical control theory is
+machinery for determining how much gain can be applied before that happens and how to shape
+the loop so that more can be applied safely.
+
+System response is characterized by a handful of quantities that translate directly into
+requirements. Rise time measures speed. Overshoot measures how far past the target the
+response goes. Settling time measures how long until it stays within a tolerance band.
+Steady-state error measures the residual offset after transients decay. These trade against
+each other: a faster response generally means more overshoot, and eliminating steady-state
+error generally slows the response.
+
+Response characteristics of a second-order system:
+  natural frequency      omega_n; sets the timescale
+  damping ratio          zeta; sets the character
+  zeta = 0               undamped, sustained oscillation
+  0 < zeta < 1           underdamped, overshoot with decaying oscillation
+  zeta = 1               critically damped, fastest without overshoot
+  zeta > 1               overdamped, slow, no overshoot
+  overshoot              exp(-pi zeta / sqrt(1 - zeta^2)); ~4.3% at zeta = 0.707
+  settling time (2%)     ~4 / (zeta omega_n)
+  rise time              ~1.8 / omega_n for zeta ≈ 0.7
+  common design target   zeta ≈ 0.7, a good compromise of speed and overshoot
+
+Stability in the classical framework is assessed from the loop's frequency response. Gain
+margin is how much the loop gain can increase before instability; phase margin is how much
+additional phase lag can be tolerated. Typical design targets are a gain margin above 6 dB
+and a phase margin above 45 degrees, and these are not arbitrary — they provide room for the
+modelling error, the sensor and computation delay, and the parameter variation that a real
+system will exhibit and a model will not capture.
+
+Q: A control loop is tuned to be very fast on the bench and oscillates when the mechanism
+is loaded. The most likely explanation is:
+A. The sensor failed
+B. Loading changed the plant dynamics, reducing the phase margin the tuning assumed
+C. The setpoint is too high
+D. The sample rate is too high
+Reasoning: Adding load changes inertia and often adds compliance, lowering the plant's
+resonant frequency and adding phase lag. A tuning with marginal phase margin on the
+unloaded system has none on the loaded one. This is why controllers should be tuned under
+representative load and designed with margin rather than to the edge of stability.
+Answer: B.
+
+## PID Control
+
+The proportional-integral-derivative controller remains the workhorse of industrial
+control, comprising the overwhelming majority of deployed loops, because it requires no
+model and its three terms have intuitive effects.
+
+The proportional term produces an output proportional to the current error. Increasing it
+speeds the response and reduces steady-state error, and past a point produces overshoot and
+then oscillation. It cannot eliminate steady-state error in general, because a nonzero
+output requires a nonzero error to generate it — a motor holding a load against gravity needs
+continuous torque, which the proportional term can only supply by maintaining a position
+error.
+
+The integral term accumulates error over time, so any persistent error eventually produces
+whatever output is needed to eliminate it. This removes steady-state error, which is its
+entire purpose, at the cost of adding phase lag that reduces stability margin, and of
+introducing windup.
+
+The derivative term responds to the rate of change of error, providing anticipatory damping
+that permits higher proportional gain. Its weakness is noise: differentiation amplifies
+high-frequency content, so a noisy measurement produces a violently noisy derivative output.
+It must be filtered, and it should be computed on the measurement rather than on the error,
+so that a step change in setpoint does not produce a derivative spike — the derivative kick.
+
+PID practice:
+  parallel form         u = Kp e + Ki integral(e) + Kd de/dt
+  derivative on meas.   differentiate -y rather than e; avoids setpoint kick
+  derivative filtering  a first-order filter with N between 8 and 20 times the
+                        derivative time constant; unfiltered D is unusable
+  integral windup       when the actuator saturates, the integral keeps growing
+                        and the loop overshoots badly on recovery
+  anti-windup           clamp the integrator, or back-calculate from the saturated
+                        output; mandatory on any loop that can saturate
+  bumpless transfer     initialize the integrator on mode change so the output does
+                        not jump
+  feedforward           add a model-based term for known demands; the loop then
+                        corrects only the residual, which is far easier
+  sample rate           10-20x the closed-loop bandwidth; faster is not free
+                        because it amplifies quantization and noise in D
+
+Integral windup is the failure mode most likely to appear in a working system and surprise
+its author. When the actuator saturates — a valve fully open, a motor at current limit — the
+error persists because the plant cannot respond, so the integrator continues accumulating to
+a very large value. When the plant finally reaches the setpoint, the integrator must unwind
+before the output comes down, producing a large overshoot and a long recovery. The symptom
+is a loop that behaves well for small setpoint changes and badly for large ones, and the
+fix is anti-windup logic that stops or reverses accumulation while saturated.
+
+Tuning methods range from systematic to empirical. Ziegler-Nichols provides a classical
+starting point from the ultimate gain and period, and it is known to produce aggressive,
+oscillatory tuning that usually needs detuning. Relay auto-tuning drives the loop into a
+controlled oscillation to identify the same parameters automatically. Model-based tuning
+such as lambda or internal model control derives gains from an identified plant model and a
+desired closed-loop time constant, giving a single intuitive tuning knob. Manual tuning —
+raise proportional gain until oscillation, back off, add integral for steady-state error,
+add derivative only if needed and if the signal is clean enough — remains common and works.
+
+## State Space and Modern Control
+
+State-space representation describes a system by a first-order vector differential equation
+in the state, with matrices mapping state and input to state derivative and output. Its
+advantages over transfer functions are that it handles multiple inputs and outputs
+naturally, exposes internal states rather than only the input-output relationship, extends
+directly to time-varying and nonlinear systems, and is the natural form for numerical
+computation.
+
+Two structural properties determine what is achievable. Controllability asks whether the
+input can drive the state anywhere in finite time, tested by the rank of the controllability
+matrix. Observability asks whether the state can be reconstructed from the output history,
+tested by the rank of the observability matrix. A system that is not controllable has modes
+the input cannot influence; one that is not observable has modes the sensor cannot see. Both
+are checked before designing anything, because no amount of control design fixes a structural
+deficiency — the answer is a different actuator or a different sensor.
+
+State feedback places the closed-loop poles wherever desired, provided the system is
+controllable, by choosing a gain matrix. Pole placement gives complete freedom and no
+guidance about where to place them; the linear quadratic regulator instead minimizes a
+quadratic cost balancing state error against control effort, producing an optimal gain from
+two weighting matrices that have direct engineering meaning. LQR is the standard approach
+because tuning two cost weights is far more intuitive than choosing pole locations, and the
+result comes with guaranteed stability margins.
+
+State-space and estimation:
+  state equation       x' = A x + B u;   y = C x + D u
+  controllability      rank[B, AB, A^2 B, ...] = n
+  observability        rank[C; CA; CA^2; ...] = n
+  pole placement       u = -K x; place closed-loop eigenvalues of (A - BK)
+  LQR                  minimize integral of (x'Qx + u'Ru); Q penalizes state error,
+                       R penalizes effort
+  observer             estimate the state from inputs and outputs; place observer
+                       poles faster than controller poles
+  separation principle controller and observer can be designed independently for
+                       linear systems
+  Kalman filter        the optimal observer under Gaussian noise; the observer gain
+                       is computed from process and measurement noise covariances
+  LQG                  LQR plus Kalman filter; optimal but with no guaranteed
+                       robustness margins, unlike LQR alone
+  integral action      augment the state with the integral of the error to remove
+                       steady-state offset
+
+The Kalman filter is worth understanding as a recursive Bayesian update rather than as a
+formula. It maintains a state estimate and a covariance representing uncertainty. The
+prediction step propagates both through the system model, increasing uncertainty by the
+process noise. The update step incorporates a measurement, combining prediction and
+measurement weighted by their relative uncertainties — so a precise measurement pulls the
+estimate strongly and a noisy one barely moves it. The two tuning parameters are the process
+noise covariance, expressing how much you trust the model, and the measurement noise
+covariance, expressing how much you trust the sensor, and their ratio determines the
+filter's responsiveness. Setting process noise too low produces a filter that ignores
+reality; too high produces one that simply follows the noisy measurement.
+
+## Kinematics and Actuation
+
+Forward kinematics computes end-effector pose from joint angles and is straightforward: a
+chain of transformations, one per joint, composed in order. Inverse kinematics computes the
+joint angles achieving a desired pose and is the hard direction — it may have no solution
+if the target is outside the workspace, multiple solutions when the arm can reach the same
+point in different configurations, or infinitely many for a redundant manipulator with more
+joints than task dimensions. Analytical solutions exist for common geometries; general cases
+use iterative numerical methods based on the Jacobian.
+
+The Jacobian relates joint velocities to end-effector velocity and is the central object of
+manipulator analysis. It maps joint rates to Cartesian rates, its transpose maps
+end-effector forces to joint torques, and its singular values describe the manipulator's
+ability to move and exert force in each direction. Singularities occur where the Jacobian
+loses rank — the arm fully extended, or two axes aligned — and at those configurations the
+manipulator loses a degree of freedom and the inverse Jacobian blows up, commanding
+enormous joint velocities for small Cartesian motions. Practical controllers detect
+proximity to singularities and use a damped least-squares inverse that trades exactness for
+bounded velocity.
+
+Actuator selection drives the mechanical design more than any other choice.
+
+Actuator characteristics:
+  brushed DC          simple drive, brushes wear, torque proportional to current
+  brushless DC        higher efficiency and life, needs commutation and rotor
+                      position sensing or sensorless estimation
+  stepper             open-loop position, no feedback needed, loses steps under
+                      overload with no indication, poor torque at speed
+  servo (BLDC+enc)    closed-loop position with an encoder; the standard for
+                      precision motion
+  hydraulic           very high force density, stiff, messy, expensive
+  pneumatic           compliant, fast, hard to position precisely due to
+                      compressibility
+  series elastic      deliberate compliance with force sensing; safe for human
+                      interaction, lower bandwidth
+  direct drive        no gearbox, no backlash, backdrivable, needs a large motor
+  gear reduction      multiplies torque by the ratio, divides speed, multiplies
+                      reflected inertia by the ratio squared, adds backlash and
+                      friction
+
+The reflected inertia relationship is the one most often missed in mechanical design. A
+gearbox multiplies the load inertia seen by the motor by the square of the reduction ratio,
+so a 100:1 reduction makes the load appear 10,000 times heavier in inertial terms. This is
+usually beneficial, since it means the motor's own inertia dominates and the load is easy to
+control, and it is precisely why high-reduction systems are not backdrivable and cannot
+sense external forces through motor current. A robot intended to interact safely with people
+needs either low reduction, series elastic actuation, or explicit force sensing, because a
+high-reduction arm cannot feel what it hits.
+
+[user] My quadruped's leg controller is stable in simulation and oscillates on hardware at
+about 30 Hz.
+[assistant] tool_call control.sim_to_real({"controller": "pd_joint", "kp": 180, "kd": 4,
+"sim_dt_ms": 1, "hw_control_rate_hz": 500, "sensor_latency_ms": 3.5,
+"actuator_bandwidth_hz": 45, "observed_oscillation_hz": 30})
+[tool] {"total_loop_delay_ms": 6.5, "phase_lag_at_30hz_deg": 70,
+"actuator_phase_lag_at_30hz_deg": 34, "estimated_phase_margin_deg": -4,
+"sim_modeled_delay_ms": 0, "verdict": "unmodeled_delay_and_actuator_dynamics"}
+[assistant] Your simulation has no delay and no actuator dynamics, and together those
+consume all your phase margin at 30 Hz.
+
+The accounting: 3.5 ms of sensor latency plus a 500 Hz control loop contributes about 6.5 ms
+of total loop delay, which at 30 Hz is 70 degrees of phase lag. Your actuator's 45 Hz
+bandwidth adds another 34 degrees. That is over 100 degrees of phase the simulation never
+saw, and it puts your estimated phase margin slightly negative — which is exactly an
+oscillation at 30 Hz.
+
+Fixes in order of what I would try, starting with the one that costs nothing.
+
+Reduce the gains, particularly Kd. A derivative gain of 4 against a proportional gain of 180
+is providing damping at frequencies where the delay has already inverted its effect, so it is
+destabilizing rather than damping above about 20 Hz. Cut Kd first and add a low-pass filter
+on the velocity estimate with a corner around 30-50 Hz. Then reduce Kp until the oscillation
+disappears with margin, and only then raise it back carefully.
+
+Reduce the delay. Raising the control rate from 500 Hz to 1 kHz halves that component.
+More importantly, find where the 3.5 ms of sensor latency comes from — encoder filtering,
+bus transport, buffering in a driver — because that is usually reducible and it is pure loss.
+If the encoder is on a serial bus polled once per cycle, moving to a synchronous read at the
+top of the loop can eliminate a whole cycle of delay.
+
+Then fix the simulation, because otherwise this recurs on the next controller. Add the
+measured delay as an explicit transport lag and model the actuator as at least a first-order
+lag at its measured bandwidth. A simulation without these systematically permits gains that
+hardware cannot support, which is the single most common cause of sim-to-real failure in
+legged robots.
+
+If you need the high gains for stiffness, the durable solution is a model-based feedforward
+term — computed torque or inverse dynamics — so the feedback loop only handles the residual
+error and can run at much lower gain.
+
+## Planning, Estimation, and Implementation
+
+Motion planning finds a collision-free path from start to goal in configuration space,
+where each dimension is a degree of freedom and obstacles map to forbidden regions. The
+problem is high-dimensional for anything beyond a simple mechanism, which rules out exact
+methods and motivates sampling. Rapidly-exploring random trees grow a tree by sampling
+random configurations and extending toward them, finding feasible paths quickly in high
+dimensions; probabilistic roadmaps build a reusable graph, which pays off when many queries
+share the same environment. Both are probabilistically complete — they find a solution if
+one exists, given enough time — and neither gives optimality without variants such as
+RRT-star that rewire toward lower cost.
+
+Trajectory optimization takes a different approach, formulating the problem as constrained
+optimization over a parameterized trajectory with cost terms for effort, smoothness, and
+obstacle proximity. It produces smooth, dynamically feasible motions directly rather than a
+geometric path requiring post-processing, at the cost of local minima and sensitivity to
+initialization. Model predictive control applies this idea in a receding horizon: optimize
+over a short future window, execute the first step, and re-optimize — which handles
+constraints and disturbances naturally and requires solving an optimization problem at every
+control cycle, which is why its adoption tracked the availability of fast embedded solvers.
+
+State estimation fuses multiple sensors, each with complementary weaknesses. An inertial
+measurement unit gives high-rate acceleration and angular rate that drift when integrated.
+Encoders give precise joint positions and cannot observe slip. Vision and lidar give
+absolute position at low rate with occasional gross failures. Fusing them yields an estimate
+better than any individually, and the standard tools are the extended Kalman filter for
+mildly nonlinear systems, the unscented variant for stronger nonlinearity, and particle
+filters for multimodal distributions where a single Gaussian is inadequate.
+
+Real-time implementation constraints:
+  determinism over speed  a controller that meets its deadline every cycle beats
+                          one that is faster on average and occasionally late
+  fixed control period    jitter in the sampling interval is equivalent to noise in
+                          the derivative and to phase uncertainty in the loop
+  measure the jitter      instrument the loop period; do not assume it
+  no dynamic allocation   in the control path; unbounded latency
+  bound every loop        no unbounded iteration inside a real-time task
+  watchdog                a hung controller with an active actuator is dangerous
+  safe state on fault     define what the actuator does when control is lost, and
+                          make it the default rather than a commanded action
+  saturate and rate-limit outputs, always; the plant has limits and the controller
+                          should respect them explicitly
+  units and frames        the largest source of real robot bugs; document the frame
+                          and unit of every quantity at every interface
+
+Frame and unit errors deserve the last word because they cause more robot failures than
+control theory does. A quantity expressed in the wrong frame, an angle in degrees where
+radians were expected, a sign convention differing between the encoder and the model, a
+transform composed in the wrong order — each produces a system that moves confidently in
+the wrong direction, and none of them is caught by any amount of control tuning. The
+defenses are naming conventions that encode the frame in the variable name, unit types
+enforced by the type system where the language permits, and a startup self-test that
+commands a small known motion and verifies the measured response has the expected sign and
+magnitude in every joint before anything else runs.

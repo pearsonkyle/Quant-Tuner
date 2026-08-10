@@ -1,0 +1,293 @@
+================================================================================
+AREA: Mathematics
+SUBJECT: Mathematical Logic and Foundations
+Subtopics: propositional and predicate logic, proof systems, model theory, set theory,
+computability, incompleteness, type theory and formalization, applications.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Propositional and Predicate Logic
+
+Mathematical logic studies reasoning itself as a mathematical object, which means formalizing
+what a statement is, what a proof is, and what it means for a statement to be true. The
+distinction between syntax and semantics is the subject's organizing separation: syntax concerns
+symbol manipulation according to rules, semantics concerns meaning and truth, and the central
+results relate the two.
+
+Propositional logic combines atomic statements with connectives whose truth is determined by the
+truth of their components. Its semantics is given by truth tables, and its central computational
+question — whether a formula has a satisfying assignment — is the canonical NP-complete problem,
+which is a striking connection between a foundational logical question and computational
+complexity.
+
+Predicate logic adds quantifiers and predicates, which permits statements about objects and their
+properties rather than only about whole propositions. This makes it expressive enough for
+mathematics, and the price is that its satisfiability is undecidable rather than merely
+intractable. Quantifier order is not commutative, and the difference between a statement holding
+for every object with a witness depending on it, and a single witness working for every object, is
+the source of a great deal of mathematical content — uniform convergence versus pointwise
+convergence is exactly that distinction.
+
+Logic fundamentals:
+  syntax               symbol manipulation by rules; no meaning attached
+  semantics            interpretation and truth
+  propositional logic  connectives over atomic statements; decidable, and
+                       NP-complete
+  material implication  false only when the antecedent is true and the consequent
+                       false; vacuously true with a false antecedent
+  contrapositive       logically equivalent; the basis of proof by contrapositive
+  converse and inverse  independent of the original; confusing them is the most
+                       common reasoning error
+  predicate logic      quantifiers and predicates; expressive and undecidable
+  quantifier order     not commutative; the source of uniform versus pointwise
+                       distinctions
+  free and bound       a variable bound by a quantifier is local to it
+  validity             true under every interpretation
+  satisfiability       true under some interpretation
+  entailment           every model of the premises is a model of the conclusion
+  provability          derivable in a given proof system; syntactic
+
+Q: The statements "for every x there exists y such that P(x,y)" and "there exists y such that for
+every x, P(x,y)" differ in that:
+A. They are logically equivalent
+B. The second is strictly stronger, since it requires one witness working for all x rather than
+   permitting the witness to depend on x
+C. The first is stronger
+D. Neither implies the other
+Reasoning: In the first, y may depend on x, so a different witness may serve each x. In the
+second, a single y serves every x, which is a stronger requirement and implies the first. The
+distinction is exactly that between pointwise and uniform properties throughout analysis.
+Answer: B.
+
+## Proof Systems and Model Theory
+
+A proof system specifies which derivations count as proofs, and several formulations exist with
+different characteristics. Hilbert systems have many axioms and few inference rules, which makes
+them convenient for metamathematical proofs and painful for constructing actual derivations.
+Natural deduction has introduction and elimination rules for each connective, which mirrors
+informal mathematical reasoning closely. Sequent calculus makes the structure of derivations
+explicit and supports the cut elimination theorem, which is central to proof theory.
+
+Soundness and completeness relate the syntactic and semantic notions. A proof system is sound if
+everything provable is true in every model, which is the minimum requirement — an unsound system
+proves falsehoods. It is complete if everything true in every model is provable, which is a
+substantive result rather than a definitional one. Gödel's completeness theorem establishes that
+first-order logic is complete in this sense, so semantic entailment and syntactic provability
+coincide.
+
+Model theory studies the relationship between formal theories and the structures satisfying
+them, and its results are frequently counterintuitive. The compactness theorem states that if
+every finite subset of a set of sentences has a model, the whole set does, which has the immediate
+consequence that any first-order theory with arbitrarily large finite models has an infinite one.
+The Löwenheim-Skolem theorems establish that a theory with an infinite model has models of every
+infinite cardinality, so no first-order theory can pin down the size of its models.
+
+Proof systems and models:
+  Hilbert system       many axioms, few rules; convenient for metatheory
+  natural deduction    introduction and elimination rules; mirrors informal
+                       practice
+  sequent calculus     explicit derivation structure; cut elimination
+  soundness            everything provable is true; the minimum requirement
+  completeness         everything true is provable; Gödel's completeness theorem
+                       for first-order logic
+  compactness          finite satisfiability implies satisfiability; forces
+                       unintended infinite models
+  Löwenheim-Skolem     a theory with an infinite model has models of every
+                       infinite size
+  Skolem's paradox     a countable model of set theory contains a set the theory
+                       calls uncountable; resolved by noting that the bijection
+                       witnessing countability is not in the model
+  categoricity         all models isomorphic; only achievable for finite
+                       structures in first-order logic
+  non-standard models  unintended structures satisfying the axioms; unavoidable by
+                       compactness, and the basis of non-standard analysis with
+                       genuine infinitesimals
+  decidability of a theory  whether provability is algorithmically determinable;
+                       real closed fields are decidable, arithmetic is not
+
+Skolem's paradox deserves attention because its resolution clarifies what a formal theory
+actually captures. Set theory proves the existence of uncountable sets, and by Löwenheim-Skolem it
+has a countable model — so within that model there is a set the theory calls uncountable, which
+from outside has countably many elements. The resolution is that uncountability means the absence
+of a bijection with the naturals, and the bijection exists outside the model but not within it.
+Formal theories constrain their models from the inside, and properties that appear absolute are
+relative to what the model contains.
+
+## Set Theory and Foundations
+
+Set theory became the standard foundation because sets are expressive enough to encode all
+mathematical objects — numbers, functions, relations, structures — so a single axiomatic theory
+suffices for the whole subject. Zermelo-Fraenkel set theory with the axiom of choice is the
+standard framework, and its axioms are constraints on set formation designed to permit ordinary
+mathematics while avoiding paradox.
+
+Russell's paradox is what forced the axiomatization. The naive principle that any property
+defines a set produces contradiction: the set of all sets not containing themselves both contains
+and does not contain itself. The resolution restricts comprehension so that sets are formed only
+as subsets of existing sets, which blocks the construction while retaining everything mathematics
+requires.
+
+The axiom of choice states that a choice function exists for any collection of nonempty sets, and
+it is independent of the other axioms — neither provable nor refutable from them. It is equivalent
+to several statements that are used constantly, including that every vector space has a basis and
+that every set can be well-ordered, and it also implies results that many find unacceptable,
+including the decomposition of a sphere into finitely many pieces reassembling into two spheres of
+the same size. The paradoxical consequence is genuine and the pieces are non-measurable, so no
+physical construction is implied.
+
+Set theory:
+  Russell's paradox    unrestricted comprehension is contradictory
+  ZFC                  the standard axiomatization; restricted comprehension
+  extensionality       sets with the same members are equal
+  foundation           no infinite descending membership chains; excludes
+                       self-membership
+  infinity             an infinite set exists; asserted rather than derived
+  power set            all subsets; strictly larger by Cantor's theorem
+  replacement          the image of a set under a definable function is a set
+  axiom of choice      independent; equivalent to well-ordering and to Zorn's lemma
+  Banach-Tarski        a consequence of choice; the pieces are non-measurable, so
+                       nothing physical follows
+  cardinality          size by bijection; the integers and rationals are countable
+                       and the reals are not
+  Cantor's diagonal    the reals are uncountable; the same technique proves the
+                       halting problem undecidable and drives incompleteness
+  continuum hypothesis  no cardinality strictly between the integers and the
+                       reals; proved independent of ZFC
+  independence         neither provable nor refutable; established by constructing
+                       models where it holds and where it fails
+
+The independence of the continuum hypothesis deserves emphasis because of what it establishes
+about mathematical truth. Gödel showed it cannot be disproved from ZFC and Cohen showed it cannot
+be proved, so the axioms simply do not determine it. This is not ignorance awaiting resolution by
+a cleverer argument; it is a demonstration that the question is not settled by the assumptions.
+Whether it has a determinate answer that the axioms fail to capture, or whether the question is
+genuinely indeterminate, is a philosophical position rather than a mathematical result.
+
+## Computability and Incompleteness
+
+Computability theory formalizes what can be computed, and the remarkable finding is that
+several independently proposed formalizations — Turing machines, lambda calculus, recursive
+functions, register machines — define exactly the same class of computable functions. The
+Church-Turing thesis asserts that this class captures the informal notion of effective
+computation, and it is a thesis rather than a theorem because it relates a formal definition to an
+informal concept.
+
+The halting problem is the canonical undecidable problem: no algorithm determines, for an
+arbitrary program and input, whether the program halts. The proof is diagonalization — assume such
+an algorithm exists, construct a program that halts exactly when the algorithm says it does not,
+and apply it to itself. Rice's theorem generalizes this substantially: every non-trivial semantic
+property of programs is undecidable, so no algorithm decides whether a program computes a
+particular function, whether two programs are equivalent, or whether a program has a particular
+behaviour.
+
+Gödel's incompleteness theorems apply the same self-referential technique to formal systems. The
+first theorem states that any consistent formal system strong enough to express arithmetic
+contains true statements it cannot prove. The construction encodes statements as numbers, which
+permits a system to make statements about its own provability, and constructs a statement
+asserting its own unprovability — which is true if unprovable, so the system is incomplete if
+consistent.
+
+The second theorem is the more consequential for foundations: such a system cannot prove its own
+consistency. This defeated Hilbert's programme of establishing mathematics on a finitary
+foundation whose consistency could be proved by unobjectionable means, since the consistency proof
+would require assumptions stronger than the system being proved consistent.
+
+Computability and incompleteness:
+  Turing machine       the standard model; equivalent to lambda calculus and to
+                       recursive functions
+  Church-Turing thesis  the formal class captures effective computation; a thesis
+                       relating formal to informal
+  universal machine    a machine simulating any other; the theoretical basis of
+                       the stored-program computer
+  halting problem      undecidable; proved by diagonalization
+  Rice's theorem       every non-trivial semantic property is undecidable
+  reduction            show a problem is undecidable by reducing a known
+                       undecidable problem to it
+  decidable            an algorithm always terminates with the correct answer
+  semi-decidable       terminates on yes instances and may not on no instances;
+                       provability is semi-decidable
+  Gödel numbering      encode syntax as numbers; permits self-reference
+  first incompleteness  true unprovable statements exist in any consistent system
+                       expressing arithmetic
+  second incompleteness  such a system cannot prove its own consistency
+  what it does not say  it does not say mathematics is unreliable, that specific
+                       useful theorems are unprovable, or that human minds exceed
+                       machines; the misapplications are more common than the
+                       applications
+  Presburger arithmetic  arithmetic without multiplication; decidable and
+                       complete, showing that the strength required for
+                       incompleteness is specific
+
+The scope of the incompleteness theorems deserves the emphasis it usually does not receive,
+because they are misapplied more often than applied. They concern formal systems strong enough to
+express arithmetic, and they establish that such systems have unprovable true statements — not
+that any particular interesting statement is unprovable, not that mathematics is unreliable, and
+not that human reasoning transcends formal systems. Weaker systems can be complete and decidable,
+which shows the phenomenon depends on the specific strength required, and the unprovable
+statements the theorems construct are self-referential rather than the ordinary statements
+mathematicians care about. Natural independent statements do exist and finding them was
+substantial work.
+
+## Type Theory and Formalization
+
+Type theory offers an alternative foundation to set theory, in which every object has a type and
+expressions must be well-typed. Its original motivation was avoiding paradox — Russell's paradox
+is blocked because a set cannot be a member of itself when membership must respect type levels —
+and its modern importance comes from a different property: the correspondence between types and
+propositions.
+
+The Curry-Howard correspondence identifies propositions with types and proofs with programs. A
+proof of an implication is a function from proofs of the antecedent to proofs of the consequent; a
+proof of a conjunction is a pair; a proof of a disjunction is a tagged value. This is an exact
+correspondence rather than an analogy, and it means that checking a proof is type-checking a
+program, which makes proof verification mechanical.
+
+This is the foundation of proof assistants, which have moved from a curiosity to a working tool.
+Substantial theorems have been formally verified — the four colour theorem, the Feit-Thompson odd
+order theorem, the Kepler conjecture — and formal verification is used in industry for hardware,
+for compilers, and for security-critical software. The effort remains large, typically an order of
+magnitude or more over an informal proof, and it is falling as libraries accumulate and automation
+improves.
+
+Type theory and formalization:
+  type theory          every object has a type; blocks paradox by construction
+  Curry-Howard         propositions are types, proofs are programs; exact rather
+                       than analogical
+  dependent types      types depending on values; permits expressing arbitrary
+                       propositions
+  constructive logic   a proof of existence must produce a witness; the law of
+                       excluded middle is not assumed
+  intuitionism         mathematics as mental construction; motivates constructive
+                       logic
+  proof assistant      mechanically checked proof; the kernel is small enough to
+                       audit
+  formalized theorems  four colour, Feit-Thompson, Kepler conjecture
+  verified compiler    a compiler proved to preserve semantics; eliminates a class
+                       of bug that testing cannot
+  verified kernel      operating system kernels with machine-checked correctness
+                       proofs
+  homotopy type theory  types as spaces, equality as paths; a foundation with a
+                       different geometric intuition
+  automation           tactics and decision procedures; the effort multiplier that
+                       determines feasibility
+  SMT solvers          decide combinations of decidable theories; the workhorse of
+                       practical program verification
+
+The constructive versus classical distinction deserves a closing note because it has practical
+consequences. Classical logic accepts the law of excluded middle, so a proof that the negation of
+a statement leads to contradiction establishes the statement. Constructive logic does not, so an
+existence proof must produce the object. The difference matters computationally because a
+constructive proof of an existence statement is an algorithm producing the witness, by
+Curry-Howard, while a classical one may establish existence without any means of finding it. This
+is why constructive proofs are preferred in settings where the proof is intended to yield a
+program, and why the distinction is engineering-relevant rather than merely philosophical.
+
+The broader significance of formalization is a shift in what a proof is for. An informal proof
+persuades a reader; a formal proof is checked by a program whose correctness rests on a small
+auditable kernel. The two serve different purposes — informal proofs communicate the idea and
+formal ones establish the fact beyond dispute — and the growing practice is to have both, with the
+informal exposition carrying the understanding and the formalization carrying the guarantee. That
+combination addresses a genuine problem: published proofs contain errors at a measurable rate, and
+for results that others build on, mechanical checking removes a source of accumulated risk that
+peer review does not reliably catch.

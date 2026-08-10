@@ -1,0 +1,285 @@
+================================================================================
+AREA: Mathematics
+SUBJECT: Game Theory
+Subtopics: representation and equilibrium, classic games, mixed strategies, repeated
+and sequential games, information and signalling, mechanism design, cooperative
+theory, applications.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Representation and Equilibrium
+
+Game theory studies decisions whose outcomes depend on the choices of others, and this
+interdependence is what distinguishes it from ordinary optimization. A decision-maker facing a
+fixed environment maximizes against it; a decision-maker facing other decision-makers must reason
+about what they will do, knowing that they are reasoning about the same thing.
+
+A game is specified by its players, the strategies available to each, and the payoffs each
+receives for every combination of strategies. The normal form presents this as a matrix and suits
+simultaneous decisions; the extensive form presents it as a tree and represents the sequence of
+moves and what each player knows when moving. The same game can be represented either way, and the
+extensive form carries information about timing and knowledge that the normal form compresses.
+
+Nash equilibrium is the central solution concept: a strategy profile in which no player can improve
+by changing their own strategy while the others hold theirs fixed. It is a consistency condition
+rather than a prediction of what will happen — it identifies the outcomes that could be stable
+given mutual best responses, and a game may have several equilibria, or an equilibrium may be
+worse for everyone than an achievable alternative.
+
+Representation and equilibrium:
+  players, strategies, payoffs  the specification
+  normal form          a matrix; simultaneous decisions
+  extensive form       a tree; sequence and information
+  dominant strategy    best regardless of what others do; rare and decisive when
+                       present
+  dominated strategy   worse regardless; eliminate it, and iterate
+  best response        the optimal reply to a given profile
+  Nash equilibrium     mutual best responses; no unilateral improvement
+  existence            every finite game has at least one equilibrium in mixed
+                       strategies
+  multiplicity         several equilibria; the theory does not select among them
+  Pareto efficiency    no one can be made better off without making another worse
+                       off; equilibria need not be efficient
+  the central tension  individually rational choices producing collectively worse
+                       outcomes
+  common knowledge     everyone knows, everyone knows that everyone knows, and so
+                       on; a strong assumption doing substantial work
+  rationality assumption  players maximize expected payoff; a modelling
+                       assumption whose failures are systematic and studied
+
+Q: A game has a Nash equilibrium in which both players receive less than they would under a
+different strategy profile. This indicates:
+A. The equilibrium is computed incorrectly
+B. Equilibrium concerns stability against unilateral deviation, not efficiency; the better outcome
+   is not stable because at least one player gains by deviating from it
+C. The players are irrational
+D. The game has no solution
+Reasoning: Nash equilibrium requires only that no player improves by changing their own strategy
+alone. A jointly better outcome that is not an equilibrium fails because someone gains by
+deviating from it, so it cannot be sustained without a mechanism for commitment or enforcement.
+The prisoner's dilemma is the canonical instance. Answer: B.
+
+## Classic Games and What They Model
+
+A small number of games recur because they capture recurring strategic structures, and
+recognizing which structure a situation has is most of applying the theory.
+
+The prisoner's dilemma has mutual cooperation better for both than mutual defection, and
+defection dominant for each individually. The equilibrium is therefore mutual defection, which both
+players prefer less than mutual cooperation — a socially inferior outcome produced by individually
+rational choices. It models arms races, overfishing, price competition, environmental degradation,
+and contributions to a shared resource, and its lesson is that the outcome results from the
+incentive structure rather than from any failure of the participants.
+
+Stag hunt has two equilibria: both players cooperating for a high payoff, and both defecting for a
+lower but safe one. Unlike the prisoner's dilemma, cooperation is an equilibrium, so the problem is
+coordination and trust rather than incentive. The efficient outcome is achievable if each is
+confident the other will cooperate, which makes communication, reputation, and assurance mechanisms
+effective here where they fail in the prisoner's dilemma.
+
+Chicken has two asymmetric equilibria in which one player yields, and the worst outcome occurs when
+neither does. It models brinkmanship and standoffs, and its distinctive feature is that commitment
+helps — a player who can credibly remove their own option to yield forces the other to.
+
+Classic games:
+  prisoner's dilemma   defection dominant, mutual cooperation better; the
+                       incentive structure produces the bad outcome
+  models               arms races, overfishing, price wars, emissions, public
+                       goods
+  stag hunt            cooperation is an equilibrium; the problem is assurance
+                       rather than incentive
+  chicken              asymmetric equilibria; commitment helps
+  battle of the sexes  coordination with conflicting preferences over which
+                       equilibrium
+  matching pennies     pure conflict, no pure strategy equilibrium; requires
+                       mixing
+  coordination game    multiple equilibria, all preferring coordination; the
+                       question is which
+  focal point          a salient equilibrium selected by shared expectation rather
+                       than by payoff
+  public goods game    contributions are individually costly and collectively
+                       beneficial; free riding is the equilibrium
+  tragedy of the commons  the many-player version; each takes more than is
+                       collectively sustainable
+  Ostrom's finding     real communities frequently solve commons problems through
+                       local governance without privatization or state control,
+                       which the simple model does not predict
+
+Ostrom's finding deserves emphasis because it corrects a conclusion the model was widely taken to
+establish. The tragedy of the commons predicts overexploitation absent privatization or external
+enforcement, and empirical study of actual commons — fisheries, irrigation systems, forests,
+pastures — found many that had been managed sustainably for centuries by the communities using
+them. The mechanisms involved clearly defined boundaries, rules matched to local conditions,
+participation in rule-making by those affected, monitoring, graduated sanctions, and accessible
+conflict resolution. The model is not wrong; it omits the institutions people build, and those
+institutions are what change the game.
+
+## Mixed Strategies and Sequential Games
+
+Some games have no equilibrium in pure strategies, and the canonical case is pure conflict where
+one player wants to match and the other to mismatch. Whatever either does, the other prefers to
+change, so no combination is stable. The resolution is mixed strategies, in which a player
+randomizes over their options according to a probability distribution.
+
+The equilibrium mixing probability has a property that is initially counterintuitive: each player
+mixes so as to make the other indifferent among their options. This is required for stability — if
+one option were better for the opponent, they would take it purely and the first player would
+respond, so no equilibrium. The consequence is that a player's equilibrium mixture depends on the
+opponent's payoffs rather than on their own, which inverts the usual intuition about optimization.
+
+Sequential games introduce timing, and the solution concept refines Nash equilibrium to require
+that the strategies be optimal at every point in the game rather than only overall. Backward
+induction computes this by solving the last decision first, substituting its outcome, and working
+backward. Subgame perfect equilibrium is the resulting concept, and it eliminates equilibria
+sustained by threats that would not actually be carried out.
+
+The credibility of threats is where sequential reasoning most changes conclusions. A threat that
+would be costly to execute is not credible, so an opponent reasoning correctly ignores it. Making
+a threat credible requires changing the payoffs — a commitment that removes the option not to
+follow through, a reputation whose loss is costly, or a contract with enforcement — which is why
+apparently irrational commitments can be strategically advantageous.
+
+Mixed strategies and sequences:
+  mixed strategy       a probability distribution over options
+  existence            every finite game has a mixed equilibrium
+  the indifference condition  each player mixes to make the other indifferent
+  the counterintuition  your equilibrium mixture depends on the opponent's payoffs
+  backward induction   solve the last decision first and work backward
+  subgame perfect      optimal at every point, not only overall
+  incredible threat    would be costly to execute, so it is ignored
+  commitment           removing your own option; changes the equilibrium in your
+                       favour
+  first mover advantage  where committing first constrains the follower
+  second mover advantage  where observing first is more valuable
+  centipede game       backward induction predicts immediate defection; people
+                       cooperate substantially longer, which is a persistent
+                       challenge to the reasoning
+  finitely repeated prisoner's dilemma  backward induction unravels cooperation
+                       entirely; observed behaviour does not
+
+## Repeated Games, Information, and Signalling
+
+Repeating a game changes it fundamentally because future interaction permits current behaviour to
+be conditioned on past behaviour. Cooperation that is unsustainable in a single interaction becomes
+sustainable when defection can be punished later, and the folk theorem states this generally: in an
+infinitely repeated game with sufficiently patient players, a wide range of outcomes including
+cooperative ones can be sustained as equilibria.
+
+The discount factor is what determines whether cooperation is sustainable. A player weighing future
+payoffs heavily loses more from triggering punishment than they gain from defecting once, so
+cooperation is individually rational. A player weighing them lightly gains more from the immediate
+defection. This is why cooperation is more achievable in long-term relationships, why the
+prospect of ending a relationship undermines it, and why a known final period unravels
+cooperation by backward induction.
+
+Information structure is the other dimension that transforms games. Complete information means the
+payoffs are known to all; incomplete information means at least one player has private information
+about payoffs or types. The latter is the realistic case and it produces the phenomena that make
+strategic interaction interesting — signalling, screening, reputation, and adverse selection.
+
+Signalling occurs when an informed party takes a costly action to convey their private information,
+and the signal is credible only if it is differentially costly. An action that a low type could
+imitate as cheaply as a high type conveys nothing, since both would take it. Education as a signal
+of ability works, in the signalling model, precisely because it is more costly for a less able
+person — regardless of whether it makes them more productive.
+
+Repeated games and information:
+  folk theorem         a wide range of outcomes sustainable with patient players
+  discount factor      how much the future is weighed; determines sustainability
+  trigger strategy     cooperate until defection, then punish
+  tit for tat          reciprocate the previous move; simple, and it performed
+                       well in the classic tournaments
+  the successful properties  nice, retaliatory, forgiving, and clear
+  known final period   unravels cooperation by backward induction
+  indefinite horizon   sustains cooperation; uncertainty about the end helps
+  reputation           past behaviour as information about type; requires
+                       observability
+  incomplete information  private information about payoffs or types
+  Bayesian equilibrium  strategies plus beliefs, each consistent with the other
+  signalling           the informed party acts to convey information
+  costly signal        credible only if differentially costly across types
+  screening            the uninformed party offers a menu inducing self-selection
+  adverse selection    private information before contracting; the used car
+                       market unravelling
+  moral hazard         unobservable action after contracting; addressed by
+                       aligning incentives rather than by monitoring alone
+
+The tournament findings on repeated prisoner's dilemma deserve mention because they identified
+which properties make a strategy successful rather than merely which strategy won. The strategies
+that performed well were nice, never defecting first; retaliatory, responding to defection;
+forgiving, returning to cooperation after the opponent does; and clear, so the opponent could
+recognize the pattern and adapt. The last property is the least obvious and it matters — a strategy
+too complex to be recognized cannot elicit cooperation, because the opponent cannot learn that
+cooperating is rewarded.
+
+## Mechanism Design and Cooperative Theory
+
+Mechanism design inverts the usual question. Rather than analysing a given game, it asks what game
+to construct so that self-interested participants produce a desired outcome. This is the theory
+underlying auction design, voting systems, matching markets, and contract structure, and it treats
+the rules as the variable.
+
+The revelation principle simplifies the search substantially. It states that any outcome
+achievable by some mechanism is achievable by a mechanism in which participants truthfully report
+their private information, so the search can be restricted to truthful mechanisms without loss.
+This converts an unbounded design space into a tractable one.
+
+Incentive compatibility is the property that truthful reporting is optimal, and designing for it is
+what makes a mechanism robust. A mechanism requiring participants to act against their interest
+will be gamed, and a mechanism where honesty is optimal does not require enforcement. The second
+price auction is the standard illustration: a bidder pays the second-highest bid, and bidding one's
+true value is optimal regardless of what others do, so no strategic estimation is needed.
+
+Impossibility results bound what mechanisms can achieve, and they are as informative as the
+possibility results. Arrow's theorem establishes that no voting system satisfying a small set of
+reasonable conditions exists for three or more options. The Gibbard-Satterthwaite theorem
+establishes that any non-trivial voting system is manipulable. These do not mean voting systems are
+worthless; they mean every system involves a tradeoff, and the choice is which properties to
+sacrifice.
+
+Mechanism design and cooperative theory:
+  mechanism design     construct the game to produce the desired outcome
+  revelation principle  restrict attention to truthful mechanisms without loss
+  incentive compatibility  truth-telling is optimal; the property making a
+                       mechanism robust
+  individual rationality  participants prefer participating to not
+  first price auction  pay your bid; bidders shade below their value and must
+                       estimate others
+  second price auction  pay the second highest; truthful bidding is dominant
+  revenue equivalence  under conditions, standard auction forms yield the same
+                       expected revenue; the conditions are what to examine
+  winner's curse       in a common value auction the winner is the one who
+                       overestimated most; rational bidders shade for it
+  Arrow's theorem      no voting system satisfies all of a small set of reasonable
+                       conditions for three or more options
+  Gibbard-Satterthwaite  any non-trivial voting system is manipulable
+  VCG mechanism        truthful and efficient; charges each participant the
+                       externality they impose, and it has practical difficulties
+                       with revenue and collusion
+  matching markets     deferred acceptance produces a stable matching; used for
+                       medical residencies, school assignment, and organ exchange
+  Shapley value        a cooperative allocation dividing gains by average marginal
+                       contribution; the unique allocation with several desirable
+                       properties, and it underlies the attribution method used in
+                       machine learning interpretability
+  core                 allocations no coalition can improve upon by leaving; may
+                       be empty
+
+Deferred acceptance deserves emphasis because it is a designed mechanism operating at scale with
+demonstrable properties. It produces a stable matching — no pair would both prefer each other to
+their assigned partners — it is strategy-proof for the proposing side, and it terminates. It is
+used for assigning medical graduates to residency programmes, students to schools, and in kidney
+exchange chains, and the last of these is a case where mechanism design created a market that did
+not previously exist: direct exchange between incompatible donor-recipient pairs is impossible, and
+a designed matching mechanism finds chains that make transplants possible that otherwise would not
+occur.
+
+The applications of game theory extend across economics, political science, biology, and computer
+science, and the biological application is worth noting because it removes the rationality
+assumption. Evolutionary game theory replaces deliberate optimization with differential
+reproduction: strategies that do better become more common, and an evolutionarily stable strategy
+is one that a rare mutant cannot invade. The equilibrium concept survives without any assumption
+that the players reason at all, which is a substantial extension of the theory's scope and which
+explains why the same mathematics describes animal conflict, signalling, and cooperation as
+describes markets.

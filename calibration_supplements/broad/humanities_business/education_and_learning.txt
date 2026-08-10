@@ -1,0 +1,295 @@
+================================================================================
+AREA: Humanities, Business, and Social Science
+SUBJECT: Education and Learning Science
+Subtopics: how learning works, memory and practice, instructional design, feedback and
+assessment, motivation, expertise, misconceptions, technology in learning.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## How Learning Works
+
+Learning is a change in long-term memory, and this definition is more useful than it sounds
+because it distinguishes learning from performance. Performance is what a learner can do now,
+under current conditions with current support; learning is what persists and transfers. The two
+frequently diverge, and conditions producing the best immediate performance frequently produce the
+worst retention — which is the finding that most reorients teaching practice.
+
+Cognitive load theory explains why instruction succeeds or fails at the level of working memory.
+Working memory holds only a few items at once and is where all conscious processing occurs, while
+long-term memory is effectively unlimited. Instruction that exceeds working memory capacity fails
+regardless of its quality, and the load has three components: intrinsic load from the material's
+inherent complexity, extraneous load from how it is presented, and germane load from the effort of
+building understanding.
+
+The practical implication is that extraneous load should be minimized so that capacity remains
+for the germane. Presenting information in two places that must be mentally integrated — a diagram
+on one page and its explanation on another — imposes split attention that consumes capacity for no
+purpose. Presenting the same information redundantly in two modalities forces the learner to
+reconcile them. Worked examples reduce load for novices by removing the search for a solution
+path, and they become unnecessary and then counterproductive as expertise develops.
+
+How learning works:
+  learning             a change in long-term memory; distinct from performance
+  performance          what can be done now, with current support
+  the divergence       conditions optimizing immediate performance frequently
+                       impair retention
+  working memory       a few items; where conscious processing occurs
+  long-term memory     effectively unlimited
+  intrinsic load       the material's inherent complexity; reducible only by
+                       sequencing
+  extraneous load      from presentation; minimize it
+  germane load         the effort of building understanding; what capacity should
+                       be spent on
+  split attention      information requiring mental integration across sources
+  redundancy effect    the same content in two modalities forces reconciliation
+  worked examples      reduce load for novices by removing search
+  expertise reversal   what helps novices hinders experts; guidance that scaffolds
+                       a beginner becomes redundant load for someone competent
+  schema               organized knowledge; the mechanism by which experts handle
+                       complexity that overwhelms novices
+
+The expertise reversal effect deserves emphasis because it means no instructional method is
+universally better. Worked examples, extensive guidance, and detailed scaffolding substantially
+help learners without existing knowledge and actively impede those who have it, because processing
+the guidance costs capacity that an expert would spend on the problem. Instruction must therefore
+change as the learner develops, and a method evaluated on a mixed population produces an average
+that describes neither group.
+
+Q: A study finds that students who reread their notes report feeling more confident than students
+who self-test, while the self-testing group performs substantially better on a delayed exam. This
+illustrates:
+A. That confidence is unrelated to learning
+B. The divergence between performance during study and durable learning; fluency during rereading
+   is mistaken for learning while retrieval practice produces it
+C. That rereading is useless
+D. A flawed study design
+Reasoning: Rereading produces fluency — the material feels familiar — which learners interpret as
+mastery. Retrieval practice feels harder and produces substantially better retention. This is a
+desirable difficulty: the condition that impairs the feeling of learning improves the learning
+itself, which is why learners systematically choose the less effective strategy. Answer: B.
+
+## Memory, Practice, and Desirable Difficulties
+
+The two best-supported findings in learning science are the spacing effect and the testing
+effect, and both are systematically underused because both feel worse than the alternatives.
+
+Spacing means distributing practice over time rather than massing it. The same total study time
+distributed across several sessions produces substantially better long-term retention than one
+concentrated session, and the effect is large — frequently doubling retention at a delay. Massed
+practice produces better immediate performance, which is why learners prefer it and why it feels
+effective. The mechanism involves the effort of reconstructing partially forgotten material, which
+strengthens the memory more than restudying material still fresh.
+
+The testing effect means that retrieving information from memory strengthens it more than
+restudying does. Attempting to recall, even unsuccessfully, produces better subsequent retention
+than reading the material again, and the benefit is largest when the retrieval is effortful.
+Practice testing is therefore a learning activity rather than only an assessment activity, and
+recasting quizzes as practice rather than as evaluation changes both their frequency and how
+learners engage with them.
+
+Desirable difficulties is the general term for conditions that impair performance during learning
+and improve retention and transfer. Spacing, retrieval practice, interleaving different problem
+types rather than blocking them, varying the conditions of practice, and generating an answer
+before being told are all instances. The common structure is that the difficulty requires
+additional processing, and that processing is what produces the durable change.
+
+Memory and practice:
+  spacing effect       distributed practice beats massed; frequently doubles
+                       retention
+  expanding intervals  gradually lengthening gaps; the basis of spaced repetition
+                       systems
+  testing effect       retrieval strengthens more than restudying
+  retrieval practice   effortful recall; unsuccessful attempts still help if
+                       followed by feedback
+  generation effect    producing an answer before being told
+  interleaving         mixing problem types; worse during practice, better on a
+                       delayed mixed test, because it requires selecting the
+                       approach rather than applying the known one
+  blocking             practising one type at a time; better immediate
+                       performance, worse transfer
+  variability          varying practice conditions; improves transfer to new
+                       conditions
+  desirable difficulty  impairs performance, improves learning
+  fluency illusion     familiarity mistaken for mastery; why learners choose
+                       ineffective strategies
+  metacognitive error  learners are poor judges of their own learning, and the
+                       judgment is systematically biased toward the easier method
+  elaboration          connecting new material to existing knowledge; explaining
+                       to oneself
+  dual coding          verbal plus visual representation; genuinely helpful, and
+                       distinct from the discredited learning styles claim
+
+Learning styles deserve explicit mention because the belief is widespread and the evidence does
+not support it. The claim is that learners have a preferred modality and learn better when
+instruction matches it, and testing this requires showing an interaction — that visual learners do
+better with visual instruction and auditory learners with auditory. Studies designed to detect
+that interaction consistently fail to find it. What is true is that some material has an inherent
+modality, that multiple representations help everyone, and that learners have preferences — none of
+which supports tailoring instruction to a diagnosed style.
+
+## Instructional Design and Feedback
+
+Effective instruction begins with what the learner should be able to do, stated specifically
+enough to be assessable. Vague objectives produce instruction that cannot be evaluated and
+assessment that does not correspond to it. Backward design starts from the objectives, determines
+what evidence would demonstrate them, and only then designs the instruction — which is the reverse
+of the common order and produces alignment between what is taught and what is assessed.
+
+Sequencing follows from the material's structure. Prerequisites must precede what depends on
+them, since working memory cannot hold a concept while also constructing its foundations.
+Complexity should build so that each step is within reach of what is already established, and the
+zone of proximal development names the range where a learner can succeed with support but not
+alone — which is where instruction should operate.
+
+Feedback is among the most powerful influences on learning and its effectiveness depends on
+properties that are frequently absent. It must be specific enough to identify what was wrong.
+It must be timely enough that the attempt is still in mind. It must address the task rather than
+the person, since feedback directed at ability rather than at the work reduces subsequent effort.
+And it must be actionable — indicating what to do rather than only that something was wrong.
+
+Instructional design and feedback:
+  learning objectives  specific enough to assess
+  backward design      objectives, then evidence, then instruction
+  alignment            what is taught, assessed, and practised should correspond
+  prerequisite sequencing  foundations before what depends on them
+  zone of proximal development  achievable with support, not alone
+  scaffolding          temporary support removed as competence develops
+  fading               removing scaffolds deliberately; scaffolding never removed
+                       becomes dependence
+  chunking             grouping into meaningful units; expands effective working
+                       memory
+  worked example fading  full example, then partial, then independent problems
+  feedback specificity  identify what was wrong
+  feedback timing      while the attempt is still in mind; immediate for
+                       procedural, slightly delayed can be better for conceptual
+  task not person      feedback on the work; praise for ability reduces subsequent
+                       effort and risk-taking
+  actionable           what to do next, not only that something was wrong
+  formative assessment  informs instruction and learning; low stakes
+  summative assessment  measures achievement; high stakes, and it changes
+                       behaviour throughout the course
+
+Feedback directed at the person rather than the work deserves specific attention because the
+intuitive form is counterproductive. Praising a learner for being clever attributes success to a
+fixed trait, so subsequent failure implies the trait is absent, and learners praised this way
+choose easier tasks and give up sooner. Praising effort and strategy attributes success to
+something controllable, and learners so praised persist longer and choose harder tasks. The effect
+is well replicated for the specific comparison, and the broader mindset intervention literature
+has produced smaller and more variable effects than early presentations suggested.
+
+## Motivation, Expertise, and Misconceptions
+
+Motivation divides into intrinsic, arising from interest and satisfaction in the activity, and
+extrinsic, arising from external consequences. Both function and they interact in a way that
+matters: introducing an extrinsic reward for an activity that was intrinsically motivating can
+reduce the intrinsic motivation, so that the activity is pursued less once the reward is removed
+than before it was introduced. This overjustification effect is specific — it applies to
+activities already intrinsically motivating and to rewards perceived as controlling — and it
+argues for care in introducing incentives.
+
+Self-determination theory identifies autonomy, competence, and relatedness as the psychological
+needs whose satisfaction supports intrinsic motivation. The practical implications are that
+choice supports engagement, that tasks should be calibrated so that success is achievable with
+effort, and that learning is social. Expectancy-value theory adds that motivation depends on
+whether the learner expects to succeed and whether they value the outcome, so a learner who
+expects failure disengages regardless of how much they value success.
+
+Expertise develops through extended deliberate practice, and its characteristics differ from
+those of a novice in ways beyond quantity of knowledge. Experts organize knowledge into schemas
+around underlying principles while novices organize around surface features, which is why an
+expert classifies physics problems by the principle involved and a novice by whether they mention
+pulleys. Experts recognize patterns rather than reasoning through them, which is fast and is why
+they perform poorly at explaining what a novice needs to be told.
+
+Motivation and expertise:
+  intrinsic motivation  interest and satisfaction in the activity
+  extrinsic motivation  external consequences
+  overjustification    rewarding an intrinsically motivated activity can reduce
+                       the intrinsic motivation
+  autonomy, competence, relatedness  the needs supporting intrinsic motivation
+  expectancy-value     motivation requires both expecting success and valuing it
+  self-efficacy        belief in one's capability in a domain; built by mastery
+                       experiences more than by encouragement
+  attribution          whether outcomes are attributed to effort, ability, or luck
+  deliberate practice  focused on weaknesses with feedback; not merely repetition
+  expert organization  by principle; novices organize by surface features
+  pattern recognition  experts recognize rather than reason; fast and hard to
+                       articulate
+  expert blind spot    experts cannot recall what it was like not to know;
+                       automated knowledge is invisible to them
+  transfer             near transfer to similar contexts is common; far transfer
+                       is rare and requires explicit teaching of the abstraction
+
+The expert blind spot deserves emphasis because it is the most common cause of poor instruction
+by knowledgeable people. Expertise makes knowledge automatic, and automatic knowledge is not
+introspectively accessible — an expert genuinely cannot see the steps they skip because those steps
+no longer occur consciously. The result is explanations that omit exactly what the learner needs,
+with the omissions invisible to the explainer. The remedies are having a novice articulate their
+understanding, watching where they get stuck rather than asking whether they understand, and
+treating confusion as diagnostic information rather than as a failure of attention.
+
+Misconceptions are prior beliefs that conflict with what is being taught, and they are far more
+resistant than absent knowledge. A learner with no prior belief acquires the correct one; a
+learner with an incorrect model assimilates new information into it, frequently emerging with the
+misconception intact and a set of memorized statements alongside it. Physics education research
+established this most clearly, finding that students completing introductory mechanics could
+solve problems while retaining Aristotelian intuitions about motion.
+
+Addressing misconceptions requires confronting them rather than covering the correct material.
+The learner must be brought to make a prediction based on their model, encounter a result
+contradicting it, and be guided to construct the correct explanation. This is slower than
+presenting the correct account and it is what changes the underlying model, and instruction that
+does not do it produces students who can pass an examination and revert to the misconception when
+the question is phrased unfamiliarly.
+
+## Technology and Practice
+
+Technology in learning has a consistent empirical pattern: the medium matters less than the
+instructional design implemented in it. Comparisons between delivery media generally find no
+significant difference once the instruction is held constant, and the differences attributed to
+technology are usually differences in the design that accompanied it.
+
+What technology genuinely enables is a small set of things that are difficult otherwise. Adaptive
+sequencing adjusts to individual progress at a scale a teacher cannot. Immediate feedback at
+volume is possible where human marking is not. Spaced repetition scheduling is impractical to
+manage manually and trivial to automate. Simulation permits experience of systems that are
+dangerous, expensive, or inaccessible. And data on where learners struggle informs instruction
+improvement at a granularity that was previously unavailable.
+
+The persistent problem with online learning at scale is completion. Massive open courses have
+completion rates in the single digits, and the causes are structural — no commitment mechanism, no
+cohort, no schedule, and low cost of abandonment. The interventions that help are the ones
+supplying what the format removed: deadlines, cohorts, accountability, and some form of
+commitment.
+
+Technology and practice:
+  media comparison     no significant difference; the design matters, not the
+                       medium
+  adaptive sequencing  individual pacing at scale
+  automated feedback   volume that human marking cannot reach
+  spaced repetition    scheduling that is impractical manually
+  simulation           dangerous, expensive, or inaccessible systems
+  learning analytics   granular data on where learners struggle
+  completion rates     single digits for open online courses; a structural problem
+  what helps           deadlines, cohorts, accountability, commitment
+  active over passive  video watched passively produces little; interleaving
+                       retrieval into it produces substantially more
+  retrieval in practice  questions during rather than after; the single highest
+                       value addition to any recorded material
+  the practice gap     what is known about effective learning and what is
+                       commonly done differ substantially, and the gap is
+                       explained by the effective methods feeling worse
+  teaching the methods  learners who understand why spacing and retrieval work
+                       adopt them; those told to do them without explanation
+                       revert
+
+The gap between what is known and what is practised deserves the closing emphasis because it is
+the field's central practical problem. Spacing, retrieval practice, and interleaving have
+substantial evidence spanning decades, are simple to implement, and cost nothing — and rereading
+and massed practice remain the dominant student strategies. The explanation is not ignorance but
+that the effective methods feel less effective while being used, and learners optimize for the
+feeling of learning rather than for learning. This means that teaching the methods requires
+teaching why they feel worse, because a learner told to space their practice without
+understanding that the difficulty is the mechanism will interpret the difficulty as evidence the
+method is not working and revert.

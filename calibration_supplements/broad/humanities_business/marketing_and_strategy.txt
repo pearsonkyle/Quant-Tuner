@@ -1,0 +1,283 @@
+================================================================================
+AREA: Humanities, Business, and Social Science
+SUBJECT: Marketing and Strategy
+Subtopics: strategic positioning, competitive analysis, customer understanding,
+segmentation and targeting, product and pricing, channels and growth, brand, measurement.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Strategic Positioning
+
+Strategy is the choice of what to do and, more consequentially, what not to do. A strategy that
+does not exclude anything is a statement of aspiration rather than a strategy, because it provides
+no basis for deciding between opportunities — and the decisions strategy exists to inform are
+precisely the ones where several attractive options compete for the same finite resources.
+
+Competitive advantage is the ability to deliver more value or the same value at lower cost than
+competitors, sustained over time. The sustainability is the hard part, since any advantage that
+can be copied will be, so a durable position rests on something difficult to replicate: a scale
+advantage in an industry with high fixed costs, a network effect where the product's value rises
+with its user count, switching costs making customers reluctant to leave, a proprietary
+technology or a protected position, or an accumulated capability that took years to build.
+
+The generic strategies distinguish cost leadership from differentiation, and the failure mode is
+attempting both without the structural basis for either. A cost leader wins on price and requires
+genuine cost advantages from scale, process, or position rather than merely charging less. A
+differentiator wins on distinctive value and requires customers to perceive and pay for the
+difference. A firm doing neither well competes on nothing in particular, which is a weak position
+that is nonetheless common because it is where a firm arrives by default when it does not choose.
+
+Strategic concepts:
+  strategy             the choice of what not to do; a strategy excluding nothing
+                       is not one
+  competitive advantage  more value or lower cost, sustained
+  sustainability       requires something hard to replicate
+  scale economies      fixed costs spread over volume
+  network effects      value rises with users; direct and indirect
+  switching costs      the cost to a customer of leaving
+  cost leadership      structural cost advantage; not merely lower prices
+  differentiation      distinctive value the customer perceives and pays for
+  focus                serving a narrow segment better than generalists can
+  stuck in the middle  neither cost nor differentiation advantage; the default
+                       position when no choice is made
+  value chain          the activities producing the offering; advantage arises in
+                       specific activities rather than in general
+  core competence      an accumulated capability difficult to acquire quickly
+  five forces          rivalry, entrants, substitutes, buyer power, supplier power;
+                       the structural determinants of industry profitability
+
+The five forces framework is worth applying because it explains why some industries are
+persistently more profitable than others independent of how well individual firms are managed.
+Intense rivalry, low entry barriers, close substitutes, concentrated buyers, and concentrated
+suppliers each transfer value away from the industry's incumbents. An industry with all five
+unfavourable is structurally unprofitable, and a well-run firm within it earns modest returns
+while a mediocre firm in a favourable structure earns good ones — which is why the choice of
+industry frequently matters more than the quality of execution within it.
+
+Q: A company reduces prices to compete without any structural cost advantage over its
+competitors. The most likely outcome is:
+A. Sustained market share gain
+B. Competitors match, margins fall across the industry, and relative positions are unchanged
+C. Increased profitability from volume
+D. Successful cost leadership
+Reasoning: A price cut that competitors can match is matched, since matching is less costly than
+losing share. The result is lower prices industry-wide with unchanged relative positions and
+reduced profitability for everyone. Cost leadership requires a structural cost advantage that
+permits profitable pricing competitors cannot match, which is a different thing from choosing to
+charge less. Answer: B.
+
+## Customer Understanding
+
+Marketing begins with understanding what customers are trying to accomplish, and the framing
+that most improves this is asking what job the customer is hiring the product to do. This shifts
+attention from the product's attributes to the customer's situation and desired outcome, and it
+reframes the competitive set — a product's real competition is whatever else the customer might
+use to accomplish the same thing, which frequently includes doing nothing.
+
+Customer research divides into what people say, what people do, and what people are. Stated
+preferences from surveys and interviews are accessible and unreliable for prediction, because
+people are poor at introspecting on their own decision processes and because the answer depends on
+how the question is asked. Revealed preferences from actual behaviour are far more predictive and
+say nothing about why. Observation in context reveals workarounds and unarticulated needs that
+neither surveys nor behavioural data surface.
+
+The most common research error is asking customers what they want rather than understanding what
+problem they have. Customers are expert in their problems and are not designers, so their proposed
+solutions are constrained by what they can imagine, and taking them literally produces
+incremental improvements to existing solutions. Understanding the underlying problem leaves the
+solution space open.
+
+Customer understanding:
+  jobs to be done      what the customer is trying to accomplish; reframes the
+                       competitive set
+  competitive set      whatever else accomplishes the job, including doing nothing
+  stated preference    accessible, poorly predictive, question-dependent
+  revealed preference  actual behaviour; predictive and silent about why
+  contextual observation  reveals workarounds and unarticulated needs
+  the solution trap    customers propose solutions bounded by what they can
+                       imagine; understand the problem instead
+  willingness to pay   what a customer would pay; measurable by conjoint analysis
+                       and by price testing, not by asking directly
+  customer journey     the sequence from awareness through purchase to use and
+                       renewal; friction anywhere reduces the whole
+  moments that matter  the few interactions disproportionately shaping perception
+  churn drivers        why customers leave; usually knowable from behaviour before
+                       the departure
+  qualitative then quantitative  interviews generate hypotheses, surveys and
+                       behaviour test them; either alone is incomplete
+
+The sequencing of qualitative and quantitative research is worth stating as a discipline.
+Qualitative work generates hypotheses about what matters and why, and it cannot establish
+prevalence because the samples are small and purposive. Quantitative work measures prevalence and
+tests relationships, and it cannot discover a factor nobody thought to ask about. Running
+quantitative research first produces precise measurements of the wrong variables, and running
+only qualitative produces compelling narratives of unknown generality.
+
+## Segmentation, Targeting, and Positioning
+
+Segmentation divides a market into groups with different needs or behaviours, on the premise
+that a single offering cannot serve heterogeneous needs well. The dimensions available are
+demographic, geographic, psychographic, and behavioural, and the practical finding is that
+behavioural and needs-based segmentation predicts far better than demographic segmentation, which
+is convenient to measure and weakly related to what people actually want.
+
+A useful segmentation satisfies several criteria. The segments must be measurable, so members can
+be identified. They must be substantial enough to be worth serving. They must be accessible
+through some channel. They must be differentiable, responding differently to the offering — a
+segmentation whose segments respond identically has divided the market without informing
+anything. And the differences must be actionable given what the firm can do.
+
+Positioning is the place the offering occupies in the customer's mind relative to alternatives,
+and it is defined by the comparison rather than by the product's attributes. The positioning
+statement forces the elements to be explicit: for whom, what need, what category, what benefit,
+and why that claim is credible. The last element is where most positioning fails, since a claim
+without a reason to believe it is an assertion.
+
+Segmentation and positioning:
+  demographic          convenient, weakly predictive of preference
+  geographic           relevant where the offering or the need varies by place
+  psychographic        attitudes and values; harder to measure, more predictive
+  behavioural          usage, occasion, benefit sought; usually the most
+                       predictive
+  needs-based          the segments customers themselves would recognize
+  segmentation criteria  measurable, substantial, accessible, differentiable,
+                       actionable
+  differentiable       segments must respond differently, or the segmentation
+                       informs nothing
+  targeting            which segments to serve; the choice not to serve others is
+                       the substance
+  positioning          the place relative to alternatives, in the customer's mind
+  frame of reference   the category the customer places the offering in;
+                       determines what it is compared against
+  point of difference  what it offers that alternatives do not
+  reason to believe    why the claim is credible; the element most often missing
+  perceptual map       positions on the dimensions customers use, which are
+                       frequently not the dimensions the firm uses internally
+
+The frame of reference deserves emphasis because it determines the comparison and therefore the
+evaluation. A product positioned as a premium entrant in an established category is compared
+against that category's leaders on their dimensions. The same product positioned as a new
+category is compared against the status quo it replaces, on dimensions where it is stronger.
+Choosing the frame is therefore choosing the competition, and it is one of the highest-leverage
+marketing decisions available — and one made implicitly and badly more often than deliberately.
+
+## Product, Pricing, and Channels
+
+Pricing is the marketing decision with the most direct effect on profitability and receives the
+least analytical attention in most organizations. A price change flows almost entirely to the
+bottom line, so a small percentage improvement in realized price frequently exceeds what a large
+improvement in volume or cost would deliver — and volume and cost receive far more management
+attention.
+
+The three pricing approaches rest on different information. Cost-plus pricing adds a margin to
+cost, which is simple, ensures a margin on each sale, and ignores what the customer would pay and
+what competitors charge — so it systematically underprices differentiated offerings and
+overprices commodities. Competitive pricing anchors on competitors, which is easy and cedes
+pricing authority. Value-based pricing sets the price by the value delivered to the customer,
+which requires understanding that value and is the only approach capturing what differentiation
+earned.
+
+Price discrimination captures more of the available value by charging different prices to
+customers with different willingness to pay. It requires the ability to segment, to prevent
+resale, and to have some pricing power. Versioning offers different feature tiers that induce
+self-selection. Bundling combines items so that customers with complementary valuations both find
+the bundle worthwhile. Two-part pricing separates access from usage. Each is a mechanism for
+approaching the value each customer places on the offering rather than charging everyone the same.
+
+Product, pricing, and channels:
+  cost-plus            simple; ignores value and competition, and misprices in
+                       both directions
+  competitive          anchors on rivals; cedes pricing authority
+  value-based          the value delivered; the only approach capturing
+                       differentiation
+  price elasticity     how volume responds; determines whether a cut increases
+                       revenue
+  price discrimination  different prices by willingness to pay; needs segmentation
+                       and resale prevention
+  versioning           feature tiers inducing self-selection
+  bundling             complementary valuations make the bundle worthwhile to both
+  freemium             a free tier acquiring users, converting a fraction; works
+                       where marginal cost is near zero and the free tier is
+                       genuinely useful without cannibalizing the paid one
+  penetration pricing  low initially to gain share; requires a reason the low
+                       price becomes sustainable
+  skimming             high initially, lowering over time; captures the
+                       high-willingness segment first
+  price anchoring      a reference price shaping perception; the presence of a
+                       premium option raises the perceived value of the middle
+  channel              how the offering reaches the customer; direct, retail,
+                       partner, marketplace
+  channel conflict     when channels compete for the same customer; requires
+                       explicit terms rather than hoping
+  disintermediation    removing an intermediary; requires assuming the functions
+                       it performed rather than merely removing its margin
+
+Disintermediation deserves a caution because the intermediary's margin is frequently mistaken
+for pure extraction. An intermediary typically performs functions — inventory holding, credit,
+demand aggregation, local presence, returns handling, discovery — and removing it means either
+assuming those functions or losing them. A direct model that captures the margin and does not
+provide the functions has traded a cost for a set of capability gaps, which frequently cost more
+than the margin was worth.
+
+## Growth, Brand, and Measurement
+
+Growth arises from acquiring customers, retaining them longer, or increasing revenue per
+customer, and the relative leverage varies enormously by business. For a subscription business
+with meaningful churn, retention improvements compound and typically dominate: reducing monthly
+churn from five percent to three percent extends the average customer lifetime by two thirds and
+raises lifetime value proportionally, which is usually a larger effect than any plausible
+acquisition improvement.
+
+The relationship between acquisition cost and lifetime value is the constraint governing whether
+growth is viable. Acquiring a customer for more than they will contribute destroys value however
+fast it grows the top line, and the ratio of lifetime value to acquisition cost is the standard
+health metric, with the payback period — how long until the acquisition cost is recovered —
+determining the working capital required to grow. A business with excellent unit economics and a
+long payback period can still fail from running out of cash.
+
+Brand is the accumulated set of associations attached to a name, and its economic function is to
+reduce the customer's perceived risk and search cost. A strong brand permits a price premium,
+raises the response to marketing, and provides some resilience to competitive attack and to
+occasional failures. It is built over years through consistent delivery and consistent
+communication, and it is damaged far faster than it is built, which is the asymmetry that makes
+brand a real asset requiring protection.
+
+Growth, brand, and measurement:
+  acquisition          new customers; the most visible and often least efficient
+                       lever
+  retention            keeping customers; compounds, and usually dominates in
+                       subscription businesses
+  expansion            more revenue per customer; frequently the cheapest growth
+  lifetime value       the discounted contribution over the relationship
+  acquisition cost     fully loaded, including the sales and marketing overhead
+  LTV to CAC ratio     the standard health measure
+  payback period       determines the working capital growth requires
+  cohort analysis      track groups by acquisition period; separates changes in
+                       the business from changes in mix, which aggregate metrics
+                       cannot
+  churn                voluntary and involuntary; involuntary churn from failed
+                       payments is frequently a large and easily reduced share
+  net revenue retention  expansion minus churn within a cohort; above 100% means
+                       growth without any new customers
+  brand equity         the premium and the response lift attributable to the brand
+  attribution          which touchpoints deserve credit; last-click systematically
+                       overcredits the final step and undercredits discovery
+  incrementality       whether the marketing caused the outcome; the only measure
+                       that matters and the one attribution models do not provide
+  marketing mix modelling  aggregate regression estimating channel contribution;
+                       useful where individual tracking is unavailable
+  geo experiments      randomize by market; the practical route to incrementality
+                       at scale
+
+Attribution deserves the closing emphasis because it is where marketing measurement is most
+systematically wrong. Attribution models allocate credit among the touchpoints a converting
+customer encountered, which answers a correlational question — what did converters see — and not
+the causal one, which is whether the marketing caused conversions that would not otherwise have
+occurred. A channel that reaches people who were already going to buy receives high attributed
+credit and produces no incremental revenue, and search advertising on a firm's own brand name is
+the canonical example. The only reliable measurement is experimental: withhold the spend from a
+randomized set of markets or users and measure the difference. It is more work than reading an
+attribution report, it frequently reveals that a well-attributed channel contributes little, and
+it is the difference between measuring marketing and measuring the customers marketing happened
+to touch.

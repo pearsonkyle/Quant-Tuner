@@ -1,0 +1,367 @@
+================================================================================
+AREA: Software and Web Engineering
+SUBJECT: Databases
+Subtopics: relational modeling, SQL, indexing, query planning, transactions,
+storage engines, NoSQL models, replication and scaling, operational practice.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Relational Modeling
+
+The relational model represents data as relations — tables of tuples over typed
+attributes — with operations drawn from relational algebra: selection, projection, join,
+union, difference, and rename. Its durability over five decades comes from the
+separation it enforces between the logical structure of the data and its physical
+storage, so queries state what is wanted rather than how to retrieve it, and the system
+is free to change the how.
+
+Normalization eliminates redundancy by decomposing tables so that each fact is stored
+once. First normal form requires atomic attribute values, ruling out repeating groups
+and comma-separated lists in a column. Second normal form eliminates partial
+dependencies on a composite key. Third normal form eliminates transitive dependencies,
+so every non-key attribute depends on the key, the whole key, and nothing but the key.
+Boyce-Codd normal form tightens this for the edge cases with overlapping candidate keys.
+In practice third normal form is the working target, and the reason to reach it is not
+aesthetic: redundancy means the same fact stored in several places, which means update
+anomalies where the copies disagree.
+
+Denormalization deliberately reintroduces redundancy to avoid joins, and it is a
+legitimate optimization made prematurely more often than not. The cost is that every
+duplicated value must be kept consistent by application logic or triggers, which is
+exactly the class of correctness problem normalization was designed to eliminate. The
+honest sequence is to normalize first, measure, and denormalize specific hot paths with
+a clear plan for maintaining consistency — usually a materialized view or a maintained
+summary table rather than scattered duplicate columns.
+
+Key concepts:
+  primary key        uniquely identifies a row; ideally narrow, stable, meaningless
+  natural key        derived from real-world data; stable until the real world
+                     changes, which it does
+  surrogate key      system-generated; insulates the schema from business change
+  foreign key        references another table's key; enforces referential integrity
+  candidate key      any minimal attribute set uniquely identifying a row
+  composite key      multiple columns together; column order matters for indexes
+  constraint         NOT NULL, UNIQUE, CHECK, FOREIGN KEY; the database's own
+                     guarantees, which survive application bugs
+  index              a separate structure accelerating lookup; not part of the
+                     logical model, entirely a performance concern
+
+Constraints are underused and are the cheapest correctness mechanism available. A CHECK
+constraint that a price is non-negative, a NOT NULL on a column the application always
+populates, a UNIQUE on what is logically unique, a foreign key on every reference: each
+converts a class of bug from silent data corruption into an immediate, localized error.
+Application-level validation is necessary and insufficient, because it protects only the
+paths that go through the application — not the migration script, not the manual fix
+during an incident, not the second service that was added later.
+
+Q: A table stores customer_id, customer_name, order_id, and order_total, with one row
+per order. Updating a customer's name requires changing many rows. This violates:
+A. First normal form
+B. Second normal form
+C. Third normal form
+D. No normal form; it is a valid design
+Reasoning: customer_name depends on customer_id, which is part of but not the whole key
+(the key being customer_id plus order_id, or order_id alone with customer_id as a
+dependent attribute). That partial dependency is precisely what second normal form
+prohibits, and the update anomaly described is its characteristic symptom. Splitting
+customers and orders into separate tables resolves it. Answer: B.
+
+## SQL and Query Semantics
+
+SQL is declarative: a query states the desired result and the optimizer chooses the
+execution strategy. Understanding the logical order of evaluation is essential because
+it differs from the written order and explains most confusing behaviour. Clauses are
+logically evaluated FROM, then WHERE, then GROUP BY, then HAVING, then SELECT, then
+ORDER BY, then LIMIT. This is why a column alias defined in SELECT cannot be used in
+WHERE — the alias does not exist yet — but can be used in ORDER BY, which runs later.
+It is also why WHERE filters rows before aggregation while HAVING filters groups after.
+
+NULL is SQL's three-valued logic and the source of more subtle bugs than any other
+feature. NULL means unknown, not zero and not empty string. Any comparison with NULL
+yields NULL rather than true or false, so `WHERE x = NULL` matches nothing and `IS NULL`
+must be used instead. Aggregate functions skip NULLs, so AVG over a column with missing
+values averages only the present ones — usually what is wanted, occasionally a silent
+error. `COUNT(*)` counts rows while `COUNT(column)` counts non-NULL values, and the
+difference is exactly the number of NULLs. And `NOT IN` with a subquery returning any
+NULL yields no rows at all, because the comparison against the unknown value can never
+be definitively false, which is a genuinely surprising behaviour that has broken
+production queries at every company that uses SQL.
+
+Joins combine rows across tables and their varieties are worth precision. An inner join
+returns only matching pairs. A left outer join returns all rows from the left side with
+NULLs where the right has no match. Full outer returns unmatched rows from both. A cross
+join returns the Cartesian product, which is almost always a mistake when it appears
+accidentally through a missing join condition — the symptom being a result set with
+suspiciously many rows and a query that suddenly takes minutes.
+
+SQL constructs worth knowing well:
+  window functions      ROW_NUMBER, RANK, DENSE_RANK, LAG, LEAD, SUM OVER;
+                        compute across related rows without collapsing them
+  CTEs                  WITH clauses; readable decomposition of complex queries
+  recursive CTEs        hierarchy and graph traversal within SQL
+  EXISTS vs IN          EXISTS short-circuits and handles NULLs safely; prefer it
+  UPSERT                INSERT ... ON CONFLICT DO UPDATE; atomic, avoids the
+                        check-then-insert race
+  LATERAL join          a subquery referencing columns from the preceding table;
+                        the clean way to do top-N-per-group
+  DISTINCT ON           Postgres-specific first-row-per-group
+  FILTER clause         conditional aggregation without CASE expressions
+
+Window functions are the single highest-leverage SQL feature that application
+developers most often lack. Running totals, moving averages, ranking within groups,
+comparing a row to the previous one, computing each row's share of its group total —
+all of these are one window expression and all of them are commonly implemented instead
+as a self-join or as a loop in application code, at enormous cost in both performance
+and clarity. `SUM(x) OVER (PARTITION BY g ORDER BY t)` is a running total per group, and
+learning that one pattern eliminates a great deal of procedural code.
+
+## Indexing and Query Planning
+
+An index is an auxiliary data structure that lets the database find rows without
+scanning the whole table. The B-tree is the default for almost everything: balanced,
+sorted, logarithmic lookup, and — crucially — supporting range scans and ordered
+retrieval, not just equality. Hash indexes are faster for exact equality and useless for
+ranges or ordering. Specialized types handle specialized needs: GiST and GIN for
+full-text search and containment queries, BRIN for very large tables with natural
+physical ordering, bitmap indexes for low-cardinality columns in analytical stores.
+
+Composite index column order is the most commonly misunderstood aspect of indexing. An
+index on (a, b, c) can serve queries filtering on a, on a and b, or on all three, but not
+on b alone — the index is sorted by a first, so entries for a given b are scattered
+throughout. The mental model is a phone book sorted by last name then first name: finding
+everyone named Smith is fast, finding everyone named John is not. The rule follows: put
+the columns used in equality predicates first, the range predicate last, and any columns
+needed only for output at the end where they make the index covering.
+
+A covering index contains every column the query needs, so the database answers entirely
+from the index without visiting the table — an index-only scan, often several times
+faster because it touches far fewer pages. Adding output columns to an index solely for
+this purpose is a real and underused optimization, supported explicitly by INCLUDE
+clauses that add columns to the leaf level without making them part of the sort key.
+
+Indexing decisions:
+  index selective predicates        an index on a column where every value matches
+                                    half the table will not be used; the planner
+                                    correctly prefers a sequential scan
+  composite order                   equality columns first, range column last
+  covering / INCLUDE                enables index-only scans
+  partial index                     WHERE clause on the index itself; small and fast
+                                    for queries always filtering the same way, e.g.
+                                    an index only on rows where status = 'active'
+  expression index                  index on lower(email) if that is how you query;
+                                    otherwise the function call defeats the index
+  write cost                        every index must be updated on every write;
+                                    unused indexes are pure overhead
+  foreign key columns               index them; otherwise deletes on the parent
+                                    table trigger full scans of the child
+
+The most common indexing failure is a predicate that prevents index use without being
+obviously wrong. Wrapping the indexed column in a function — `WHERE date(created_at) =
+'2026-01-01'` — forces a scan, because the index stores created_at and not date(created_at);
+the fix is a range predicate on the raw column or an expression index. Implicit type
+casts do the same thing. Leading wildcards in LIKE patterns cannot use a B-tree, since
+the index is sorted from the left. And `OR` across different columns often defeats index
+use where a UNION of two indexed queries would not.
+
+Query plans are the ground truth and reading them is the core diagnostic skill. EXPLAIN
+shows the planner's intended strategy; EXPLAIN ANALYZE actually runs the query and
+reports real timings and row counts. The most informative signal is the discrepancy
+between estimated and actual row counts: when the planner estimates 10 rows and gets
+100,000, it has chosen a nested loop that would have been correct for 10 rows and is
+catastrophic for 100,000. That is a statistics problem, not a plan problem, and the fix
+is to update statistics, raise the statistics target on the offending column, or create
+extended statistics capturing correlation between columns the planner assumes are
+independent.
+
+[user] A query that ran in 40ms for months suddenly takes 90 seconds. Nothing changed in
+the code.
+[assistant] tool_call db.explain_analyze({"query_id": "q_8841", "compare_to_baseline":
+true})
+[tool] {"current_plan": "Nested Loop", "baseline_plan": "Hash Join",
+"est_rows_outer": 12, "actual_rows_outer": 148000, "last_analyze": "34 days ago",
+"table_growth_since_analyze": 4.2, "index_used": "idx_orders_customer",
+"buffers_read": 2840000}
+[assistant] Stale statistics. The planner thinks the outer side of your join returns 12
+rows and it actually returns 148,000 — a four-order-of-magnitude misestimate — so it
+chose a nested loop, which is optimal for 12 iterations and disastrous for 148,000.
+
+The cause is that statistics were last collected 34 days ago and the table has grown 4.2x
+since. Autovacuum's analyze threshold is proportional to table size, so on a fast-growing
+table it can fall behind exactly when accurate statistics matter most.
+
+Immediate fix: run ANALYZE on the tables involved. That alone should restore the hash
+join and your 40 ms. Verify with EXPLAIN ANALYZE that estimated and actual row counts are
+now within an order of magnitude.
+
+To prevent recurrence, three things. Lower `autovacuum_analyze_scale_factor` for these
+specific tables — the default of 0.1 means waiting for 10% growth, which on a large
+table is a lot of rows; setting it to 0.02 with a reasonable threshold keeps statistics
+much fresher at modest cost. If the misestimate persists after ANALYZE, the planner may
+be assuming independence between correlated columns, in which case extended statistics
+on the column pair will fix it. And raise `default_statistics_target` on any column with
+a skewed distribution, since the default histogram resolution may not capture it.
+
+Worth noting what this incident is not: it is not a reason to hint the plan or to
+restructure the query. The planner made a correct decision from incorrect inputs, and
+fixing the inputs is the durable repair. Plan hints would paper over the same problem
+appearing in the next query.
+
+## Transactions and Concurrency
+
+ACID properties define what a transaction guarantees. Atomicity means all-or-nothing —
+a partially applied transaction is never visible. Consistency means the database moves
+from one valid state to another, respecting all declared constraints. Isolation means
+concurrent transactions do not interfere in ways that violate the chosen isolation
+level. Durability means committed data survives a crash, achieved by write-ahead
+logging: the log record is flushed to durable storage before the data page, so recovery
+can replay or undo.
+
+Isolation levels trade correctness against concurrency, and the anomalies they permit
+are precisely defined. Read uncommitted allows dirty reads of uncommitted data. Read
+committed prevents dirty reads but allows non-repeatable reads, where re-reading a row
+within a transaction returns a different value because another transaction committed in
+between. Repeatable read prevents that but classically allows phantoms, where a
+re-executed range query returns new rows. Serializable prevents all anomalies, producing
+results equivalent to some serial execution.
+
+The practical subtlety is that read committed — the default in PostgreSQL and most
+systems — is weaker than most application code assumes. The read-modify-write pattern is
+the classic hazard: select a balance, compute a new value in application code, update it.
+Two concurrent transactions both read the same starting balance and one update is lost.
+The fixes are to perform the arithmetic in the database (`UPDATE ... SET balance =
+balance - 100`), to lock the row explicitly with SELECT FOR UPDATE, or to use optimistic
+concurrency with a version column checked in the WHERE clause of the update.
+
+Concurrency mechanisms:
+  two-phase locking     acquire locks, do work, release at commit; classic, prone to
+                        blocking
+  MVCC                  each transaction sees a consistent snapshot; readers never
+                        block writers and writers never block readers. The dominant
+                        modern approach.
+  SELECT FOR UPDATE     pessimistic row lock; simple and correct, serializes access
+  optimistic (version)  read a version, update WHERE version matches, retry on
+                        conflict; good under low contention
+  advisory locks        application-defined locks; useful for coordinating jobs
+  deadlock              cyclic wait; databases detect and abort one victim.
+                        Prevent by acquiring locks in a consistent order.
+
+MVCC's cost is garbage. Because an update writes a new row version rather than
+overwriting, old versions accumulate and must be reclaimed. In PostgreSQL this is
+vacuum, and a table with heavy update traffic and inadequate vacuuming bloats — the
+table occupies far more space than its live rows require, scans slow proportionally, and
+in the worst case transaction ID wraparound forces an emergency shutdown. Long-running
+transactions are the usual root cause, since vacuum cannot reclaim any version that an
+open transaction might still need to see; an idle-in-transaction connection left open by
+an application bug can prevent reclamation across the entire database.
+
+Q: Two transactions each read a counter of 100 and write 101 under read committed
+isolation. The final value is 101 rather than 102. This anomaly is:
+A. A dirty read   B. A lost update   C. A phantom read   D. Correct behaviour under
+serializable isolation
+Reasoning: Both transactions read the same value and the second write overwrites the
+first, so one increment vanishes — the lost update anomaly. Read committed permits it.
+The remedies are an atomic in-database increment, SELECT FOR UPDATE, or a version check.
+Serializable isolation would abort one transaction rather than permit this. Answer: B.
+
+## Storage Engines and Non-Relational Models
+
+Storage engine design centres on a tradeoff between read and write amplification.
+B-tree engines update pages in place, giving excellent read performance and predictable
+lookups at the cost of random writes and write amplification, since modifying one row
+rewrites a whole page. Log-structured merge trees buffer writes in memory and flush
+sorted runs sequentially, then compact them in the background — giving very high write
+throughput and sequential I/O at the cost of read amplification, since a lookup may need
+to check several levels, mitigated by Bloom filters. B-trees dominate general-purpose
+relational systems; LSM trees dominate write-heavy stores like Cassandra, RocksDB, and
+the storage layers beneath many newer databases.
+
+Row-oriented storage keeps all columns of a row together, which suits transactional
+workloads reading or writing whole records. Column-oriented storage keeps each column
+contiguous, which suits analytical workloads scanning a few columns across many rows:
+only the needed columns are read, and homogeneous data compresses far better —
+dictionary encoding, run-length encoding, and delta encoding all work well on a single
+column and poorly on mixed rows. A ten-to-one compression ratio and a tenfold reduction
+in bytes read compound into the order-of-magnitude differences that separate analytical
+from transactional engines, and it is why the OLTP/OLAP split persists rather than one
+system serving both well.
+
+Non-relational models each optimize for a specific access pattern. Document stores hold
+nested JSON-like documents and suit data naturally accessed as a whole aggregate, with
+schema flexibility that is genuinely useful for heterogeneous data and genuinely
+dangerous when it silently permits inconsistent shapes. Key-value stores offer the
+simplest possible interface and correspondingly high performance. Wide-column stores
+partition by row key and support enormous scale with a query model constrained to that
+key. Graph databases store edges as first-class objects, making traversal cheap where a
+relational many-to-many join across several hops is expensive. Time-series databases
+exploit the append-mostly, timestamp-ordered nature of metrics for compression and
+retention policies.
+
+Choosing a store:
+  relational        default; strong consistency, flexible querying, mature tooling.
+                    Choose it unless a specific requirement rules it out.
+  document          aggregate-oriented access, evolving schema, no cross-document
+                    transactions needed
+  key-value         caching, sessions, simple lookups at very high throughput
+  wide-column       massive write volume with a known partition key
+  graph             deep traversals, recommendation, network analysis
+  time-series       metrics, telemetry, retention and downsampling policies
+  search            full-text relevance ranking, faceting, fuzzy matching
+  columnar / OLAP   aggregation over large scans; the analytics side of the split
+
+The recurring practical error is choosing a non-relational store for scale that the
+workload does not require, then discovering that the application needs joins,
+transactions, and ad-hoc queries after all. A modern relational database on capable
+hardware handles far more than most teams estimate — tens of thousands of transactions
+per second and terabytes of data on a single node — and it retains the option of every
+query shape you have not thought of yet. The right sequence is to start relational, hit
+a specific documented limit, and adopt a specialized store for that specific workload
+alongside rather than instead.
+
+## Scaling and Operations
+
+Vertical scaling — a bigger machine — is the first and most underrated option. It
+requires no application changes, preserves all transactional guarantees, and modern
+hardware ceilings are high. Its limits are cost, which grows superlinearly at the top
+end, and the single point of failure.
+
+Read scaling through replicas is the next step and works well because most workloads are
+read-heavy. The cost is replication lag and the consistency questions it raises, handled
+by routing reads that must be current to the primary, session pinning for
+read-your-writes, and monitoring lag with automatic removal of replicas that fall
+behind.
+
+Write scaling requires partitioning, and this is where genuine complexity enters.
+Sharding splits data across independent databases by a shard key, and that key choice is
+effectively irreversible — resharding a live system is one of the hardest operations in
+the field. A good shard key distributes load evenly and keeps related data together so
+that most queries touch one shard. Queries spanning shards require scatter-gather, losing
+the ability to join in the database and pushing that work into the application.
+Transactions across shards require two-phase commit or a saga pattern, both of which
+give up the simplicity that made transactions valuable.
+
+Operational practices that matter:
+  connection pooling      databases handle far fewer connections than applications
+                          want to open; a pooler (PgBouncer, ProxySQL) is standard
+  slow query logging      the primary source of optimization targets
+  migrations              additive and backward-compatible; deploy schema change and
+                          code change separately so either can roll back
+  backups                 tested restores, not just successful backup jobs. An
+                          untested backup is a hypothesis.
+  point-in-time recovery  continuous archiving plus base backups; recovers from
+                          logical errors that replication faithfully replicates
+  monitoring              connections, lag, cache hit ratio, lock waits, bloat,
+                          checkpoint frequency, longest transaction age
+  capacity                watch growth rate, not just current usage
+
+The migration discipline deserves elaboration because it causes more outages than query
+performance ever does. A schema change and the code depending on it must be deployed
+separately, in an order that leaves the system working at every intermediate point.
+Adding a column is safe; making it NOT NULL requires backfilling first. Renaming a column
+is not a single operation but a sequence: add the new column, write to both, backfill,
+switch reads, stop writing the old one, drop it. Dropping anything must wait until no
+deployed code references it, which in a rolling deployment means at least one full
+release cycle. And any operation taking a lock on a large table — adding a constraint,
+some index builds, some type changes — must use the concurrent or non-blocking variant
+where available, because a lock held during a long rewrite blocks every query on that
+table and takes the application down.

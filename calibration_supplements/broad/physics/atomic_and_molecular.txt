@@ -1,0 +1,228 @@
+================================================================================
+AREA: Physics
+SUBJECT: Atomic and Molecular Physics
+Subtopics: atomic structure, spectra and selection rules, fine and hyperfine structure,
+atoms in fields, molecular structure, laser cooling and trapping, precision measurement.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Atomic Structure
+
+The hydrogen atom is the reference case because it is exactly solvable, and every more complex atom
+is described in language borrowed from it. A single electron bound to a proton has energy levels
+depending only on the principal quantum number, spaced as the inverse square, converging to the
+ionization limit. The degeneracy of states with the same principal quantum number but different
+angular momentum is an accident of the Coulomb potential and is lifted in every other atom.
+
+Multi-electron atoms require approximation because the electron-electron interaction has no closed
+form. The central field approximation replaces it with an effective spherically symmetric potential
+that each electron moves in, which restores the hydrogenic labelling while breaking the accidental
+degeneracy: states of lower angular momentum penetrate closer to the nucleus, feel less screening
+from the inner electrons, and lie lower in energy. This screening effect is what produces the
+ordering of subshells and therefore the structure of the periodic table.
+
+The Pauli exclusion principle fills those states, and Hund's rules determine the ground
+configuration of a partially filled shell: maximize total spin first, then total orbital angular
+momentum, then couple them according to whether the shell is less or more than half filled. The
+spin rule follows from exchange — parallel spins keep electrons apart spatially and reduce their
+repulsion — which is a genuinely quantum-mechanical origin for what looks like an empirical rule.
+
+Atomic structure:
+  hydrogen levels      energy proportional to minus one over n squared
+  the accidental degeneracy  l-independence, unique to the Coulomb potential
+  central field        an effective spherical potential per electron
+  screening            inner electrons reduce the effective nuclear charge
+  penetration          low-l states reach closer in and are bound more tightly
+  subshell ordering    the consequence; the periodic table's structure
+  Pauli principle      no two electrons in the same state
+  Hund's rules         maximize S, then L, then J by shell filling
+  exchange interaction  the origin of the spin rule; not a force but a
+                       consequence of antisymmetry
+  term symbols         the labelling scheme for a configuration's states
+  LS coupling          valid for light atoms; spin-orbit weak compared to
+                       electrostatic
+  jj coupling          valid for heavy atoms; spin-orbit dominant
+  the crossover        intermediate coupling; most of the middle table
+
+## Spectra and Selection Rules
+
+Atomic spectra are the primary observable and were the evidence that forced quantum mechanics. A
+transition between two levels emits or absorbs a photon at the frequency corresponding to their
+energy difference, and the resulting line spectrum is a fingerprint identifying the element
+unambiguously — which is how the composition of stars is known.
+
+Not every pair of levels is connected. Selection rules follow from the symmetry of the interaction
+between the atom and the electromagnetic field, and for the dominant electric dipole term they
+require the angular momentum to change by one unit and the parity to change. Transitions violating
+these are not strictly impossible but proceed through much weaker higher-order terms, with rates
+smaller by many orders of magnitude.
+
+Forbidden transitions are astrophysically important precisely because they are slow. In a
+laboratory gas, an atom in a metastable state is collisionally de-excited long before it can radiate
+through a forbidden channel. In a nebula at a density of a few particles per cubic centimetre,
+collisions are so rare that the forbidden transition is the dominant decay path, and the resulting
+emission lines are among the brightest features of the spectrum. Lines that cannot be produced in a
+laboratory therefore dominate the observation, which confused astronomers for decades before the
+explanation was found.
+
+Spectra and transitions:
+  line spectrum        the element's fingerprint
+  emission             downward transition, photon out
+  absorption           upward transition, photon removed from a continuum
+  electric dipole      the dominant interaction term
+  selection rules      angular momentum changes by one, parity changes
+  forbidden            allowed only at higher order; rates smaller by many orders
+  metastable state     no allowed decay; long lived
+  nebular lines        forbidden transitions dominating at very low density
+  oscillator strength  the dimensionless transition probability
+  lifetime             inverse of the total decay rate; sets the natural linewidth
+  natural broadening   the uncertainty-principle linewidth; Lorentzian
+  Doppler broadening   thermal motion; Gaussian, usually dominant in a hot gas
+  pressure broadening  collisions interrupting the emission; increases with
+                       density
+  Voigt profile        the convolution of Lorentzian and Gaussian; what is
+                       actually fitted
+
+Q: An emission line in a nebula corresponds to a transition that cannot be produced in a
+laboratory discharge tube. This is because:
+A. The nebula contains an unknown element
+B. The transition is forbidden and slow, so in the laboratory collisions de-excite the atom first;
+   at nebular densities collisions are rare enough that the slow radiative decay dominates
+C. The line is a measurement artifact
+D. The physics differs in space
+Reasoning: Forbidden transitions have very long radiative lifetimes. Whether they are observed
+depends on whether collisional de-excitation is faster, which depends on density. The nebula's
+extremely low density is the whole explanation. Answer: B.
+
+## Fine, Hyperfine, and Atoms in Fields
+
+The hydrogenic energy levels are a first approximation, and the corrections to them are where
+atomic physics becomes precise. Fine structure arises from relativistic effects and from the
+coupling of the electron's spin to the magnetic field it experiences in its own rest frame as it
+orbits the nucleus. It splits levels by an amount scaling with the fine structure constant squared
+relative to the gross structure, and it grows rapidly with nuclear charge.
+
+Hyperfine structure arises from the interaction of the electron with the nuclear magnetic moment,
+and it is smaller again by roughly the electron-to-proton mass ratio. It is nonetheless the basis
+of the most consequential transitions in physics: the ground state hyperfine splitting of caesium
+defines the second, and the corresponding splitting in atomic hydrogen produces the twenty-one
+centimetre line that maps neutral hydrogen throughout the galaxy.
+
+External fields split levels further and the splitting is diagnostic. The Zeeman effect splits by
+magnetic field, with the splitting proportional to the field and to the magnetic quantum number,
+which makes spectral line splitting a remote magnetometer — solar magnetic fields are measured this
+way. The Stark effect splits by electric field, quadratically for most atoms and linearly for
+hydrogen owing to its degeneracy, and it is the mechanism behind field ionization and the pressure
+shifts in dense plasmas.
+
+Corrections and external fields:
+  fine structure       relativistic plus spin-orbit; scales as alpha squared
+  spin-orbit coupling  the electron's spin in the field of its own orbit
+  Lamb shift           a QED effect splitting levels degenerate in Dirac theory;
+                       the measurement that launched quantum electrodynamics
+  hyperfine structure  electron coupling to the nuclear moment
+  the caesium standard  a hyperfine transition defines the SI second
+  twenty-one centimetre  hydrogen's hyperfine line; maps galactic neutral gas
+  isotope shift        mass and nuclear volume effects; measures nuclear radii
+  Zeeman effect        magnetic splitting, linear in field
+  anomalous Zeeman     the case with spin; requires the Landé g-factor
+  Paschen-Back         strong field, where spin-orbit coupling is broken
+  Stark effect         electric field splitting; quadratic generally, linear in
+                       hydrogen
+  field ionization     strong fields lowering the barrier until the electron
+                       escapes
+  Rydberg atoms        highly excited, enormous polarizability, extreme
+                       sensitivity to fields; used as electrometers and as a
+                       platform for strongly interacting quantum systems
+
+## Molecular Structure
+
+Molecules add nuclear degrees of freedom to the electronic problem, and the separation of scales
+between them is what makes molecular physics tractable. The Born-Oppenheimer approximation treats
+the nuclei as stationary while solving for the electrons, then uses the resulting electronic energy
+as a potential surface on which the nuclei move. The justification is the mass ratio: electrons
+respond essentially instantaneously to nuclear motion.
+
+The resulting energy hierarchy is wide. Electronic transitions lie in the visible and ultraviolet,
+vibrational transitions in the infrared, rotational transitions in the microwave, and each is
+separated from the next by roughly two orders of magnitude. This separation is why infrared
+spectroscopy identifies functional groups — a vibrational frequency depends mainly on the local
+bond and its reduced mass, so it transfers between molecules — and why microwave spectroscopy
+determines molecular geometry, since rotational constants are inverse moments of inertia.
+
+Bonding itself is described by molecular orbital theory, in which atomic orbitals combine into
+bonding and antibonding combinations, and the bond order follows from how the electrons fill them.
+The competing valence bond picture localizes electrons into pairs and is more chemically intuitive;
+both are approximations to the same underlying problem and each is more convenient for different
+questions.
+
+Molecular structure:
+  Born-Oppenheimer     separate nuclear and electronic motion by mass ratio
+  potential energy surface  electronic energy as a function of nuclear positions
+  the energy hierarchy  electronic, vibrational, rotational, separated by roughly
+                       two orders of magnitude each
+  molecular orbitals   atomic orbitals combining into bonding and antibonding
+  bond order           net bonding electron pairs
+  vibrational modes    3N minus 6 for a nonlinear molecule, minus 5 for linear
+  harmonic approximation  good near the minimum; anharmonicity matters for
+                       overtones and dissociation
+  infrared activity    requires a changing dipole moment
+  Raman activity       requires a changing polarizability; complementary to
+                       infrared
+  rotational constants  inverse moments of inertia; determine geometry
+  selection rules      vibrational transitions change v by one in the harmonic
+                       limit; rotational by one
+  Franck-Condon        electronic transitions are vertical on the nuclear
+                       coordinate; the intensity pattern reflects wavefunction
+                       overlap
+  dissociation         the potential surface flattening; the asymptote gives the
+                       bond energy
+
+## Laser Cooling, Trapping, and Precision Measurement
+
+Laser cooling exploits the fact that a photon carries momentum. An atom moving toward a laser tuned
+slightly below its resonance sees the light Doppler-shifted into resonance, absorbs preferentially
+from that direction, and re-emits in a random direction, so the momentum transfer averages to a
+force opposing motion. Six beams along three axes produce a viscous damping in all directions,
+cooling a gas to the microkelvin range and below.
+
+Trapping requires a position-dependent force in addition, supplied by a magnetic field gradient
+that Zeeman-shifts the atoms into resonance more strongly the further they are from the centre.
+Combined with the cooling beams this makes a magneto-optical trap, the workhorse of the field.
+Further cooling by evaporation — removing the most energetic atoms and letting the rest
+re-thermalize — reaches the nanokelvin regime where quantum degeneracy appears and a
+Bose-Einstein condensate forms.
+
+The payoff is precision. A cold atom moves slowly, so it can be interrogated for a long time, and
+the linewidth of a measurement is inversely proportional to the interrogation time. Optical clocks
+based on a narrow transition in a trapped ion or in neutral atoms held in an optical lattice reach
+fractional frequency uncertainties near one part in ten to the eighteenth, which is sensitive
+enough that the gravitational redshift over a height difference of a centimetre is measurable.
+
+Cooling, trapping, and metrology:
+  radiation pressure   photon momentum transfer; the basic force
+  Doppler cooling      red-detuned beams; velocity-dependent damping
+  Doppler limit        set by the random-recoil heating from spontaneous emission
+  sub-Doppler          polarization gradient mechanisms beating the naive limit
+  magneto-optical trap  cooling beams plus a field gradient
+  optical molasses     damping without confinement
+  optical tweezers     a focused beam trapping by the dipole force; single-atom
+                       control
+  optical lattice      a standing wave making a periodic potential; a clean
+                       platform for condensed matter analogues
+  evaporative cooling  remove the hot tail, re-thermalize; the route to
+                       degeneracy
+  Bose-Einstein condensate  macroscopic occupation of the ground state
+  degenerate Fermi gas  the fermionic counterpart; Pauli blocking observable
+  atomic clock         a transition frequency as the time standard
+  optical clock        an optical rather than microwave transition; the higher
+                       frequency buys precision directly
+  the redshift measurement  optical clocks resolve gravitational time dilation
+                       over centimetres of height
+  atom interferometry  splitting and recombining matter waves; measures
+                       accelerations, rotations, and the gravitational constant
+  the broader point    atomic physics supplies the most precise measurements in
+                       science, and those measurements are how the constancy of
+                       fundamental constants, the existence of new forces, and
+                       the limits of the standard model are tested

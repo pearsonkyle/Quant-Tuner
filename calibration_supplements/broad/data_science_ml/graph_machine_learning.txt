@@ -1,0 +1,321 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: Graph Machine Learning
+Subtopics: graph data and tasks, classical features, node embeddings, message passing,
+architectures, expressiveness and limits, scaling, applications.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Graph Data and Tasks
+
+Graph machine learning applies to data where relationships between entities carry information
+that the entities' own attributes do not. Molecules, social networks, citation graphs, knowledge
+bases, road networks, recommendation interaction graphs, program dependency graphs, and protein
+interaction networks all have this character, and treating their entities as independent
+observations discards exactly what makes them informative.
+
+The structural difficulty is that graphs lack the regularity that convolutional and sequential
+architectures exploit. An image has a fixed grid where every pixel has the same number of
+neighbours in the same relative positions; a sequence has a canonical order. A graph has nodes
+with varying degree, no canonical ordering, and no consistent notion of relative position, so any
+method must produce the same answer regardless of how the nodes are numbered — permutation
+invariance for graph-level outputs and permutation equivariance for node-level ones.
+
+Tasks divide by the level at which prediction occurs, and the level determines both the
+architecture and the evaluation design. Node-level tasks predict a property of each node.
+Edge-level tasks predict whether an edge exists or what type it is. Graph-level tasks predict a
+property of the whole structure. Each requires different readout mechanisms and, importantly,
+different data splitting.
+
+Graph data and tasks:
+  node features        attributes of each entity
+  edge features        attributes of each relationship
+  directed vs undirected  whether relationships are symmetric
+  heterogeneous        several node and edge types; requires type-aware handling
+  multigraph           several edges between a pair
+  dynamic graph        structure or attributes changing over time
+  permutation invariance  graph-level outputs must not depend on node numbering
+  permutation equivariance  node-level outputs must permute with the nodes
+  node classification  a property per node; semi-supervised, since unlabelled
+                       nodes are still present in the structure
+  link prediction      whether an edge exists; the basis of recommendation and
+                       knowledge base completion
+  graph classification  a property of the whole graph; molecules and programs
+  community detection  groups of densely connected nodes
+  transductive         the test nodes are present during training; only their
+                       labels are hidden
+  inductive            generalize to entirely unseen nodes or graphs; a stronger
+                       and more realistic requirement
+
+The transductive and inductive distinction deserves emphasis because it determines what a
+reported result means. In the transductive setting the full graph including test nodes is
+available during training and only the labels are withheld, so the model has seen the test nodes'
+features and connections. In the inductive setting the model must generalize to nodes or graphs
+it has never seen. Many benchmark results are transductive, and a model achieving them may fail
+entirely at the inductive task that a deployment requires — which is the case whenever new users,
+new molecules, or new documents arrive after training.
+
+Q: A node classification model is evaluated by randomly splitting nodes into train and test sets
+within a single graph, with the full graph structure available throughout. This evaluates:
+A. Inductive generalization to unseen nodes
+B. Transductive performance, where the model has seen the test nodes' features and connections
+   during training
+C. Graph-level classification
+D. Nothing useful
+Reasoning: The test nodes participate in message passing during training even though their
+labels are hidden, so the model has used their features and neighbourhood structure. This
+measures transductive performance, which is a legitimate setting and does not establish
+performance on nodes arriving after training. An inductive evaluation requires withholding the
+nodes entirely. Answer: B.
+
+## Classical Features and Node Embeddings
+
+Before learned representations, graph machine learning used hand-designed structural features,
+and these remain strong baselines and useful inputs. Node-level features include degree, various
+centrality measures, clustering coefficient, and the counts of small subgraphs the node
+participates in. Graph-level features include the degree distribution, the counts of small
+subgraph patterns, and spectral properties of the adjacency or Laplacian matrix.
+
+Graph kernels compare graphs by counting shared substructures — common walks, shortest paths, or
+subtrees — and feeding the resulting similarity into a kernel method. The Weisfeiler-Lehman
+kernel is the most effective of these and is worth knowing because it turns out to characterize
+the expressive power of the standard neural approaches, which is an unusual case of a classical
+method providing the theoretical ceiling for a modern one.
+
+Node embedding methods learn a vector per node such that structurally similar nodes are nearby,
+and the shallow methods do so by treating random walks on the graph as sentences and applying
+sequence embedding techniques. The intuition is direct: nodes appearing in similar walk contexts
+occupy similar structural positions. The walk strategy determines what similarity means —
+breadth-first walks capture local neighbourhood similarity while depth-first walks capture
+broader structural role, and interpolating between them is the main tunable in these methods.
+
+Classical features and embeddings:
+  degree               the simplest and frequently the strongest single feature
+  centrality           betweenness, closeness, eigenvector, PageRank
+  clustering coefficient  the fraction of a node's neighbour pairs that are
+                       adjacent
+  graphlets            counts of small induced subgraphs
+  spectral features    eigenvalues of the adjacency or Laplacian
+  graph kernel         similarity from shared substructures
+  Weisfeiler-Lehman    iterative colour refinement; the standard kernel and the
+                       expressiveness ceiling of message passing
+  random walk embedding  walks as sentences; nodes in similar contexts embed
+                       nearby
+  walk strategy        breadth-first captures neighbourhood, depth-first captures
+                       structural role
+  matrix factorization  factor the adjacency or a proximity matrix
+  shallow embedding limits  a lookup table per node; cannot generalize to unseen
+                       nodes, does not use node features, and parameters grow with
+                       the graph
+  the strong baseline  degree plus node features in a gradient-boosted model; it
+                       beats graph neural networks more often than the literature
+                       suggests
+
+The shallow embedding limitations are worth stating because they motivated the shift to message
+passing. A method learning a lookup table of embeddings has one parameter vector per node, so
+parameters grow with the graph, no embedding exists for a node not present at training time, and
+node attributes are not used at all unless bolted on. Message passing addresses all three: the
+parameters are shared across nodes, an unseen node's representation is computed from its
+neighbourhood, and features are the input rather than an afterthought.
+
+## Message Passing and Architectures
+
+Graph neural networks compute node representations by iteratively aggregating information from
+neighbours. Each layer has three steps: each node's neighbours send messages, those messages are
+aggregated by a permutation-invariant function, and the node updates its representation from its
+previous state and the aggregate. Stacking k layers means each node's representation depends on
+its k-hop neighbourhood, so depth controls the receptive field exactly as it does in convolutional
+networks.
+
+The aggregation function must be permutation invariant since neighbours have no order, and the
+choice affects what the network can distinguish. Sum aggregation preserves multiset information
+including neighbour counts, which makes it the most expressive of the simple choices. Mean
+aggregation normalizes by degree, discarding the count, which helps when degrees vary widely and
+loses information. Max aggregation captures the presence of a distinctive neighbour and discards
+multiplicity entirely.
+
+Architectural variants differ mainly in how messages are weighted. Graph convolutional networks
+use a fixed degree-based normalization. Attention-based networks learn to weight each neighbour by
+a computed relevance, which handles heterogeneous neighbourhoods better and costs more. Sampling
+approaches aggregate over a fixed-size random sample of neighbours rather than all of them, which
+bounds computation and permits inductive application at scale.
+
+Message passing and architectures:
+  message              computed from the neighbour and the edge
+  aggregate            permutation-invariant combination; sum, mean, max, attention
+  update               new representation from the previous state and the aggregate
+  k layers             a k-hop receptive field
+  sum aggregation      preserves multiset structure; most expressive
+  mean aggregation     degree-normalized; loses counts
+  max aggregation      distinctive neighbours; loses multiplicity
+  GCN                  fixed degree normalization; simple and effective
+  GraphSAGE            neighbour sampling; inductive and scalable
+  GAT                  learned attention weights per neighbour
+  GIN                  sum aggregation with an MLP; provably as expressive as the
+                       Weisfeiler-Lehman test, which is the ceiling for this family
+  readout              pooling node representations to a graph representation; sum,
+                       mean, max, or a learned hierarchical pooling
+  edge features        incorporated into the message computation
+  residual connections  as in other deep networks; necessary beyond a few layers
+  jumping knowledge    combine representations from several depths; different nodes
+                       need different receptive fields
+
+## Expressiveness and Limits
+
+The expressive power of message passing networks is bounded, and the bound is precise: they can
+distinguish two graphs only if the one-dimensional Weisfeiler-Lehman colour refinement test can.
+This is a genuine limitation rather than a modelling detail — there exist structurally different
+graphs that no such network can tell apart, including simple cases such as a six-cycle and two
+disjoint triangles, which have identical local structure everywhere.
+
+The practical consequence is an inability to count substructures. Message passing cannot in
+general count triangles, cycles, or cliques, which are exactly the features that matter for
+molecular properties depending on ring structure and for social network analysis depending on
+triadic closure. Providing those counts explicitly as node features is the pragmatic remedy and
+is frequently more effective than architectural sophistication.
+
+Over-smoothing is the depth limitation. As layers are stacked, node representations aggregate
+from progressively larger neighbourhoods and converge toward each other, so a deep network
+produces nearly identical representations for all nodes in a connected component and loses the
+distinctions it was meant to compute. Most graph neural networks therefore use two to four
+layers, which is shallow relative to other domains and limits the range over which information
+propagates.
+
+Over-squashing is a related and distinct problem. Information from an exponentially growing
+neighbourhood must be compressed into a fixed-size vector, so long-range dependencies passing
+through a bottleneck edge are compressed beyond recovery. Adding layers to reach further makes
+over-squashing worse rather than better, which is why long-range tasks on graphs remain
+difficult.
+
+Expressiveness and limits:
+  WL bound             message passing distinguishes only what colour refinement
+                       does
+  indistinguishable graphs  structurally different graphs with identical local
+                       structure; a six-cycle and two triangles
+  cannot count substructures  triangles, cycles, cliques; provide them as features
+  higher-order networks  operate on tuples of nodes; more expressive and far more
+                       expensive
+  positional encodings  break symmetry by giving nodes distinguishable positions;
+                       random features or Laplacian eigenvectors
+  over-smoothing       representations converge with depth; limits networks to a
+                       few layers
+  over-squashing       exponentially many nodes compressed through a bottleneck;
+                       adding depth makes it worse
+  bottleneck edges     where over-squashing concentrates; rewiring the graph to
+                       add shortcuts is one remedy
+  graph transformers   full attention between all nodes; removes the locality
+                       constraint and requires positional encoding to reintroduce
+                       structure
+  heterophily          neighbours with different labels; standard message passing
+                       assumes homophily and degrades badly when it does not hold
+  the homophily assumption  frequently unstated; check it before assuming a graph
+                       neural network is appropriate
+
+Heterophily deserves specific attention because it is an unstated assumption that determines
+whether the whole approach applies. Message passing aggregates neighbours toward a shared
+representation, which helps when connected nodes tend to share labels — homophily — and actively
+hurts when they do not. In a fraud network, fraudsters connect to victims rather than to each
+other; in a dating network, connections are frequently between rather than within categories.
+Standard architectures underperform simple baselines that ignore the graph in these settings, and
+architectures designed for heterophily separate the node's own representation from the aggregated
+neighbourhood rather than mixing them.
+
+[user] Our graph neural network for fraud detection performs worse than a gradient-boosted model
+on the same node features with no graph at all.
+[assistant] tool_call gml.diagnose({"task": "node_classification_fraud",
+"architecture": "GCN_3_layer", "homophily_ratio": 0.21, "avg_degree": 47,
+"label_rate": 0.008, "baseline_gbm_auc": 0.91, "gnn_auc": 0.84,
+"features_include_graph_stats": false})
+[tool] {"primary_issue": "heterophilic_graph_with_homophily_assuming_architecture",
+"homophily_ratio": 0.21, "secondary": ["high_degree_causes_oversmoothing",
+"graph_features_not_given_to_baseline_comparison"],
+"recommendations": ["heterophily_aware_architecture", "add_structural_features_to_gbm",
+"separate_self_and_neighbour_representations"]}
+[assistant] Your graph is heterophilic and your architecture assumes the opposite, so message
+passing is actively destroying signal rather than adding it.
+
+The homophily ratio is 0.21, meaning only about a fifth of edges connect nodes with the same
+label. Standard graph convolution averages a node's representation with its neighbours', which is
+the right operation when neighbours share labels and the wrong one when they systematically do
+not. In fraud networks this is expected: fraudsters connect to victims and to mule accounts
+rather than to each other, so aggregating a fraudster's neighbourhood pulls its representation
+toward the legitimate majority. With an average degree of 47 and three layers, each node is
+averaging over a very large neighbourhood, which compounds it.
+
+Three things, and the second may be all you need.
+
+Use an architecture that does not assume homophily. The key change is separating the node's own
+representation from the aggregated neighbourhood rather than mixing them — concatenate rather
+than average, so the model can learn that a node's neighbourhood being unlike it is itself
+informative. Architectures designed for heterophily also aggregate from higher-order
+neighbourhoods separately, since in some heterophilic graphs the two-hop neighbourhood is
+homophilic even when the one-hop is not.
+
+Before investing in that, run a fairer baseline comparison. Your gradient-boosted model uses node
+features only and no graph information at all. Add structural features to it — degree,
+neighbourhood label statistics where labels are available, clustering coefficient, counts of
+triangles and other small subgraphs, and aggregated neighbour features — and see where it lands.
+Graph-derived features in a strong tabular model frequently match or beat a graph neural network,
+particularly on heterophilic graphs, and it is a much simpler system to operate.
+
+Your label rate of 0.8% is also worth attention. With very few labels, the semi-supervised
+advantage that graph methods offer is largest in principle and the training signal is thin in
+practice. Check whether the labelled nodes are representative or whether they were discovered
+through some process that correlates with structure, since that would bias the model toward
+finding fraud that resembles how fraud was previously found.
+
+## Scaling and Applications
+
+Scaling graph neural networks to large graphs is constrained by the neighbourhood explosion: a
+k-layer network's computation for one node depends on its k-hop neighbourhood, which in a graph
+with high average degree can be a substantial fraction of the whole graph. Full-batch training
+therefore requires the entire graph in memory and mini-batching is not straightforward, since
+nodes are not independent.
+
+Three families of approach address this. Neighbour sampling selects a fixed number of neighbours
+per layer, bounding the computation per node at the cost of variance and of an approximation.
+Subgraph sampling trains on sampled subgraphs, which is efficient and biased by how the subgraphs
+are drawn. Historical embedding methods cache representations from previous iterations to avoid
+recursive expansion, trading staleness for bounded computation.
+
+The applications where graph methods clearly earn their complexity share a property: the
+relationships carry information that is not recoverable from the entities alone, and the relevant
+structure is local. Molecular property prediction is the clearest case, since a molecule is
+literally a graph and its properties depend on substructure. Recommendation benefits from the
+user-item interaction graph's higher-order connectivity. Fraud and abuse detection benefits
+because coordinated activity has a distinctive structural signature. Knowledge graph completion is
+inherently relational.
+
+Scaling and applications:
+  neighbourhood explosion  k-hop neighbourhoods grow rapidly with degree
+  full batch           requires the whole graph in memory
+  neighbour sampling   fixed fan-out per layer; variance and approximation
+  subgraph sampling    train on sampled subgraphs; efficient and sampling-biased
+  historical embeddings  cache previous representations; staleness for bounded
+                       cost
+  distributed training  partition the graph; cross-partition edges require
+                       communication, and partition quality dominates performance
+  inference at scale   precompute embeddings where the graph is static; recompute
+                       incrementally where it is not
+  molecules            the clearest fit; the molecule is a graph and properties
+                       depend on substructure
+  drug discovery       property prediction, generation, and interaction prediction
+  recommendation       higher-order user-item connectivity
+  fraud and abuse      coordinated activity has structural signatures
+  knowledge graphs     link prediction for completion; embedding methods and
+                       message passing both apply
+  traffic and routing  road networks with temporal dynamics
+  program analysis     code as a graph of dependencies and control flow
+  physics simulation   particles and meshes as graphs; learned simulators
+                       generalize across configurations
+
+The honest summary of when to use these methods is worth stating because the field's enthusiasm
+has outrun the evidence in several application areas. Graph neural networks are clearly the right
+tool where the data is genuinely a graph whose structure carries the signal — molecules, physical
+meshes, knowledge bases, and networks where local structure is diagnostic. They are frequently
+outperformed by well-engineered features in a gradient-boosted model where the graph is
+incidental to the prediction, where the graph is heterophilic, or where node features already
+carry most of the signal. Running that baseline with graph-derived features included is the check
+that establishes whether the additional complexity is buying anything, and it is skipped far more
+often than it should be.

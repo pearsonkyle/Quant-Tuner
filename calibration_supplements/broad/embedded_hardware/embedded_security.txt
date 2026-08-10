@@ -1,0 +1,322 @@
+================================================================================
+AREA: Embedded Systems and Hardware
+SUBJECT: Embedded and Hardware Security
+Subtopics: threat models, secure boot and root of trust, key storage, cryptographic
+implementation, physical and side-channel attacks, firmware update, device lifecycle,
+supply chain.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Threat Models for Physical Devices
+
+Embedded security differs from server security in one decisive respect: the attacker may have
+physical possession of the device. Every assumption that holds when an attacker can only send
+packets fails when they can desolder a chip, probe a bus, glitch a supply rail, or read a memory
+directly. Designing without stating which of these are in scope produces protections that address
+the wrong adversary.
+
+The threat model should specify the attacker's access, capability, and motivation. A remote
+attacker sends network traffic. A local attacker has the device on a bench with an oscilloscope
+and a soldering iron. A well-resourced attacker has decapsulation equipment, a focused ion beam,
+and the ability to read memory directly. And an attacker in the supply chain can modify the device
+before it ever reaches the user. Each requires different defences and the costs differ by orders
+of magnitude.
+
+The motivation determines what protection is proportionate. An attacker extracting a shared
+firmware signing key compromises every device of that model, so the value justifies substantial
+effort and the protection must be correspondingly strong. An attacker extracting one device's
+data compromises one device, and per-device keys are what limit the blast radius. This
+distinction — whether a compromise scales — is the most useful question in prioritizing embedded
+security work.
+
+Threat model dimensions:
+  remote attacker      network traffic only; the server security model
+  local attacker       physical access; probing, glitching, chip removal
+  invasive attacker    decapsulation, microprobing, focused ion beam; expensive
+                       and available
+  supply chain         modification before delivery; the hardest to detect
+  insider              legitimate access misused
+  does the compromise scale  a shared key compromises everything; a per-device key
+                       compromises one device
+  per-device keys      the single most effective architectural decision for
+                       limiting blast radius
+  asset identification  what actually needs protecting; frequently the firmware's
+                       intellectual property, the user's data, and the ability to
+                       impersonate the device, which need different protections
+  security by obscurity  obfuscation raises cost and is not a foundation; assume
+                       the design is known
+  cost proportionality  protection should exceed the asset's value to the attacker
+                       and not the defender's budget
+
+Q: A product line uses one firmware signing key across all devices, and an attacker extracts it
+from a single unit. The consequence is:
+A. That unit is compromised
+B. Every device of that model can be given attacker-signed firmware, so the compromise scales to
+   the entire fleet
+C. Only future devices are affected
+D. Nothing, since the firmware is still signed
+Reasoning: A shared secret means a single extraction compromises everything protected by it. This
+is why signing keys belong in a hardware security module never present on the device, why devices
+should hold only public keys for verification, and why per-device keys are used wherever a secret
+must live on the device at all. Answer: B.
+
+## Secure Boot and Root of Trust
+
+Secure boot establishes that only authorized code runs, and it works by chaining trust from an
+immutable starting point. A boot ROM that cannot be modified verifies the signature of the next
+stage before executing it, that stage verifies the following one, and so on. The chain's security
+rests entirely on the first link being genuinely immutable and on every stage verifying before
+transferring control.
+
+The root of trust is that immutable starting point plus the key material it uses. The public key
+or its hash must be stored where it cannot be altered — mask ROM, one-time programmable fuses, or
+write-protected flash with the protection irrevocably set. If an attacker can change the trusted
+key, the entire chain is defeated regardless of how carefully the signatures are checked.
+
+The distinction between secure boot and measured boot is worth keeping precise. Secure boot
+refuses to execute code failing verification, which enforces a policy locally. Measured boot
+records a hash of each stage into a tamper-resistant register and permits execution regardless,
+so a remote party can later verify what actually ran through attestation. The two serve different
+purposes and are frequently combined: local enforcement plus remote verification.
+
+Secure boot and trust:
+  chain of trust       each stage verifies the next before executing it
+  root of trust        immutable code plus immutable key material
+  immutable storage    mask ROM, OTP fuses, irrevocably locked flash
+  verify before execute  the ordering is the whole security property
+  secure boot          refuse to run unverified code
+  measured boot        record what ran; enables remote attestation
+  attestation          prove to a remote party what the device is running
+  anti-rollback        a monotonic counter preventing downgrade to a version with
+                       known vulnerabilities; without it, patching is defeated by
+                       reinstalling the old firmware
+  debug interface      JTAG and SWD must be disabled or authenticated in
+                       production; an open debug port defeats everything above it
+  lifecycle state      the device's stage from manufacturing through production to
+                       decommissioned; transitions must be one-way
+  secure element       a separate tamper-resistant chip for keys and crypto
+  TEE                  a trusted execution environment isolated from the main
+                       operating system; smaller attack surface, and it is not
+                       equivalent to a separate chip
+
+Anti-rollback protection deserves emphasis because its absence quietly defeats the entire
+patching process. An attacker who can install an older signed firmware version installs one with a
+known and published vulnerability, which is signed and therefore passes secure boot. A monotonic
+counter incremented on each security-relevant release, checked at boot, prevents this — and it
+must be genuinely monotonic and stored where it cannot be reset, which typically means fuses or a
+dedicated counter in a secure element. Implementing secure boot without rollback protection is a
+common and consequential gap.
+
+## Key Storage and Cryptographic Implementation
+
+Keys are the highest-value asset in most embedded systems and the hardest to protect on a device
+an attacker holds. The ordering of storage options by strength is clear and the choice is
+frequently made by cost rather than by threat model.
+
+Keys in plain flash are readable by anyone who can dump the flash, which requires only a
+programmer and an unlocked device. Keys encrypted in flash require the decryption key to be
+somewhere, so the problem is relocated rather than solved unless that key is in hardware. Keys in
+one-time programmable fuses, readable only by a hardware crypto engine and never exposed to
+software, are substantially stronger. Keys in a secure element or a dedicated security chip,
+generated on-chip and never leaving it, are stronger still, and the operations using them are
+performed inside the chip so the key never exists outside it.
+
+Physical unclonable functions derive a key from manufacturing variation rather than storing one.
+Tiny random differences between nominally identical circuits produce a device-specific response
+that is stable enough to reconstruct a key with error correction, and the key exists only while
+powered — so there is nothing to read when the device is off. The technique is elegant and its
+reliability across temperature and ageing requires careful engineering.
+
+Cryptographic implementation on constrained devices has failure modes that the algorithm choice
+does not address. Random number generation is the most common: a device with no good entropy
+source at first boot generates predictable keys, and this has produced fleets of devices sharing
+keys because they all seeded from the same initial state. A hardware random number generator with
+proper health testing is the answer, and using a software pseudorandom generator seeded from a
+device identifier is a recurring and severe failure.
+
+Keys and crypto implementation:
+  plain flash          readable with a programmer; not protection
+  encrypted flash      relocates the problem unless the wrapping key is in hardware
+  OTP fuses            hardware-only access via a crypto engine; substantially
+                       stronger
+  secure element       on-chip generation, never exported; the strongest common
+                       option
+  PUF                  derived from manufacturing variation; nothing stored to read
+  key hierarchy        a device root key deriving purpose-specific keys; limits
+                       what any one compromise yields
+  key diversification  per-device keys derived from a master held only in the
+                       factory HSM
+  entropy at first boot  the classic failure; devices generating predictable keys
+                       from an inadequate seed
+  hardware RNG         with health tests; software PRNGs seeded from identifiers
+                       are a severe and recurring failure
+  constant time        cryptographic comparisons and operations must not branch on
+                       secret data
+  memcmp on a MAC      the canonical timing leak; returns early on the first
+                       differing byte, revealing the correct value one byte at a
+                       time
+  nonce reuse          catastrophic in AES-GCM; must survive reboots, backups, and
+                       cloning
+  hardware acceleration  use the crypto engine; it is faster and typically
+                       constant-time by construction
+  do not implement crypto  use a vetted library; the failure modes are invisible
+                       in testing
+
+The constant-time requirement deserves elaboration because it is a correctness property that
+ordinary testing cannot detect. A comparison that returns as soon as bytes differ takes a duration
+depending on how many leading bytes matched, so an attacker submitting candidate values and
+measuring the response time learns the correct value one byte at a time — turning an
+exponential search into a linear one. The code is functionally correct, passes every test, and
+leaks the secret. The remedy is comparing in constant time, which every cryptographic library
+provides and which must actually be used.
+
+[user] Our IoT device stores its TLS client certificate private key in internal flash with the
+readout protection bit set. Is that adequate?
+[assistant] tool_call sec.key_storage_audit({"storage": "internal_flash",
+"protection": "readout_protection_level_1", "key_type": "tls_client_private",
+"per_device": false, "mcu_family": "generic_cortex_m", "threat_model": "device_in_field"})
+[tool] {"issues": ["shared_key_across_fleet", "rdp_level1_bypassable_by_glitching",
+"key_in_flash_readable_after_bypass", "no_key_hierarchy"],
+"known_attacks": ["voltage_glitch_rdp_downgrade", "cold_boot_ram_extraction"],
+"recommendation": "per_device_keys_plus_secure_element_or_at_minimum_rdp_level2"}
+[assistant] Two problems, and the first is more serious than the storage question.
+
+The key is shared across the fleet. That means a single successful extraction from any device —
+one bought on a marketplace, one recovered from a bin, one belonging to a curious owner — yields a
+key that impersonates every device you have shipped. Whatever the storage strength, the value of
+extracting it is the entire fleet rather than one unit, which justifies far more attacker effort
+than you have budgeted against. Per-device keys, derived in the factory from a master held in a
+hardware security module, is the change that matters most, and it also lets you revoke a single
+compromised device rather than the whole product line.
+
+On the storage: readout protection level 1 is not sufficient against a local attacker. It is
+routinely bypassed by voltage or clock glitching during the boot sequence — the technique is
+published, the equipment costs a few hundred pounds, and it is within reach of a hobbyist. Level 2
+is substantially stronger because it permanently disables the debug interface, and the tradeoff is
+that it also prevents your own debugging and field diagnostics, so it needs to be a deliberate
+lifecycle decision rather than an afterthought.
+
+The stronger option is a secure element. The key is generated on-chip, never leaves it, and the
+TLS handshake's private key operation is performed inside the chip, so the key does not exist in
+your microcontroller's memory at any point. This defeats both flash extraction and memory
+scraping, and the parts cost around a dollar. For a device whose compromise matters, it is the
+right answer.
+
+Three things worth checking while you are here. Confirm the key is not also present in RAM longer
+than necessary, since a cold boot or a debug halt can recover it. Confirm your provisioning
+process does not log or transmit the key anywhere. And check whether the same key material is used
+for both device identity and any firmware verification, since separating those means a compromise
+of one does not yield the other.
+
+## Physical and Side-Channel Attacks
+
+Side-channel attacks recover secrets from a device's physical behaviour rather than from its
+outputs. The device computes correctly and its power consumption, timing, electromagnetic
+emission, or acoustic output varies with the data being processed, so an observer learns
+something the interface does not expose.
+
+Power analysis is the most developed. Simple power analysis reads a single trace and can reveal
+the sequence of operations, which for a naive exponentiation implementation shows the key bits
+directly because the square and multiply operations look different. Differential power analysis
+correlates many traces with hypothesized intermediate values and extracts keys from
+implementations where no single trace is informative, which makes it effective against
+implementations that look adequate. Correlation power analysis refines this and is the standard
+technique.
+
+Fault injection perturbs the device to induce an error the attacker can exploit. A voltage
+glitch, a clock glitch, an electromagnetic pulse, or a laser pulse causes an instruction to be
+skipped or a value to be corrupted, and skipping a single comparison instruction can bypass a
+signature check entirely. Some fault attacks are more subtle: a single faulty computation in an
+RSA signature permits factoring the modulus from the correct and faulty outputs together.
+
+Physical attacks:
+  simple power analysis  a single trace; reveals operation sequences
+  differential power analysis  many traces correlated with hypotheses; extracts
+                       keys from implementations that look fine
+  correlation power analysis  the refined standard technique
+  electromagnetic analysis  the same, without electrical contact and with spatial
+                       resolution
+  timing attacks       execution duration varying with secret data
+  cache timing         applicable where a cache exists
+  voltage glitch       skip instructions or corrupt values
+  clock glitch         the same via the clock
+  EM fault injection   localized, no contact
+  laser fault injection  precise, requires decapsulation
+  differential fault analysis  compare correct and faulty outputs; a single fault
+                       can break RSA
+  countermeasures      masking randomizes intermediates, hiding equalizes the
+                       signal, redundant computation detects faults, sensors
+                       detect glitching conditions
+  masking              split secrets into random shares so no intermediate
+                       correlates with the secret; the principled defence
+  random delays        raise the trace count needed; alignment techniques reduce
+                       the benefit
+  invasive attacks     decapsulation, microprobing, circuit editing; expensive and
+                       available to a determined attacker
+  tamper detection     meshes, sensors, and zeroization on detection
+
+The instruction-skip fault deserves emphasis because it is so simple and so effective against
+naive code. A signature verification ending with a conditional branch on a comparison result can
+be defeated by glitching the processor at exactly that instruction, skipping the branch and
+proceeding as though verification succeeded. The countermeasures are structural: perform the
+check twice with different code paths, use a non-trivial success value rather than a boolean so
+that a skipped instruction does not produce success, introduce random delays so the timing cannot
+be predicted, and add a redundant check after the sensitive operation has begun.
+
+## Firmware Update, Lifecycle, and Supply Chain
+
+Firmware update is a security requirement rather than a feature, because vulnerabilities will be
+found and a device that cannot be patched accumulates them for its service life. It is also an
+attack surface of the first order, since the update mechanism by definition can replace all the
+device's code.
+
+A secure update requires several properties together. The image must be authenticated so that
+only the vendor's firmware is accepted, which means signature verification against a key in the
+root of trust. It must be versioned with rollback prevention. The update must be atomic, so that
+an interruption leaves the device with a working image — dual-bank flash with an atomic pointer
+switch, or a recovery image that cannot be overwritten. And the process must be resilient to
+power loss at any point, which is the requirement that most implementations get wrong.
+
+Encryption of the image is a separate question from authentication and protects different things.
+Authentication prevents an attacker's firmware from running. Encryption prevents an observer from
+reading the firmware, which protects intellectual property and makes vulnerability discovery
+harder. The second is worth doing and is not a substitute for the first, and confusing them
+produces designs that are encrypted and unauthenticated, where an attacker who obtains the
+decryption key can also produce accepted images.
+
+Update, lifecycle, and supply chain:
+  authenticate         signature verified against a key in the root of trust
+  version and rollback  monotonic counter; otherwise patching is defeated
+  atomic update        dual bank or recovery image; survives interruption
+  power loss resilience  at every point; the most commonly inadequate property
+  encryption           protects the image's contents; not a substitute for
+                       authentication
+  delta updates        bandwidth savings; the patch application must be as robust
+                       as a full update
+  staged rollout       limit the blast radius of a bad update; the update
+                       mechanism is itself a fleet-wide risk
+  provisioning         inject unique identity and keys in a controlled facility;
+                       the point where the fleet's security is established
+  lifecycle states     manufacturing, provisioned, production, decommissioned;
+                       transitions one-way
+  debug lockout        before shipping; an open port defeats everything
+  decommissioning      erase keys and data; a resold or discarded device with
+                       intact credentials is a fleet exposure
+  counterfeit parts    a substantial supply chain problem; authentication of
+                       components where it matters
+  hardware trojan      malicious modification during fabrication; extremely
+                       difficult to detect and to defend against
+  SBOM                 a bill of materials for firmware; required to know whether
+                       a disclosed vulnerability affects the product
+  vulnerability disclosure  a stated process; researchers will find issues and the
+                       question is whether the report reaches someone who acts
+
+The software bill of materials deserves the closing emphasis because it addresses a practical
+problem most embedded organizations cannot currently answer. When a vulnerability is disclosed in
+a widely used component — a TLS library, a networking stack, a compression routine — the immediate
+question is which products contain the affected version. Without a recorded inventory of every
+component and version in each firmware release, answering requires an audit per product, which
+takes weeks during which the exposure is unknown. Generating the inventory automatically at build
+time and retaining it per release converts that question into a database query, and it is
+becoming a regulatory requirement in several jurisdictions rather than merely good practice.

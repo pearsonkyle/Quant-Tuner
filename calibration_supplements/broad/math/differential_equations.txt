@@ -1,0 +1,286 @@
+================================================================================
+AREA: Mathematics
+SUBJECT: Differential Equations
+Subtopics: first-order equations, linear equations, systems and phase planes, series
+and transform methods, partial differential equations, boundary value problems, nonlinear
+dynamics.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## First-Order Equations
+
+A differential equation relates a function to its derivatives, and it is the natural language
+for any system whose rate of change depends on its state. Newton's laws, population dynamics,
+chemical kinetics, heat flow, circuit behaviour, and epidemic spread are all differential
+equations, which is why the subject is the most broadly applicable in the whole of applied
+mathematics.
+
+Classification determines which methods apply, so it is the first step rather than a formality.
+The order is the highest derivative appearing. An equation is ordinary if it involves one
+independent variable and partial if several. It is linear if the unknown function and its
+derivatives appear only to the first power and are not multiplied together, which is a strong
+condition with strong consequences — linear equations obey superposition, so solutions can be
+combined, and they admit systematic solution methods that nonlinear equations do not.
+
+Separable equations, in which the variables can be arranged on opposite sides, are solved by
+direct integration and cover a surprising range of applications including exponential growth
+and decay, Newton's law of cooling, and many chemical rate laws. Linear first-order equations
+are solved by an integrating factor that converts the left side into an exact derivative, which
+is a technique worth knowing because it generalizes and because the integrating factor is
+always available in closed form for the first-order linear case.
+
+First-order methods:
+  separable            g(y) dy = f(x) dx;  integrate both sides
+  linear               y' + p(x)y = q(x);  multiply by exp(integral of p)
+  exact                M dx + N dy = 0 with dM/dy = dN/dx;  find the potential
+  integrating factor   converts an inexact equation to exact
+  substitution         homogeneous, Bernoulli, and other reducible forms
+  autonomous           y' = f(y);  no explicit x; equilibria at f(y) = 0
+  direction field      sketch slopes at grid points; reveals qualitative behaviour
+                       without solving
+  existence            Picard-Lindelof: a continuous f with a Lipschitz condition
+                       in y guarantees a unique local solution
+  uniqueness failure   without the Lipschitz condition; y' = sqrt(y) with y(0) = 0
+                       has infinitely many solutions
+  initial value problem  one condition at a point; well posed for first order
+  equilibrium stability  for autonomous equations, f'(y*) < 0 is stable
+
+Direction fields are worth using more than they typically are, because they deliver
+qualitative understanding without any solution. Sketching the slope at a grid of points shows
+where solutions increase and decrease, where equilibria lie, and whether nearby solutions
+converge toward or diverge from them. For an autonomous equation this reduces to a phase line,
+on which the sign of the derivative between equilibria determines the entire long-term
+behaviour of every solution — information that the closed-form solution, where one exists,
+presents less directly.
+
+Q: The logistic equation y' = ry(1 - y/K) with r and K positive has equilibria at y = 0 and
+y = K. Their stability is:
+A. Both stable   B. Both unstable   C. y = 0 unstable, y = K stable   D. y = 0 stable, y = K
+unstable
+Reasoning: The derivative of the right side is r(1 - 2y/K). At y = 0 this is r, which is
+positive, so perturbations grow and the equilibrium is unstable. At y = K it is -r, negative,
+so perturbations decay and the equilibrium is stable. Any positive initial population
+therefore approaches the carrying capacity. Answer: C.
+
+## Linear Equations and Systems
+
+Second-order linear equations with constant coefficients are the workhorse of applied
+mathematics because they describe every oscillator, every simple circuit, and the linearization
+of nearly every system near an equilibrium. The solution method is to substitute an
+exponential trial function, obtaining a characteristic polynomial whose roots determine the
+behaviour.
+
+The three cases of the characteristic equation correspond directly to physical regimes.
+Distinct real roots give a sum of decaying exponentials, the overdamped case, with no
+oscillation. A repeated real root gives an exponential and an exponential times the
+independent variable, the critically damped case, which returns to equilibrium fastest without
+overshoot. Complex conjugate roots give an exponentially modulated oscillation, the
+underdamped case. Recognizing which case a given system falls into from its coefficients is
+what allows the qualitative behaviour to be stated without solving.
+
+Nonhomogeneous equations require a particular solution added to the general homogeneous one.
+Undetermined coefficients guesses a form matching the forcing term and works when that term is
+a polynomial, exponential, sine, cosine, or product of these — which covers most applications.
+Variation of parameters is general and requires integration. The resonance case, where the
+forcing matches a homogeneous solution, requires multiplying the trial form by the independent
+variable, and it corresponds physically to driving a system at its natural frequency, where the
+response grows without bound in the undamped case.
+
+Linear equation methods:
+  characteristic equation  substitute exponential; roots determine behaviour
+  distinct real roots      overdamped; sum of exponentials
+  repeated root            critically damped; includes a factor of x
+  complex roots            underdamped; exponentially modulated oscillation
+  superposition            linear combinations of solutions are solutions
+  Wronskian                nonzero indicates linear independence
+  undetermined coefficients  guess a form matching the forcing; simple and limited
+  variation of parameters  general; requires integration
+  resonance                forcing matches a natural frequency; multiply the trial
+                           form by x, and the response is unbounded without damping
+  reduction of order       find a second solution given one
+  Cauchy-Euler             variable coefficients of a special form; substitute a
+                           power
+
+Systems of first-order equations subsume higher-order equations, since any nth-order equation
+becomes a system of n first-order ones by introducing the derivatives as new variables. This is
+why numerical solvers take first-order systems as their input format and why the theory is
+developed there. For linear systems with constant coefficients, the solution is governed by the
+eigenvalues and eigenvectors of the coefficient matrix, so the entire behaviour follows from an
+eigenvalue problem.
+
+The phase plane is the geometric representation for two-dimensional systems, plotting one
+variable against the other with trajectories showing how the state evolves. Equilibria are
+classified by the eigenvalues at that point: both negative real gives a stable node, both
+positive an unstable node, opposite signs a saddle, complex with negative real part a stable
+spiral, complex with positive real part an unstable spiral, and purely imaginary a centre. This
+classification is what makes qualitative analysis of nonlinear systems possible — linearize at
+each equilibrium and read off the local behaviour.
+
+## Series, Transforms, and Special Functions
+
+Not every equation has an elementary solution, and series methods extend reach substantially.
+The power series method assumes a solution expressible as a series about a point, substitutes,
+and derives a recurrence for the coefficients. At an ordinary point this works directly. At a
+regular singular point the Frobenius method generalizes by including a leading power that need
+not be an integer, and it is what produces the special functions of mathematical physics.
+
+Bessel functions, Legendre polynomials, Hermite polynomials, and the rest arise as solutions
+of specific equations that recur because they come from separating variables in the standard
+coordinate systems. Bessel functions appear whenever cylindrical geometry is involved — a
+vibrating drumhead, a waveguide, heat flow in a pipe. Legendre polynomials appear in spherical
+geometry, which is why they underlie the spherical harmonics used in quantum mechanics,
+geodesy, and computer graphics. Their properties are tabulated precisely because they recur so
+often.
+
+The Laplace transform converts differential equations in time into algebraic equations in a
+complex variable, solves them algebraically, and inverts. Its practical advantage is that
+initial conditions enter automatically rather than being applied afterward, and that it handles
+discontinuous and impulsive forcing that would require piecewise treatment otherwise. This is
+why it is standard in control theory, where step and impulse responses are the objects of
+interest and where the transfer function — the transform of the impulse response — is the
+central representation.
+
+Transform and series methods:
+  power series          about an ordinary point; recurrence for the coefficients
+  Frobenius             about a regular singular point; a non-integer leading power
+  Bessel functions      cylindrical geometry; drumheads, waveguides, pipes
+  Legendre polynomials  spherical geometry; the basis of spherical harmonics
+  Laplace transform     differential to algebraic; initial conditions built in
+  transfer function     the transform of the impulse response; the control theory
+                        representation
+  convolution theorem   convolution in time is multiplication in the transform
+                        domain
+  Fourier series        periodic functions as sums of sinusoids; the basis for
+                        separation of variables on bounded domains
+  Fourier transform     for problems on infinite domains
+  Green's function      the response to a point source; the general solution
+                        follows by superposition
+  step and impulse      Heaviside and Dirac; handled naturally by transforms
+
+The Green's function deserves emphasis because it captures the structure of linear problems
+compactly. If the response to a point source is known, the response to any distributed source
+follows by superposition — integrating the Green's function against the source distribution.
+This turns a differential equation into an integral, and it is the basis of boundary element
+methods, of the propagator formalism in quantum field theory, and of the influence function
+approach in structural analysis. Its existence depends entirely on linearity, which is another
+instance of why the linear-nonlinear distinction matters so much.
+
+## Partial Differential Equations
+
+Partial differential equations involve several independent variables and describe fields
+rather than functions of one variable. Second-order linear equations in two variables classify
+into three types by the sign of a discriminant, and the classification determines the character
+of the solutions and the appropriate methods — a classification that turns out to correspond to
+three physically distinct kinds of behaviour.
+
+Elliptic equations, of which Laplace's equation is the archetype, describe equilibrium states.
+Their solutions are smooth, they satisfy a maximum principle placing extrema on the boundary,
+and information propagates instantly throughout the domain, so the solution at every point
+depends on the entire boundary. They are boundary value problems.
+
+Parabolic equations, of which the heat equation is the archetype, describe diffusion. They
+smooth initial data immediately — an initial discontinuity becomes infinitely differentiable
+for any positive time — and they have infinite propagation speed in the mathematical model,
+which is a known unphysical artifact. They are irreversible: running the heat equation backward
+is ill-posed, which is why deblurring and inverse heat conduction are hard problems requiring
+regularization.
+
+Hyperbolic equations, of which the wave equation is the archetype, describe propagation. They
+preserve discontinuities, propagating them along characteristics at finite speed, and they are
+reversible in time. The domain of dependence is finite, so the solution at a point depends only
+on the initial data within the backward characteristic cone — which is the mathematical
+expression of a finite signal speed and is what the CFL condition enforces numerically.
+
+Classification and canonical equations:
+  elliptic               Laplace, Poisson; equilibrium, smooth, maximum principle,
+                         boundary value problems
+  parabolic              heat, diffusion; smoothing, irreversible, infinite
+                         propagation speed in the model
+  hyperbolic             wave; propagation at finite speed, preserves
+                         discontinuities, reversible
+  separation of variables  assume a product solution; reduces to ODEs; requires
+                         a suitable geometry and boundary conditions
+  eigenfunction expansion  expand in the eigenfunctions of the spatial operator
+  Dirichlet condition    value specified on the boundary
+  Neumann condition      derivative specified; pure Neumann determines the solution
+                         only up to a constant and requires a compatibility
+                         condition on the sources
+  Robin condition        a combination; convective heat transfer
+  method of characteristics  for first-order and hyperbolic equations; follows the
+                         curves along which information travels
+  well-posedness         existence, uniqueness, and continuous dependence on data;
+                         a problem lacking the third is ill-posed and requires
+                         regularization
+
+Separation of variables is the classical technique and its scope is worth stating precisely.
+Assuming a solution that is a product of functions of each variable, substituting, and dividing
+gives an equation in which each side depends on different variables and must therefore equal a
+constant. This reduces the partial differential equation to ordinary ones, and the boundary
+conditions turn the spatial problem into an eigenvalue problem whose eigenfunctions form a
+basis. The method requires a coordinate system in which the domain boundaries are coordinate
+surfaces, which is why it works beautifully for rectangles, discs, and spheres and not at all
+for an arbitrary shape.
+
+## Nonlinear Dynamics
+
+Nonlinear equations lack superposition, so the systematic methods for linear problems do not
+apply and closed-form solutions are exceptional. The productive approach is qualitative:
+determine the equilibria, linearize about each to establish local behaviour, and assemble a
+global picture from the local ones plus additional structure such as conserved quantities or
+Lyapunov functions.
+
+Linearization about an equilibrium replaces the nonlinear system with its Jacobian, and the
+Hartman-Grobman theorem justifies this: near a hyperbolic equilibrium, one whose eigenvalues
+have no zero real part, the nonlinear system is topologically equivalent to its linearization.
+The theorem's condition matters, because at a non-hyperbolic equilibrium the linearization is
+inconclusive and the nonlinear terms determine the behaviour — which is precisely the situation
+at a bifurcation.
+
+Bifurcations are qualitative changes in the structure of solutions as a parameter varies, and
+a small number of types account for most cases. A saddle-node bifurcation creates or destroys a
+pair of equilibria. A transcritical bifurcation exchanges the stability of two equilibria that
+cross. A pitchfork bifurcation replaces one stable equilibrium with two, and is characteristic
+of symmetric systems undergoing symmetry breaking. A Hopf bifurcation converts a stable
+equilibrium into an unstable one surrounded by a limit cycle, which is how sustained
+oscillation arises in a system that previously settled.
+
+Nonlinear concepts:
+  equilibrium            where all derivatives vanish
+  linearization          the Jacobian; valid near hyperbolic equilibria
+  Hartman-Grobman        topological equivalence to the linearization
+  phase portrait         the global picture of trajectories
+  limit cycle            an isolated closed orbit; sustained oscillation with
+                         amplitude independent of initial conditions
+  Poincare-Bendixson     a bounded trajectory in two dimensions approaches an
+                         equilibrium or a limit cycle; hence no chaos in the plane
+  Lyapunov function      a scalar decreasing along trajectories; proves stability
+                         without solving
+  conserved quantity     constrains trajectories to level sets
+  saddle-node            equilibria created or destroyed in pairs
+  transcritical          two equilibria exchange stability
+  pitchfork              symmetry breaking; one equilibrium becomes three
+  Hopf                   an equilibrium loses stability, giving a limit cycle
+  period doubling        successive bifurcations leading to chaos; Feigenbaum's
+                         universal constant governs the spacing
+  strange attractor      bounded, aperiodic, fractal; the geometry of chaos
+  sensitive dependence   exponential divergence of nearby trajectories; the
+                         defining property of chaos
+
+The Poincare-Bendixson theorem is worth knowing because it establishes a hard limit on what
+two-dimensional continuous systems can do. A bounded trajectory in the plane must approach
+either an equilibrium or a closed orbit, so chaos requires at least three dimensions in a
+continuous autonomous system. Discrete maps are not so constrained — the one-dimensional
+logistic map is chaotic — because a map can jump rather than moving continuously, and it is the
+continuity of the flow together with the planar topology that forces the restriction.
+
+Numerical solution is how nonlinear systems are actually studied, and the practical guidance
+follows from the equation's character. Non-stiff problems are handled by explicit
+Runge-Kutta methods with adaptive stepping. Stiff problems, with widely separated timescales,
+require implicit methods, since the explicit step size is bounded by stability rather than
+accuracy and becomes impractically small. Hamiltonian systems integrated over long times require
+symplectic methods that preserve phase-space structure, so that conserved quantities oscillate
+within a bound rather than drifting. And for any of these, verifying the result by refining the
+tolerance and confirming the answer stops changing is the minimum standard, because a plausible
+trajectory produced by an inappropriate method is indistinguishable from a correct one without
+that check.

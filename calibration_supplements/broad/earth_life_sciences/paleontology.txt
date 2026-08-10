@@ -1,0 +1,245 @@
+================================================================================
+AREA: Earth and Life Sciences
+SUBJECT: Paleontology
+Subtopics: fossilization and bias, dating and correlation, functional morphology,
+major transitions, mass extinctions, paleoecology and paleoclimate, methods.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Fossilization and the Biases of the Record
+
+Paleontology reconstructs past life from its preserved remains, and the discipline's foundational
+skill is understanding what the record does and does not contain. Fossilization is rare and highly
+selective. It requires rapid burial in sediment before decay and scavenging destroy the remains, an
+environment where the sediment is preserved rather than eroded, and geological history that brings
+the result to the surface where it can be found.
+
+The resulting biases are systematic rather than random, which means they can be corrected for
+partly and must be reasoned about always. Hard parts preserve and soft tissue rarely does, so
+shelled marine invertebrates dominate the record while soft-bodied organisms are nearly absent.
+Aquatic and low-lying environments accumulate sediment while uplands erode, so marine and lowland
+life is overrepresented. Abundant, widespread, durable, and long-lived species are far more likely
+to be sampled than rare, localized, fragile, or short-lived ones.
+
+Exceptional preservation deposits are the windows that correct this picture, and their importance is
+disproportionate to their number. Sites where anoxic conditions, rapid burial in fine sediment, or
+early mineralization preserved soft tissue reveal entire faunas that are otherwise invisible — and
+in every well-studied case, the soft-bodied organisms substantially outnumber the shelly ones. Since
+the ordinary record shows the reverse, the inference is that most of the diversity of past life left
+no trace at all.
+
+Fossilization and bias:
+  the requirements     rapid burial, sediment preservation, later exposure
+  taphonomy            the study of what happens between death and discovery
+  hard part bias       shells and bones over soft tissue
+  environment bias     depositional settings over erosional ones
+  abundance bias       common, widespread, durable species oversampled
+  temporal bias        younger rocks are more abundant and less altered
+  geographic bias      where rocks of the right age outcrop and where people have
+                       looked
+  exceptional preservation  anoxia, fine sediment, or early mineralization
+  what those sites show  soft-bodied organisms outnumbering shelly ones
+  the inference        most past diversity left no trace
+  trace fossils        tracks, burrows, and borings; record behaviour rather than
+                       anatomy
+  the trace advantage  a trace is necessarily in place, while a body may have
+                       been transported
+  molecular fossils    biomarkers and, in young material, ancient DNA and
+                       proteins
+  the sampling correction  diversity curves must be corrected for sampling effort
+                       and rock availability, because uncorrected curves largely
+                       track how much rock of each age exists
+
+Q: A fossil assemblage contains only shelled marine invertebrates. The strongest inference is:
+A. Only shelled invertebrates lived there
+B. The preservation conditions favoured hard parts, so soft-bodied organisms that were present are
+   simply absent from the record; the assemblage constrains what was there and does not enumerate
+   it
+C. The site is unimportant
+D. Soft-bodied life had not evolved
+Reasoning: Absence in the fossil record is weak evidence of absence in life, because the
+preservation filter is severe and systematic. Comparison with exceptional preservation sites of the
+same age routinely reveals abundant soft-bodied taxa that the ordinary record omits entirely.
+Answer: B.
+
+## Dating, Correlation, and the Timescale
+
+The geological timescale was constructed from relative dating long before absolute ages were
+available, and its principles remain the framework. Superposition places younger layers above older
+ones. Original horizontality means tilted strata were tilted after deposition. Cross-cutting
+relationships date an intrusion or a fault as younger than what it cuts. These simple rules order
+events at a locality; correlating between localities requires something else.
+
+Biostratigraphy provides that correlation. Species that were widespread, abundant, easily
+identified, and short-lived make excellent index fossils, because their presence dates a layer
+narrowly and their range is broad enough to appear in distant sections. Assemblages of overlapping
+ranges give finer resolution than any single species. This is how the timescale was built and it
+remains the primary correlation tool in sedimentary sequences.
+
+Absolute dating came from radioactive decay, and its application to sedimentary rocks is indirect
+because the dateable minerals are usually igneous. A volcanic ash layer within a sedimentary
+sequence, or an intrusion cutting it, brackets the sediment's age. Different isotope systems suit
+different age ranges and materials, and the reliability of any date depends on whether the system
+remained closed — whether parent or daughter isotopes were lost or gained after formation — which is
+why concordance between independent systems is the standard for a well-established age.
+
+Dating and correlation:
+  superposition        younger above older
+  original horizontality  tilting is later than deposition
+  cross-cutting relationships  the cutter is younger
+  unconformity         a gap in the record; sometimes representing more time than
+                       the rock above and below combined
+  biostratigraphy      correlation by fossil content
+  index fossil         widespread, abundant, distinctive, short-lived
+  assemblage zones     overlapping ranges giving finer resolution
+  radiometric dating   decay of unstable isotopes
+  the indirect application  volcanic layers bracketing sediment
+  system selection     different isotope pairs for different ranges and materials
+  closed system assumption  no gain or loss after formation; the main failure
+                       mode
+  concordance          agreement between independent systems as the reliability
+                       standard
+  magnetostratigraphy  correlation by the pattern of magnetic reversals
+  chemostratigraphy    correlation by isotopic excursions recorded globally
+  cyclostratigraphy    orbital cycles recorded in sediment; provides very high
+                       resolution timing where the sedimentation is continuous
+  the resolution reality  most of the record is coarser than the questions asked
+                       of it, and honest work states the uncertainty rather than
+                       reporting a point age
+
+## Functional Morphology and Inference from Form
+
+Inferring how an extinct organism lived from its preserved anatomy is the core interpretive
+activity, and it proceeds by several lines of reasoning whose reliability differs considerably. The
+strongest is comparison with living relatives sharing the structure, because the functional
+relationship can be observed directly. Next is biomechanical analysis, which applies physical
+principles to the structure and does not require a living analogue. Weakest is analogy with
+unrelated organisms of similar form, which is suggestive and frequently misleading.
+
+Phylogenetic bracketing formalizes the comparative approach. If a feature is present in both the
+nearest living relatives on either side of an extinct group, its presence in that group is strongly
+supported even though it does not preserve. This is the reasoning that supports inferences about
+soft tissue, physiology, and behaviour in extinct groups, and it is far more constrained than
+unstructured speculation.
+
+Biomechanics applies engineering analysis directly. Limb bone cross-sections indicate loading
+regime. Tooth shape and wear indicate diet. Jaw muscle attachment area and mechanical advantage
+indicate bite force. Body proportion and joint geometry constrain gait. These analyses produce
+quantitative estimates with stated uncertainties, and they occasionally overturn conclusions that
+comparative reasoning had established, which is why both approaches are applied.
+
+Functional inference:
+  living relatives     the strongest comparison
+  biomechanics         physical principles without needing an analogue
+  distant analogy      suggestive and often misleading
+  phylogenetic bracketing  a feature in relatives on both sides supports it in
+                       between
+  the constraint it provides  soft tissue and behaviour inferred with structure
+  bone histology       growth rate and, indirectly, metabolic strategy
+  growth series        ontogeny reconstructed from individuals of different ages
+  the ontogeny confusion  juveniles of one species described as separate species;
+                       a recurring error corrected repeatedly
+  tooth wear           diet from microwear and from macroscopic shape
+  isotopic diet analysis  carbon and nitrogen ratios recording trophic level and
+                       food source
+  bite force           from muscle attachment area and mechanical advantage
+  gait analysis        joint geometry and trackway spacing together
+  trackways            speed and behaviour from spacing and pattern; sometimes
+                       recording group movement no skeleton could reveal
+  the reasoning discipline  state which inference type supports each claim,
+                       because a bracketed inference and a distant analogy carry
+                       very different weight and are frequently presented alike
+
+## Major Transitions and Mass Extinctions
+
+The history of life is punctuated by transitions where new body plans, ecologies, or environments
+were entered, and the fossil record documents several in enough detail to reconstruct the sequence.
+The origin of animals, the colonization of land by plants and then animals, the origin of flight
+independently in several lineages, the return of tetrapods to the water, and the origin of flowering
+plants each have transitional sequences that were once predicted and later found.
+
+The vertebrate transition to land is the best-documented and worth knowing as a template. It shows a
+sequence of forms with progressively more robust limb skeletons, changes in the connection between
+skull and shoulder permitting neck mobility, and modifications of the respiratory apparatus — all
+appearing in aquatic animals before any of them were terrestrial. The features that enabled life on
+land evolved in water, for reasons unrelated to leaving it, and this pattern of exaptation is
+general rather than exceptional.
+
+Mass extinctions are intervals when extinction rates far exceed the background, and five are
+conventionally recognized in the Phanerozoic. Their causes differ and the common thread is rapid
+environmental change on a timescale shorter than adaptation permits. The end-Permian was the most
+severe, eliminating the large majority of marine species, and is associated with massive volcanism
+and its climatic and chemical consequences. The end-Cretaceous is the best constrained, with an
+impact structure, a global iridium-rich layer, and shocked minerals establishing the mechanism.
+
+Transitions and extinctions:
+  the documented transitions  animal origins, land colonization, flight, marine
+                       return, flowering plants
+  the tetrapod template  limb, neck, and respiratory changes appearing in aquatic
+                       animals first
+  exaptation           features arising for one reason and co-opted for another
+  the general pattern  the enabling features precede the transition and were not
+                       for it
+  predicted discoveries  transitional forms found in the predicted rocks of the
+                       predicted age; among the strongest tests the theory faces
+  background extinction  the ordinary rate
+  mass extinction      rates far above background across many groups
+  the five             conventionally recognized in the Phanerozoic
+  the common thread    environmental change faster than adaptation
+  end-Permian          the most severe; volcanism and its consequences
+  end-Cretaceous       the best constrained; impact evidence is
+                       multiply-independent
+  selectivity          which traits predicted survival differs by event and is
+                       informative about the mechanism
+  recovery             millions of years, and the recovered ecosystem differs in
+                       composition rather than restoring the previous one
+  the current comparison  present extinction rates are estimated well above
+                       background, and the comparison to past events is
+                       quantitative rather than rhetorical
+
+## Paleoecology, Paleoclimate, and Modern Methods
+
+Reconstructing past environments uses proxies — measurable properties that respond to a condition of
+interest in a calibrated way. Oxygen isotope ratios in carbonate shells record temperature and ice
+volume together, requiring independent constraint to separate them. Pollen assemblages record
+vegetation and therefore climate. Leaf margin characteristics correlate with temperature. Tree rings
+record annual growth conditions at high resolution over limited spans. Each proxy has a calibration,
+a resolution, and a set of conditions under which it fails.
+
+The value of deep-time paleoclimate is that it samples conditions outside the range of instrumental
+observation. Periods substantially warmer than the present, with much higher carbon dioxide, are
+recorded in enough detail to constrain how the climate system responds — including the equilibrium
+sensitivity to carbon dioxide, ice sheet behaviour, and sea level. These constraints are among the
+strongest available evidence about the system's long-term behaviour, since they are the only
+observations of states we are moving toward.
+
+Modern paleontology has become substantially quantitative and interdisciplinary. Computed tomography
+images internal structure without destroying specimens and reveals braincases, inner ears, and
+tooth replacement patterns previously inaccessible. Digital modelling tests biomechanical hypotheses.
+Ancient biomolecules extend molecular phylogenetics into the recent past. Large occurrence databases
+support analyses of diversity, biogeography, and extinction selectivity across the whole record,
+with the sampling corrections that such analyses require built into the methodology.
+
+Paleoecology and methods:
+  proxy                a measurable property calibrated to a condition
+  oxygen isotopes      temperature and ice volume together
+  the separation problem  independent constraint required to resolve them
+  pollen               vegetation and hence climate
+  leaf physiognomy     temperature from margin and size characteristics
+  tree rings           annual resolution over limited spans
+  proxy calibration    every proxy has conditions under which it fails
+  multi-proxy agreement  the standard for a robust reconstruction
+  deep-time value      sampling conditions outside instrumental range
+  past warm periods    constrain sensitivity, ice sheet behaviour, and sea level
+  the relevance        the only observations of states the system is moving
+                       toward
+  computed tomography  internal structure without destruction
+  digital modelling    biomechanical hypotheses tested quantitatively
+  ancient biomolecules  DNA and proteins extending phylogenetics into the past
+  occurrence databases  large-scale diversity and biogeography analysis
+  sampling standardization  built into the method rather than applied afterward
+  the field's character  it is a historical science, which means its inferences
+                       are constrained by evidence rather than produced by
+                       experiment, and the discipline is in stating what the
+                       evidence supports and what it merely permits

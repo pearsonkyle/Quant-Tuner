@@ -1,0 +1,241 @@
+================================================================================
+AREA: Embedded and Hardware Engineering
+SUBJECT: Industrial Automation and Control
+Subtopics: controllers and I/O, ladder logic and programming, fieldbus and networks,
+sensors and actuators, safety systems, SCADA and historians, commissioning.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Controllers, Scan Cycles, and I/O
+
+Industrial control differs from general embedded development in its priorities. Determinism outranks
+throughput, availability outranks features, and diagnosability outranks elegance, because the system
+runs continuously for years, is maintained by people who did not write it, and its failures stop
+production or hurt someone. Every convention in the field follows from those priorities.
+
+The programmable logic controller is the standard platform, and its defining characteristic is the
+scan cycle. Inputs are read into an image table, the program executes on that snapshot, and outputs
+are written from the result. Nothing changes mid-scan, which means the logic sees a consistent view
+of the world and the timing is bounded and predictable. Understanding this cycle explains most of
+the behaviour that surprises people arriving from general programming, including why a signal
+shorter than one scan can be missed entirely and why the order of rungs matters for results within
+a scan.
+
+Input and output modules translate between the controller and the plant. Digital inputs sense
+contacts and proximity switches; digital outputs drive relays and valves; analogue inputs read
+sensors as current or voltage; analogue outputs drive positioners and drives. The four-to-twenty
+milliamp current loop is the dominant analogue standard because it is immune to voltage drop over
+long cable runs and because zero current is distinguishable from a valid zero reading, so a broken
+wire is detectable rather than being read as a legitimate minimum value.
+
+Controllers and I/O:
+  the priorities       determinism, availability, diagnosability
+  scan cycle           read inputs, execute, write outputs
+  image table          a consistent snapshot; nothing changes mid-scan
+  scan time            bounded and monitored; an overrun is a fault
+  the short pulse problem  a signal shorter than one scan can be missed; latch it
+                       in hardware or use an interrupt input
+  digital input        contacts, proximity switches, limit switches
+  digital output       relays, contactors, solenoid valves
+  analogue input       sensors as current or voltage
+  four-to-twenty milliamp  the dominant standard
+  the live zero        zero current is invalid, so a broken wire is detectable
+  sinking and sourcing  which side supplies current; mismatching them is the most
+                       common wiring error
+  isolation            galvanic separation between field and controller; protects
+                       against ground potential differences that are large in
+                       industrial environments
+  redundancy           dual controllers with bumpless transfer for processes that
+                       cannot stop
+  hot swap             module replacement without stopping; standard on
+                       higher-tier platforms
+
+Q: An analogue input configured for four-to-twenty milliamp reads zero current. The correct
+interpretation is:
+A. The measured variable is at its minimum
+B. A fault — a broken wire, a failed transmitter, or lost loop power; a valid minimum reading is
+   four milliamps, and zero is outside the signalling range by design
+C. The scaling is wrong
+D. The sensor is saturated
+Reasoning: The live-zero convention exists precisely so that circuit failure is distinguishable
+from a legitimate low reading. Zero current means the loop is broken, not that the process variable
+is at its lower limit. Answer: B.
+
+## Programming Languages and Structure
+
+The standard defines several programming languages and each suits different work. Ladder logic
+represents the program as rungs resembling relay wiring diagrams, and it remains dominant for
+discrete control because maintenance electricians can read it and because its execution semantics
+are transparent. Structured text is a conventional procedural language suited to calculations and
+algorithms that ladder expresses awkwardly. Function block diagram suits continuous process control
+where the data flow between blocks is the natural description. Sequential function chart suits
+state machines and batch sequences directly.
+
+Choosing among them is a maintainability decision more than a technical one. A clever structured
+text implementation of interlock logic that a plant electrician cannot read at three in the morning
+is a worse solution than a verbose ladder implementation they can follow. The people who will
+maintain the code are part of the requirements, and this is one of the few software domains where
+that is universally acknowledged.
+
+State machines are the correct structure for most sequential control, and implementing them
+explicitly rather than as accumulated interlocking conditions is the single largest improvement
+available to most industrial code. An explicit state variable with defined transitions is
+inspectable at runtime, testable, and comprehensible; a web of latching coils that has grown over
+years is none of those, and it is the normal state of code that was never structured deliberately.
+
+Programming:
+  ladder logic         rungs resembling relay diagrams; dominant for discrete
+                       control
+  the readability argument  maintenance staff can follow it
+  structured text      procedural; suits calculations and algorithms
+  function block diagram  data flow between blocks; suits continuous control
+  sequential function chart  states and transitions; suits batch sequences
+  the maintainability criterion  who will read this at three in the morning
+  explicit state machines  an inspectable state variable with defined transitions
+  the alternative       accumulated latching conditions nobody can reason about
+  retentive memory     values surviving power loss; specify deliberately which
+                       ones should
+  first scan handling  initialization on startup; a common source of subtle bugs
+  timers and counters  the standard building blocks; know whether a timer is
+                       retentive
+  symbolic addressing  named tags rather than raw addresses; the difference
+                       between maintainable and not
+  documentation in the code  rung comments are the primary documentation and
+                       they are read; write them for the person diagnosing a fault
+  version control      historically weak in this domain and improving; a
+                       controller whose program exists only in the controller is
+                       an outage waiting to happen
+
+## Fieldbus, Networks, and Distributed I/O
+
+Wiring every sensor and actuator back to a central controller does not scale, so industrial networks
+distribute I/O to the equipment and carry data over a shared medium. The protocols differ in their
+determinism guarantees, their physical layer, and their diagnostic capability, and the choice is
+usually dictated by the equipment being integrated rather than made freshly.
+
+Determinism is the property that distinguishes industrial networking from office networking. A
+control loop needs its data within a bounded time every cycle, and a network that delivers it
+eventually is not adequate. The mechanisms for guaranteeing this include token passing, scheduled
+time slots, and prioritized traffic classes on switched ethernet, and each imposes a design
+discipline about what other traffic is permitted on the same physical network.
+
+Industrial ethernet has largely displaced older serial fieldbuses for new installations while the
+older ones remain in service for decades. The practical consequence is that most real plants run
+several protocols simultaneously with gateways between them, and a substantial fraction of
+integration effort goes into those boundaries. Gateway failures are also disproportionately
+represented in incident reports, because they are the points where two systems each assume the other
+handles something.
+
+Networks:
+  distributed I/O      modules at the equipment, data over a shared medium
+  determinism          bounded delivery time every cycle
+  token passing        deterministic access by rotation
+  scheduled slots      time-division access
+  traffic prioritization  on switched ethernet
+  the discipline       control what else shares the physical network
+  serial fieldbuses    long-lived, still in service, gradually displaced
+  industrial ethernet  the default for new installations
+  gateways             protocol boundaries; a disproportionate share of incidents
+  the boundary assumption  each side assuming the other handles something
+  cable and connector standards  industrial connectors exist because office ones
+                       fail in vibration, oil, and washdown
+  shielding and grounding  single-point grounding of shields; a shield grounded at
+                       both ends carries current and injects noise
+  network segmentation  control networks separated from business networks
+  the security position  these systems were designed for isolated networks and
+                       increasingly are not isolated; segmentation, monitoring,
+                       and controlled remote access are the practical response
+                       since patching is often impossible on running plant
+
+## Sensors, Actuators, and Control Loops
+
+Process instrumentation measures the variables the control system acts on, and each measurement
+principle has failure modes that determine where it can be trusted. Pressure measurement is robust
+and drifts with temperature. Temperature by thermocouple is wide-range and low-accuracy; by
+resistance element it is accurate and limited in range. Flow measurement varies enormously by
+principle, with differential pressure being cheap and requiring straight pipe runs, and magnetic and
+coriolis meters being accurate and expensive. Level measurement is deceptively difficult and its
+errors cause a large share of process incidents.
+
+The proportional-integral-derivative controller remains the workhorse of continuous control and its
+three terms have distinct roles. Proportional action responds to current error and alone leaves a
+steady-state offset. Integral action accumulates error and eliminates that offset at the cost of
+potential overshoot and windup. Derivative action responds to the rate of change and adds damping,
+and it amplifies measurement noise, which is why it is frequently omitted or filtered heavily.
+
+Tuning is done systematically or badly. The classical methods based on the process reaction curve or
+on the ultimate gain give starting points; the practical approach is to characterize the process
+response, set the controller for the desired closed-loop behaviour, and verify against a disturbance
+rather than only against a setpoint change. Integral windup — the accumulator growing while the
+output is saturated — is the failure that produces large overshoot after a prolonged deviation, and
+anti-windup handling is standard on any competent implementation and should be verified rather than
+assumed.
+
+Instrumentation and control:
+  pressure             robust; temperature-dependent drift
+  thermocouple         wide range, lower accuracy, needs cold junction
+                       compensation
+  resistance temperature detector  accurate, narrower range
+  differential pressure flow  cheap, needs straight runs upstream and downstream
+  magnetic and coriolis flow  accurate, expensive, principle-specific limits
+  level measurement    deceptively difficult; a large share of process incidents
+  valve positioners    closing the loop on actual stem position
+  variable frequency drives  motor speed control; the dominant energy saving in
+                       pumping and fan applications
+  proportional action  responds to current error; leaves offset
+  integral action      eliminates offset; can overshoot and wind up
+  derivative action    adds damping; amplifies noise
+  filtering            necessary on the derivative term
+  tuning               characterize the process, then set for desired closed-loop
+                       behaviour
+  disturbance testing  verify against a load change, not only a setpoint change
+  integral windup      the accumulator growing while the output is saturated
+  anti-windup          standard, and worth verifying rather than assuming
+  cascade control      an inner fast loop inside an outer slow one; the standard
+                       structure when an intermediate variable is measurable
+
+## Safety Systems, SCADA, and Commissioning
+
+Safety instrumented systems are separate from the control system by design, and the separation is
+the point. The control system optimizes the process; the safety system takes it to a safe state when
+defined conditions occur, and it must do so independently of whatever the control system is doing or
+failing to do. Combining them means a single failure can both cause a hazard and disable the
+protection against it.
+
+Safety functions are specified with a required integrity level derived from a risk assessment,
+which determines the architecture — redundancy, voting, and proof test intervals — needed to achieve
+the target failure probability. The certification of components matters and does not substitute for
+correct specification, and the most common deficiency found in assessments is not hardware but a
+safety function whose specification does not actually cover the hazard scenario it was assumed to.
+
+Supervisory systems provide the operator interface and historical data. The interface design
+principles that matter are hierarchy — overview, area, detail — consistent representation, alarms
+that mean something, and displays that show deviations rather than raw values. Alarm management is
+the recurring failure: systems accumulate alarms until operators face hundreds per hour, at which
+point they are ignored wholesale, and the rationalization exercise that reduces them to actionable
+ones is unglamorous and among the highest-value work available in a plant.
+
+Safety and supervision:
+  separation           safety systems independent of control systems
+  the reason           a single failure must not both cause and unprotect a hazard
+  hazard analysis      the systematic identification of what can go wrong
+  integrity level      derived from risk; determines required architecture
+  redundancy and voting  two-out-of-three and similar arrangements
+  proof testing        periodic verification that a dormant function still works
+  the common deficiency  specification gaps rather than hardware failures
+  fail-safe design     the de-energized state is the safe state
+  emergency stop       hardwired, independent of software, and it must be
+                       verifiable
+  supervisory interface  overview, area, and detail hierarchy
+  deviation display    show departure from normal rather than raw values
+  alarm rationalization  every alarm actionable, prioritized, and unique
+  alarm flood          hundreds per hour; results in wholesale ignoring
+  historian            time series storage for analysis and incident
+                       reconstruction
+  commissioning        loop checks, function tests, and documented sign-off
+  factory and site acceptance testing  catch what simulation cannot
+  the operational reality  the plant runs for decades, the original engineers
+                       leave, and the drawings, tags, and comments are what the
+                       next person has; producing them well is not overhead, it
+                       is the deliverable

@@ -1,0 +1,306 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: Computer Vision
+Subtopics: image formation and representation, classical processing, features,
+convolutional networks, detection and segmentation, video and 3D, vision transformers,
+practical deployment.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Image Formation and Representation
+
+An image is a projection of a three-dimensional scene onto a two-dimensional sensor, and
+the information lost in that projection is what makes vision hard. Depth is not directly
+recoverable from a single view, scale and distance are confounded, and the appearance of a
+surface depends on illumination, viewing angle, and material properties as much as on the
+object's identity. Every vision system is in some sense recovering what the projection
+discarded.
+
+The pinhole camera model relates world coordinates to image coordinates through a
+perspective projection, parameterized by intrinsics — focal length, principal point, and skew
+— and extrinsics giving the camera's pose in the world. Real lenses deviate from the pinhole
+model through radial and tangential distortion, which is corrected by calibration: imaging a
+known pattern from many angles and solving for the parameters that best explain the observed
+positions. Uncalibrated geometry is why measurements from ordinary photographs are unreliable
+and why any metric vision task begins with calibration.
+
+Digital images quantize both space and intensity. Spatial sampling introduces aliasing when
+the scene contains detail finer than the pixel spacing, which appears as moiré patterns on
+regular structures and as jagged edges elsewhere; the remedy is optical low-pass filtering
+before sampling, which is why many sensors include an anti-aliasing filter and why removing
+it improves sharpness at the cost of moiré. Intensity quantization to eight bits is
+adequate for display and inadequate for processing, since operations that stretch contrast
+expose the quantization as banding — which is why raw capture and higher bit depths matter
+for any pipeline that adjusts exposure.
+
+Image formation concepts:
+  pinhole model         perspective projection; parallel lines meet at vanishing
+                        points
+  intrinsics            focal length, principal point, skew; internal to the camera
+  extrinsics            rotation and translation; the camera's pose
+  radial distortion     barrel or pincushion; corrected by calibration
+  colour spaces         RGB for capture and display, HSV for intuitive
+                        manipulation, Lab for perceptual uniformity, YCbCr for
+                        compression since chroma can be subsampled
+  gamma                 display encoding is nonlinear; linearize before any
+                        arithmetic on light
+  bit depth             8-bit for display, 12-16 for capture; processing in higher
+                        depth avoids banding
+  aliasing              from sampling below Nyquist; requires optical prefiltering
+  demosaicing           reconstructing colour from a Bayer pattern; a source of
+                        artifacts at edges
+  dynamic range         the sensor's ratio of saturation to noise floor; the
+                        limiting factor in high-contrast scenes
+
+The gamma issue deserves the same emphasis it receives in graphics, because it silently
+corrupts image processing. Standard image files are gamma-encoded, so pixel values are not
+proportional to light. Averaging, blurring, resizing, and blending performed directly on
+encoded values produce results that are systematically too dark, and the effect is most
+visible when downsampling — a checkerboard of black and white pixels averaged in encoded
+space gives a mid-grey that is far darker than the correct result. Converting to linear
+before arithmetic and back afterward fixes it, and libraries that do this by default are the
+exception rather than the rule.
+
+Q: Downsampling an image by averaging pixel values directly in an 8-bit sRGB file produces a
+result that is too dark. The cause is:
+A. Insufficient bit depth
+B. sRGB values are gamma-encoded and not proportional to light, so averaging them does not
+   average the light
+C. The wrong interpolation kernel
+D. Chroma subsampling
+Reasoning: sRGB applies a roughly 2.2 power curve, so a value of 0.5 corresponds to about 22
+percent of the light of a value of 1.0. Averaging encoded values therefore weights bright
+regions too little. Linearizing, averaging, and re-encoding gives the correct result.
+Answer: B.
+
+## Classical Processing and Features
+
+Filtering is the foundation of classical image processing and remains embedded inside modern
+architectures. Convolution with a kernel computes a weighted sum over a neighbourhood, and
+the kernel determines the operation: a Gaussian smooths, a Laplacian detects intensity
+changes in all directions, and directional derivative kernels detect edges of a particular
+orientation. Separability matters for cost — a two-dimensional Gaussian can be applied as two
+one-dimensional passes, reducing the work from the square of the kernel size to twice its
+size.
+
+Nonlinear filters solve problems linear ones cannot. A median filter removes impulse noise
+while preserving edges, because the median of a neighbourhood containing a few outliers is
+unaffected by them while a mean is dragged toward them. Bilateral filtering smooths while
+preserving edges by weighting neighbours by both spatial and intensity distance, so pixels
+across an edge contribute little. Morphological operations on binary images — erosion,
+dilation, and their compositions opening and closing — clean up segmentation results by
+removing small artifacts and filling small gaps.
+
+Feature detection finds points that can be reliably located across images, and the criterion
+is distinctiveness in all directions. A flat region has no localizable position; an edge is
+localizable perpendicular to itself and not along it; a corner is localizable in both
+directions, which is why corner detectors are the basis of matching. Descriptors then
+characterize the local appearance around each point in a way that is invariant to the
+transformations expected — rotation, scale, illumination — so that the same physical point
+produces a similar descriptor in a different image.
+
+Classical operations:
+  Gaussian blur        smoothing; separable; the standard scale-space operator
+  Sobel / Scharr       gradient; edge detection with orientation
+  Laplacian            second derivative; zero crossings at edges
+  Canny                gradient, non-maximum suppression, hysteresis thresholding;
+                       still the standard edge detector
+  median               removes impulse noise, preserves edges
+  bilateral            edge-preserving smoothing
+  morphology           erosion, dilation, opening, closing on binary masks
+  histogram equalization  contrast enhancement; CLAHE does it locally to avoid
+                       amplifying noise in flat regions
+  Harris corner        distinctive in both directions
+  SIFT / ORB           scale- and rotation-invariant descriptors; ORB is free of
+                       patent concerns and much faster
+  RANSAC               robust model fitting from data with outliers; essential for
+                       geometry estimation from noisy correspondences
+  homography           projective transform between planes; image stitching and
+                       perspective correction
+
+RANSAC deserves emphasis because it is what makes geometry from real correspondences
+possible. Feature matching produces many correct correspondences and a substantial fraction of
+wrong ones, and a least-squares fit to that mixture is dominated by the outliers. RANSAC
+repeatedly samples the minimum number of correspondences needed to fit the model, counts how
+many others agree, and keeps the hypothesis with the most support. The number of iterations
+needed grows with the outlier fraction and with the minimal sample size, which is why models
+requiring fewer points are strongly preferred in this setting.
+
+## Convolutional Networks
+
+Convolutional networks impose two priors that match natural images: locality, since nearby
+pixels are related, and translation equivariance, since a pattern's meaning does not depend on
+where it appears. Weight sharing across positions implements both, reducing parameters
+enormously relative to a fully connected layer and making learned features
+position-independent.
+
+The receptive field — the input region influencing one output unit — grows with depth and is
+a real design constraint. Stacking 3x3 convolutions grows it by two per layer, so
+capturing context spanning a large fraction of the image requires either many layers,
+downsampling to increase the effective field relative to the image, or dilated convolutions
+that skip positions and grow the field exponentially without additional parameters.
+Architectures that fail on large objects frequently have receptive fields smaller than the
+objects.
+
+Residual connections were the change that made very deep networks trainable. Adding the
+input of a block to its output gives gradients an identity path to flow along, so the
+effective depth for optimization purposes is much less than the nominal depth, and networks of
+hundreds of layers train stably where plain stacks of twenty degrade. The reframing worth
+carrying is that a residual block learns a correction to the identity rather than a full
+transformation, which is an easier optimization problem when the desired mapping is close to
+identity.
+
+Convolutional architecture elements:
+  convolution           local weighted sum with shared weights
+  stride                downsampling by skipping positions
+  padding               preserves spatial size; 'same' padding is the usual default
+  pooling               downsampling by max or average; increasingly replaced by
+                        strided convolution
+  1x1 convolution       channel mixing and dimensionality change with no spatial
+                        extent; the workhorse of efficient architectures
+  depthwise separable   spatial convolution per channel followed by 1x1 mixing;
+                        roughly a tenfold reduction in computation
+  dilated / atrous      skips positions; exponentially growing receptive field
+  residual connection   identity path; enables very deep training
+  batch normalization   stabilizes training; couples examples within a batch
+  global average pool   replaces flattening plus dense layers; far fewer parameters
+                        and translation invariant
+  receptive field       must exceed the scale of the structures to be recognized
+
+Data augmentation matters more for vision than for most domains because the invariances are
+known and enumerable. Random crops teach translation invariance, horizontal flips teach
+mirror invariance where appropriate, colour jitter teaches illumination robustness, and
+rotation teaches orientation invariance where the domain permits. The caution is that the
+augmentation must reflect an invariance the deployed system actually faces: vertical flips
+are appropriate for satellite imagery and inappropriate for photographs of scenes with a
+gravitational up, and applying them wastes capacity teaching an invariance that will never be
+needed while potentially confusing classes distinguished by orientation.
+
+## Detection, Segmentation, and Beyond Classification
+
+Classification assigns a label to an entire image and is the simplest task. Detection
+additionally localizes objects with bounding boxes and must handle a variable number of
+outputs, which is the structural difficulty. Two-stage detectors first propose candidate
+regions and then classify and refine them, giving high accuracy at higher latency. One-stage
+detectors predict boxes and classes directly over a dense grid of positions, which is faster
+and historically less accurate, with the gap having largely closed. Transformer-based
+detectors treat detection as set prediction with learned queries, removing the hand-designed
+anchor boxes and non-maximum suppression entirely.
+
+Segmentation assigns a label per pixel. Semantic segmentation labels each pixel with a class
+without distinguishing instances; instance segmentation separates individual objects;
+panoptic segmentation combines both, labelling every pixel with a class and, for countable
+classes, an instance. Encoder-decoder architectures with skip connections dominate, because
+the encoder's downsampling provides context while the skip connections restore the spatial
+detail that downsampling destroyed — which is exactly why the U-Net shape recurs across
+segmentation, depth estimation, and image-to-image translation.
+
+The evaluation metrics have specific properties worth understanding. Intersection over union
+measures overlap between predicted and ground truth regions and is the standard for both
+detection and segmentation. Mean average precision integrates precision over recall at a
+range of IoU thresholds, which makes it sensitive to localization quality as well as
+classification. The threshold choice matters: results reported at IoU 0.5 tolerate loose
+boxes, and averaging over thresholds from 0.5 to 0.95 rewards precise localization
+substantially more.
+
+Task and evaluation vocabulary:
+  classification        one label per image
+  detection             boxes plus classes; variable output count
+  semantic segmentation per-pixel class, instances merged
+  instance segmentation per-pixel class with instances separated
+  panoptic              both, covering every pixel
+  keypoint / pose       structured point prediction
+  depth estimation      per-pixel distance; monocular depth is scale-ambiguous
+  IoU                   intersection over union; the standard overlap measure
+  mAP                   mean average precision; averaged over classes and IoU
+                        thresholds
+  non-maximum suppression  removes duplicate detections; a source of failure when
+                        objects genuinely overlap
+  anchor boxes          predefined shapes; require tuning to the dataset's object
+                        aspect ratios
+  class imbalance       most positions contain background; focal loss and hard
+                        example mining address it
+
+## Video, 3D, and Transformers
+
+Video adds a temporal dimension and the associated redundancy and opportunity. Consecutive
+frames are highly correlated, so processing every frame independently wastes computation, and
+the motion between them carries information a single frame cannot. Optical flow estimates
+per-pixel motion between frames and is the classical representation of that information.
+Modern approaches use 3D convolutions over space and time, two-stream architectures
+processing appearance and motion separately, or temporal attention.
+
+Three-dimensional vision recovers geometry from images. Stereo uses two calibrated cameras
+and computes disparity — the horizontal shift of corresponding points — which is inversely
+proportional to depth, so precision degrades quadratically with distance and the usable range
+is set by the baseline separation. Structure from motion recovers both camera poses and scene
+structure from an unordered image collection. Simultaneous localization and mapping does the
+same incrementally in real time, which is what robots and augmented reality devices require.
+Neural radiance fields and Gaussian splatting represent a scene as a continuous or
+point-based function optimized to reproduce the observed images, achieving photorealistic
+novel view synthesis from a modest number of photographs.
+
+Vision transformers apply the transformer architecture to images by splitting them into
+patches, embedding each, and treating the sequence with self-attention. They discard the
+locality and translation-equivariance priors that convolutions impose, which means they need
+substantially more data to reach the same accuracy — the priors were doing real work — and
+they exceed convolutional networks when that data is available. Hybrid architectures with
+convolutional stems or hierarchical windowed attention recover much of the efficiency while
+keeping the flexibility.
+
+Video, 3D, and modern architectures:
+  optical flow          per-pixel motion; classical and learned methods
+  3D convolution        space-time filtering; expensive
+  two-stream            separate appearance and motion pathways
+  temporal attention    long-range dependencies across frames
+  stereo disparity      depth from two views; precision falls as distance squared
+  structure from motion poses and geometry from an image collection
+  SLAM                  incremental, real-time mapping and localization
+  NeRF / splatting      learned scene representation; photorealistic novel views
+  vision transformer    patches plus self-attention; data-hungry, highly flexible
+  hierarchical / windowed  restores locality and efficiency to attention
+  self-supervised       contrastive or masked-patch pretraining; removes the label
+                        bottleneck that dominated the field for a decade
+  vision-language       joint image-text embedding; enables open-vocabulary
+                        classification and retrieval without task-specific labels
+
+[user] My defect detection model gets 97% accuracy but misses most of the actual defects.
+[assistant] tool_call cv.eval_audit({"task": "binary_defect_classification",
+"accuracy": 0.97, "positive_rate": 0.028, "recall": 0.19, "precision": 0.61,
+"threshold": 0.5, "loss": "cross_entropy", "augmentation": ["flip", "rotate"]})
+[tool] {"issue": "class_imbalance_masked_by_accuracy", "majority_baseline_accuracy":
+0.972, "model_vs_baseline": -0.002, "recommendations": ["metric_change",
+"threshold_tuning", "loss_reweighting", "defect_specific_augmentation"]}
+[assistant] Your model is performing slightly worse than a model that predicts "no defect"
+every time, which would score 97.2%. Accuracy is meaningless at a 2.8% positive rate and it is
+hiding the failure.
+
+Three changes, in order of how quickly they will help.
+
+Change the metric first, because you cannot fix what you are not measuring. Report precision
+and recall at your operating point, and average precision over the full curve. For defect
+detection, also report recall at a precision level the process can tolerate — if operators
+can inspect 10% of flagged parts, the meaningful number is recall at that flag rate.
+
+Tune the threshold. A model trained with cross-entropy on imbalanced data outputs
+well-calibrated probabilities that rarely exceed 0.5 for the rare class, so the default
+threshold suppresses nearly all positive predictions. Sweeping the threshold and choosing
+based on the actual cost of a missed defect versus a false alarm will likely improve recall
+substantially with no retraining at all. This is often the entire fix.
+
+Then address training. Focal loss down-weights easy negatives so that the gradient is
+dominated by the hard and rare cases, and it was designed for exactly this regime. Class
+weighting in the loss is a simpler alternative. Either is preferable to oversampling, which
+distorts the probability calibration you need for threshold tuning.
+
+Finally, your augmentation is generic. For defect detection, augmentation should reflect the
+variation defects actually exhibit — scale, contrast against the substrate, partial occlusion,
+position within the part. Flips and rotations teach invariances that may not even hold if
+defects have a characteristic orientation relative to the manufacturing process.
+
+One thing to verify before any of this: check whether the defects you are missing are
+visually distinguishable at your input resolution. If the model downsamples a 4000-pixel
+image to 224 pixels, a small defect may occupy less than one pixel after resizing, in which
+case no amount of loss engineering helps and the answer is tiling the image and running
+detection per tile.

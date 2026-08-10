@@ -1,0 +1,291 @@
+================================================================================
+AREA: Astronomy and Space
+SUBJECT: Remote Sensing and Earth Observation
+Subtopics: physical basis, sensor types and resolution, orbits and coverage, optical
+and thermal imaging, radar and lidar, atmospheric correction, analysis, applications.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Physical Basis
+
+Remote sensing infers properties of a surface from electromagnetic radiation measured at a
+distance. The physical basis is that materials interact with radiation in
+wavelength-dependent ways determined by their composition and structure, so the spectrum of
+reflected or emitted radiation carries diagnostic information about what produced it.
+
+Passive sensing measures naturally available radiation — reflected sunlight in the visible
+and near infrared, or thermal emission from the surface itself. It requires no transmitter
+and is therefore simple and power-efficient, and it is constrained by illumination and by
+atmospheric transparency. Active sensing supplies its own illumination, which permits
+operation at night, control of the wavelength and polarization, and measurement of the return
+timing, at the cost of substantial power.
+
+Atmospheric windows determine which wavelengths are usable from orbit at all. Water vapour,
+carbon dioxide, and ozone absorb strongly in specific bands, so the atmosphere is transparent
+only in particular ranges. The visible and near infrared window supports optical imaging; a
+thermal window near 10 micrometres supports temperature measurement; microwave wavelengths
+pass through clouds and precipitation almost unimpeded, which is why radar is the only
+technique that works reliably in persistently cloudy regions.
+
+Spectral regions and what each reveals:
+  visible 0.4-0.7 um      colour; vegetation appears green because chlorophyll
+                          absorbs red and blue
+  near infrared 0.7-1.3   vegetation reflects strongly; the sharpest diagnostic
+                          feature in the whole spectrum for plants
+  shortwave IR 1.3-3      moisture content, minerals, burn severity
+  thermal IR 8-14         emitted radiation; surface temperature
+  microwave 1 mm - 1 m    penetrates cloud; sensitive to moisture, roughness,
+                          and structure
+  the red edge            the abrupt reflectance rise from red to near infrared;
+                          the basis of nearly every vegetation index
+  water                   absorbs strongly beyond the visible; appears very dark
+                          in the near infrared, which makes water masking easy
+  snow and cloud          both bright in visible; snow is dark in shortwave IR
+                          while cloud is not, which discriminates them
+
+The red edge deserves emphasis because it does most of the work in vegetation remote
+sensing. Chlorophyll absorbs red light for photosynthesis while the internal cellular
+structure of leaves scatters near infrared strongly, producing a reflectance jump of a factor
+of five or more across a narrow wavelength range. Healthy vegetation therefore has a large
+difference between near infrared and red reflectance, stressed vegetation has less, and bare
+soil has almost none — which is exactly what normalized difference vegetation index measures,
+and why a two-band ratio captures so much about plant condition.
+
+Q: Which sensor type can image a persistently cloudy tropical region on a routine schedule?
+A. Optical multispectral   B. Thermal infrared   C. Synthetic aperture radar   D. Hyperspectral
+Reasoning: Cloud is opaque at visible, near infrared, and thermal infrared wavelengths.
+Microwave radiation at the wavelengths used by imaging radar passes through cloud and most
+precipitation with little attenuation, and radar supplies its own illumination so it also
+works at night. This is why deforestation monitoring in the tropics relies heavily on radar.
+Answer: C.
+
+## Resolution, Sensors, and Orbits
+
+Four kinds of resolution characterize a remote sensing system, and they trade against one
+another because the underlying constraint is the number of photons available per measurement.
+
+Spatial resolution is the ground size of one pixel. Spectral resolution is the number and
+width of the wavelength bands. Radiometric resolution is the number of distinguishable
+brightness levels. Temporal resolution is how often the same location is observed. Improving
+any one generally degrades another: narrower spectral bands collect fewer photons and so
+require larger pixels or coarser radiometric precision, and a narrower swath for higher
+spatial resolution means a longer revisit interval.
+
+The distinction between spatial resolution and pixel size is worth stating because they are
+often conflated. Pixel size is the sampling interval; resolution is the smallest
+distinguishable feature, governed by the optics and the point spread function. An image
+resampled to a finer pixel grid has smaller pixels and no additional resolution. Conversely,
+objects smaller than a pixel can still be detected if they are bright enough — a small fire
+raises the whole pixel's thermal signal measurably — which is sub-pixel detection and is
+distinct from resolving.
+
+Resolution and orbit characteristics:
+  spatial resolution     ground sample distance; sub-metre commercial, 10-30 m
+                         for public multispectral, ~1 km for daily global
+  spectral resolution    panchromatic (1 broad band), multispectral (3-15),
+                         hyperspectral (100s of narrow contiguous bands)
+  radiometric            bit depth; 8-bit is 256 levels, 12-16 bit is standard now
+  temporal               revisit interval; constellation size drives it
+  swath width            trades against spatial resolution for a fixed data rate
+  sun-synchronous orbit  ~700-800 km, near-polar, retrograde; the nodal precession
+                         from Earth's oblateness matches the orbital motion of
+                         Earth about the Sun, fixing the local solar time of every
+                         equator crossing
+  consistent lighting    the reason sun-synchronous orbits dominate; comparable
+                         illumination across dates makes change detection valid
+  geostationary          fixed over one longitude; continuous hemispheric coverage
+                         at coarse resolution; the weather satellite orbit
+  pushbroom              a linear detector array imaging as the platform moves;
+                         the standard modern design
+  whiskbroom             a scanning mirror sweeping across track; older, mechanical
+
+Sun-synchronous orbits are the workhorse of Earth observation for a reason worth
+understanding. Earth's equatorial bulge causes an orbital plane to precess, and the rate
+depends on inclination. Choosing a retrograde inclination near 98 degrees makes that
+precession equal to about one degree per day, matching Earth's motion around the Sun, so the
+orbital plane maintains a fixed angle to the Sun. Every equator crossing then occurs at the
+same local solar time, giving consistent illumination geometry across the mission — which is
+what makes comparing images from different dates meaningful, since a difference in brightness
+reflects a change on the ground rather than a change in sun angle.
+
+## Optical and Thermal Imaging
+
+Multispectral imaging measures reflectance in a handful of broad bands chosen to capture
+diagnostic features. Band combinations displayed as false colour make specific properties
+visible: assigning near infrared to red produces the classic composite where healthy
+vegetation is bright red, water is black, and urban areas are cyan, which conveys far more
+than a true-colour rendering.
+
+Spectral indices combine bands arithmetically to isolate a property while cancelling
+nuisance variation. Normalized difference indices — the difference of two bands divided by
+their sum — are the standard form, and the normalization is what makes them robust: it
+cancels multiplicative effects such as illumination differences and topographic shading that
+would otherwise dominate a simple band difference.
+
+Thermal infrared measures emitted radiation, which relates to temperature through the
+Stefan-Boltzmann and Planck relations. The complication is emissivity: the measured radiance
+depends on both temperature and how efficiently the surface emits, and these cannot be
+separated from a single band. Multi-band thermal measurements allow partial separation, and
+in practice emissivity is often assumed from a land cover classification, which introduces a
+systematic error where the assumption is wrong.
+
+Common indices and their use:
+  NDVI      (NIR - Red)/(NIR + Red);  vegetation vigour; saturates in dense canopy
+  EVI       enhanced vegetation index; corrects atmosphere and soil, resists
+            saturation in dense canopy
+  NDWI      water content; several variants for open water versus leaf moisture
+  NDBI      built-up areas
+  NBR       normalized burn ratio; NIR and SWIR, for fire severity
+  NDSI      snow; exploits snow being bright in visible and dark in SWIR
+  SAVI      soil-adjusted; corrects the soil background in sparse canopy
+  LST       land surface temperature; needs emissivity and atmospheric correction
+  albedo    broadband reflectance; a climate-relevant quantity
+  tasselled cap  a rotation into brightness, greenness, and wetness axes
+
+NDVI's saturation deserves specific mention because it is routinely ignored. The index rises
+steeply as vegetation cover increases from bare soil and then flattens, so in dense canopy
+substantial increases in biomass produce almost no change in NDVI. Studies comparing dense
+forest sites using NDVI are therefore comparing a metric with little remaining sensitivity,
+and the enhanced vegetation index or a near infrared reflectance measure is a better choice
+in that regime.
+
+[user] I'm comparing NDVI from two Landsat scenes a year apart and getting a big drop, but
+the field looks the same on the ground.
+[assistant] tool_call rs.change_detection_audit({"sensor": "landsat8_oli",
+"date1": "2024-07-14", "date2": "2025-07-17", "product1": "L1_TOA",
+"product2": "L1_TOA", "sun_elev_1": 61.2, "sun_elev_2": 58.9,
+"aerosol_1": 0.08, "aerosol_2": 0.31, "cloud_pct": [2, 4]})
+[tool] {"issue": "toa_reflectance_not_surface", "aerosol_difference": 0.23,
+"expected_ndvi_bias": -0.09, "recommendation": "use_L2_surface_reflectance",
+"secondary": ["brdf_sun_angle_difference", "phenology_3_day_offset"]}
+[assistant] You are comparing top-of-atmosphere reflectance, and the atmosphere differed
+substantially between the two dates. That accounts for most or all of your drop.
+
+Aerosol optical depth was 0.08 on the first date and 0.31 on the second — a hazy day.
+Aerosols scatter more strongly at shorter wavelengths, so they raise apparent red reflectance
+more than near infrared, which pushes NDVI down. The predicted bias from that difference
+alone is about -0.09, which is likely the size of the change you are seeing.
+
+Use Level 2 surface reflectance products rather than Level 1. They apply atmospheric
+correction using per-scene aerosol and water vapour retrievals, and for any multi-date
+comparison this is not optional. Comparing top-of-atmosphere values across dates measures the
+atmosphere as much as the surface.
+
+Two smaller effects worth knowing about once the atmospheric issue is fixed. Your sun
+elevation differs by 2.3 degrees, which changes the shadow fraction within the canopy and
+shifts reflectance through the bidirectional reflectance distribution — a real effect, smaller
+than the aerosol one, and correctable with a BRDF normalization if you need precision. And
+your dates are three days apart in the seasonal cycle, which for a crop near senescence can be
+a genuine phenological difference rather than an artifact.
+
+General practice for change detection: use surface reflectance, match the phenological stage
+rather than the calendar date, mask clouds and their shadows aggressively, and where possible
+compare a time series rather than two dates — a trajectory distinguishes a real change from a
+single anomalous observation in a way that a pair never can.
+
+## Radar and Lidar
+
+Synthetic aperture radar transmits microwave pulses and measures the returned echo. Its
+defining trick is in the name: a small physical antenna moving along the flight path
+synthesizes a much larger effective aperture by coherently combining returns from many
+positions, achieving along-track resolution far finer than the antenna size would allow. The
+resolution in that direction is, remarkably, independent of range and approximately half the
+physical antenna length.
+
+Radar measures surface roughness and dielectric properties rather than colour, so it sees
+entirely different things than optical sensors. Smooth surfaces reflect away from the sensor
+and appear dark, which is why calm water is black in radar imagery. Rough surfaces scatter
+back and appear bright. Corner geometries — a building meeting the ground, a ship on water —
+produce double-bounce returns and appear very bright. Volume scattering within a canopy
+produces intermediate returns that depend on structure. Moisture strongly affects the
+dielectric constant and therefore the return, which makes radar sensitive to soil moisture
+and to flooding under vegetation.
+
+Interferometric radar exploits the phase of the return rather than only its amplitude.
+Comparing the phase between two acquisitions from slightly different positions yields
+topography; comparing between two dates from the same position yields surface displacement at
+millimetre precision. This is how ground subsidence, volcanic inflation, and post-earthquake
+deformation are measured over wide areas, and the precision is startling given that it is
+achieved from orbit.
+
+Active sensing techniques:
+  SAR resolution        along-track ~ half the antenna length, independent of range
+  bright in SAR         rough surfaces, corner reflectors, urban structure
+  dark in SAR           smooth surfaces; calm water, roads, dry sand
+  polarization          HH, HV, VH, VV; the cross-polarized channels are sensitive
+                        to volume scattering and therefore to canopy structure
+  band choice           X-band interacts with the canopy top, C-band with the
+                        canopy, L-band penetrates to the ground and to biomass
+  speckle               coherent imaging produces multiplicative noise; reduced by
+                        multi-looking or filtering, at a resolution cost
+  InSAR                 topography from two positions
+  DInSAR                displacement from two dates; millimetre sensitivity
+  coherence             decorrelation indicates surface change; useful in itself
+  lidar                 laser ranging; direct 3D point clouds
+  full waveform         records the whole return; canopy structure and ground
+                        beneath vegetation in one measurement
+  bathymetric lidar     green wavelength penetrates shallow clear water
+
+Lidar's distinctive capability is measuring vertical structure directly. A laser pulse
+striking a forest returns energy from the canopy top, from intermediate foliage, and from the
+ground, and recording those separate returns yields both a terrain model beneath the canopy
+and a description of the vegetation structure above it. No passive optical sensor can do
+this, which is why lidar is the standard for forest biomass, for archaeological survey under
+vegetation, and for high-precision terrain modelling.
+
+## Correction, Analysis, and Applications
+
+Preprocessing determines whether analysis is meaningful, and the standard chain addresses
+distinct problems. Radiometric calibration converts raw sensor counts to physical radiance
+using calibration coefficients. Geometric correction registers the image to a map projection,
+using orbital and attitude data plus, for precision, ground control points. Orthorectification
+additionally removes terrain-induced displacement, which is essential in mountainous areas
+where relief displacement can exceed many pixels. Atmospheric correction converts
+top-of-atmosphere radiance to surface reflectance. Cloud and shadow masking removes
+unusable pixels, and doing it aggressively matters because a few undetected cloud edges
+corrupt an index calculation badly.
+
+Classification assigns each pixel or object to a category. Unsupervised methods cluster the
+spectral space and require the analyst to label the resulting clusters. Supervised methods
+train on labelled examples, and modern practice uses gradient-boosted trees or random forests
+on spectral, temporal, and textural features, or convolutional networks that exploit spatial
+context directly. Object-based analysis segments the image into homogeneous regions first and
+classifies those, which suits high-resolution imagery where individual pixels are smaller
+than the objects of interest and per-pixel classification produces a noisy speckled result.
+
+Accuracy assessment must use independent reference data, and the confusion matrix is the
+right reporting format because a single accuracy number hides the important structure.
+Producer's accuracy reports how much of each true class was correctly identified; user's
+accuracy reports how much of each predicted class is correct. These differ, and which matters
+depends on the application — a flood map used for emergency response cares about missing
+flooded areas, while one used for insurance cares about false positives.
+
+Analysis and applications:
+  confusion matrix       per-class errors; report it rather than overall accuracy
+  producer's accuracy    recall per class
+  user's accuracy        precision per class
+  spatial autocorrelation  nearby pixels are correlated, so randomly split
+                         validation samples overstate accuracy; use spatially
+                         separated validation blocks
+  time series analysis   trajectory-based change detection; far more robust than
+                         image differencing
+  data fusion            optical plus radar covers the cloud gaps and adds
+                         structural information
+  agriculture            crop type, yield forecasting, irrigation, stress
+  forestry               deforestation alerts, biomass, fire severity
+  hydrology              flood extent, snow cover, soil moisture, reservoir level
+  urban                  expansion, heat islands, subsidence via InSAR
+  disaster response      rapid mapping; the constraint is usually tasking and
+                         delivery latency, not sensor capability
+  climate                long consistent records; continuity across sensor
+                         generations requires careful cross-calibration
+
+Spatial autocorrelation in validation deserves the final emphasis because it silently
+inflates reported accuracy throughout the literature. Neighbouring pixels are highly
+correlated, so a validation sample drawn randomly from the same scene as the training data
+contains points that are effectively duplicates of training points, and the resulting accuracy
+estimate describes interpolation rather than generalization. Validating on spatially
+separated blocks, or on a different scene or date entirely, gives a far lower and far more
+honest number — and the gap between the two is a good measure of how much the model has
+learned about the phenomenon rather than about the particular image.

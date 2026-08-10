@@ -1,0 +1,299 @@
+================================================================================
+AREA: Earth and Life Sciences
+SUBJECT: Immunology and Infectious Disease
+Subtopics: innate immunity, adaptive immunity, antibodies and receptors, immunological
+memory, pathogens, vaccination, immune dysfunction, epidemiology.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Innate Immunity
+
+The immune system's central problem is discriminating self from non-self, and doing so against
+pathogens that evolve far faster than their hosts. The solution is two layered systems with
+complementary properties: an innate system that responds immediately using genetically encoded
+recognition of broadly conserved features, and an adaptive system that responds slowly with
+recognition generated at random and selected for specificity.
+
+Barriers are the first line and are frequently omitted from accounts of immunity despite doing
+most of the work. Intact skin is impermeable to nearly everything. Mucus traps particles and
+cilia move them out. Stomach acid destroys most ingested organisms. Antimicrobial peptides are
+secreted onto epithelial surfaces. And the commensal microbiota occupies the niches a pathogen
+would need, which is why disrupting it with antibiotics permits opportunistic infections that the
+competition otherwise prevents.
+
+Innate recognition uses pattern recognition receptors detecting molecular features common to
+classes of pathogen and absent from the host — bacterial cell wall components, double-stranded
+RNA, flagellin, unmethylated CpG DNA. These features are conserved because they are essential to
+the pathogen, so they cannot be discarded to evade detection, which is what makes a
+genetically fixed receptor set viable against evolving organisms.
+
+Innate immunity:
+  barriers             skin, mucus, cilia, acid, antimicrobial peptides,
+                       commensal competition
+  pattern recognition  receptors for conserved pathogen features
+  PAMPs                pathogen-associated molecular patterns; essential and
+                       therefore not discardable
+  DAMPs                damage-associated patterns; signal tissue injury
+  Toll-like receptors  the best-characterized family; each detects a distinct
+                       pattern class
+  inflammation         vasodilation, permeability, and leukocyte recruitment;
+                       heat, redness, swelling, pain
+  cytokines            signalling proteins coordinating the response
+  complement           a cascade of plasma proteins; opsonizes, recruits, and
+                       lyses; three activation pathways converging on one
+  phagocytes           neutrophils and macrophages; engulf and destroy
+  neutrophils          first responders, short-lived, abundant
+  macrophages          tissue-resident, phagocytic, and the principal antigen
+                       presenters bridging to adaptive immunity
+  natural killer cells  kill cells lacking normal surface markers; the
+                       counter to pathogens that downregulate them to hide from
+                       T cells
+  interferons          antiviral state induction in neighbouring cells
+  fever                raises temperature; impairs many pathogens and enhances
+                       immune function, which is why suppressing it is not
+                       automatically beneficial
+
+Natural killer cells illustrate an elegant solution to an evasion strategy. Cytotoxic T cells
+recognize infected cells by the antigen displayed on class I major histocompatibility molecules,
+so a virus that downregulates those molecules becomes invisible to them. Natural killer cells
+detect the absence of those molecules and kill on that basis, so the evasion strategy triggers a
+different killing mechanism. The pathogen faces a bind: display the molecules and be killed by T
+cells, or hide them and be killed by natural killer cells.
+
+Q: A virus evolves to suppress display of class I MHC molecules on infected cells, evading
+cytotoxic T cells. The immune system's counter is:
+A. Antibodies, which do not require MHC
+B. Natural killer cells, which detect the absence of MHC and kill on that basis
+C. Complement
+D. Fever
+Reasoning: The missing-self hypothesis describes exactly this: natural killer cells are
+inhibited by normal MHC display and activated in its absence, so downregulation that evades T
+cells triggers them instead. This complementary pairing is why the evasion strategy is
+constrained rather than decisive. Answer: B.
+
+## Adaptive Immunity and Antigen Receptors
+
+Adaptive immunity generates receptor diversity by somatic recombination rather than by encoding
+each receptor in the genome. Gene segments are randomly selected and joined, with additional
+random nucleotides inserted at the junctions, producing an enormous repertoire from a modest
+number of segments — estimates exceed ten to the eleventh distinct receptors from a few hundred
+gene segments. Each lymphocyte expresses one receptor specificity, so the repertoire is
+distributed across the cell population.
+
+Because the receptors are generated randomly, many recognize self, and eliminating those is a
+central task. Central tolerance removes strongly self-reactive lymphocytes during development in
+the thymus and bone marrow. Peripheral tolerance handles those that escape, through anergy,
+suppression by regulatory T cells, and deletion. Failure of these mechanisms produces
+autoimmunity, and the fact that tolerance works as well as it does against a randomly generated
+repertoire is remarkable.
+
+Clonal selection is the organizing principle. Each lymphocyte bears one specificity, an antigen
+binds the small number of cells whose receptors fit, and those cells proliferate into a large
+clone. This explains the response's timing directly: the primary response is slow because it
+requires expanding a rare clone from a handful of cells, and the secondary response is fast
+because memory cells from the first expansion are already numerous.
+
+Adaptive immunity:
+  somatic recombination  random assembly of gene segments; enormous diversity
+                       from few genes
+  junctional diversity  random nucleotides at the joins; further diversity
+  clonal selection      antigen binds the fitting cells; those proliferate
+  central tolerance    self-reactive cells deleted during development
+  peripheral tolerance  anergy, suppression, deletion for escapees
+  regulatory T cells   suppress responses; their failure causes autoimmunity
+  B cells              produce antibodies; recognize antigen directly in its
+                       native conformation
+  T cells              recognize peptide fragments presented on MHC; cannot see
+                       free antigen
+  helper T cells       coordinate; the cells HIV depletes, which is why its
+                       consequences are so broad
+  cytotoxic T cells    kill infected cells displaying foreign peptide on class I
+  MHC class I          on all nucleated cells; presents cytosolic peptides,
+                       reporting what the cell is making
+  MHC class II         on antigen presenting cells; presents engulfed material
+  antigen presentation  the requirement that T cells see processed peptide rather
+                       than intact antigen
+  affinity maturation  somatic hypermutation and selection in germinal centres;
+                       antibody affinity improves over weeks
+  class switching      the same specificity moved to a different antibody class,
+                       changing the effector function while keeping the target
+
+Affinity maturation deserves emphasis because it is evolution operating within an individual on
+a timescale of weeks. B cells responding to an antigen enter germinal centres where their
+antibody genes undergo a mutation rate far above the background, and those whose mutations improve
+binding are selected to survive and proliferate while the rest die. The result is that antibody
+affinity rises by orders of magnitude over the course of a response, and it is why a secondary
+response produces not merely more antibody but substantially better antibody.
+
+## Memory, Vaccination, and Pathogens
+
+Immunological memory is the property vaccination exploits, and its mechanism is the persistence
+of expanded antigen-specific clones after an infection resolves. Memory B cells and T cells are
+present at far higher frequency than the original naive precursors, are pre-selected for
+affinity, and respond faster with less costimulation required. The secondary response therefore
+begins within days rather than weeks and produces higher-affinity antibody of a more effective
+class.
+
+Vaccines induce this memory without the disease, and the platforms differ in what they present
+and therefore in what response they elicit. Live attenuated vaccines replicate and produce strong
+and durable responses of both antibody and cellular type, and cannot be given to
+immunocompromised individuals. Inactivated and subunit vaccines are safe in anyone and typically
+produce weaker, antibody-dominant responses requiring adjuvants and boosters. Nucleic acid
+vaccines deliver instructions for the host to produce the antigen, which yields both antibody and
+cellular responses and permits rapid design once a sequence is known.
+
+Pathogens evade immunity by identifiable strategies, and knowing them explains why some
+infections are controlled and others are not. Antigenic variation changes the recognized surface
+so that existing immunity does not apply, which is why influenza requires annual reformulation.
+Latency hides in a non-replicating state where there is nothing to detect. Intracellular
+residence avoids antibodies entirely. Immunosuppression attacks the response directly. And
+molecular mimicry resembles host molecules, exploiting tolerance.
+
+Memory, vaccines, and evasion:
+  memory cells         expanded, pre-selected, faster and lower-threshold
+  primary response     slow; requires clonal expansion from rare precursors
+  secondary response   fast, higher affinity, better class
+  live attenuated      strong and durable; contraindicated in immunosuppression
+  inactivated          safe, weaker, needs adjuvant and boosting
+  subunit and conjugate  purified components; conjugation to a carrier protein
+                       recruits T cell help, which is what makes polysaccharide
+                       vaccines work in young children
+  viral vector         delivers the antigen gene; pre-existing vector immunity can
+                       blunt it
+  mRNA                 host produces the antigen; rapid design, cellular and
+                       antibody responses
+  adjuvant             enhances the response by providing innate stimulation
+  correlate of protection  a measurable marker predicting protection; where it is
+                       known, licensure can rely on it
+  herd immunity        indirect protection when transmission is interrupted; the
+                       threshold rises with transmissibility
+  antigenic drift      gradual mutation; annual influenza reformulation
+  antigenic shift      reassortment producing a novel subtype; pandemic potential
+  latency              non-replicating persistence; herpesviruses, tuberculosis
+  intracellular        avoids antibodies; requires cellular immunity
+  original antigenic sin  the first exposure biases later responses toward the
+                       original variant
+
+Original antigenic sin deserves note because it complicates both vaccination and the
+interpretation of immunity. The immune system responding to a variant of a previously encountered
+pathogen preferentially recalls the memory response to the original rather than generating a new
+response to the variant's distinct features. This is efficient when the variants are similar and
+counterproductive when the response is directed at conserved regions that are no longer the
+important targets, and it is part of why influenza vaccine effectiveness depends on an
+individual's exposure history and not only on the match between the vaccine and the circulating
+strain.
+
+## Immune Dysfunction
+
+Immune dysfunction divides into insufficient response, excessive response, and misdirected
+response, and the categories have different clinical presentations and mechanisms.
+
+Immunodeficiency may be primary, arising from a genetic defect in a component, or secondary,
+arising from infection, malnutrition, malignancy, or treatment. The pattern of infections
+identifies the defective component: recurrent bacterial infections with encapsulated organisms
+suggest an antibody or complement defect, persistent viral and fungal infections suggest a
+cellular defect, and recurrent abscesses suggest a phagocyte defect. This is diagnostically
+useful because the infection pattern points at the mechanism.
+
+Hypersensitivity is an excessive or inappropriate response, classified into four types by
+mechanism. Type I is immediate, mediated by IgE bound to mast cells, and produces allergy and
+anaphylaxis within minutes. Type II is antibody directed against cell surface antigens. Type III
+is immune complex deposition causing inflammation where the complexes lodge. Type IV is cell
+mediated and delayed by a day or more, which is contact dermatitis and the tuberculin reaction.
+
+Autoimmunity is a response directed at self, arising from a failure of tolerance. Contributing
+factors include genetic susceptibility, particularly in the major histocompatibility genes,
+environmental triggers, and molecular mimicry where a pathogen antigen resembles a self antigen
+closely enough that the response cross-reacts. Autoimmune conditions are substantially more
+common in women, and the reasons are not fully established.
+
+Immune dysfunction:
+  primary immunodeficiency  genetic; the infection pattern identifies the
+                       component
+  secondary            infection, malnutrition, malignancy, immunosuppression
+  antibody defect      recurrent encapsulated bacterial infection
+  cellular defect      persistent viral and fungal infection
+  phagocyte defect     recurrent abscesses
+  complement defect    recurrent neisserial infection specifically
+  type I hypersensitivity  IgE and mast cells; minutes; allergy and anaphylaxis
+  type II              antibody against cell surfaces
+  type III             immune complex deposition
+  type IV              cell mediated; delayed by a day or more
+  autoimmunity         tolerance failure; genetic and environmental contributions
+  molecular mimicry    pathogen antigen resembling self; cross-reactive response
+  transplant rejection  the immune response to non-self MHC; matching and
+                       immunosuppression are the responses
+  graft versus host    transplanted immune cells attacking the recipient
+  cytokine storm       dysregulated inflammatory amplification; the mechanism of
+                       severe outcomes in several infections
+  immune privilege     sites with restricted immune access; eye, brain, testis;
+                       protects tissue that cannot regenerate from inflammatory
+                       damage
+
+The distinction between damage caused by a pathogen and damage caused by the response to it is
+worth stating because it determines treatment. In several severe infections the tissue damage is
+substantially immune-mediated rather than directly pathogen-mediated, so treatment includes
+modulating the response as well as targeting the organism. This is why corticosteroids improve
+outcomes in some severe infections and worsen them in others, and why the timing matters — early
+suppression impairs clearance while late suppression limits the damage from an already
+dysregulated response.
+
+## Epidemiology and Control
+
+Infectious disease epidemiology quantifies transmission, and the basic reproduction number is
+the central parameter: the average number of secondary cases produced by one case in a fully
+susceptible population. Above one an epidemic grows and below one it declines, and the effective
+reproduction number accounts for existing immunity and control measures, which is what determines
+the trajectory in practice.
+
+The herd immunity threshold follows directly. Transmission is interrupted when the fraction
+immune exceeds one minus the reciprocal of the basic reproduction number, so a pathogen with a
+reproduction number of two requires half the population immune and one with twelve requires
+about 92 percent. This is why measles, being extremely transmissible, requires such high
+vaccination coverage and why small declines in coverage produce outbreaks.
+
+Several caveats apply to that calculation and are frequently omitted. It assumes homogeneous
+mixing, and real contact is highly structured, so clusters of low coverage sustain transmission
+even where the aggregate exceeds the threshold. It assumes immunity blocks transmission rather
+than only disease, which differs between pathogens and vaccines. And it assumes immunity is
+durable, which for some pathogens it is not.
+
+Epidemiology and control:
+  basic reproduction number  secondary cases from one case in a fully susceptible
+                       population
+  effective reproduction number  accounting for immunity and control; the
+                       quantity that determines the trajectory
+  herd immunity threshold  1 minus 1/R0; assumes homogeneous mixing
+  heterogeneous mixing  clusters of susceptibility sustain transmission despite
+                       adequate aggregate coverage
+  serial interval      time between successive cases; sets how fast interventions
+                       must act
+  incubation period    infection to symptoms; pre-symptomatic transmission makes
+                       symptom-based control ineffective
+  latent period        infection to infectiousness; the relation between latent
+                       and incubation periods determines whether isolation on
+                       symptoms can work
+  case fatality ratio  deaths among diagnosed cases; depends on testing intensity
+  infection fatality ratio  deaths among all infections; the epidemiologically
+                       meaningful figure and much harder to measure
+  contact tracing      effective when the serial interval is long and
+                       pre-symptomatic transmission limited
+  surveillance         case-based, syndromic, wastewater, genomic; each detects
+                       different things at different sensitivity
+  antimicrobial resistance  selection under drug pressure; the resistance existed
+                       before the drug and the drug selected it
+  one health           human, animal, and environmental health are coupled; most
+                       emerging infections are zoonotic
+
+Antimicrobial resistance deserves the closing emphasis because it is evolution operating on a
+timescale that policy must accommodate. Resistance genes generally predate the clinical use of the
+drug — many are found in environmental organisms and in preserved specimens from before
+antibiotics existed — so the drug does not create resistance but selects for organisms already
+carrying it. The rate at which resistance spreads therefore depends on the selective pressure,
+which is the total volume of use across human medicine, agriculture, and the environment. The
+mitigations follow: reduce unnecessary use, complete courses appropriately for the specific
+infection rather than by a general rule, use narrow-spectrum agents where the organism is known,
+control transmission of resistant organisms, and develop new agents — with the difficulty that
+the economics of antibiotic development are poor precisely because a successful new agent should
+be reserved rather than sold widely.

@@ -1,0 +1,309 @@
+================================================================================
+AREA: Earth and Life Sciences
+SUBJECT: Biochemistry
+Subtopics: biomolecules, protein structure and function, enzymes, metabolism,
+bioenergetics, membranes and transport, signalling, methods.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Biomolecules and Water
+
+Biochemistry is the chemistry of living systems, and nearly all of it occurs in water, which
+makes water's properties the starting point rather than background. Water is a small bent
+molecule with a substantial dipole, hydrogen bonds extensively, and has anomalously high melting
+and boiling points, high heat capacity, high surface tension, and lower density as a solid than
+as a liquid — all consequences of that hydrogen bonding network.
+
+The hydrophobic effect follows from water's structure and is the dominant organizing force in
+biology. A nonpolar molecule placed in water cannot hydrogen bond with it, so the surrounding
+water molecules adopt more ordered arrangements to preserve their own bonding, which lowers
+their entropy. Aggregating the nonpolar molecules reduces the total surface requiring this
+ordering and releases the constrained water, raising entropy. The effect is therefore
+entropy-driven rather than an attraction between nonpolar groups, and it is what folds proteins,
+assembles membranes, and drives most molecular recognition.
+
+The four major classes of biomolecule are built by polymerizing a modest set of monomers.
+Proteins are polymers of twenty amino acids joined by peptide bonds. Nucleic acids are polymers
+of four nucleotides joined by phosphodiester bonds. Carbohydrates are polymers of sugars joined
+by glycosidic bonds, and their branching capacity gives them far more structural diversity per
+unit length than the linear polymers. Lipids are not polymers at all but are grouped by
+solubility, and their defining property is amphipathicity — a polar head and nonpolar tails —
+which is what makes them assemble into bilayers.
+
+Biomolecules and water:
+  hydrogen bonding     water's dominant property; underlies nearly all anomalies
+  hydrophobic effect   entropy-driven aggregation of nonpolar groups; the primary
+                       folding and assembly force
+  amphipathic          both polar and nonpolar regions; lipids and detergents
+  pH and pKa           the ionization state of a group depends on the pH relative
+                       to its pKa; charge determines interaction
+  buffering            weak acid plus conjugate base; blood bicarbonate coupled to
+                       respiration
+  amino acids          twenty; grouped by side chain as nonpolar, polar, acidic,
+                       basic
+  peptide bond         planar and rigid from resonance; restricts the backbone to
+                       two rotatable angles per residue
+  nucleotides          base, sugar, phosphate; four in DNA and four in RNA
+  carbohydrates        branching gives high information density per unit length
+  lipids               classed by solubility rather than structure; fatty acids,
+                       phospholipids, sterols
+  condensation         polymer formation releases water
+  hydrolysis           polymer breakdown consumes water
+
+The peptide bond's rigidity is worth stating because it determines protein structure. Resonance
+delocalizes electrons across the carbonyl and the nitrogen, giving the bond partial double
+character, so the six atoms of the peptide unit are coplanar and rotation about it is
+restricted. Each residue therefore contributes only two rotatable backbone angles, which reduces
+the conformational space enormously and is what makes the folding problem finite rather than
+hopeless.
+
+Q: A nonpolar solute aggregates in water. The thermodynamic driver is:
+A. Attraction between the nonpolar molecules
+B. Entropy gain from releasing water molecules that were constrained around the nonpolar
+   surfaces
+C. Enthalpy of the new bonds formed
+D. Reduced pressure
+Reasoning: Nonpolar molecules interact only weakly through dispersion forces, which does not
+account for the effect's magnitude. Water surrounding a nonpolar surface adopts more ordered
+arrangements to maintain its hydrogen bonding, and aggregation reduces the total constrained
+surface, releasing those water molecules and increasing entropy. The hydrophobic effect is
+entropic. Answer: B.
+
+## Protein Structure and Function
+
+Protein structure is described at four levels, and the central claim is that the sequence
+determines the structure, which determines the function. Primary structure is the amino acid
+sequence. Secondary structure comprises local regular patterns stabilized by backbone hydrogen
+bonds — the alpha helix and the beta sheet, both proposed on structural grounds before being
+observed. Tertiary structure is the three-dimensional fold of a single chain, stabilized
+predominantly by the hydrophobic effect burying nonpolar residues in the interior. Quaternary
+structure is the assembly of several chains.
+
+The folding problem — predicting structure from sequence — was among biology's longest-standing
+open questions and has recently been substantially solved computationally for many proteins by
+deep learning methods trained on the accumulated structural database. This is a prediction
+capability rather than a mechanistic understanding: the models predict structures accurately and
+do not explain the folding process, and cases with few homologous sequences, intrinsically
+disordered regions, and conformational change on binding remain difficult.
+
+Levinthal's paradox frames why folding must be directed. A chain of a hundred residues with even
+a few conformations per residue has astronomically many possible structures, so random search
+would take longer than the universe's age, and yet proteins fold in milliseconds to seconds. The
+resolution is that the energy landscape is funnelled: partially correct structures are
+progressively lower in energy, so the search is guided downhill rather than random, and folding
+proceeds through intermediates rather than by enumeration.
+
+Protein structure:
+  primary              the sequence
+  secondary            alpha helix, beta sheet; backbone hydrogen bonds
+  tertiary             the three-dimensional fold; hydrophobic core
+  quaternary           multiple chains assembled
+  domain               an independently folding unit; the module of protein
+                       evolution
+  motif                a recurring small structural pattern
+  disulfide bond       covalent cross-link; stabilizes extracellular proteins
+                       where the environment is oxidizing
+  chaperone            assists folding and prevents aggregation; the crowded
+                       cellular interior makes misfolding likely without them
+  denaturation         loss of structure from heat, pH, or chaotropes; frequently
+                       reversible in vitro and rarely in the cell
+  Levinthal's paradox  random search is impossible; the landscape is funnelled
+  intrinsically disordered  no fixed structure; common in regulatory proteins and
+                       overlooked for decades because it defied the
+                       structure-function paradigm
+  allostery            binding at one site changes conformation and activity at
+                       another; the fundamental mechanism of biological regulation
+  induced fit          the binding site adjusts on binding; more accurate than the
+                       rigid lock-and-key picture
+
+Allostery deserves emphasis because it is how biological regulation works at the molecular
+level. A molecule binding at one site alters the protein's conformation and thereby its activity
+at a distant site, which permits activity to be controlled by signals unrelated to the substrate.
+Haemoglobin is the classical example, where oxygen binding at one subunit increases the affinity
+of the others, producing the sigmoid binding curve that makes oxygen delivery efficient. Nearly
+every regulated enzyme and receptor operates by the same principle, and allosteric sites are
+increasingly the target of drug development because they permit modulation rather than the
+blunt inhibition that active-site binding produces.
+
+## Enzymes
+
+Enzymes are catalysts, accelerating reactions by factors of a million to a trillion without
+being consumed and without altering the equilibrium. That last point is worth stating precisely:
+a catalyst lowers the activation energy of the forward and reverse reactions equally, so it
+accelerates the approach to equilibrium and leaves the equilibrium position unchanged. An enzyme
+cannot make a thermodynamically unfavourable reaction favourable; it can only make a favourable
+one fast.
+
+The catalytic mechanism is stabilization of the transition state. The active site binds the
+transition state more tightly than the substrate, which lowers the activation barrier, and this
+framing explains several observations: transition state analogues are extremely potent
+inhibitors, catalytic antibodies can be raised against transition state analogues, and enzymes
+that bind their substrate too tightly are poor catalysts because they stabilize the ground state
+rather than the transition state.
+
+Michaelis-Menten kinetics describes the standard behaviour. Rate rises with substrate
+concentration and saturates as the enzyme becomes fully occupied, giving a hyperbolic curve. The
+maximum rate reflects the enzyme's turnover and concentration, and the Michaelis constant is the
+substrate concentration giving half the maximum rate, which serves as an inverse measure of
+apparent affinity. The ratio of turnover number to Michaelis constant is the specificity
+constant, which measures catalytic efficiency and is bounded above by the diffusion limit —
+several enzymes operate at that limit, meaning they convert essentially every substrate molecule
+that encounters them.
+
+Enzymes:
+  catalysis            lowers activation energy; does not change the equilibrium
+  transition state     the enzyme stabilizes it, which is the mechanism
+  active site          the binding and catalytic region; a small part of the
+                       protein
+  specificity          from complementary shape, charge, and hydrogen bonding
+  Michaelis constant   substrate concentration at half maximal rate; an inverse
+                       affinity measure
+  turnover number      reactions per enzyme per second
+  specificity constant  catalytic efficiency; bounded by diffusion
+  cofactor             a non-protein component required for activity; metals and
+                       organic coenzymes, many of which are vitamin derivatives
+  competitive inhibition  competes for the active site; raises the apparent
+                       Michaelis constant, and can be overcome by more substrate
+  non-competitive      binds elsewhere; lowers the maximum rate, and is not
+                       overcome by more substrate
+  irreversible         covalent modification; aspirin acetylating cyclooxygenase
+  allosteric regulation  effectors binding remote sites; produces sigmoid kinetics
+  feedback inhibition  the pathway's end product inhibits its first committed
+                       step; the standard metabolic control architecture
+  covalent modification  phosphorylation and others; rapid reversible switching
+  zymogen              an inactive precursor activated by cleavage; keeps
+                       destructive enzymes inactive until needed
+
+Feedback inhibition is the control architecture worth recognizing because it recurs throughout
+metabolism. The end product of a pathway inhibits the enzyme catalyzing the first committed step,
+so production is throttled when the product accumulates and resumes when it is consumed. Placing
+the control at the first committed step avoids accumulating intermediates that have no other use,
+and using the end product as the signal means the pathway responds to demand rather than to
+supply. This is negative feedback with a well-chosen sensor and actuator, and it is why metabolic
+concentrations are far more stable than the fluxes through them.
+
+## Metabolism and Bioenergetics
+
+Metabolism is the totality of chemical reactions in a cell, divided into catabolism, which
+breaks molecules down and releases energy, and anabolism, which builds them up and consumes it.
+The two are coupled through shared energy carriers, of which ATP is the central one — catabolism
+regenerates it and anabolism spends it, and the cell maintains it far from equilibrium so that
+its hydrolysis can drive unfavourable reactions.
+
+Coupling is the mechanism making thermodynamically unfavourable reactions proceed. An
+unfavourable reaction is coupled to a favourable one through a shared intermediate, so the
+combined process has a negative free energy change. This is why ATP hydrolysis appears throughout
+biosynthesis, and why the relevant quantity is not ATP's standard free energy but the actual
+free energy under cellular conditions, which is substantially larger because the cell maintains
+the ratio of ATP to its products far above equilibrium.
+
+Glycolysis, the citric acid cycle, and oxidative phosphorylation form the central catabolic
+pathway. Glycolysis converts glucose to pyruvate in the cytoplasm without oxygen, yielding a small
+amount of ATP directly and reduced electron carriers. The citric acid cycle oxidizes the pyruvate
+derivative completely to carbon dioxide, yielding more reduced carriers. Oxidative
+phosphorylation transfers electrons from those carriers through a membrane-embedded chain to
+oxygen, pumping protons across the membrane, and the resulting gradient drives ATP synthesis.
+
+Metabolism and bioenergetics:
+  catabolism           breakdown, releases energy
+  anabolism            biosynthesis, consumes energy
+  ATP                  the energy currency; maintained far from equilibrium
+  coupling             an unfavourable reaction driven by a favourable one through
+                       a shared intermediate
+  glycolysis           glucose to pyruvate; cytoplasmic, anaerobic, small direct
+                       yield
+  citric acid cycle    complete oxidation to CO2; generates reduced carriers
+  electron transport   carriers to oxygen through membrane complexes; pumps
+                       protons
+  chemiosmosis         the proton gradient drives ATP synthase; the mechanism was
+                       radical when proposed and is now foundational
+  proton motive force  the electrochemical gradient; both charge and pH
+                       components
+  ATP synthase         a rotary molecular motor; protons flowing through it drive
+                       rotation which drives synthesis
+  aerobic yield        roughly 30-32 ATP per glucose; the older figure of 36-38
+                       predates accurate transport cost accounting
+  fermentation         regenerates the electron carrier without oxygen; low yield,
+                       and fast
+  gluconeogenesis      glucose synthesis; not simply reversed glycolysis, since
+                       three irreversible steps require different enzymes
+  beta oxidation       fatty acid breakdown; yields substantially more energy per
+                       carbon than carbohydrate because the carbons are more
+                       reduced
+  metabolic regulation  allosteric control at irreversible steps, hormonal control
+                       of enzyme amount, and compartmentalization
+
+Chemiosmosis deserves emphasis both for its mechanism and for its history. The proposal that
+energy from electron transport is stored as a proton gradient across a membrane, rather than as a
+chemical intermediate, was resisted for years because the field expected a conventional
+high-energy compound. It is now recognized as one of biology's central mechanisms, operating in
+mitochondria, chloroplasts, and bacteria alike, and ATP synthase is a rotary motor — protons
+flowing down the gradient turn a rotor, whose rotation drives conformational changes that
+synthesize ATP. That a molecular machine works by rotation was itself unexpected and has been
+directly visualized.
+
+## Membranes, Signalling, and Methods
+
+Membranes are lipid bilayers with embedded proteins, and their structure follows directly from
+the amphipathicity of phospholipids: in water they spontaneously arrange with polar heads outward
+and nonpolar tails inward, forming a bilayer that is self-sealing because an edge would expose
+tails to water. The bilayer is a two-dimensional fluid in which lipids and proteins diffuse
+laterally, and its permeability is selective — small nonpolar molecules cross readily, while ions
+and polar molecules require transport proteins.
+
+Transport divides by whether it requires energy. Passive transport moves substances down their
+electrochemical gradient, either directly through the bilayer or through channels and carriers
+that provide a path. Active transport moves them against the gradient and requires energy, either
+directly from ATP or indirectly by coupling to another substance's favourable gradient. The
+sodium-potassium pump is the archetype and consumes a substantial fraction of a cell's energy
+budget, maintaining the gradients that then power secondary transport and electrical signalling.
+
+Signal transduction converts an extracellular signal into an intracellular response, and the
+architecture is consistent across systems. A receptor binds the signal, a transduction cascade
+relays and amplifies it, and effectors produce the response. Amplification is the reason for the
+cascade: one receptor activates many transducers, each of which activates many enzymes, so a few
+signal molecules produce a large response. The cost is that the pathway has many points at which
+regulation and dysfunction can occur, which is why signalling proteins are so heavily represented
+among oncogenes.
+
+Membranes, signalling, and methods:
+  bilayer              self-assembling and self-sealing from amphipathicity
+  fluid mosaic         lateral diffusion of lipids and proteins
+  selective permeability  nonpolar small molecules cross; ions and polar molecules
+                       need transporters
+  channel              a gated pore; passive, very fast
+  carrier              binds and undergoes conformational change; slower,
+                       saturable
+  primary active       ATP-driven; the sodium-potassium pump
+  secondary active     coupled to another gradient; glucose-sodium cotransport
+  membrane potential   from ion gradients and selective permeability
+  receptor types       G-protein coupled, receptor tyrosine kinase, ion channel,
+                       nuclear
+  second messenger     cyclic AMP, calcium, inositol phosphates; amplify and
+                       distribute the signal
+  phosphorylation cascade  kinases and phosphatases; rapid reversible switching
+                       with amplification
+  signal termination   as important as initiation; a signal that cannot be turned
+                       off is as dysfunctional as one that cannot be turned on
+  chromatography       separation by size, charge, hydrophobicity, or affinity
+  electrophoresis      separation by charge and size in a gel
+  mass spectrometry    mass to charge ratio; the primary tool for identifying and
+                       quantifying proteins
+  X-ray crystallography  atomic structure; requires a crystal, which is the
+                       limiting step
+  cryo-electron microscopy  structures without crystallization; now competitive at
+                       near-atomic resolution and transformative for large
+                       complexes and membrane proteins
+  NMR                  structure and dynamics in solution; size-limited
+  fluorescence         localization, interaction, and dynamics in living cells
+
+Cryo-electron microscopy deserves the closing note because it changed what is structurally
+accessible. X-ray crystallography requires the protein to form a well-ordered crystal, which many
+proteins — particularly membrane proteins and large flexible complexes — do not do, so a large
+fraction of the proteome was structurally inaccessible for decades. Cryo-EM images individual
+particles in vitrified solution and computationally averages many orientations into a
+three-dimensional reconstruction, requiring no crystal. Improvements in detectors and image
+processing brought its resolution to near-atomic, and the consequence is that structures of
+membrane receptors, ribosomes, viruses, and large machines that had resisted crystallography for
+decades became routine within a few years.

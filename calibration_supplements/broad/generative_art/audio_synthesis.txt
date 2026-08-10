@@ -1,0 +1,287 @@
+================================================================================
+AREA: Generative Art and Creative Technology
+SUBJECT: Audio Synthesis and Sound Design
+Subtopics: acoustics and hearing, synthesis methods, filters and modulation, effects,
+sampling and granular, algorithmic composition, spatial audio, production practice.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Acoustics and Hearing
+
+Sound is a pressure wave, and its perceptual attributes map onto physical ones
+imperfectly enough that the mismatches drive most of audio engineering. Frequency maps
+roughly to pitch, amplitude to loudness, and spectral content to timbre, but each mapping is
+nonlinear and context-dependent in ways that matter practically.
+
+Pitch perception is logarithmic. A doubling of frequency is an octave regardless of where it
+occurs, so 100 to 200 Hz and 1000 to 2000 Hz are the same musical interval and vastly
+different absolute spans. This is why frequency axes in audio are drawn logarithmically, why
+equalizer bands are specified by centre frequency and Q rather than by absolute width, and why
+a filter sweep sounds musically even only when swept exponentially.
+
+Loudness perception is also logarithmic, which is what the decibel expresses, and it is
+frequency-dependent. The equal-loudness contours show that human hearing is most sensitive
+around 2 to 5 kHz — the range of speech consonants — and much less sensitive at low and very
+high frequencies, with the disparity greatest at low listening levels. This is why a mix
+balanced at high volume sounds bass-light when played quietly, and why checking a mix at
+several levels is standard practice rather than fussiness.
+
+Acoustic and perceptual quantities:
+  audible range         nominally 20 Hz to 20 kHz; the top declines with age
+  octave                a 2:1 frequency ratio
+  semitone              a ratio of 2^(1/12) ≈ 1.0595 in equal temperament
+  cents                 1/100 semitone; ~5 cents is the discrimination threshold
+  decibel               20 log10 amplitude ratio, or 10 log10 power ratio
+  +6 dB                 double the amplitude;  +10 dB is roughly twice as loud
+  equal loudness        sensitivity peaks 2-5 kHz; bass needs more level to
+                        sound equally loud, especially when quiet
+  masking               a loud tone hides a quieter nearby one; the basis of
+                        perceptual audio compression
+  critical bands        the ear's effective filter widths; masking acts within them
+  Haas effect           a delayed copy under ~30 ms is perceived as one sound with
+                        direction from the first arrival
+  speed of sound        ~343 m/s in air; ~34 cm per millisecond
+
+Masking is the perceptual phenomenon with the most practical consequences. A loud sound
+renders a quieter sound at a nearby frequency inaudible, and this is why mixes become muddy:
+several instruments occupying the same frequency range mask each other, so raising the level
+of one does not make it clearer, it merely masks the others more. The remedy is spectral
+separation — carving space with equalization, choosing sounds that occupy different ranges,
+or arranging so that competing elements do not sound simultaneously. Masking is also what
+perceptual codecs exploit, discarding content that would be masked and therefore inaudible.
+
+Q: Two sine tones are played at 220 Hz and 440 Hz. The musical interval between them is:
+A. A perfect fifth   B. One octave   C. Two octaves   D. A major third
+Reasoning: An octave is a frequency ratio of exactly 2:1, and 440/220 = 2. Musical intervals
+correspond to frequency ratios rather than differences, which is why the same interval spans
+different absolute frequency ranges at different pitches. Answer: B.
+
+## Synthesis Methods
+
+Subtractive synthesis begins with a harmonically rich waveform and removes content with
+filters. It is the classic analog approach and remains the most intuitive, because the
+mapping from control to result is direct: a sawtooth contains all harmonics with amplitude
+falling as one over harmonic number, a square contains only odd harmonics, and a low-pass
+filter sweeping down progressively removes the upper ones, producing the characteristic
+sweeping timbre.
+
+Additive synthesis builds sound by summing sine waves, each with its own frequency,
+amplitude, and envelope. It is completely general — any sound can in principle be constructed
+this way — and it is unwieldy, since a realistic timbre may need dozens of partials each with
+a time-varying envelope, giving hundreds of parameters. It comes into its own for sounds with
+inharmonic partials such as bells and metallic tones, where subtractive methods struggle
+because the source waveforms are harmonic.
+
+Frequency modulation synthesis modulates one oscillator's frequency with another at audio
+rate, generating sidebands at sums and differences of the carrier and modulator frequencies.
+Small numbers of operators produce enormously complex spectra, which is why it was
+computationally attractive and why it defined a generation of digital instrument sound. Its
+weakness is control: the relationship between parameters and result is not intuitive, since
+changing the modulation index redistributes energy across sidebands in a way described by
+Bessel functions, and the harmonicity of the result depends on the ratio of modulator to
+carrier frequency — integer ratios give harmonic tones, non-integer ratios give clangorous
+inharmonic ones.
+
+Synthesis methods:
+  subtractive      rich source plus filters; intuitive, the analog paradigm
+  additive         sum of sines; fully general, parameter-heavy, good for
+                   inharmonic timbres
+  FM / phase mod   sidebands from audio-rate modulation; complex spectra cheaply,
+                   unintuitive control
+  wavetable        interpolate through a table of single-cycle waveforms; evolving
+                   timbres with modest computation
+  granular         overlapping short grains; textures, time-stretching, clouds
+  physical model   simulate the mechanism — string, tube, membrane; expressive and
+                   computationally expensive
+  Karplus-Strong   a delay line with a filter in the feedback; plucked string from
+                   almost nothing
+  sample-based     recorded sources with pitch shifting and layering; realistic
+                   and storage-hungry
+  concatenative    assemble from a corpus of analyzed fragments; corpus-based
+                   sound design
+  neural           learned generative models; increasingly capable, opaque control
+
+Physical modelling deserves attention because it produces the most expressive instruments.
+Rather than reproducing a sound's spectrum, it simulates the mechanism that produces it — a
+string's wave equation, a tube's air column, a membrane's modes — and the result responds to
+performance gestures the way the physical instrument does. Playing harder does not simply
+increase amplitude, it changes the spectrum in the way the real instrument does, because the
+same nonlinearity is present in the model. The cost is computation and the difficulty of
+tuning models that can become unstable or produce unphysical results.
+
+## Filters, Envelopes, and Modulation
+
+Filters shape the spectrum and are the primary timbral tool. A low-pass passes frequencies
+below its cutoff and attenuates above, a high-pass the reverse, a band-pass a range around a
+centre, and a notch rejects a narrow band. Slope, expressed in decibels per octave,
+determines how sharply the transition occurs, with 12 and 24 dB per octave the common analog
+designs. Resonance emphasizes frequencies near the cutoff by feeding output back to the
+input, and at high settings the filter self-oscillates, becoming a sine oscillator at the
+cutoff frequency.
+
+The musical importance of resonance is that it creates a formant — a peak in the spectrum at
+a fixed frequency — and formants are how the ear identifies vowel sounds and instrument
+bodies. Sweeping a resonant filter produces the characteristic sound of the medium precisely
+because it moves a formant, which the auditory system interprets as a change in the shape of
+the resonating body rather than as a change in the source.
+
+Envelopes control how a parameter changes over the duration of a note, and the
+attack-decay-sustain-release shape is the standard. Attack time is perceptually the most
+important parameter in the whole synthesizer for instrument identity: the onset transient is
+what the ear uses to identify a sound source, and a recording of a piano with its attack
+removed is difficult to identify. Sustain is a level rather than a time, which is the detail
+that confuses newcomers, and release begins when the note is released rather than at any
+fixed time.
+
+Filters and modulation:
+  low-pass          the primary timbral control; brightness
+  high-pass         removes rumble and mud; often the most useful mix filter
+  band-pass         isolates a range; formants and telephone effects
+  notch             surgical removal; hum and resonance elimination
+  slope             6, 12, 18, 24 dB/octave; steeper is more surgical
+  resonance / Q     emphasis at the cutoff; self-oscillates at extremes
+  ADSR              attack, decay, sustain level, release
+  attack transient  the key cue for source identification
+  LFO               sub-audio modulation; vibrato, tremolo, filter sweeps
+  modulation matrix routing any source to any destination; where character comes
+                    from
+  velocity          per-note dynamic; should modulate brightness as well as level,
+                    since real instruments get brighter when played harder
+  keytracking       scale filter cutoff with pitch so timbre stays consistent
+                    across the keyboard
+
+The advice about velocity modulating brightness rather than only volume is worth
+emphasizing because it is the single most effective change for making a synthesized
+instrument sound played rather than triggered. Real instruments excited harder produce more
+high-frequency content, not merely more amplitude — a hard-struck string has more upper
+partials, a loudly blown reed has more harmonics. Routing velocity to filter cutoff alongside
+amplitude reproduces this, and its absence is a large part of why unmodulated sample playback
+sounds mechanical.
+
+[user] My synth bass disappears on small speakers but sounds huge on my monitors.
+[assistant] tool_call audio.mix_diagnose({"element": "synth_bass",
+"fundamental_hz": 45, "harmonic_content_above_200hz": 0.06,
+"reference_system": "8in_monitors", "target_system": "laptop_phone",
+"target_lf_rolloff_hz": 180})
+[tool] {"issue": "energy_below_playback_range", "audible_fraction_on_target": 0.06,
+"recommended": ["harmonic_saturation", "parallel_octave_up", "reduce_sub_reliance"],
+"note": "missing_fundamental_perception"}
+[assistant] Your bass lives at 45 Hz with almost no harmonic content above 200 Hz, and a
+laptop or phone speaker rolls off below about 180 Hz. Roughly 6% of the sound's energy is in
+the range those speakers can reproduce, so the note effectively vanishes.
+
+The fix exploits a useful property of hearing called the missing fundamental: if the
+harmonics of a note are present, the ear reconstructs the pitch even when the fundamental
+itself is absent. A small speaker cannot reproduce 45 Hz, and it can reproduce 90, 135, and
+180 Hz, and the listener will hear the bass at its correct pitch.
+
+Three ways to add that harmonic content, roughly in order of how natural they sound:
+
+Saturation or soft clipping on the bass. Distortion generates harmonics at integer multiples
+of the fundamental, so a modest drive adds exactly the series you need. Use a parallel or
+band-limited version — saturate a high-passed copy and blend it under the clean low end — so
+you keep the weight on systems that can reproduce it without making the sub-bass gritty.
+
+A parallel octave-up layer. Duplicate the bass part an octave higher with a simple timbre and
+mix it well below the main part. On big systems it sits under the fundamental and is barely
+noticed; on small ones it carries the line.
+
+Reduce the reliance on the sub range at the source. If the patch is a pure sine or a heavily
+filtered saw, open the filter or change the waveform so the note has natural harmonic content
+to begin with. This is usually the cleanest solution and the one to try first.
+
+Two process notes. Check on the worst system you expect people to use, not just on
+monitors — a single mono phone speaker is the standard reference for exactly this reason. And
+high-pass everything else in the mix above the bass's range so it is not competing with
+kick and pad energy in the same octave, which makes the bass audible without adding level.
+
+## Sampling, Granular, and Time Manipulation
+
+Sample-based instruments play back recordings, and their realism depends on how the
+inevitable gaps are covered. Multi-sampling records the source at many pitches and dynamic
+levels so that playback interpolates between close neighbours rather than stretching a single
+recording far from its origin. Pitch shifting by playback rate changes duration and shifts
+formants, which is why a voice pitched up sounds unnaturally small — the resonances of the
+body scaled with the pitch, which does not happen when a real singer sings higher. Formant
+preservation corrects this by separating the spectral envelope from the excitation and
+shifting only the latter.
+
+Granular synthesis decomposes audio into short grains, typically 10 to 100 milliseconds, and
+reassembles them with independent control of position, density, pitch, and envelope. Its
+power is that time and pitch become independent: grains can be read from a fixed position
+while playback continues, freezing a sound indefinitely, or advanced at any rate relative to
+their pitch. Grain size determines character — very short grains produce a pitched buzz at
+the grain rate, medium grains produce texture, long grains preserve recognizable fragments.
+
+Time and pitch manipulation:
+  playback rate       changes pitch and duration together; the tape paradigm
+  granular            independent time and pitch; textural artifacts at extremes
+  phase vocoder       STFT-based; excellent for tonal material, smears transients
+  transient-aware     detect and preserve onsets, stretch only between them
+  formant preserve    keep the spectral envelope fixed when shifting pitch
+  loop points         must match in phase and amplitude or produce a click
+  crossfade loops     the practical fix for imperfect loop points
+  round robin         alternate among several recordings of the same note to avoid
+                      the machine-gun effect of identical repeats
+  velocity layers     separate recordings per dynamic level; the main cost of
+                      realistic sample libraries
+
+The machine-gun effect is worth naming because the fix is simple and the problem is
+pervasive. Repeated identical samples are immediately recognizable as artificial, because no
+real performer produces two identical notes. Round robin cycling among several recordings,
+combined with small randomizations of pitch, timing, and level, removes the artifact almost
+entirely. The randomization amounts are small — a few cents, a few milliseconds, a decibel —
+and their absence is more audible than their presence.
+
+## Composition, Space, and Practice
+
+Algorithmic composition generates musical material by rule. The approaches parallel those in
+visual generative work: grammars that rewrite musical phrases, Markov chains that model
+transition probabilities between pitches or chords, constraint systems that enforce voice
+leading rules, cellular automata mapped to pitch and rhythm, and generative models trained on
+corpora. The perennial difficulty is long-range structure: local rules produce plausible
+phrases and rarely produce a piece with direction, because musical form operates over minutes
+and local rules see only seconds.
+
+Hierarchical approaches address this by generating structure first — form, key areas,
+dynamic arc — and filling in detail within that scaffold, which is how human composers
+typically work and which reliably produces more coherent results than generating note by
+note. The same principle appears throughout generative work: decide global structure
+explicitly rather than hoping it emerges from local rules.
+
+Spatial audio places sound in three dimensions, and the cues the auditory system uses are
+well characterized. Interaural time difference dominates below about 1.5 kHz, since the
+wavelength exceeds the head's width and phase comparison is unambiguous. Interaural level
+difference dominates above, where the head shadows the far ear. Spectral cues from the outer
+ear's shape resolve elevation and front-back ambiguity, and these are individual, which is why
+generic head-related transfer functions localize imperfectly and personalized ones work
+markedly better.
+
+Spatial and production practice:
+  panning              amplitude difference between channels; a simple ILD cue
+  binaural / HRTF      filter with head-related transfer functions; convincing over
+                       headphones, individual variation limits generic sets
+  ambisonics           a channel-agnostic spherical harmonic representation;
+                       decodable to any speaker layout, rotatable for head tracking
+  reverberation        early reflections convey room size and distance; the tail
+                       conveys space
+  pre-delay            gap before reverb; separates source from space and preserves
+                       clarity
+  distance cues        level, high-frequency loss, and the ratio of direct to
+                       reverberant sound; the ratio is the strongest cue
+  gain staging         keep levels healthy through the chain; in floating point,
+                       headroom is cheap and clipping is still permanent
+  dynamic range        compression controls it; over-compression removes the
+                       contrast that makes loud passages feel loud
+  reference tracks     compare against known material on the same system
+  mono compatibility   check; phase-cancelling stereo effects can vanish
+
+The direct-to-reverberant ratio deserves the last word because it is the strongest distance
+cue and the most commonly mishandled. A sound close to the listener is mostly direct with
+little room; a distant sound is mostly reflected. Changing the level of a source without
+changing this ratio makes it louder or quieter rather than nearer or farther, which is why
+simply turning something down does not push it back in a mix. Increasing the reverb send
+while reducing the direct level moves a source convincingly into the distance, and doing the
+opposite brings it forward, and this pair of controls does more for depth than any amount of
+equalization.

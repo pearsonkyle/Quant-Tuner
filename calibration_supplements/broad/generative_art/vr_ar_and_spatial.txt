@@ -1,0 +1,228 @@
+================================================================================
+AREA: Generative and Creative Technology
+SUBJECT: Virtual, Augmented, and Spatial Computing
+Subtopics: display and optics, tracking and registration, rendering constraints,
+interaction design, comfort and presence, spatial audio, authoring and evaluation.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Displays, Optics, and the Perceptual Target
+
+A head-mounted display presents a separate image to each eye through optics that place the virtual
+image at a comfortable focal distance. The design targets are field of view, angular resolution,
+persistence, and weight, and they conflict with each other in ways that make every headset a
+particular set of compromises rather than a point on a single quality axis.
+
+Angular resolution is the meaningful resolution measure, expressed in pixels per degree, because a
+panel's pixel count means nothing without knowing across how wide a field it is spread. Human foveal
+acuity corresponds to roughly sixty pixels per degree, and reaching that across a wide field
+requires pixel counts far beyond current panels, which is why foveated rendering — full resolution
+only where the eye is looking, tracked in real time — is the standard approach to closing the gap.
+
+Persistence is the fraction of each frame during which the display actually emits light, and low
+persistence is essential rather than optional. If a pixel stays lit while the head rotates, the
+image smears across the retina, producing motion blur that is perceived as unsteadiness. Displays
+therefore flash briefly each frame, which trades brightness for clarity and introduces a flicker
+sensitivity that constrains the minimum acceptable refresh rate.
+
+Displays and optics:
+  stereoscopic display  a separate image per eye
+  field of view        how much of the visual field is covered
+  angular resolution   pixels per degree; the meaningful measure
+  foveal acuity        roughly sixty pixels per degree
+  foveated rendering   full detail only where the eye looks
+  eye tracking         the enabling technology for foveation and for interaction
+  persistence          the emitting fraction of each frame
+  low persistence      required; otherwise head motion smears the image
+  refresh rate         ninety hertz is a common floor; higher reduces both smear
+                       and flicker
+  optical distortion   lens distortion corrected by pre-warping the render
+  chromatic aberration  corrected per colour channel in the same pass
+  the vergence-accommodation conflict  the eyes converge at the virtual depth and
+                       focus at the fixed optical distance; the mismatch causes
+                       fatigue and is the central unsolved optical problem
+  varifocal and light field  approaches to resolving it; not yet common
+  passthrough          camera-based view of the real world; latency and
+                       distortion are the difficulties
+  optical see-through  transparent combiners; bright, and unable to render black
+
+Q: A headset with a high panel resolution appears less sharp than one with fewer pixels. The most
+likely reason is:
+A. The panel is defective
+B. It spreads those pixels across a wider field of view, so its angular resolution in pixels per
+   degree is lower; total pixel count is meaningless without the field it covers
+C. The refresh rate is lower
+D. The lenses are dirty
+Reasoning: Perceived sharpness depends on pixels per degree of visual angle, not on panel pixel
+count. A wide field of view spreads the same pixels thinner. This is why field of view and
+sharpness are a direct tradeoff at any given panel specification. Answer: B.
+
+## Tracking, Registration, and Latency
+
+Tracking determines where the headset and controllers are in space, and its quality determines
+whether the experience feels solid or unstable. Rotational tracking from inertial sensors is fast
+and drifts; positional tracking from cameras is accurate and slower. Fusing them gives the low
+latency of the inertial path with the drift correction of the visual one, and essentially every
+modern system does this.
+
+Inside-out tracking uses cameras on the headset to observe the environment and compute the headset's
+pose within it, building a map as it goes. It requires no external hardware and depends on the
+environment having enough visual texture, which is why blank walls, low light, and reflective
+surfaces degrade it. Outside-in tracking uses fixed external sensors and is more robust in exchange
+for setup and a bounded play area.
+
+End-to-end latency — from head motion to the corresponding photons — is the number that determines
+comfort, and the target is around twenty milliseconds. Since a full pipeline cannot reliably meet
+that, the standard technique is late reprojection: render the frame, then just before display,
+re-sample the most recent head pose and warp the rendered image to match. This decouples perceived
+latency from render time and is what allows a heavy scene to remain comfortable, though it cannot
+correct for objects that moved within the frame.
+
+Tracking and latency:
+  inertial sensing     fast, drifts
+  visual tracking      accurate, slower
+  sensor fusion        low latency with drift correction
+  inside-out           headset cameras mapping the environment; no external setup
+  the texture requirement  blank walls, low light, and reflections degrade it
+  outside-in           fixed external sensors; robust, bounded, requires setup
+  simultaneous localization and mapping  building the map while locating within
+                       it
+  relocalization       recovering pose after tracking loss; the recovery
+                       experience matters as much as the loss rate
+  hand tracking        camera-based; no controller, less precise, no haptics
+  controller tracking  precise pose with buttons and haptics
+  end-to-end latency   head motion to photons; target around twenty milliseconds
+  late reprojection    re-sample the pose and warp just before display
+  what it cannot fix   objects that moved within the frame; they show artifacts
+  registration         alignment of virtual content with the real world in
+                       augmented reality
+  drift in registration  a virtual object sliding relative to its intended
+                       physical anchor; the most noticeable augmented reality
+                       failure and the hardest to eliminate
+
+## Rendering Constraints
+
+Rendering for a headset means rendering twice, at high resolution, at a high refresh rate, with a
+hard deadline. Missing the deadline is not a dropped frame that goes unnoticed — it is a visible
+judder that immediately breaks the experience and contributes to discomfort. The frame budget is
+therefore treated as a hard constraint from which everything else is derived, which is a different
+engineering culture from flat-screen rendering where an occasional dropped frame is tolerable.
+
+The techniques for meeting it exploit properties specific to the medium. Stereo rendering shares
+most work between eyes through single-pass instanced rendering rather than rendering the scene
+twice. Foveated rendering reduces shading rate in the periphery, where acuity is low, and eye
+tracking makes this aggressive. Fixed foveation without eye tracking shades the edges of the display
+less, which works because the optics are worse there anyway.
+
+Some standard flat-screen techniques transfer badly. Screen-space effects that assume a single
+viewpoint produce stereo inconsistencies that read as depth errors. Post-processing that adds motion
+blur or depth of field conflicts with the viewer's own eye movement and focus. Billboarded impostors
+that look correct from one angle are immediately obvious in stereo. The general rule is that
+anything faking depth is much more likely to be detected when the viewer has real binocular depth
+cues and can move their head.
+
+Rendering:
+  double rendering     one view per eye
+  the hard deadline    a missed frame is visible judder, not a minor artifact
+  single-pass stereo   sharing work between eyes
+  foveated rendering   reduced shading rate in the periphery
+  fixed foveation      without eye tracking; exploits the optics being worse at
+                       the edges
+  variable rate shading  hardware support for spatially varying shading cost
+  the transfer problem  flat-screen techniques that fake depth are detected
+  screen-space effects  stereo inconsistency read as depth error
+  artificial blur      conflicts with the viewer's own focus and eye motion
+  impostors and billboards  obvious under binocular vision and head motion
+  level of detail      aggressive, and transitions must be invisible since the
+                       viewer can approach anything
+  lighting             baked lighting is cheap and static; the tradeoff is
+                       sharper here because the budget is tighter
+  scale accuracy       objects must be modelled at true scale or they read as
+                       wrong immediately; this is a modelling discipline that
+                       flat-screen work does not require
+
+## Interaction, Comfort, and Presence
+
+Interaction in three dimensions has no established conventions comparable to the desktop's, so most
+designs are still exploring. Direct manipulation — reaching out and grabbing — is the most
+immediately learnable and is limited by arm reach and by fatigue. Ray-based pointing extends reach
+and is precise at distance and imprecise for small targets because small angular errors amplify.
+Gaze plus a confirming action is low-effort and suffers from the difficulty of distinguishing
+looking from selecting.
+
+Arm fatigue is a real constraint with a memorable name and it is routinely underestimated. Holding
+the arms extended is tiring within a couple of minutes, which rules out interfaces that require
+sustained mid-air interaction. The mitigations are keeping interaction near the body, allowing rest
+positions, using brief gestures rather than sustained ones, and providing physical support where the
+context permits.
+
+Locomotion is the largest single source of discomfort. Motion sickness in these systems is
+attributed to the conflict between visual motion and the vestibular system's report that the body is
+stationary, and any smooth artificial movement produces it in a substantial fraction of people.
+Teleportation avoids it entirely by removing continuous motion. Comfort options — vignetting the
+periphery during movement, snap turning rather than smooth rotation, and a stable reference frame
+such as a visible cockpit — reduce it substantially and should be provided rather than debated.
+
+Interaction and comfort:
+  direct manipulation  reach and grab; learnable, limited by reach and fatigue
+  ray pointing         extends reach; angular error amplifies at distance
+  gaze plus confirm    low effort; separating looking from selecting is the
+                       problem
+  hand versus controller  precision and haptics against nothing to hold
+  arm fatigue          within minutes; rules out sustained mid-air interfaces
+  the mitigations      interaction near the body, rest positions, brief gestures
+  affordances          virtual objects must signal what can be grabbed
+  haptic feedback      even simple vibration substantially improves confidence in
+                       a grab
+  locomotion sickness  visual-vestibular conflict
+  teleportation        removes continuous motion; the most comfortable option
+  vignetting           narrowing the field during movement; measurably effective
+  snap turning         discrete rotation instead of smooth
+  stable reference frame  a visible cockpit or horizon reduces conflict
+  presence             the sense of being there; broken instantly by tracking
+                       failure, judder, or an object behaving wrongly
+  the fragility        presence takes minutes to build and one artifact to
+                       destroy, which is why reliability outranks fidelity
+
+## Spatial Audio, Authoring, and Evaluation
+
+Audio contributes more to presence than its share of development effort suggests. Spatial audio
+renders sound from a position in the world, using interaural time and level differences for
+horizontal localization and spectral filtering by the outer ear for elevation and front-back
+disambiguation. The filtering is individual, so generic models localize adequately in azimuth and
+poorly in elevation, and personalization measurably improves it.
+
+Room acoustics matter as much as direction. Early reflections and reverberation tell the listener
+the size and material of the space, and a sound rendered without them is perceived as being inside
+the head rather than in the world. Occlusion — muffling sound that passes through a virtual wall —
+is a strong cue and is comparatively cheap to approximate.
+
+Authoring and evaluation for this medium have their own discipline. Testing in the headset
+frequently is the only reliable way to judge scale, comfort, and readability, because none of them
+can be assessed on a monitor. New users are the essential test population since they have not
+adapted, and adaptation is real — a developer who has spent months in a build no longer experiences
+what a first-time user does. Session length should be part of the test protocol, since discomfort
+accumulates and a demo that feels fine for three minutes may not for thirty.
+
+Audio, authoring, and evaluation:
+  spatial audio        sound rendered from a world position
+  interaural cues      time and level differences for horizontal direction
+  spectral filtering   the outer ear's shaping; elevation and front-back
+  individual variation  generic models localize elevation poorly
+  personalization      measurably better localization
+  early reflections    communicate room size and material
+  reverberation        without it, sound is perceived inside the head
+  occlusion            muffling through geometry; a strong and cheap cue
+  audio as a director  sound draws attention where visual design cannot, since
+                       the viewer controls where they look
+  test in the headset  scale, comfort, and readability cannot be judged on a
+                       monitor
+  new user testing     adaptation is real and developers have it
+  session length       discomfort accumulates; test for the intended duration
+  comfort ratings      collect them systematically rather than anecdotally
+  accessibility        seated modes, single-handed interaction, height
+                       adjustment, subtitles positioned in the world; the
+                       assumption of a standing two-handed user with full mobility
+                       excludes people unnecessarily and is easy to avoid if it is
+                       considered before the interaction design is fixed

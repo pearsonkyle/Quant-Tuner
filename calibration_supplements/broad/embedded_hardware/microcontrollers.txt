@@ -1,0 +1,495 @@
+================================================================================
+AREA: Embedded Systems and Hardware
+SUBJECT: Microcontrollers and Firmware
+Subtopics: architecture, memory and linker layout, peripherals, interrupts,
+serial protocols, timers and PWM, power management, debugging, RTOS.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Microcontroller Architecture
+
+A microcontroller integrates a CPU core, flash for program storage, SRAM for working
+memory, and a set of peripherals onto one die. The defining difference from an
+application processor is the absence of external DRAM and usually of a memory
+management unit: code executes in place from flash, data lives in a few kilobytes to a
+few hundred kilobytes of on-chip SRAM, and there is no virtual memory, no process
+isolation by default, and no operating system unless you put one there. That
+constraint shapes everything downstream — you count bytes, you avoid dynamic
+allocation, and a wild pointer corrupts whatever it happens to hit rather than
+producing a clean segmentation fault.
+
+The ARM Cortex-M family dominates the 32-bit space. Cortex-M0 and M0+ are minimal
+two- and three-stage pipelines targeting the lowest cost and power, with a reduced
+Thumb instruction set and no hardware divide on M0. Cortex-M3 adds hardware divide,
+bit-banding, and the full Thumb-2 set. Cortex-M4 adds DSP instructions — single-cycle
+multiply-accumulate, SIMD on packed 8- and 16-bit data, saturating arithmetic — and
+optionally a single-precision floating-point unit, which is why it is the default for
+motor control and audio. Cortex-M7 adds caches, a superscalar pipeline, and
+double-precision floating point, running at several hundred megahertz. Cortex-M33
+adds TrustZone security extensions. RISC-V cores (the ESP32-C series, various
+open-source implementations) now occupy the same niches with an open instruction set.
+
+Two architectural facts drive most firmware design decisions. First, flash is slower
+than the core at high clock speeds, so the flash controller inserts wait states, and
+above a threshold frequency the CPU stalls on instruction fetch unless a prefetch
+buffer or cache absorbs it — this is why moving a hot interrupt handler into RAM can
+measurably reduce latency and jitter. Second, on Cortex-M the entire address space is
+memory-mapped, including every peripheral register, so configuring hardware is a
+matter of writing to specific addresses, and those addresses must be declared
+`volatile` so the compiler does not optimize away reads and writes it believes are
+redundant. Omitting `volatile` on a peripheral pointer is a classic bug that
+disappears at -O0 and reappears at -O2.
+
+The Cortex-M memory map, fixed by the architecture:
+  0x0000_0000 - 0x1FFF_FFFF   Code       flash, execute here, vector table at base
+  0x2000_0000 - 0x3FFF_FFFF   SRAM       data, bit-band region on M3/M4
+  0x4000_0000 - 0x5FFF_FFFF   Peripheral vendor peripheral registers
+  0x6000_0000 - 0x9FFF_FFFF   External RAM
+  0xA000_0000 - 0xDFFF_FFFF   External device
+  0xE000_0000 - 0xE00F_FFFF   Private Peripheral Bus: NVIC, SysTick, SCB, debug
+  0xE000_E010                 SysTick control and status
+  0xE000_E100                 NVIC interrupt set-enable registers
+  0xE000_ED08                 VTOR, vector table offset register
+
+Reset behaviour follows directly from that map. On power-up the core reads the initial
+stack pointer from address 0x0000_0000 and the reset vector — the address of the
+startup code — from 0x0000_0004, then begins executing. The startup code copies
+initialized data from flash to RAM, zeroes the .bss section, optionally configures the
+clock tree and external memory, runs C++ static constructors, and calls main. If main
+returns there is nowhere to return to, so the startup code traps in an infinite loop.
+Understanding this sequence is what lets you debug a board that appears dead before
+the first line of your code runs.
+
+Q: A peripheral status register is polled in a loop and the loop never exits, though a
+debugger shows the bit is set. The most likely cause is:
+A. The clock to the peripheral is disabled
+B. The pointer to the register is not declared volatile
+C. The interrupt priority is wrong
+D. The flash wait states are misconfigured
+Reasoning: The debugger reads the register directly from hardware and sees the true
+value, while the compiled loop reads it once, caches it in a register, and spins on
+that stale copy — the classic symptom of a missing `volatile`. A disabled peripheral
+clock would show the register reading as zero or faulting in the debugger too.
+Answer: B.
+
+## Memory, Linking, and the Build
+
+An embedded binary is divided into sections that the linker script places at specific
+addresses. `.text` holds executable code and lives in flash. `.rodata` holds string
+literals and const data, also in flash. `.data` holds initialized globals: the values
+live in flash but the variables live in RAM, so startup code copies them across.
+`.bss` holds zero-initialized globals, occupying RAM but no flash, and startup zeroes
+it. The heap grows up from the end of .bss, and the stack grows down from the top of
+RAM. When they meet, you have a stack overflow, and on a device with no MMU there is
+nothing to catch it — the stack silently overwrites your heap or globals and the
+failure manifests somewhere completely unrelated.
+
+Stack depth is therefore a design parameter to be measured rather than hoped for. The
+standard technique is painting: fill the stack region with a known pattern such as
+0xDEADBEEF at startup, run the worst-case workload, and inspect how far the pattern
+has been eroded. Static analysis tools can compute worst-case stack depth from the
+call graph, which is exact for code without recursion or function pointers and is one
+reason both are discouraged in safety-critical firmware. On Cortex-M with the memory
+protection unit available, placing an unmapped guard region below the stack turns
+silent corruption into an immediate, debuggable fault.
+
+Dynamic allocation is avoided in most production firmware for three reasons: malloc
+can fail and much embedded code has no sensible failure path, allocation time is not
+bounded which breaks real-time guarantees, and long-running heaps fragment until a
+request fails despite sufficient total free memory. The alternatives are static
+allocation of everything at compile time, fixed-size block pools where each pool
+serves one object size so fragmentation is impossible, and stack allocation for
+short-lived buffers. When a heap is genuinely required, it is typically a single
+allocation phase during initialization followed by no further allocation.
+
+A minimal linker script, annotated:
+  MEMORY {
+    FLASH (rx)  : ORIGIN = 0x08000000, LENGTH = 512K
+    RAM   (rwx) : ORIGIN = 0x20000000, LENGTH = 128K
+  }
+  SECTIONS {
+    .isr_vector : { KEEP(*(.isr_vector)) } > FLASH
+    .text   : { *(.text*) *(.rodata*) } > FLASH
+    _sidata = LOADADDR(.data);
+    .data   : { _sdata = .; *(.data*) _edata = .; } > RAM AT> FLASH
+    .bss    : { _sbss = .; *(.bss*) *(COMMON) _ebss = .; } > RAM
+    ._stack : { . = . + 0x1000; } > RAM
+  }
+
+The `KEEP` on the vector table prevents the linker from garbage-collecting a section
+nothing appears to reference — the hardware references it, and the linker cannot know
+that. The `AT> FLASH` on `.data` is the load-address versus run-address distinction:
+the section is stored in flash but linked to run from RAM, and the symbols `_sidata`,
+`_sdata`, and `_edata` are what the startup copy loop uses. Getting this wrong
+produces a board where global variables have garbage initial values, which is
+bewildering until you know where to look.
+
+Firmware size discipline is mostly about knowing what pulls in bulk. Calling `printf`
+with a floating-point conversion links the full formatting machinery and can add 20-40
+kilobytes; the newlib-nano variants and dedicated tiny printf implementations exist
+for this reason. C++ exceptions and RTTI add both code size and unpredictable timing,
+and are conventionally disabled with `-fno-exceptions -fno-rtti`. Building with
+`-ffunction-sections -fdata-sections` and linking with `--gc-sections` lets the linker
+discard unreferenced functions individually rather than whole object files, typically
+recovering a significant fraction. `-Os` optimizes for size and is the usual default;
+`arm-none-eabi-size` and a map file tell you where the bytes actually went.
+
+[user] My STM32 firmware works in debug builds but hangs immediately in release builds.
+[assistant] tool_call firmware.build_diff({"target": "stm32f411", "debug": "-Og -g",
+"release": "-O2 -DNDEBUG"})
+[tool] {"text_bytes": {"debug": 41208, "release": 24960}, "bss_bytes": 18432,
+"stack_size": 4096, "ram_total": 131072, "warnings": ["assert() compiled out under
+NDEBUG in 3 translation units", "2 volatile-qualified reads removed at -O2"]}
+[assistant] Two strong candidates, and both are classic release-only failures.
+
+The most likely is a missing `volatile`. The build log shows two volatile-qualified
+reads eliminated at -O2, which means somewhere you are polling a hardware register or
+a variable modified by an interrupt handler through a non-volatile access. At -Og the
+compiler re-reads memory each iteration and the code appears to work; at -O2 it hoists
+the read out of the loop and you spin forever on a stale value. Audit every peripheral
+register pointer and every global shared with an ISR — the latter need `volatile` and,
+if wider than a single word or read as a multi-field group, also need interrupt
+masking or an atomic access, because `volatile` guarantees the access happens but
+guarantees nothing about atomicity.
+
+The second is that `NDEBUG` compiled out your asserts, and three of them contain side
+effects. `assert(init_peripheral() == OK)` is a bug that only bites in release,
+because the call itself disappears with the assert. Grep for function calls inside
+assert expressions.
+
+To isolate quickly: build release with `-O2 -UNDEBUG` first. If it works, the problem
+is in the asserts. If it still hangs, rebuild with `-O2 -fno-strict-aliasing` — a
+third possibility is a type-punned pointer that only breaks once the optimizer trusts
+the aliasing rules. Then attach the debugger, break on the hang, and read the program
+counter and the fault status registers.
+
+## Interrupts and Concurrency
+
+An interrupt suspends normal execution to run a handler in response to a hardware
+event. On Cortex-M the Nested Vectored Interrupt Controller handles priority
+arbitration, automatic stacking of caller-saved registers, and tail-chaining between
+back-to-back interrupts without a full unstack-restack cycle. Interrupt latency on
+these cores is deterministic and low, around twelve cycles to the first instruction of
+the handler, which is what makes them suitable for hard real-time control.
+
+Priority on Cortex-M is inverted from intuition: lower numerical value means higher
+priority, and a higher-priority interrupt preempts a lower-priority handler already in
+progress. Priority values are split into preemption bits and sub-priority bits by the
+priority grouping configuration, where sub-priority only breaks ties among
+simultaneously pending interrupts and does not permit preemption. The number of
+implemented priority bits is vendor-specific — typically four, giving sixteen levels,
+stored in the upper bits of the byte — so writing priority 1 without shifting sets a
+completely different level than intended, a frequent and confusing bug.
+
+Handlers should be short. The discipline is to do the minimum in the interrupt —
+read the hardware register that clears the flag, push the data into a queue, set a
+flag — and defer the real work to the main loop or a task. Long handlers block
+everything at lower priority and destroy the timing guarantees that motivated using an
+interrupt at all. Never block inside an ISR: no delays, no waiting on a semaphore that
+another ISR must give, and generally no printf, which is slow, often not reentrant,
+and may itself use interrupts.
+
+Sharing data between an ISR and main code is the core concurrency problem, and
+`volatile` alone is insufficient. `volatile` prevents the compiler from caching or
+reordering the access, but it provides no atomicity: a 32-bit aligned read or write is
+atomic on Cortex-M, but a 64-bit value, a multi-field struct, or a read-modify-write
+such as `counter++` is not. The remedies, in order of preference: make the shared
+datum a single aligned word and accept that reads and writes are atomic; use a
+lock-free single-producer single-consumer ring buffer where the producer only advances
+the head and the consumer only the tail; or, as a last resort, briefly disable
+interrupts around the critical section, saving and restoring the previous mask rather
+than unconditionally re-enabling.
+
+A critical section done correctly:
+  uint32_t primask = __get_PRIMASK();   // save current mask state
+  __disable_irq();
+  shared_struct.a = x;                  // the indivisible update
+  shared_struct.b = y;
+  __set_PRIMASK(primask);               // restore, do NOT just __enable_irq()
+
+The distinction in that last line matters: unconditionally enabling interrupts at the
+end of a critical section will enable them even if the caller had deliberately
+disabled them, silently breaking nesting. Keep critical sections to a handful of
+instructions, because every cycle spent with interrupts disabled adds directly to the
+worst-case latency of every interrupt in the system.
+
+The memory barrier instructions `__DSB()` and `__ISB()` are occasionally necessary
+even on a single core. Writes to peripheral registers may be buffered, so a write that
+disables an interrupt source may not have taken effect before the next instruction
+executes, allowing a spurious interrupt to fire after you believed it was masked. A
+`__DSB()` after such a write, and an `__ISB()` after operations that change execution
+context such as writing the vector table offset register or reconfiguring the MPU,
+prevent this class of race.
+
+Q: Two interrupts on a Cortex-M have priorities 2 and 5. Interrupt 5 is executing when
+interrupt 2 arrives. What happens?
+A. Interrupt 2 waits until interrupt 5 completes
+B. Interrupt 2 preempts interrupt 5 immediately
+C. Both are serviced simultaneously
+D. Interrupt 2 is discarded
+Reasoning: On Cortex-M, numerically lower priority values are higher priority.
+Interrupt 2 outranks interrupt 5, and the NVIC supports nesting, so it preempts the
+running handler. Interrupt 5 resumes when 2 completes. The mistake this question
+targets is assuming higher numbers mean higher priority. Answer: B.
+
+Q: A 32-bit counter is incremented in an ISR and read in the main loop. It is declared
+volatile. Is this correct?
+A. Yes, volatile makes it fully safe
+B. Yes for the read, but the increment is a read-modify-write and can be lost if the
+   main loop also writes it
+C. No, volatile does nothing here
+D. Only if the counter is 8-bit
+Reasoning: An aligned 32-bit read is atomic on Cortex-M, so the main loop reads a
+coherent value, and volatile correctly forces the re-read. The remaining hazard is
+that `count++` is load-modify-store; if only the ISR ever writes it, that is safe
+because the ISR is not itself preempted by another writer. If the main loop also
+modifies it, an interrupt landing mid-sequence loses an update. Answer: B.
+
+## Serial Protocols
+
+UART is asynchronous point-to-point serial with no clock line, so both ends must agree
+on the baud rate in advance and each side resynchronizes on the start bit of every
+frame. A frame is a start bit, five to nine data bits, an optional parity bit, and one
+or two stop bits — the ubiquitous "8N1" being eight data bits, no parity, one stop bit.
+Because the receiver samples using its own clock, accumulated error over a frame must
+stay under roughly half a bit period, which in practice means clock mismatch below
+about 2%. This is why a device running from an imprecise internal RC oscillator
+produces garbage at high baud rates while working fine at 9600, and why UART bootloaders
+usually require an external crystal.
+
+SPI is synchronous, full-duplex, and fast, using four lines: clock, master-out
+slave-in, master-in slave-out, and an active-low chip select per peripheral. The master
+generates the clock, so there is no baud rate agreement problem and tens of megahertz
+is routine. The configuration trap is clock polarity and phase: CPOL sets the idle
+level of the clock and CPHA selects whether data is sampled on the leading or trailing
+edge, giving four modes. Mode 0 (CPOL 0, CPHA 0) is by far the most common, but
+datasheets specify the required mode per device, and a mismatch produces data shifted
+by one bit or read at the wrong edge — often appearing as values that are plausible
+but consistently wrong, which is harder to diagnose than pure garbage.
+
+I2C is synchronous, half-duplex, and multi-drop, using only two lines — serial data
+and serial clock — both open-drain with pull-up resistors, so any device can hold a
+line low and the pull-ups provide the high level. Each device has a 7-bit address
+(10-bit addressing exists and is rare), transactions begin with a start condition and
+the address plus a read/write bit, and each byte is acknowledged. Standard speeds are
+100 kHz, 400 kHz fast mode, and 1 MHz fast mode plus. Pull-up sizing is the recurring
+practical issue: too large and the rise time exceeds the specification so edges are
+sloppy and communication fails at speed, too small and devices cannot pull the line
+low within the specified voltage. Typical values are 4.7 kilohms at 100 kHz and 2.2
+kilohms at 400 kHz, adjusted for total bus capacitance, which is the sum of every
+device's pin capacitance plus trace capacitance and must stay under 400 picofarads.
+
+Protocol comparison for board-level interconnect:
+  UART   2 wires, async, point-to-point, ~115200 baud typical, no addressing,
+         simplest to debug with a scope or logic analyzer
+  SPI    4+ wires, sync, full duplex, 10-50 MHz, one chip select per device,
+         no acknowledgement so errors are silent
+  I2C    2 wires, sync, half duplex, 100k-1M Hz, 7-bit addressing, per-byte ACK,
+         open-drain with pull-ups, clock stretching by slow slaves
+  CAN    2 wires differential, multi-master, arbitration by message priority,
+         robust to noise, automotive and industrial standard
+  1-Wire 1 wire plus ground, parasitic power, very slow, sensor niche
+  USB    differential pair, host-centric, complex stack, enumeration required
+
+I2C's failure modes are worth knowing because it fails in ways the other buses do not.
+A slave that was reset mid-transaction can hold the data line low indefinitely,
+hanging the entire bus; the recovery procedure is to bit-bang up to nine clock pulses
+manually to let the slave finish its byte, then issue a stop condition. Clock
+stretching, where a slow slave holds the clock low to delay the master, is legal and
+some master implementations handle it poorly. And because addressing is only 7 bits
+and many sensor families use the same fixed address, two identical sensors cannot share
+a bus without an address-select pin or a multiplexer.
+
+## Timers, PWM, and Analog
+
+A timer is a counter driven by a clock, with a prescaler dividing the input and an
+auto-reload value setting the period. When the counter reaches the reload value it
+wraps and optionally raises an interrupt. From these primitives come periodic
+interrupts, output compare (toggle a pin when the counter matches a value), input
+capture (record the counter value when a pin changes, for measuring frequency or pulse
+width), and quadrature decoding for rotary encoders.
+
+Pulse width modulation generates an analog-like average by switching a pin between
+full on and full off at fixed frequency, varying the fraction of time spent high — the
+duty cycle. It is the standard way to dim LEDs, drive motors, and control heaters,
+because switching elements dissipate almost no power in either saturated state, unlike
+a linear regulator burning the difference as heat. The frequency choice is governed by
+the load: LEDs need above roughly 200 Hz to avoid visible flicker and above 1 kHz to
+avoid artifacts on camera, motors typically want 20 kHz to push switching noise above
+the audible range, and heaters can run at a fraction of a hertz.
+
+The arithmetic is simple and worth doing carefully. With a timer clock of f_tim, a
+prescaler PSC, and an auto-reload ARR, the PWM frequency is f_tim / ((PSC + 1) *
+(ARR + 1)) and the duty resolution is ARR + 1 steps. There is a direct tradeoff:
+raising the frequency for a fixed timer clock reduces the number of distinct duty
+levels available. At a 84 MHz timer clock, 20 kHz PWM with no prescaling gives ARR =
+4199, so about 4,200 steps — over 12 bits of resolution, comfortable. At 1 MHz PWM the
+same clock gives only 84 steps, under 7 bits, and the quantization becomes visible in
+the controlled quantity.
+
+Worked timer configuration:
+  goal: 20 kHz PWM, 50% duty, timer clock 84 MHz
+  choose PSC = 0            -> counter clock = 84 MHz
+  ARR = 84e6 / 20e3 - 1     = 4199
+  CCR = (ARR + 1) * 0.50    = 2100
+  resolution = ARR + 1      = 4200 steps, ~12.0 bits
+  check: 84e6 / (1 * 4200)  = 20000 Hz exactly
+
+Analog-to-digital conversion samples a voltage into a digital code. The successive
+approximation converters typical of microcontrollers binary-search the input against a
+reference over N clock cycles for N bits, giving 12-bit resolution at up to a few
+million samples per second. Resolution is not accuracy: a 12-bit ADC has 4,096 codes,
+but integral and differential nonlinearity, reference drift, and noise commonly mean
+only nine or ten of those bits are trustworthy. Effective number of bits is the honest
+specification.
+
+Three analog practicalities cause most field problems. Sampling time must be long
+enough for the internal sample-and-hold capacitor to charge through the source
+impedance; a high-impedance sensor into a short sampling window reads systematically
+low, and the fix is either a longer sample time or an op-amp buffer. Aliasing folds
+any frequency content above half the sampling rate down into the band of interest and
+is not removable afterward, so an analog low-pass filter before the converter is
+mandatory rather than optional whenever the signal may contain high-frequency content.
+And the reference voltage sets the absolute accuracy of every reading, so an ADC
+referenced to a noisy supply rail inherits that noise directly — which is why
+precision measurement uses a dedicated reference and why averaging many samples helps
+with random noise but does nothing for a systematically wrong reference.
+
+[user] My 12-bit ADC readings from a thermistor divider jump around by 30 counts and
+read about 4% low compared to a multimeter.
+[assistant] tool_call adc.diagnose({"bits": 12, "vref": 3.3, "noise_counts": 30,
+"source_impedance_ohms": 47000, "sample_cycles": 3, "adc_clock_hz": 21000000})
+[tool] {"sample_time_us": 0.143, "required_time_us": 2.1, "settling_ratio": 0.068,
+"expected_error_pct": -4.3, "noise_lsb_equivalent_mv": 24, "verdict":
+"insufficient_sampling_time"}
+[assistant] Both symptoms have the same root cause: your sampling time is about
+fifteen times too short for the source impedance.
+
+At 47 kilohms source impedance the internal sample-and-hold capacitor needs roughly
+2.1 microseconds to settle to within half an LSB. You are giving it 0.143
+microseconds, so the capacitor never fully charges and every reading lands low — the
+predicted error is 4.3%, which matches your measured 4% almost exactly. The jitter has
+the same origin: an incompletely settled sample is sensitive to whatever the previous
+conversion left on the capacitor, so readings depend on the channel sequence and on
+noise in a way a settled sample would not.
+
+Two fixes, and the first is free. Increase the sampling time in the ADC channel
+configuration to the longest setting available — on STM32 that is typically 480 cycles
+— which at your 21 MHz ADC clock gives about 23 microseconds, comfortably sufficient.
+Verify against the multimeter afterward; the 4% offset should vanish.
+
+If you need faster conversions than that allows, lower the source impedance instead:
+either use smaller resistors in the divider (a 4.7 k / 4.7 k divider instead of 47 k
+costs a little more standby current but settles in a tenth the time) or add a
+unity-gain op-amp buffer between the divider and the ADC pin. Also add a 100 nF
+capacitor from the ADC input to ground, which provides local charge for the
+sample-and-hold and low-pass filters the input.
+
+Once settling is fixed, average 16 samples to knock down the remaining random noise by
+a factor of four. That will not correct any reference error, so if absolute accuracy
+matters, measure the internal reference channel and calibrate against it.
+
+## Power Management and Low-Power Design
+
+Battery-powered devices live or die by average current, and average current is
+dominated by whatever the device does while nominally idle. A design that draws 20
+milliamps active for 10 milliseconds per second and 2 microamps the rest of the time
+averages about 202 microamps; the same design failing to enter its low-power state and
+idling at 5 milliamps averages 5.2 milliamps, a twenty-five-fold difference in battery
+life from a single configuration error. The discipline is to measure current with the
+device in each state rather than to reason about it.
+
+Cortex-M devices offer a ladder of sleep modes. Sleep stops the core clock while
+peripherals continue and any interrupt wakes it, with negligible wake latency — this
+is what a well-written main loop should enter on every pass with nothing to do, via
+the wait-for-interrupt instruction. Stop modes additionally halt most clocks and
+optionally the main regulator, retaining SRAM contents, waking on external interrupts
+or a low-power timer, with wake latency in microseconds. Standby powers down nearly
+everything including SRAM, retaining only a small backup domain and the real-time
+clock, with current in the hundreds of nanoamperes and a wake that is effectively a
+reset. Choosing among them is a tradeoff between current, retained state, and wake
+latency.
+
+The peripherals, not the core, usually dominate. An unused GPIO left floating as an
+input can oscillate around the logic threshold and burn current in the input buffer,
+which is why the standard practice is to configure every unused pin as analog input or
+as an output driven low. Peripheral clocks are individually gateable and cost current
+whenever enabled even if the peripheral is idle. Pull-up resistors on an I2C bus draw
+current continuously whenever the bus is held low. An LED at 10 milliamps dwarfs
+everything else the microcontroller does. And the voltage regulator's own quiescent
+current sets a floor: a regulator with 50 microamps of quiescent draw makes a
+2-microampere standby mode irrelevant.
+
+Low-power checklist:
+  enter WFI in the idle loop            never spin-wait
+  gate clocks to unused peripherals     RCC enable bits default off, keep them off
+  configure unused GPIO as analog       eliminates floating-input current
+  use DMA instead of CPU polling        the core sleeps while data moves
+  wake on RTC or low-power timer        not a busy-wait or a fast timer tick
+  choose a low-Iq regulator             quiescent current sets the floor
+  batch radio transmissions             transmit is orders of magnitude costlier
+  measure with a current probe          per state, not a datasheet estimate
+
+Direct memory access deserves emphasis as a power technique as much as a performance
+one. A DMA controller moves data between a peripheral and memory without the CPU,
+so a block of ADC samples, a UART transmission, or an SPI transfer to a display can
+proceed while the core sits in a sleep state, waking only on the transfer-complete
+interrupt. Replacing a polling loop with DMA plus sleep frequently cuts the energy per
+operation by an order of magnitude, and it simultaneously removes the jitter that
+polling introduces into everything else the system is trying to do on time.
+
+## Real-Time Operating Systems
+
+An RTOS provides preemptive multitasking with priority-based scheduling, so
+independent activities can be written as sequential tasks rather than as a hand-woven
+state machine in a superloop. The defining property is not speed but determinism: the
+highest-priority ready task runs, and the worst-case time from an event to the
+corresponding task running is bounded and calculable. FreeRTOS, Zephyr, ThreadX, and
+RT-Thread are the common choices on Cortex-M, with kernel footprints from a few
+kilobytes upward.
+
+Each task owns a stack, and that is the main memory cost — a system with twelve tasks
+at one kilobyte each has spent twelve kilobytes before any application data. Task
+stacks must be sized for the worst case including the interrupt frame, and RTOS stack
+overflow checking (writing a known pattern and validating it at each context switch)
+catches the common failures at modest cost and should be enabled during development.
+
+Priority inversion is the classic RTOS hazard: a high-priority task blocks on a mutex
+held by a low-priority task, which is itself preempted by an unrelated medium-priority
+task, so the high-priority task waits on the medium one indefinitely. This is what
+delayed the Mars Pathfinder mission in 1997. The standard remedy is priority
+inheritance, where a task holding a mutex temporarily inherits the priority of the
+highest-priority task waiting on it, and it is why an RTOS mutex differs from a binary
+semaphore — the mutex has an owner and can implement inheritance, the semaphore does
+not and cannot.
+
+Inter-task communication primitives and their proper uses:
+  queue                  pass data between tasks; copies by value, thread-safe
+  mutex                  mutual exclusion with an owner and priority inheritance
+  binary semaphore       signalling from ISR to task; no owner, no inheritance
+  counting semaphore     managing a pool of N identical resources
+  event group / flags    a task waiting on any or all of several conditions
+  stream/message buffer  single-producer single-consumer byte or message stream
+  task notification      lightest-weight direct signal, far cheaper than a
+                         semaphore when there is exactly one waiting task
+
+The ISR-safe variants matter and are easy to get wrong. Most RTOS APIs provide
+separate functions for calls from interrupt context — in FreeRTOS the `FromISR`
+suffix — which do not block and which return a flag indicating whether a higher-priority
+task was woken, so the ISR can request a context switch on exit. Calling the ordinary
+blocking API from an ISR corrupts the scheduler state, and the resulting failure is
+usually delayed and baffling. Equally, the interrupt priority of any ISR that calls
+RTOS functions must be at or below the kernel's maximum syscall priority, since the
+kernel masks interrupts up to that level to protect its critical sections; an ISR
+above it can preempt the kernel mid-update and calls from it are unsafe.
+
+Whether an RTOS is warranted at all is a real design question. A superloop with
+interrupt-driven peripherals is simpler, has no scheduler overhead, uses far less RAM,
+and is easier to reason about exhaustively — for a device that reads a sensor,
+processes it, and transmits, that is the right architecture. An RTOS earns its cost
+when there are several activities with genuinely different timing requirements,
+particularly when some must block on I/O for indeterminate periods, or when a
+communications stack (TCP/IP, BLE, USB) demands it. Adopting one for a simple device
+adds complexity, memory cost, and an entire category of concurrency bugs in exchange
+for structure that the application did not need.

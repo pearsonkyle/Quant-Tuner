@@ -1,0 +1,331 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: Natural Language Processing
+Subtopics: linguistic structure, text preprocessing, representations, classical tasks,
+sequence labelling, retrieval and semantic search, generation and evaluation, multilingual
+and practical concerns.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Linguistic Structure
+
+Natural language processing benefits from knowing what makes language hard, and the
+difficulties are structural rather than incidental. Ambiguity is pervasive at every level:
+lexical, where a word has several senses; syntactic, where a sentence admits several parse
+structures; semantic, where a parsed sentence admits several interpretations; and pragmatic,
+where the intended meaning depends on context and speaker intent. Human listeners resolve these
+so fluently that the ambiguity is invisible until a system fails on it.
+
+The classical levels of linguistic analysis remain a useful organizing framework even though
+modern systems do not process them in sequence. Phonology concerns sound. Morphology concerns
+word structure — how a stem combines with affixes to convey tense, number, case, and
+derivation. Syntax concerns how words combine into phrases and sentences. Semantics concerns
+literal meaning. Pragmatics concerns meaning in context, including implicature, presupposition,
+and speech acts. Discourse concerns structure above the sentence, including coreference and
+rhetorical relations.
+
+Morphological richness varies enormously between languages and it determines how much work
+tokenization must do. English is morphologically sparse, so words are reasonable units.
+Turkish and Finnish are agglutinative, forming words by stacking many morphemes, so a single
+word may correspond to an English clause and word-level vocabulary is unbounded. Arabic and
+Hebrew have non-concatenative morphology where the root consonants interleave with vowel
+patterns. Chinese and Japanese have no whitespace between words at all. A method designed
+around English word tokens transfers poorly to any of these, which is a large part of why
+subword tokenization became standard.
+
+Linguistic levels and phenomena:
+  morphology           word-internal structure; inflection and derivation
+  agglutinative        many morphemes per word; Turkish, Finnish, Hungarian
+  fusional             morphemes merge; Latin, Russian
+  isolating            few morphemes per word; Chinese
+  syntax               phrase and sentence structure
+  constituency         hierarchical phrase structure
+  dependency           head-dependent relations between words; often more useful
+                       computationally and more portable across languages
+  attachment ambiguity  where a modifier attaches; the classic parsing difficulty
+  semantics            literal compositional meaning
+  polysemy             one word, related senses
+  homonymy             one form, unrelated senses
+  pragmatics           meaning in context; implicature, presupposition
+  coreference          which mentions refer to the same entity
+  discourse            structure above the sentence
+  Zipf's law           word frequency is inversely proportional to rank; a few
+                       words dominate and the tail is enormous, which is why rare
+                       word handling matters so much
+
+Zipf's law has direct engineering consequences. The most frequent handful of word types
+accounts for a large fraction of tokens, while the majority of types occur once or twice in any
+corpus. This means a vocabulary large enough to cover most types is enormous and mostly
+unused, while a small vocabulary leaves a substantial fraction of tokens unrepresented. Subword
+tokenization resolves this by decomposing rare words into frequent pieces, so the vocabulary
+stays fixed while any string remains representable.
+
+Q: A model trained on English word tokens performs poorly when applied to Turkish. The most
+fundamental cause is:
+A. Turkish has fewer speakers
+B. Turkish is agglutinative, so word-level vocabulary is effectively unbounded and most words
+   in test data are unseen
+C. Turkish has different word order
+D. The training corpus was too small
+Reasoning: Agglutination forms words by stacking morphemes, producing an unbounded set of
+possible word forms. Word-level vocabulary therefore covers a small fraction of test tokens
+regardless of corpus size, and each unseen word is opaque even when its morphemes are familiar.
+Subword tokenization addresses this directly. Answer: B.
+
+## Preprocessing and Representation
+
+Text preprocessing prepares raw text for modelling, and the appropriate steps depend entirely
+on the task and the model. Lowercasing removes a distinction that matters for named entities and
+does not for topic classification. Stopword removal discards frequent function words, which
+helps sparse bag-of-words models and destroys the syntactic information a contextual model uses.
+Stemming and lemmatization normalize inflected forms, which reduces sparsity and conflates
+distinctions. Each is a lossy transformation justified only when the discarded information is
+irrelevant to the task, and modern contextual models generally want the raw text.
+
+Unicode handling is the preprocessing concern that causes the most subtle bugs. Text may
+contain multiple byte representations of the same visual character, since accented characters
+can be a single code point or a base plus a combining mark, so normalization to a canonical
+form is required before any comparison. Invisible characters — zero-width joiners, directional
+marks, non-breaking spaces — are present in real text and break naive tokenization and matching.
+And confusable characters from different scripts that render identically are a security concern
+in identifiers and domain names.
+
+Text representation converts strings to vectors. Bag-of-words counts term occurrences and
+discards order entirely, which is a severe loss and is adequate for topic-level tasks. TF-IDF
+weights terms by frequency in the document against rarity across the corpus, which down-weights
+terms appearing everywhere and is a strong baseline for retrieval. Static word embeddings assign
+each word a dense vector learned from co-occurrence, capturing semantic similarity and assigning
+one vector per word type regardless of context. Contextual embeddings produce a different vector
+per occurrence, resolving polysemy.
+
+Representation approaches:
+  bag of words         counts; no order, sparse, high dimensional
+  n-grams              limited local order; sparsity grows quickly with n
+  TF-IDF               term frequency times inverse document frequency; a strong
+                       and cheap retrieval baseline
+  BM25                 a refined TF-IDF with length normalization and term
+                       frequency saturation; the lexical retrieval standard
+  word2vec / GloVe     static dense embeddings; one vector per type
+  analogy structure    static embeddings encode some relational structure in
+                       vector offsets, an effect that is real and weaker than
+                       early presentations suggested
+  contextual embeddings  a vector per occurrence; resolves polysemy
+  sentence embeddings  a vector per sentence or document; enables semantic
+                       similarity and clustering
+  subword tokenization  BPE, WordPiece, Unigram; fixed vocabulary, any string
+                       representable
+  normalization        Unicode canonical form before any comparison
+  the preprocessing rule  each step is lossy; justify it by the task rather than
+                       applying a standard pipeline
+
+The shift from static to contextual embeddings resolved a fundamental limitation worth stating.
+A static embedding assigns one vector to "bank", which must simultaneously represent a financial
+institution and a river edge, so it lands somewhere between and represents neither well. A
+contextual model computes the representation from the surrounding text, so the two senses receive
+different vectors. This is the single largest quality improvement in the field's history and it
+is what made transfer learning from pretrained models effective.
+
+## Classical Tasks and Sequence Labelling
+
+Text classification assigns a label to a document and is the most common applied task —
+sentiment, topic, intent, spam, routing. It is well served by a hierarchy of approaches whose
+appropriate choice depends on data volume: a linear model on TF-IDF features is a strong
+baseline requiring little data and no compute, a fine-tuned pretrained encoder is stronger and
+requires labelled examples in the hundreds to thousands, and a prompted large model requires no
+task-specific labels at all and is more expensive per inference.
+
+Sequence labelling assigns a label to each token and covers named entity recognition,
+part-of-speech tagging, and chunking. The output has structure that independent per-token
+classification ignores, since labels are correlated — a token inside an entity is likely
+adjacent to another token inside the same entity. Conditional random fields model those
+dependencies explicitly and were the standard before neural sequence models, and a CRF layer on
+top of a neural encoder remains a useful combination because it enforces valid label sequences
+that the encoder alone may violate.
+
+The tagging scheme matters for extraction tasks and is a frequent source of evaluation
+confusion. The BIO scheme marks each token as beginning an entity, inside one, or outside any,
+which permits adjacent entities of the same type to be distinguished. Variants add explicit end
+and single-token markers. Evaluation must be at the entity level rather than the token level,
+because a system that gets three of four tokens of an entity correct has not extracted the
+entity — and token-level metrics report that as 75% correct, which substantially overstates the
+useful performance.
+
+Classical tasks:
+  classification       document to label; the most common applied task
+  named entity recognition  extract and type spans; people, organizations,
+                       locations, dates, domain-specific types
+  BIO tagging          beginning, inside, outside; distinguishes adjacent entities
+  entity-level eval    partial matches are failures; token-level metrics overstate
+  part of speech       word class per token
+  dependency parsing   head-dependent structure; more portable across languages
+                       than constituency
+  coreference          which mentions corefer; hard, and required for anything
+                       reading multi-sentence text carefully
+  relation extraction  typed relations between entities
+  information extraction  populating a structured schema from text; the practical
+                       goal that the above tasks serve
+  CRF                  models label dependencies; enforces valid sequences
+  nested entities      spans within spans; standard BIO cannot represent them
+  span-based models    predict spans directly; handle nesting and overlap
+
+Nested entities are worth noting because standard tagging cannot express them and real text
+contains them constantly. An organization name containing a location, a person's title
+containing an organization, a date range containing dates — each is a span within a span, and a
+scheme assigning one label per token cannot represent both. Span-based models that enumerate
+candidate spans and classify them handle this directly, at greater computational cost, and are
+the appropriate choice when the domain has nested structure.
+
+## Retrieval and Semantic Search
+
+Retrieval finds relevant documents for a query, and the field has two complementary families
+with different failure modes. Lexical retrieval matches terms, is fast, requires no training,
+handles rare terms and exact matches well, and fails on vocabulary mismatch — a query and a
+relevant document expressing the same concept in different words. Dense retrieval embeds queries
+and documents in a shared space and matches by vector similarity, which handles paraphrase and
+synonymy and fails on rare terms and exact identifiers that the embedding does not represent
+distinctly.
+
+Hybrid retrieval combines both and reliably outperforms either, which is the practical
+recommendation. The combination may be a weighted score fusion, a reciprocal rank fusion that
+requires no score calibration, or a two-stage pipeline where one method retrieves candidates and
+the other reranks. Reciprocal rank fusion is the pragmatic default because it needs no tuning and
+is robust to the two systems having incomparable score scales.
+
+Reranking with a cross-encoder is the highest-value addition to a retrieval pipeline. A
+bi-encoder embeds query and document independently, which permits precomputation and fast
+search and prevents any interaction between them. A cross-encoder processes the pair jointly,
+which is far more accurate and requires scoring each candidate individually — so it is
+infeasible for retrieval and ideal for reranking the top candidates that retrieval produced.
+
+Retrieval components:
+  BM25                 lexical; fast, no training, exact match, rare terms
+  vocabulary mismatch  lexical retrieval's characteristic failure
+  dense retrieval      embedding similarity; paraphrase and synonymy
+  rare term failure    dense retrieval's characteristic failure; identifiers,
+                       part numbers, names
+  hybrid               combine both; reliably better than either
+  reciprocal rank fusion  combine rankings without score calibration
+  bi-encoder           independent encoding; precomputable, fast, less accurate
+  cross-encoder        joint encoding; accurate, not precomputable, use for
+                       reranking
+  ANN index            approximate nearest neighbour; HNSW and IVF are the common
+                       families
+  chunking             documents split for embedding; chunk size and overlap
+                       materially affect retrieval quality and are underexplored
+                       in most implementations
+  metadata filtering   restrict by date, source, permissions; frequently more
+                       important than semantic ranking
+  query expansion      add related terms or generate a hypothetical answer to
+                       embed instead of the query
+  RAG                  retrieve then generate; grounds generation in sources and
+                       makes attribution possible
+
+Chunking deserves more attention than it typically receives because it determines what can be
+retrieved at all. A chunk too small lacks the context to be interpretable and to match a query
+about the broader topic. A chunk too large dilutes the embedding across multiple topics so that
+none matches strongly, and it wastes generation context. Splitting on semantic boundaries —
+sections, paragraphs — rather than at fixed character counts preserves coherence, and including
+a small overlap prevents a relevant passage from being split across two chunks such that neither
+contains it fully. Adding document-level context to each chunk, such as the title and section
+path, improves retrieval substantially for a small cost.
+
+[user] Our RAG system retrieves plausible-looking passages but the answers are frequently
+wrong or miss the relevant document entirely.
+[assistant] tool_call rag.diagnose({"retriever": "dense_only", "chunk_size": 1000,
+"chunk_overlap": 0, "top_k": 3, "reranker": false, "metadata_filter": false,
+"eval": {"retrieval_recall@10": 0.51, "answer_accuracy": 0.44}})
+[tool] {"bottleneck": "retrieval", "recall_ceiling": 0.51,
+"issues": ["dense_only_misses_exact_terms", "no_overlap_splits_passages",
+"top_k_too_small", "no_reranking"], "estimated_recall_after_fixes": 0.85}
+[assistant] The generation is not your problem. Retrieval recall at ten is 51%, which means
+that for half your queries the relevant passage is not in the candidate set at all — no
+generation model can answer correctly from documents it was not given.
+
+Four changes, roughly in order of impact per effort.
+
+Add lexical retrieval alongside your dense retriever and fuse the rankings. Dense retrieval
+systematically misses exact identifiers, product codes, names, and rare technical terms, because
+the embedding does not distinguish them from similar-looking alternatives. BM25 handles those
+precisely. Reciprocal rank fusion combines the two rankings without needing the scores to be
+comparable, and hybrid retrieval typically adds ten to twenty points of recall over dense alone.
+
+Add chunk overlap. With zero overlap, a passage spanning a chunk boundary is split so that
+neither chunk contains the complete answer, and both embed poorly. An overlap of ten to twenty
+percent of the chunk size costs storage and eliminates this failure.
+
+Retrieve more candidates and rerank. Three is far too few to feed a generator, and the fix is
+retrieving perhaps fifty and reranking with a cross-encoder to select the best five. The
+cross-encoder scores the query and passage jointly rather than comparing precomputed vectors,
+which is substantially more accurate, and scoring fifty candidates is entirely affordable.
+
+Then add metadata filtering if your corpus has structure. Restricting by date, document type,
+or access permission before ranking removes irrelevant candidates that would otherwise crowd out
+correct ones, and it is frequently a larger win than any ranking improvement.
+
+Two measurement points. Evaluate retrieval separately from generation, as you have started to
+do — the two failure modes need different fixes and an end-to-end number cannot distinguish
+them. And once retrieval recall is above about 85%, re-examine the generation: if answers are
+still wrong with the correct passage present, the problem moves to prompt construction, context
+ordering, or the model's tendency to answer from parametric knowledge rather than from the
+provided context.
+
+## Generation, Evaluation, and Practice
+
+Text generation is now dominated by large autoregressive models, and the practical concerns
+have shifted from architecture to control and evaluation. Decoding strategy shapes the output's
+character: greedy decoding is deterministic and repetitive, beam search suits tasks with a single
+correct answer such as translation and produces bland text for open-ended generation, and
+sampling with temperature and nucleus truncation is standard for creative or conversational
+output.
+
+Evaluation of generated text is the field's weakest area. Overlap-based metrics compare against
+reference outputs and correlate poorly with human judgment for anything but the most constrained
+tasks, because many good outputs share few words with any single reference. Embedding-based
+metrics compare semantic similarity and improve on this while still requiring references.
+Model-based judges evaluate outputs against criteria and correlate better with human judgment,
+at the cost of inheriting the judge's biases — including documented preferences for longer
+outputs, for outputs from the same model family, and for the first option presented.
+
+Hallucination — generating fluent, confident, incorrect content — is the failure mode that
+most limits deployment. It arises because the training objective rewards plausible continuation
+rather than truth, and the model has no mechanism distinguishing what it knows from what it is
+constructing. The mitigations are grounding generation in retrieved sources with explicit
+attribution, constraining output format so claims are checkable, calibrating and surfacing
+uncertainty, and verifying claims against sources after generation.
+
+Generation and evaluation:
+  greedy               deterministic, repetitive
+  beam search          single-correct-answer tasks; bland for open generation
+  temperature          scales the logits; lower is sharper
+  top-p / nucleus      truncates to the smallest set exceeding a probability mass
+  repetition penalty   discourages loops; heavy-handed and can degrade fluency
+  BLEU / ROUGE         n-gram overlap; poor correlation with quality for open
+                       tasks
+  BERTScore            embedding similarity; better, still reference-based
+  LLM-as-judge         best correlation with human judgment; inherits biases
+                       toward length, self-preference, and position
+  human evaluation     the standard; expensive, slow, and needs careful protocol
+  hallucination        fluent and wrong; the primary deployment limitation
+  grounding            retrieve and attribute; makes claims checkable
+  structured output    constrained decoding to a schema; makes validation possible
+  calibration          the model's confidence should track its accuracy; it
+                       typically does not without explicit work
+
+Multilingual and cross-lingual work carries its own concerns that English-centric development
+tends to miss. Resource availability varies by orders of magnitude across languages, so a method
+validated on English may fail where training data is scarce. Tokenizers trained predominantly on
+English fragment other scripts into many more tokens, which costs context, costs money per token,
+and degrades quality — a fairness issue as much as a technical one. Evaluation datasets for most
+languages are translations of English ones, which carry English discourse structure and cultural
+assumptions and therefore overstate performance on genuinely native text.
+
+The practical concerns in deployment are consistent across tasks. Latency and cost scale with
+model size and with tokens processed, so the architectural question is usually how to do the
+minimum work per request — caching, routing easy cases to smaller models, and constraining
+output length. Privacy matters because text frequently contains personal information, which
+means detection and redaction before storage or transmission to a third-party service. And
+domain adaptation matters more than in most fields, because language varies enormously by domain
+— clinical notes, legal contracts, and social media differ in vocabulary, syntax, and
+conventions so completely that a model performing well on one may be near-useless on another
+without adaptation.

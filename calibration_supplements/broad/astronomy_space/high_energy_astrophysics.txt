@@ -1,0 +1,294 @@
+================================================================================
+AREA: Astronomy and Space
+SUBJECT: High-Energy Astrophysics
+Subtopics: radiation mechanisms, accretion, compact object systems, supernovae and
+transients, active galactic nuclei, cosmic rays and neutrinos, gravitational waves,
+detection.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Radiation Mechanisms
+
+High-energy astrophysics studies the most energetic processes in the universe, and
+interpreting what is observed requires knowing which physical process produced the radiation.
+The spectrum's shape is the primary diagnostic, because each mechanism produces a
+characteristic form that persists across enormously different sources.
+
+Thermal emission from an optically thick source is a blackbody, whose spectrum depends only on
+temperature. The peak wavelength moves inversely with temperature, so a source peaking in X-rays
+is at millions of kelvin. Thermal bremsstrahlung — braking radiation from electrons deflected by
+ions in a hot ionized gas — produces a flat spectrum with an exponential cutoff at the thermal
+energy, and it is what the hot gas in galaxy clusters emits.
+
+Synchrotron radiation comes from relativistic electrons spiralling in a magnetic field, and it
+produces a power-law spectrum rather than a thermal one because the electron energy distribution
+is itself a power law. This is the signature of non-thermal particle acceleration, and its
+presence establishes that some process has accelerated particles far beyond thermal energies.
+Synchrotron emission is also polarized, which distinguishes it observationally and provides a
+probe of the magnetic field geometry.
+
+Inverse Compton scattering upscatters low-energy photons to high energy when they encounter
+relativistic electrons, which is the reverse of ordinary Compton scattering where a high-energy
+photon loses energy to an electron. It is how the highest-energy photons in many sources are
+produced, and the synchrotron self-Compton process — where the same electron population produces
+synchrotron photons and then upscatters them — gives a characteristic two-humped spectrum seen
+in blazars.
+
+Radiation mechanisms and their signatures:
+  blackbody            optically thick thermal; peak set by temperature alone
+  bremsstrahlung       hot ionized gas; flat with an exponential cutoff
+  synchrotron          relativistic electrons in a magnetic field; power law,
+                       polarized; establishes non-thermal acceleration
+  inverse Compton      relativistic electrons upscatter photons; produces the
+                       highest energies
+  synchrotron self-Compton  the same electrons do both; a two-humped spectrum
+  cyclotron            non-relativistic electrons in a field; discrete lines,
+                       measuring the field strength directly
+  line emission        atomic transitions; identifies composition, temperature,
+                       ionization state, and velocity
+  fluorescence         iron K-alpha at 6.4 keV; broadened and skewed by
+                       relativistic effects near a black hole, which is how the
+                       spin is measured
+  pair production      photon-photon above the threshold; limits how compact a
+                       gamma-ray source can be
+  Compton drag         limits particle energies in dense radiation fields
+
+The iron K-alpha line deserves particular attention because it is the most direct probe of
+strong gravity available. Iron fluoresces at a known rest energy, and a line produced in an
+accretion disc close to a black hole is broadened by Doppler shifts from orbital motion and
+skewed by gravitational redshift, producing a distinctive asymmetric profile. The extent of the
+red wing depends on how close to the black hole the disc extends, which depends on the spin —
+so fitting the line profile measures a black hole's spin from an atomic transition.
+
+Q: A source shows a power-law spectrum extending over several decades in frequency, with
+significant linear polarization. The emission mechanism is most likely:
+A. Blackbody
+B. Synchrotron radiation from relativistic electrons in a magnetic field
+C. Thermal bremsstrahlung
+D. Atomic line emission
+Reasoning: A blackbody has a specific curved shape set by one temperature and is unpolarized.
+Bremsstrahlung is flat with an exponential cutoff rather than a broad power law. Polarization
+requires an ordered magnetic field, and a broad power law requires a power-law electron energy
+distribution — both are the defining characteristics of synchrotron emission. Answer: B.
+
+## Accretion
+
+Accretion onto a compact object is the most efficient energy-release process known apart from
+matter-antimatter annihilation, and it powers most high-energy sources. Material falling toward
+a compact object releases gravitational potential energy, and the efficiency depends on how deep
+into the potential well it falls before the energy is radiated. For a neutron star this is about
+ten percent of the rest mass energy, and for a black hole it ranges from roughly six percent for
+a non-rotating one to over thirty percent for a maximally rotating one — compared with about
+0.7 percent for hydrogen fusion.
+
+Angular momentum is the obstacle that makes accretion structured rather than radial. Infalling
+material almost always has some angular momentum, so it cannot fall directly in and instead
+settles into an orbiting disc. Accretion then requires transporting angular momentum outward so
+that material can move inward, and identifying the mechanism was a long-standing problem —
+ordinary molecular viscosity is far too weak. The magnetorotational instability provides it: a
+weak magnetic field in a differentially rotating disc becomes unstable, generating turbulence
+that transports angular momentum efficiently.
+
+The Eddington limit sets the maximum steady accretion rate. As accretion luminosity rises, the
+outward radiation pressure on infalling material grows, and at the Eddington luminosity it
+balances gravity so that further accretion is halted. The limit is proportional to the accretor's
+mass, which means a given source has a maximum luminosity set by its mass — and observing a
+source above that limit implies either beaming, a larger mass than assumed, or genuinely
+super-Eddington accretion through a geometry that lets radiation escape without impeding the
+inflow.
+
+Accretion physics:
+  efficiency           ~10% for a neutron star, 6-32% for a black hole depending
+                       on spin; fusion is ~0.7%
+  angular momentum     the obstacle; requires outward transport for inward flow
+  magnetorotational instability  the transport mechanism; magnetic fields in
+                       differential rotation
+  thin disc            efficient radiator, geometrically thin, optically thick;
+                       the standard picture at moderate rates
+  thick / advective    at very low or very high rates; energy advected inward
+                       rather than radiated
+  Eddington luminosity  radiation pressure balances gravity; proportional to mass
+  super-Eddington      possible with anisotropic geometry or beaming
+  innermost stable orbit  no stable circular orbit below it; its radius depends on
+                       spin, which is how spin measurements work
+  boundary layer       where the flow meets a neutron star's surface; absent for a
+                       black hole, and its absence is observational evidence for a
+                       horizon
+  jets                 collimated relativistic outflows; the launching mechanism
+                       involves magnetic fields and rotation and is not fully
+                       settled
+  variability          light-crossing time bounds the emitting region's size; rapid
+                       variability implies a compact source
+
+The light-crossing argument deserves emphasis because it constrains source sizes without
+resolving them. A source cannot vary coherently on a timescale shorter than light takes to cross
+it, because different parts could not coordinate. A source varying on a timescale of
+milliseconds is therefore smaller than a light-millisecond, about 300 kilometres — which for an
+object radiating the luminosity of many suns implies an extraordinary energy density and was
+among the earliest arguments that compact objects power these sources.
+
+## Compact Object Systems and Transients
+
+X-ray binaries consist of a compact object accreting from a companion star, and they divide by
+the companion's mass in a way that determines the accretion mechanism. High-mass systems have a
+massive companion whose strong stellar wind is captured, giving persistent emission. Low-mass
+systems have a companion overflowing its Roche lobe, transferring material through the inner
+Lagrange point into a disc, and these frequently show outbursts as disc instabilities trigger
+episodic accretion.
+
+Distinguishing a neutron star from a black hole accretor is done by the presence or absence of a
+surface. A neutron star has one, so material accumulating on it eventually ignites in a
+thermonuclear flash producing a type I X-ray burst, and its rotating magnetic field can produce
+pulsations. A black hole has neither, so bursts and pulsations are absent — and the systematic
+absence of surface phenomena in the sources whose mass exceeds the neutron star limit is
+observational support for event horizons.
+
+Supernovae divide into two physically distinct classes despite a spectroscopic classification
+that predates the understanding. Core-collapse supernovae occur when a massive star's iron core
+exceeds its degeneracy limit and collapses, with the resulting neutrino burst and rebound
+ejecting the envelope. Thermonuclear supernovae occur when a white dwarf approaching the
+Chandrasekhar limit ignites runaway carbon fusion, unbinding the star entirely. The second class
+is more useful cosmologically because the explosion occurs at a consistent mass, giving a
+standardizable luminosity.
+
+Compact objects and transients:
+  high-mass X-ray binary  wind accretion from a massive companion; persistent
+  low-mass X-ray binary   Roche lobe overflow; often transient
+  type I X-ray burst      thermonuclear flash on a neutron star surface; proves a
+                          surface exists
+  pulsations              a rotating magnetized neutron star
+  black hole evidence     absence of surface phenomena, mass above the neutron
+                          star limit, and now direct imaging and gravitational
+                          waves
+  state transitions       accretion geometry changes with rate; hard and soft
+                          spectral states with hysteresis
+  quasi-periodic oscillations  frequencies near the orbital timescale at the inner
+                          disc; a probe of strong gravity
+  core-collapse supernova  massive star iron core collapse; neutrino-driven
+  thermonuclear supernova  white dwarf carbon detonation; standardizable candle
+  kilonova                neutron star merger; produces heavy elements by rapid
+                          neutron capture
+  gamma-ray burst, long   collapse of a rapidly rotating massive star
+  gamma-ray burst, short  compact object merger; confirmed by the 2017 multi-
+                          messenger event
+  tidal disruption        a star torn apart by a supermassive black hole;
+                          illuminates otherwise quiescent nuclei
+  fast radio burst        millisecond radio transients; some repeat, magnetars are
+                          the leading source class, and the mechanism remains open
+
+The 2017 neutron star merger is worth stating as a case because it settled several questions at
+once. Gravitational waves and a short gamma-ray burst arrived within two seconds, confirming that
+compact object mergers produce short bursts and constraining the speed of gravitational waves to
+match light to within one part in ten to the fifteenth. The subsequent kilonova showed spectral
+signatures of heavy element production by rapid neutron capture, establishing mergers as a
+dominant source of elements heavier than iron. And the combination of the gravitational wave
+distance with the host galaxy's redshift provided an independent measurement of the expansion
+rate.
+
+## Active Galactic Nuclei and Jets
+
+An active galactic nucleus is a supermassive black hole accreting at a rate producing
+luminosity comparable to or exceeding the host galaxy's stars. The energy source is accretion
+rather than fusion, which is established by the efficiency required — the luminosity and the
+variability timescale together imply an energy release per unit mass that fusion cannot supply.
+
+The unified model explains the observational zoo as one object viewed from different angles. A
+central black hole with an accretion disc is surrounded by a torus of obscuring material, and
+whether the broad emission lines from fast-moving gas near the black hole are visible depends on
+whether the line of sight passes through the torus. Viewing along a jet gives yet another
+appearance, dominated by relativistically beamed emission from the jet itself. This reduces
+Seyfert types, radio galaxies, quasars, and blazars substantially to orientation plus intrinsic
+luminosity and accretion rate.
+
+Relativistic beaming is what makes blazars extreme. Emission from material moving toward the
+observer at close to light speed is boosted in apparent luminosity by a large factor, is
+compressed in observed timescale, and is blueshifted. The consequences include apparent
+superluminal motion — where a jet component appears to move across the sky faster than light
+because it is moving nearly toward us and nearly keeping pace with its own emitted light — which
+is a projection effect rather than a violation of relativity.
+
+Active galactic nuclei:
+  energy source        accretion onto a supermassive black hole
+  unified model        one object; appearance depends on orientation
+  obscuring torus      hides the broad line region from some viewing angles
+  broad lines          fast gas close to the black hole; visible when unobscured
+  narrow lines         slower gas further out; visible from most angles
+  Seyfert types        type 1 shows broad lines, type 2 does not
+  quasar               high luminosity; outshines the host galaxy
+  blazar               viewed along the jet; beamed, variable, polarized
+  radio loud vs quiet  whether powerful jets are present; the cause of the
+                       dichotomy is not settled
+  superluminal motion  apparent faster-than-light jet motion; a projection effect
+                       from motion nearly toward the observer
+  M-sigma relation     black hole mass correlates with the host bulge velocity
+                       dispersion; implies coupled growth
+  AGN feedback         outflows heating and expelling gas; regulates star
+                       formation in the host and is required for galaxy formation
+                       models to reproduce observed galaxy masses
+
+AGN feedback deserves emphasis because it connects the smallest scales to the largest. A black
+hole occupies a negligible fraction of a galaxy's volume and mass, and its accretion releases
+enough energy to unbind a substantial fraction of the galaxy's gas. Simulations of galaxy
+formation without this feedback produce galaxies far more massive than observed, because gas
+cools and forms stars unchecked. Including energy injection from the nucleus regulates it and
+reproduces the observed distribution — which is why the M-sigma correlation between black hole
+mass and host properties is interpreted as a signature of coupled growth rather than as a
+coincidence.
+
+## Cosmic Rays, Neutrinos, and Detection
+
+Cosmic rays are charged particles arriving from space, predominantly protons, with an energy
+spectrum extending to energies far beyond any accelerator. Their charge means magnetic fields
+deflect them, so their arrival directions do not point at their sources except at the very
+highest energies where deflection becomes small. This is why identifying cosmic ray sources has
+been so difficult despite a century of observation.
+
+The spectrum has features that constrain the acceleration mechanisms. It follows a power law
+with a steepening at the knee around three petaelectronvolts, interpreted as the limit of
+galactic accelerators, and a flattening at the ankle around a few exaelectronvolts, interpreted
+as a transition to extragalactic sources. Above about fifty exaelectronvolts the spectrum should
+cut off because protons interact with cosmic microwave background photons over intergalactic
+distances — the GZK cutoff — which is observed and which limits the distance the highest-energy
+particles can have travelled.
+
+Neutrinos solve the pointing problem because they are neutral and interact weakly, so they
+travel undeflected and unabsorbed from their sources. That same weak interaction makes them
+extraordinarily difficult to detect, requiring instrumented volumes of a cubic kilometre of ice
+or water to catch enough. High-energy astrophysical neutrinos have been detected and at least one
+has been associated with a flaring blazar, establishing that at least some are produced in
+active galactic nuclei.
+
+Cosmic rays, neutrinos, and instruments:
+  composition          mostly protons, some heavier nuclei, a small electron
+                       component
+  spectrum             a power law with a knee at ~3 PeV and an ankle at ~3 EeV
+  GZK cutoff           interaction with the microwave background above ~50 EeV;
+                       limits propagation distance
+  magnetic deflection  destroys directional information except at the highest
+                       energies
+  shock acceleration   diffusive acceleration at supernova remnant shocks; the
+                       leading galactic mechanism
+  air showers          a primary particle cascades in the atmosphere; detected by
+                       surface arrays and by fluorescence
+  neutrino advantage   neutral and weakly interacting; points back to the source
+  neutrino detection   cubic-kilometre instrumented ice or water; Cherenkov light
+                       from secondary particles
+  X-ray telescopes     grazing incidence optics, since normal-incidence mirrors do
+                       not reflect X-rays
+  gamma-ray detection  above ~100 MeV by pair conversion in space; above ~100 GeV
+                       by atmospheric Cherenkov telescopes on the ground
+  gravitational waves  kilometre-scale laser interferometers; strain sensitivity
+                       below one part in 10^21
+  multi-messenger      combining electromagnetic, neutrino, gravitational wave,
+                       and cosmic ray channels; constrains physics no single
+                       channel can
+
+Grazing incidence optics deserve a note because they explain why X-ray telescopes look nothing
+like optical ones. X-rays are absorbed rather than reflected at normal incidence, and reflect
+efficiently only at very shallow angles — a few degrees or less. X-ray telescopes therefore use
+nested cylindrical mirror shells that the incoming rays graze, which gives a small collecting
+area for a large physical size and is why X-ray telescopes have far less effective area than
+their dimensions suggest. The same physics is why focusing becomes progressively harder at higher
+photon energy, and why hard X-ray and gamma-ray instruments use coded masks and pair-conversion
+tracking rather than focusing optics at all.

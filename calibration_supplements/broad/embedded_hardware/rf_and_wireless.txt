@@ -1,0 +1,283 @@
+================================================================================
+AREA: Embedded Systems and Hardware
+SUBJECT: RF and Wireless Systems
+Subtopics: propagation, modulation, transmission lines and matching, receiver
+architecture, antennas, protocols and spectrum, link design, practical RF.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Propagation and the Link Budget
+
+Radio propagation determines what is achievable, and the dominant term at any distance is
+free-space path loss. It grows with the square of both distance and frequency, which means
+doubling the distance costs six decibels and doubling the frequency costs another six. The
+frequency dependence is a consequence of the receiving antenna's effective aperture shrinking
+with wavelength for a fixed gain, and it is why higher frequency bands trade range for
+bandwidth.
+
+Real environments depart from free space in ways that dominate the design. Reflection from
+surfaces creates multiple paths that arrive with different delays and combine constructively or
+destructively, producing deep fades that vary with position on a scale of half a wavelength.
+Diffraction bends signals around obstacles, with the effect stronger at lower frequency where the
+wavelength is comparable to the obstruction. Scattering from rough surfaces and small objects
+spreads energy. Absorption by materials attenuates, with water and therefore vegetation, rain,
+and human bodies being significant absorbers at microwave frequencies.
+
+Multipath fading is the most consequential of these for system design. Two paths differing by
+half a wavelength arrive in antiphase and cancel, which at 2.4 GHz means a null every six
+centimetres — so a stationary receiver can sit in a deep fade while a position a hand's width
+away has strong signal. This is why antenna diversity works: two antennas separated by a
+fraction of a wavelength are unlikely to be in a fade simultaneously, and selecting or combining
+them substantially improves reliability for a small cost.
+
+Propagation and link budget:
+  free-space path loss  20 log10(d) + 20 log10(f) + 32.45 dB for km and MHz
+  distance doubling     -6 dB
+  frequency doubling    -6 dB for fixed antenna gain
+  multipath             constructive and destructive combination; fades every
+                        half wavelength
+  Rayleigh fading       no dominant path; deep frequent fades
+  Rician fading         a dominant line-of-sight path plus scatter; less severe
+  fade margin           extra link budget to survive fading; 10-30 dB depending on
+                        environment and required reliability
+  diversity             spatial, polarization, frequency, or time; the practical
+                        counter to fading
+  Fresnel zone          the ellipsoid around the direct path; keep 60% of the
+                        first zone clear or diffraction loss becomes significant
+  penetration loss      walls, foliage, and bodies; strongly frequency dependent
+  link budget           transmit power plus gains minus losses versus receiver
+                        sensitivity
+  link margin           the surplus; consumed by fading, ageing, and pointing
+  noise floor           -174 dBm/Hz at room temperature; plus the bandwidth in dB
+                        and the receiver noise figure
+
+The thermal noise floor is the reference point for every receiver calculation and is worth
+having memorized. At room temperature it is -174 dBm per hertz of bandwidth, so a receiver with
+one megahertz of bandwidth has a noise floor of -174 plus 60, or -114 dBm, before its own noise
+figure is added. Sensitivity is that floor plus the noise figure plus the required
+signal-to-noise ratio for the modulation in use, which is why narrower bandwidth and more robust
+modulation both improve range — each reduces the required received power.
+
+Q: A link operating at 2.4 GHz is moved to 5 GHz with identical antennas and transmit power.
+The received power changes by approximately:
+A. No change   B. -6 dB   C. -12 dB   D. +6 dB
+Reasoning: Free-space path loss grows with the square of frequency for antennas of fixed gain,
+so slightly more than doubling the frequency costs about 6.4 dB. In practice the loss is worse
+still, because higher frequencies penetrate walls and vegetation more poorly. This is why 5 GHz
+Wi-Fi has shorter range than 2.4 GHz at equal power, and why it offers more bandwidth and less
+congestion in compensation. Answer: B.
+
+## Modulation and Coding
+
+Modulation impresses information onto a carrier by varying its amplitude, frequency, or phase,
+and the choice trades spectral efficiency against required signal-to-noise ratio. Higher-order
+schemes carry more bits per symbol and pack the constellation points closer together, so noise
+is more likely to move a received point into a neighbouring decision region. Every additional
+bit per symbol costs roughly six decibels of required signal-to-noise ratio.
+
+This tradeoff is why modern systems use adaptive modulation. When the link is strong, a
+high-order scheme maximizes throughput; when it degrades, the system falls back to a robust
+low-order scheme that maintains a connection at lower rate. The observable consequence is that
+wireless throughput falls in steps rather than smoothly as a device moves away from an access
+point, since each step is a modulation change.
+
+Spread spectrum deliberately uses more bandwidth than the information requires, which sounds
+wasteful and buys several properties. Direct sequence multiplies the data by a fast pseudorandom
+code, spreading the energy across a wide band and allowing the receiver to recover it by
+correlating with the same code, which provides processing gain against narrowband interference
+and allows multiple users to share the band with different codes. Frequency hopping changes
+carrier frequency rapidly according to a pattern, which averages over frequency-selective fading
+and resists both interference and interception.
+
+Modulation and coding:
+  ASK, FSK, PSK        amplitude, frequency, phase modulation
+  BPSK                 1 bit per symbol; the most robust common scheme
+  QPSK                 2 bits per symbol
+  16-QAM, 64-QAM, 256-QAM  4, 6, 8 bits per symbol; each step needs ~6 dB more
+                       signal-to-noise ratio
+  adaptive modulation  select by link quality; throughput falls in steps
+  constellation        the symbol points; a diagram of received points diagnoses
+                       phase noise, amplitude imbalance, and interference by the
+                       shape of the scatter
+  OFDM                 many narrow orthogonal subcarriers; converts a
+                       frequency-selective channel into many flat ones and
+                       simplifies equalization enormously
+  cyclic prefix        a guard interval absorbing multipath delay spread; the
+                       reason OFDM tolerates multipath
+  PAPR                 OFDM's high peak-to-average ratio stresses the power
+                       amplifier and forces backoff
+  direct sequence      spreading by a fast code; processing gain and code-division
+                       sharing
+  frequency hopping    averages over fading and interference
+  forward error correction  convolutional, Reed-Solomon, LDPC, turbo, polar;
+                       trades rate for the required signal-to-noise ratio
+  coding gain          the reduction in required SNR; several decibels for modest
+                       overhead, and nearly always worth it
+
+OFDM deserves emphasis because it is the technique underlying essentially every modern
+high-rate wireless standard. A wideband signal in a multipath channel experiences frequency-
+selective fading, where some frequencies are attenuated and others are not, and equalizing that
+in a single-carrier system is computationally demanding. OFDM divides the band into many narrow
+subcarriers, each of which is narrow enough that the channel is approximately flat across it, so
+equalization becomes one complex multiplication per subcarrier. The cyclic prefix — a copy of
+the symbol's end prepended to its start — absorbs the delay spread so that multipath copies do
+not interfere between symbols, at the cost of a few percent of the throughput.
+
+## Transmission Lines, Matching, and Amplifiers
+
+Above the frequency where a conductor's length becomes comparable to a fraction of the
+wavelength, it behaves as a transmission line rather than a wire. The characteristic impedance
+depends on the geometry and dielectric, and it determines what happens at any discontinuity: a
+mismatch reflects part of the incident wave back toward the source.
+
+Impedance matching maximizes power transfer and minimizes reflection, and it is the central
+practical task in RF design. The conventions are fifty ohms for most radio work and seventy-five
+for video and broadcast reception, and the fifty ohm figure is a compromise — minimum attenuation
+in coaxial cable occurs near seventy-seven ohms and maximum power handling near thirty, so fifty
+is roughly the geometric middle.
+
+The Smith chart is the classical tool for matching and remains useful as a way of thinking even
+where software does the calculation. It maps the complex reflection coefficient onto a plane
+where constant resistance and constant reactance are circles, so the effect of adding a series or
+shunt component is a movement along a known arc. Matching becomes a geometric problem of
+navigating from the load impedance to the centre, which is where the reflection is zero.
+
+Transmission lines and amplifiers:
+  characteristic impedance  set by geometry and dielectric; 50 ohm convention
+  reflection coefficient  from the mismatch between load and line
+  VSWR                 standing wave ratio; 1:1 perfect, 2:1 reflects ~11% of
+                       power
+  return loss          dB below incident reflected; higher is better
+  Smith chart          reflection coefficient plane; matching as a geometric path
+  L-network            two reactive components; matches any two resistances at one
+                       frequency
+  stub matching        a length of open or shorted line as a reactance
+  quarter-wave transformer  matches two resistances with a line of intermediate
+                       impedance
+  balun                balanced to unbalanced transition; required when feeding a
+                       dipole from coax, and its absence causes current on the
+                       feedline outer conductor, which then radiates
+  amplifier classes    A linear and inefficient, C efficient and nonlinear, E and
+                       F switching for high efficiency
+  1 dB compression     where gain falls by 1 dB; the practical linear limit
+  third-order intercept  a figure of merit for intermodulation; higher is more
+                       linear
+  intermodulation      two signals producing sum and difference products; the
+                       third-order products fall in band and cannot be filtered out
+  noise figure         degradation of signal-to-noise; the first stage dominates
+                       the whole chain
+
+Third-order intermodulation deserves specific attention because it is the distortion mechanism
+that filtering cannot remove. Two signals at nearby frequencies passing through a nonlinearity
+produce products at frequencies that are close to the originals — specifically at twice one
+frequency minus the other — so they land within the passband and are indistinguishable from
+legitimate signals. This is why receiver linearity matters as much as sensitivity in a crowded
+spectrum, and why a strong out-of-band signal can desensitize a receiver even though it is
+nominally filtered.
+
+[user] My 915 MHz link works at 200 m in open field but drops out at 30 m inside a warehouse,
+and moving the receiver a few centimetres sometimes fixes it.
+[assistant] tool_call rf.link_diagnose({"frequency_mhz": 915, "open_field_m": 200,
+"indoor_m": 30, "symptom": "position_sensitive_dropout", "antenna": "single_pcb_trace",
+"environment": "metal_racking", "fade_margin_db": 6})
+[tool] {"wavelength_cm": 32.8, "null_spacing_cm": 16.4, "environment": "rich_multipath",
+"fading_model": "rayleigh", "margin_required_db": 20, "margin_present_db": 6,
+"recommendations": ["antenna_diversity", "increase_fade_margin", "frequency_agility"]}
+[assistant] The position sensitivity is the diagnosis: you are in multipath fading, and your
+fade margin is far too small for the environment.
+
+At 915 MHz the wavelength is 32.8 cm, so multipath nulls occur roughly every 16 cm. In a
+warehouse with metal racking there is no dominant line-of-sight path and many strong
+reflections, which gives Rayleigh fading — the worst case, with deep fades occurring frequently.
+Moving a few centimetres moves you out of a null, which is exactly what you observe.
+
+Your 6 dB fade margin is adequate for open field and inadequate here. Rayleigh fading requires
+roughly 20 dB of margin for 99% reliability, and 30 dB for 99.9%. That is the gap.
+
+Three approaches, and the first is the most cost-effective by a wide margin.
+
+Antenna diversity. Two antennas separated by a quarter wavelength or more — 8 cm at your
+frequency — are unlikely to be in a fade simultaneously, since the fading is spatially
+uncorrelated at that separation. Selecting whichever has the stronger signal typically recovers
+10 dB of effective margin for the cost of a second antenna, a switch, and some firmware. Many
+transceivers support this directly.
+
+Frequency agility. Multipath fading is frequency selective, so a null at one frequency is
+usually not a null at another. If you have channel-hopping available, hopping across the band
+means a persistent null on one channel does not persist across all of them. This is what
+frequency-hopping spread spectrum provides and it is why the technique is standard in
+industrial environments.
+
+Then increase the raw margin: a higher-gain antenna if the geometry permits, a lower data rate
+with more robust modulation, or more transmit power within your regulatory limit. Each buys a
+few decibels.
+
+One thing to check first: your PCB trace antenna. Trace antennas are sensitive to the ground
+plane, the enclosure, and nearby metal, and their real gain in situ is frequently several
+decibels below the datasheet figure. Measuring the actual radiated performance in the enclosure,
+or substituting an external antenna as a test, will tell you whether part of the shortfall is
+there rather than in the channel.
+
+## Antennas, Spectrum, and Practical RF
+
+An antenna converts between guided and radiated waves, and reciprocity guarantees identical
+transmit and receive characteristics. Its size is set by the wavelength: efficient radiation
+requires dimensions comparable to a substantial fraction of a wavelength, which is why low
+frequencies need large antennas and why electrically small antennas are inefficient and
+narrowband — a fundamental limit rather than an engineering shortfall.
+
+Gain is not amplification but redistribution: an antenna with gain concentrates the same
+radiated power into a narrower beam, necessarily at the expense of other directions. Directivity
+and beamwidth are inversely related, so higher gain means tighter pointing requirements. An
+omnidirectional whip has near-unity gain in the horizontal plane with a null along its axis; a
+dish concentrates enormously and must be aimed.
+
+Spectrum is a regulated resource, and the regulatory framework shapes what is designable.
+Licensed bands provide exclusive use and protection from interference at the cost of licensing.
+Unlicensed bands — the industrial, scientific, and medical allocations — are free to use subject
+to power and duty cycle limits, with no protection from interference, which means a design must
+tolerate whatever else is present. Regional differences in allocations, power limits, and duty
+cycle rules mean a product must be designed for the regions it will ship to.
+
+Antennas, spectrum, and practice:
+  half-wave dipole     the reference element; ~73 ohm radiation resistance, 2.15
+                       dBi gain, doughnut pattern with nulls along the axis
+  quarter-wave monopole  half a dipole over a ground plane; ~36 ohms, and its
+                       performance depends critically on the ground plane
+  patch antenna        planar, directional, easy to fabricate on a board
+  PCB trace antenna    cheap and sensitive to layout, enclosure, and nearby metal
+  chip antenna         small, requires a specified ground plane and keep-out
+  gain and beamwidth   inversely related; gain is redistribution, not
+                       amplification
+  polarization         match transmit and receive, or lose several decibels;
+                       cross-polarized is typically 20 dB down
+  ground plane         part of the antenna for a monopole; its size and shape
+                       change the pattern and the impedance
+  ISM bands            unlicensed, power and duty cycle limited, no interference
+                       protection
+  duty cycle limits    strict in some regions; a design must respect them
+  regulatory testing   emissions, spurious, and band edge compliance; plan and
+                       budget for it early
+  shielding            a can over the RF section; effective when the seams are
+                       short relative to the wavelength
+  keep-out             no ground plane or traces under a chip or trace antenna;
+                       violating this detunes it substantially
+
+Antenna keep-out violations are the most common practical RF error in embedded products and
+are invisible until measured. A chip or trace antenna is designed assuming a specified ground
+plane geometry and an area kept clear of copper, components, and enclosure metal. Routing a trace
+beneath it, extending the ground plane into the keep-out, or placing a metal shield nearby shifts
+the resonant frequency and destroys the match, typically costing ten decibels or more of
+effective radiated power. The manufacturer's layout guidance exists for this reason and following
+it is not optional.
+
+The final practical observation is that RF design rewards measurement over calculation more
+than most disciplines. Simulations and hand calculations establish the design, and the actual
+performance depends on the enclosure, the ground plane, the nearby components, the cable
+routing, and the environment in ways that are not captured. A vector network analyzer measuring
+the antenna's match in its final assembly, and a spectrum analyzer measuring the actual radiated
+output, are what distinguish a design that works from one that should. Budgeting time for that
+measurement, and access to the instruments, is a project planning decision rather than a
+technical one, and its absence is why so many embedded wireless products underperform their
+specifications.

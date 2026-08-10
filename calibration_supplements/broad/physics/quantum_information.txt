@@ -1,0 +1,236 @@
+================================================================================
+AREA: Physics
+SUBJECT: Quantum Information and Computing
+Subtopics: qubits and states, gates and circuits, entanglement and measurement,
+algorithms, decoherence and error correction, hardware platforms, practical assessment.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Qubits, States, and Measurement
+
+A classical bit is zero or one; a qubit is a superposition of both, described by two complex
+amplitudes whose squared magnitudes give the probabilities of each outcome on measurement. The
+amplitudes carry a relative phase as well as magnitudes, and that phase has no classical analogue —
+it is what makes interference possible and it is where quantum computing's advantage originates.
+
+The state of n qubits requires two to the power n amplitudes to describe, which is the source of both
+the promise and the persistent misunderstanding. The exponential state space does not mean a quantum
+computer evaluates all possibilities in parallel and reads out the best one. Measurement collapses
+the state and returns a single outcome sampled from the probability distribution, so the algorithmic
+work is arranging interference so that amplitudes for wrong answers cancel and those for right
+answers reinforce. Algorithms that fail to do this gain nothing from superposition.
+
+Measurement is destructive and basis-dependent. Measuring in the computational basis returns zero or
+one and destroys the superposition; measuring in a different basis asks a different question and
+returns a different distribution. This is not ignorance being revealed — the pre-measurement state
+genuinely lacks a definite value, as the violation of classical correlation bounds establishes
+experimentally.
+
+Qubits and measurement:
+  superposition        both states with complex amplitudes
+  probability          the squared magnitude of an amplitude
+  relative phase       no classical analogue; enables interference
+  the state space      exponential in the qubit count
+  the misunderstanding  parallel evaluation with the best answer read out
+  measurement collapse  a single sampled outcome
+  the algorithmic requirement  interference cancelling wrong answers
+  the consequence      superposition alone provides no advantage
+  basis dependence     measurement in a different basis asks a different question
+  the no-cloning theorem  an unknown quantum state cannot be copied; this
+                       forbids the obvious error correction strategy and enables
+                       quantum key distribution
+  global phase         physically irrelevant; relative phase is not
+  the Bloch sphere     a geometric picture of a single qubit's state space
+  mixed states         classical uncertainty over quantum states; described by a
+                       density matrix rather than a state vector
+
+Q: A quantum algorithm places a register in an equal superposition of all inputs and evaluates a
+function. Does this find the desired input efficiently?
+A. Yes; all inputs are evaluated simultaneously
+B. No — measurement returns one uniformly random outcome, so this gains nothing over classical
+   random guessing; an advantage requires subsequent operations that concentrate amplitude on the
+   desired outcome through interference
+C. Only for small inputs
+D. Yes, with enough measurements
+Reasoning: Superposition and function evaluation are the easy parts. The hard and essential part is
+arranging the amplitudes so the measurement is likely to return what you want. Every quantum
+algorithm with a proven advantage does something specific here, and the absence of that step is what
+distinguishes a genuine algorithm from the naive picture. Answer: B.
+
+## Gates, Circuits, and Entanglement
+
+Quantum gates are unitary operations, which means they are reversible and preserve total probability.
+Single-qubit gates rotate the state on the Bloch sphere; two-qubit gates create correlations between
+qubits. A small set of gates suffices to approximate any unitary operation to arbitrary accuracy,
+which is the quantum analogue of classical universality, and the standard sets combine a few
+single-qubit rotations with one entangling two-qubit gate.
+
+Entanglement is the correlation between qubits that has no classical description: a joint state that
+cannot be written as a product of individual states. Measuring one qubit of an entangled pair
+immediately determines the correlated outcome for the other regardless of separation, and this does
+not permit signalling because the individual outcome is random and only the correlation — visible
+after classical communication — carries the structure.
+
+Circuits are read as time flowing left to right, with wires as qubits and boxes as gates. Circuit
+depth is the number of sequential gate layers and is the quantity that matters for a noisy machine,
+since decoherence accumulates with time rather than with gate count. Compilation maps an abstract
+circuit onto a physical device's available gates and connectivity, and on a device where only
+neighbouring qubits interact, this inserts swap operations that can multiply the depth substantially
+— which is why device connectivity is as important a specification as qubit count.
+
+Gates and entanglement:
+  unitary operations   reversible and probability preserving
+  single-qubit gates   rotations on the Bloch sphere
+  two-qubit gates      create correlations
+  universality         a small gate set approximates any unitary
+  entanglement         a joint state not decomposable into individual states
+  measurement correlation  determined regardless of separation
+  no signalling        individual outcomes are random; correlation needs classical
+                       communication to observe
+  Bell inequality violation  experimental proof that no local classical
+                       description reproduces the correlations
+  circuit depth        sequential layers; what matters under decoherence
+  gate count           less relevant than depth on a noisy device
+  compilation          abstract circuit to physical gates and connectivity
+  connectivity         which qubits can interact directly
+  swap overhead        routing on limited connectivity multiplying depth
+  the specification implication  connectivity matters as much as qubit count
+  gate fidelity        the error per operation; two-qubit gates are typically an
+                       order of magnitude worse than single-qubit ones and are
+                       therefore the limiting resource
+
+## Algorithms and Where the Advantage Lies
+
+The known quantum algorithms with proven advantages fall into a few families and the list is shorter
+than public discussion suggests. Period-finding underlies the factoring algorithm, which would break
+widely deployed public key cryptography and provides an exponential speedup over the best known
+classical methods. Amplitude amplification gives a quadratic speedup for unstructured search, which
+is provably optimal for that problem and is a much more modest advantage than exponential.
+
+Simulation of quantum systems is the application with the clearest physical motivation and possibly
+the earliest practical value. Simulating the dynamics of a many-body quantum system on a classical
+computer costs exponentially in the system size for general cases, and a quantum computer does it
+naturally, which is the original motivation for the field. Chemistry, materials, and nuclear physics
+are the target domains.
+
+Linear algebra and optimization applications are more equivocal. Algorithms exist with impressive
+asymptotic claims, and their preconditions are restrictive — data must be loaded into quantum states
+efficiently, matrices must be well-conditioned and sparse, and the output is a quantum state from
+which only limited information can be extracted. Several results initially presented as quantum
+speedups have been matched by improved classical algorithms inspired by them, which is a healthy
+scientific outcome and a caution about reading asymptotic claims without their conditions.
+
+Algorithms:
+  period finding       the basis of factoring; exponential advantage
+  the cryptographic implication  widely deployed public key systems broken
+  post-quantum cryptography  classical algorithms believed resistant; the
+                       migration is under way and is the practical response
+  amplitude amplification  quadratic speedup for unstructured search
+  provable optimality  quadratic is the best possible for that problem
+  the modesty          quadratic is far less than exponential in practice
+  quantum simulation   the clearest motivation and likely earliest application
+  the classical cost   exponential in system size for general quantum dynamics
+  target domains       chemistry, materials, nuclear physics
+  linear algebra algorithms  impressive asymptotics with restrictive conditions
+  the data loading problem  getting classical data into quantum states can
+                       dominate the cost
+  the readout problem  the output is a state from which limited information is
+                       extractable
+  dequantization       classical algorithms inspired by quantum ones matching
+                       their performance
+  the reading caution  asymptotic claims without their preconditions are not
+                       claims about practical advantage
+
+## Decoherence and Error Correction
+
+Quantum states are fragile. Any interaction with the environment entangles the system with it,
+which destroys the phase relationships the computation depends on. Decoherence times — how long a
+qubit maintains its state and its phase — bound the circuit depth achievable, and the ratio of
+decoherence time to gate time is the figure of merit that determines how much computation fits within
+coherence.
+
+Error correction is what would make arbitrary-length computation possible, and it is harder than the
+classical case for two reasons. States cannot be copied, so the classical strategy of redundant
+copies is unavailable. And errors are continuous rather than discrete, since a qubit can rotate by
+any small angle. Both are addressed by the same insight: encoding logical information across many
+physical qubits and measuring parity-type operators that reveal whether an error occurred without
+revealing the encoded state, which also projects continuous errors onto a discrete set.
+
+The threshold theorem states that if physical error rates are below a threshold, arbitrarily long
+computation is possible with overhead growing only polylogarithmically in the length. This is the
+theoretical foundation of the whole enterprise. The practical difficulty is the overhead: current
+codes require on the order of a thousand physical qubits per logical qubit at realistic error rates,
+so a machine running an algorithm requiring thousands of logical qubits needs millions of physical
+ones, and closing that gap is the central engineering challenge.
+
+Decoherence and correction:
+  decoherence          environmental entanglement destroying phase relationships
+  coherence times      how long state and phase survive
+  the figure of merit  coherence time divided by gate time
+  the two difficulties  states cannot be copied and errors are continuous
+  the encoding solution  logical information across many physical qubits
+  syndrome measurement  parity operators revealing errors without revealing the
+                       state
+  error discretization  measurement projecting continuous errors onto a discrete
+                       set
+  the threshold theorem  below a physical error rate, arbitrary computation is
+                       possible
+  the overhead          polylogarithmic in computation length and large in
+                       constant factors
+  surface codes        the leading approach; local operations and a relatively
+                       forgiving threshold
+  the physical count   on the order of a thousand physical per logical qubit
+  the scale implication  millions of physical qubits for a useful algorithm
+  error mitigation     techniques reducing noise effects without full correction;
+                       useful now and not scalable to arbitrary depth
+  the distinction      mitigation extends what noisy machines can do, correction
+                       is what makes arbitrary computation possible, and they
+                       are frequently conflated in discussion
+
+## Hardware Platforms and Assessment
+
+The platforms competing to build quantum computers make different tradeoffs. Superconducting
+circuits operate at millikelvin temperatures, have fast gates, and have limited connectivity and
+relatively short coherence times. Trapped ions have excellent coherence and fidelity and
+all-to-all connectivity within a trap, with much slower gates and a scaling challenge in connecting
+traps. Neutral atoms in optical tweezers offer flexible reconfigurable connectivity at large qubit
+counts. Photonic approaches operate at room temperature with the difficulty that photons do not
+interact directly. Spin qubits in semiconductors promise manufacturing leverage and lag in
+fidelity.
+
+No platform is clearly ahead on every axis, and comparing them requires looking past qubit count.
+The relevant specifications are two-qubit gate fidelity, coherence time relative to gate time,
+connectivity, measurement fidelity, and the demonstrated ability to scale without fidelity degrading.
+A machine with many qubits and poor two-qubit fidelity performs worse than one with fewer good ones,
+because circuit success probability falls exponentially with the number of gates.
+
+The honest assessment of the field's status is that quantum computers exist, run algorithms, and do
+not yet perform any commercially valuable task better than classical computers. Demonstrations of
+advantage have been on contrived sampling problems chosen to be hard classically, several have been
+substantially eroded by better classical simulation, and the useful applications require error
+correction at a scale not yet built. This does not diminish the achievement or the prospects; it
+distinguishes what has been demonstrated from what has been projected, and that distinction is what
+allows a realistic assessment of when to invest attention.
+
+Platforms and assessment:
+  superconducting      fast gates, limited connectivity, cryogenic
+  trapped ions         excellent fidelity and connectivity, slow gates
+  neutral atoms        reconfigurable connectivity, large counts
+  photonic             room temperature, no direct photon interaction
+  spin qubits          manufacturing leverage, fidelity lagging
+  no clear leader      different tradeoffs on different axes
+  the specifications that matter  two-qubit fidelity, coherence to gate time,
+                       connectivity, measurement fidelity, scaling behaviour
+  qubit count alone    a poor comparison metric
+  exponential success decay  circuit success falling with gate count
+  quantum advantage demonstrations  contrived sampling problems
+  the classical erosion  several demonstrations substantially matched afterward
+  the current status   no commercially valuable task performed better than
+                       classically
+  the requirement for that  error correction at a scale not yet built
+  the useful distinction  demonstrated against projected
+  the practical advice  post-quantum cryptographic migration is warranted now
+                       because encrypted data captured today can be decrypted
+                       later, while most other applications warrant attention
+                       rather than commitment

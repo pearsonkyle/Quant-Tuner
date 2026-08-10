@@ -1,0 +1,314 @@
+================================================================================
+AREA: Generative Art and Creative Technology
+SUBJECT: Computational Geometry
+Subtopics: primitives and predicates, convex hulls, triangulation and Voronoi,
+intersection and clipping, curves and surfaces, spatial data structures, meshes,
+robustness.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Primitives and Geometric Predicates
+
+Computational geometry builds everything from a small set of primitives, and the most
+important is the orientation predicate: given three points, does the third lie to the left of,
+to the right of, or on the directed line through the first two. It is computed as the sign of a
+determinant, equivalently the sign of a two-dimensional cross product, and an enormous fraction
+of the field reduces to evaluating it.
+
+From orientation follow most of the tests that algorithms need. Whether two segments intersect
+is determined by the orientations of each segment's endpoints relative to the other segment,
+with special handling for collinear cases. Whether a point lies inside a convex polygon is
+determined by having consistent orientation with respect to every edge. Whether a polygon's
+vertices are listed clockwise or counterclockwise is determined by the sign of its signed area,
+which is the shoelace formula and is itself a sum of orientation determinants.
+
+The signed area is worth knowing in its own right because it does several jobs at once. Its
+magnitude gives the polygon's area for any simple polygon, convex or not. Its sign gives the
+winding direction, which matters for consistent normals, for fill rules, and for distinguishing
+holes from outer boundaries. And the same formula generalizes to give the centroid, which is
+needed constantly for placement and for physics.
+
+Primitives and predicates:
+  orientation           sign of a 2D cross product; left, right, or collinear
+  signed area           shoelace formula; magnitude is area, sign is winding
+  centroid              area-weighted; not the average of the vertices except for
+                        a triangle
+  segment intersection  from orientations of endpoint pairs; collinear overlap is
+                        the special case
+  point in convex poly  consistent orientation against every edge; O(n), or
+                        O(log n) with binary search on a fan
+  point in simple poly  ray casting parity, or the winding number; ray casting
+                        needs care when the ray passes exactly through a vertex
+  in-circle test        does a point lie inside the circle through three others;
+                        the predicate defining Delaunay triangulation
+  convexity test        all consecutive orientations agree
+  distance point-line   the cross product magnitude divided by the segment length
+  closest point on seg  project and clamp the parameter to [0, 1]
+  barycentric coords    a point as a weighted combination of triangle vertices;
+                        inside when all weights are non-negative
+
+Barycentric coordinates deserve emphasis because they solve several problems at once and are
+underused by people who have not encountered them. Expressing a point as a weighted combination
+of a triangle's vertices, with weights summing to one, simultaneously tests containment — all
+weights non-negative means inside — and provides the interpolation weights for any attribute
+stored at the vertices. This is exactly what a graphics rasterizer computes per pixel, and it
+is the natural way to interpolate colour, texture coordinates, or any other per-vertex data
+across a triangle.
+
+Q: The shoelace formula applied to a polygon's vertices returns a negative value. This
+indicates:
+A. The polygon is invalid
+B. The vertices are ordered clockwise under the convention where counterclockwise is positive
+C. The polygon is concave
+D. A computational error
+Reasoning: The signed area's sign encodes winding direction. A negative value under the
+standard convention means clockwise ordering, which is entirely valid and is frequently used
+deliberately to mark interior holes in a polygon with holes. The magnitude is the area
+regardless of sign, and concavity does not affect the sign. Answer: B.
+
+## Convex Hulls, Triangulation, and Voronoi
+
+The convex hull is the smallest convex set containing a point set, and it is one of the most
+frequently computed structures because so many problems reduce to it. Graham's scan sorts
+points by angle from a reference and builds the hull by maintaining a stack, discarding points
+that create a non-convex turn. Andrew's monotone chain sorts by coordinate and builds upper and
+lower hulls separately, which is simpler to implement correctly and equally efficient at
+O(n log n) dominated by the sort. Gift wrapping is O(nh) in the output size h, which is better
+than O(n log n) when the hull has very few vertices.
+
+Triangulation decomposes a region into triangles, which is required because most downstream
+algorithms and all graphics hardware operate on triangles. Any simple polygon can be
+triangulated, and ear clipping is the straightforward method: repeatedly find a vertex whose
+adjacent vertices can be joined without leaving the polygon or containing another vertex, and
+remove it. It is O(n^2) naively and adequate for most practical polygon sizes.
+
+Delaunay triangulation is the canonical triangulation of a point set, defined by the property
+that no point lies inside the circumcircle of any triangle. Among all triangulations of the
+same points it maximizes the minimum angle, which means it avoids the thin sliver triangles that
+cause numerical problems in interpolation and in finite element analysis. This is why it is the
+default for mesh generation and terrain modelling from scattered samples.
+
+The Voronoi diagram partitions space into regions closest to each of a set of sites, and it is
+the dual of the Delaunay triangulation — connecting sites whose Voronoi regions share an edge
+produces exactly the Delaunay edges. Computing one gives the other, which is convenient because
+the two answer different questions: Voronoi answers nearest-site queries and describes regions
+of influence, while Delaunay provides a mesh.
+
+Hulls, triangulation, and Voronoi:
+  convex hull           smallest containing convex set
+  Graham scan           angular sort plus a stack; O(n log n)
+  monotone chain        coordinate sort, upper and lower hulls; simpler to
+                        implement
+  gift wrapping         O(nh); better when the hull is small
+  quickhull             divide and conquer; fast in practice
+  ear clipping          simple polygon triangulation; O(n^2) naive
+  Delaunay              empty circumcircle property; maximizes the minimum angle
+  Lawson flipping       incremental Delaunay by flipping non-Delaunay edges
+  constrained Delaunay  forces specified edges into the triangulation
+  Voronoi diagram       nearest-site regions; the dual of Delaunay
+  Fortune's algorithm   sweepline Voronoi construction in O(n log n)
+  Lloyd relaxation      move sites to their region centroids and repeat; produces
+                        an even, organic-looking distribution
+  power diagram         weighted Voronoi; regions vary with site weight
+
+Lloyd relaxation deserves mention because it is the standard route to a distribution that
+looks deliberately even without being regular. Starting from random points, computing the
+Voronoi diagram, and moving each site to its cell's centroid, repeated a few times, converges
+toward a centroidal Voronoi tessellation in which cells are similar in size and roughly
+hexagonal. This is the blue-noise distribution that reads as natural in stippling, in point
+placement, and in sampling, and it is why a handful of relaxation iterations transforms a
+clumpy random scatter into something that looks placed by hand.
+
+## Intersection, Clipping, and Curves
+
+Intersection tests are the workhorse of interactive geometry and their cost hierarchy should
+guide how they are ordered. Bounding volume tests are cheap and conservative — an
+axis-aligned box overlap test is a handful of comparisons — so they serve as early rejection
+before an exact test. Sphere tests are similarly cheap and rotation-invariant. Exact tests
+against the actual geometry are expensive and are performed only for candidates that survived
+the cheap filters.
+
+Polygon clipping computes the intersection, union, or difference of polygonal regions, and it
+is the operation underlying constructive geometry, occlusion, and much of vector graphics.
+Sutherland-Hodgman clips a polygon against a convex region by clipping successively against
+each edge, which is simple and produces degenerate connecting edges for concave subjects.
+Weiler-Atherton handles the general case including holes. Robust general polygon boolean
+operations are substantially harder than they appear, and using a well-tested library rather
+than implementing them is the pragmatic choice for anything beyond convex clipping.
+
+Curves are represented parametrically, and Bezier curves are the standard because their
+control polygon provides intuitive editing and their mathematical properties are convenient.
+A cubic Bezier passes through its first and last control points and is pulled toward the middle
+two, lies within the convex hull of its control points, and can be subdivided exactly at any
+parameter into two Bezier curves — which is what makes adaptive rendering and intersection by
+recursive subdivision practical.
+
+Intersection and curves:
+  AABB overlap          cheapest broad-phase test; separating axis on each axis
+  bounding sphere       rotation invariant; cheap
+  separating axis       for convex shapes; if any axis separates them, they do not
+                        intersect
+  ray-triangle          Moller-Trumbore; the standard fast method
+  ray-sphere            solve a quadratic
+  polygon clipping      Sutherland-Hodgman for convex clip regions;
+                        Weiler-Atherton for the general case
+  Bezier curve          control polygon, convex hull property, exact subdivision
+  de Casteljau          numerically stable evaluation by repeated interpolation
+  continuity            C0 position, C1 tangent, C2 curvature; G1 and G2 are the
+                        weaker geometric versions sufficient for visual smoothness
+  B-spline              local control; moving one control point affects a bounded
+                        region
+  NURBS                 rational B-splines; represent conics exactly
+  Catmull-Rom           interpolating spline; passes through its control points,
+                        which Bezier control points do not
+  arc length            not available in closed form for cubics; parameterize by
+                        arc length numerically when even spacing matters
+
+The distinction between parameter spacing and arc length spacing is a practical trap. Sampling
+a Bezier curve at evenly spaced parameter values does not produce evenly spaced points along the
+curve — the spacing varies with the curve's speed, so points bunch where the curve is slow and
+spread where it is fast. For rendering this rarely matters; for placing objects along a path,
+animating at constant speed, or generating a plotter toolpath, it matters a great deal, and the
+remedy is building a lookup table mapping arc length to parameter and inverting it.
+
+[user] I'm placing points on a Bezier path for a generative piece and the spacing looks
+uneven even though I'm stepping t uniformly.
+[assistant] tool_call geom.curve_sampling({"curve": "cubic_bezier",
+"sampling": "uniform_parameter", "control_spread": "asymmetric",
+"observed": "clustering_near_endpoints"})
+[tool] {"cause": "parameter_is_not_arc_length", "speed_variation_ratio": 3.4,
+"fix": "arclength_reparameterization", "method": "cumulative_length_lut_with_inverse
+_lookup", "samples_for_lut": 200}
+[assistant] Uniform steps in the parameter are not uniform steps along the curve. The
+parameter is just an index into the polynomial, and the curve's speed — the magnitude of its
+derivative — varies along it, in your case by a factor of 3.4 between the fastest and slowest
+regions. Points bunch where the curve moves slowly.
+
+The standard fix is arc-length reparameterization. Sample the curve densely, say 200 points at
+uniform parameter values, compute the cumulative distance along that polyline, and store it as
+a lookup table mapping parameter to arc length. To place a point at a fraction of the total
+length, binary search the table for that length and interpolate between the bracketing entries
+to get the parameter, then evaluate the curve there.
+
+Two hundred samples is plenty for a single cubic; the error from the polyline approximation is
+well below what is visible. If you need higher accuracy — a plotter toolpath at constant feed
+rate, for instance — increase the sample count or use adaptive subdivision that refines where
+the curvature is high.
+
+Two related things worth knowing. If your path is several Bezier segments joined, build the
+table across the whole path rather than per segment, or you will get even spacing within each
+segment and a discontinuity in density at the joins — which is often more visually obvious than
+the original problem. And if you want the points to be evenly spaced *and* to fall at particular
+features, sample by arc length and then snap the nearest sample to each feature rather than
+inserting extra points, which preserves the even appearance.
+
+If constant spacing is not actually what you want aesthetically, the speed variation is a
+usable signal in itself: placing more elements where the curve is slow emphasizes the tight
+turns, which reads as the path having weight.
+
+## Spatial Data Structures and Meshes
+
+Spatial data structures accelerate queries by organizing geometry so that most of it can be
+excluded without examination. The general principle is a hierarchy: test a bounding volume, and
+if it fails, skip everything inside it. The structures differ in how they partition and in
+whether they adapt to the data.
+
+A uniform grid divides space into equal cells and is trivially simple, with constant-time
+insertion and neighbourhood queries, and it degrades badly when the data is unevenly
+distributed, since dense regions produce overfull cells. A quadtree or octree subdivides
+recursively where density is high, adapting to the data at the cost of a deeper traversal. A
+k-d tree splits alternately along each axis at the median, giving a balanced tree well suited to
+nearest-neighbour queries. A bounding volume hierarchy groups objects rather than partitioning
+space, which handles objects of varying size gracefully and permits overlapping volumes, and is
+the standard for ray tracing.
+
+Mesh representations store connectivity as well as geometry, and the choice determines which
+operations are efficient. An indexed triangle list stores vertices once and triangles as index
+triples, which is compact and is what graphics hardware consumes, and it makes neighbour queries
+expensive since finding a triangle's neighbours requires a search. A half-edge structure stores
+directed edges with pointers to their twin, next, and incident face, which makes every local
+traversal constant time and is what mesh processing algorithms require.
+
+Structures and meshes:
+  uniform grid          simple, fast, poor with uneven density
+  quadtree / octree     adaptive subdivision; good for varying density
+  k-d tree              median splits alternating axes; nearest neighbour queries
+  BVH                   bounding volumes around objects; ray tracing standard
+  R-tree                for storage and databases; handles extents rather than
+                        points
+  spatial hash          hash cell coordinates; simple, no hierarchy, good for
+                        uniform-size dynamic objects
+  indexed triangles     compact, hardware-friendly, poor connectivity queries
+  half-edge             constant-time local traversal; the mesh processing standard
+  winged-edge           an older equivalent
+  manifold              every edge has exactly two incident faces; required by
+                        many algorithms and by 3D printing
+  watertight            no boundary edges; encloses a volume
+  normals               per-face is flat, per-vertex is smooth; crease angle
+                        thresholds decide which
+  simplification        edge collapse driven by a quadric error metric; the
+                        standard method for level of detail
+  subdivision           Catmull-Clark for quads, Loop for triangles; smooth
+                        refinement
+
+Manifoldness deserves emphasis because it is the property most often violated in
+generatively-produced geometry and the one that breaks downstream tools. A mesh with an edge
+shared by three faces, with duplicate vertices at the same position that leave the surface
+topologically disconnected, with inconsistent face winding, or with self-intersections may
+render acceptably and will fail in boolean operations, in simplification, in physics
+simulation, and in 3D printing slicers. Checking manifoldness and watertightness as part of the
+generation pipeline, rather than discovering the failure at the printer, is worth the small
+effort.
+
+## Robustness and Numerical Issues
+
+Geometric algorithms are unusually sensitive to floating-point error because they make
+discrete decisions from continuous computations. An orientation predicate returning the wrong
+sign for three nearly collinear points does not produce a slightly wrong answer; it produces a
+combinatorially inconsistent one, and algorithms that assume consistency then crash, loop
+forever, or produce invalid output. This is qualitatively different from numerical error in,
+say, a physics simulation, where a small error produces a slightly different trajectory.
+
+Degenerate configurations are where this concentrates: collinear points, coincident points,
+concurrent lines, points exactly on a boundary, zero-area triangles, and parallel segments. They
+are rare in random data and common in real data, because real data comes from grids, from
+architectural drawings, from repeated structures, and from prior computations that produced
+exact alignments. An algorithm tested on random points and deployed on real ones frequently
+fails immediately.
+
+The remedies form a hierarchy of cost and reliability. Epsilon comparisons — treating values
+within a tolerance as equal — are simple, and they are not transitive, so three points can be
+pairwise within tolerance while the relation they define is inconsistent, which reintroduces
+the original problem. Exact arithmetic using integers or rationals is fully reliable and is
+possible when coordinates can be represented exactly. Adaptive precision predicates compute a
+fast floating-point estimate with an error bound and fall back to higher precision only when the
+estimate is not provably correct, which gives exactness at nearly floating-point speed and is
+what robust libraries use.
+
+Robustness practice:
+  degeneracy            collinear, coincident, concurrent, zero-area; common in
+                        real data and rare in random data
+  sign errors           produce combinatorial inconsistency, not small error
+  epsilon comparison    simple and not transitive; a partial remedy
+  exact arithmetic      integers or rationals; fully reliable, slower
+  adaptive predicates   fast estimate with an error bound, escalating only when
+                        needed; exactness at near-float speed
+  symbolic perturbation  consistently break ties as if points were slightly moved;
+                        removes degenerate cases by definition
+  snap rounding         round coordinates to a grid to make degeneracies explicit
+                        rather than near-degenerate
+  input validation      check for duplicates, near-duplicates, self-intersections,
+                        and winding consistency before running anything
+  use a library         CGAL, Clipper, and similar have solved this; reimplementing
+                        robust boolean operations is a multi-year project
+  test with real data   random point tests hide exactly the failures that matter
+  visualize failures    geometric bugs are far easier to see than to read in a
+                        stack trace
+
+The final practical recommendation is to visualize aggressively. A geometric algorithm's
+intermediate state is a picture, and rendering it — the hull as it is being built, the
+triangulation before and after each flip, the clipped polygon with its winding indicated — makes
+bugs immediately apparent that are nearly impossible to find by reading values in a debugger.
+Building that visualization early costs an hour and repays it many times over, and for
+generative work it frequently becomes part of the piece itself.

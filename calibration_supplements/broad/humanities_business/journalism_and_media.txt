@@ -1,0 +1,236 @@
+================================================================================
+AREA: Humanities and Business
+SUBJECT: Journalism and Media
+Subtopics: reporting and sourcing, verification, structure and writing, data journalism,
+media economics, ethics, platforms and information ecosystems.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Reporting, Sourcing, and Verification
+
+Journalism is the practice of finding out what happened and telling people about it accurately, and
+the discipline is almost entirely in the verification. Anyone can publish a claim; the value a
+journalist adds is having checked it, and the methods for checking are specific and teachable rather
+than a matter of instinct.
+
+Sourcing is the first discipline. A source's reliability depends on their access to the information,
+their independence from the interested parties, their track record, and their motive for speaking.
+The most useful distinction is between a source who witnessed something and one who was told about
+it, because the latter's account has passed through a filter that may not be visible. Documentary
+evidence is preferred over testimony where it exists, since a document does not misremember or
+reconstruct.
+
+Corroboration means independent confirmation, and the word independent carries the weight. Two
+sources who both heard it from the same person are one source. Two publications reporting the same
+claim, where the second cited the first, are one publication. Circular sourcing is common enough
+that tracing a claim back to its origin is a routine part of verifying it, and the exercise
+frequently ends at a single unverified assertion that has been repeated until it acquired the
+appearance of established fact.
+
+Reporting and verification:
+  the added value      having checked, not having published
+  source access        did they witness it or were they told
+  source independence  from the interested parties and from each other
+  source motive        why they are speaking; not disqualifying but informative
+  documentary evidence  preferred over testimony where available
+  corroboration        independent confirmation
+  the independence requirement  two sources with one origin are one source
+  circular sourcing    a claim citing a report citing the original claim
+  tracing to origin    a routine verification step that frequently finds nothing
+                       underneath
+  on the record        attributable by name; the default to seek
+  background and off the record  conditions negotiated in advance and honoured
+                       absolutely, because a broken agreement ends access for
+                       everyone
+  anonymous sources    justified when the information is important and the risk to
+                       the source is real; the reader should be told why
+  the right of reply   contacting the subject of a critical story before
+                       publication; both fair and a strong verification step,
+                       because it frequently surfaces facts the reporting missed
+  the null result      a story that does not check out is not published, and the
+                       willingness to abandon work is what makes the published
+                       work trustworthy
+
+Q: Three separate outlets report the same claim. What does this establish?
+A. The claim is verified by three independent sources
+B. Nothing by itself — the outlets may all be reporting the same original source, so the claim must
+   be traced to its origin to determine how many independent confirmations exist
+C. The claim is false
+D. Consensus among outlets is sufficient
+Reasoning: Repetition across outlets is not corroboration when the outlets share a source. Tracing
+the citation chain is what distinguishes three confirmations from one claim reported three times,
+and the latter is far more common. Answer: B.
+
+## Structure, Writing, and Presentation
+
+News writing has a conventional structure that exists for practical reasons. The inverted pyramid
+puts the most important information first and descends in order of significance, which originated in
+the constraints of telegraph transmission and print layout and survives because readers leave at
+unpredictable points. A reader who stops after two paragraphs should have the essential facts.
+
+The lead sentence carries the most weight of any sentence in the piece. It should convey what
+happened, to whom, and why it matters, without becoming a catalogue of every relevant detail. The
+common failures are burying the significant fact several paragraphs down, and overloading the lead
+until it conveys nothing clearly. Feature and narrative forms deliberately depart from this
+structure, and the departure is effective precisely because the convention is strong.
+
+Precision in language is the technical craft. Attribution should be exact about who said what, and
+verbs of attribution carry connotations — said is neutral, claimed implies doubt, admitted implies
+wrongdoing, and using them casually inserts a judgement the reporting may not support. Numbers
+require context to mean anything: a percentage without a base, a total without a comparison, or a
+change without a starting point are all technically true and practically uninformative.
+
+Structure and writing:
+  inverted pyramid     most important first, descending
+  the reader model     they leave at unpredictable points
+  the lead             what happened, to whom, why it matters
+  the common failures  burying the significant fact, or overloading the lead
+  the nut paragraph    the explicit statement of the story's point in a feature
+  narrative forms      deliberate departures from the convention
+  attribution precision  exactly who said what
+  attribution verbs    said is neutral; claimed, admitted, and conceded insert
+                       judgement
+  numbers need context  a base for a percentage, a comparison for a total, a
+                       starting point for a change
+  the misleading true statement  accurate figures presented without the context
+                       that determines their meaning
+  headlines            frequently written by someone other than the reporter and
+                       read by far more people than the article
+  corrections          prompt, prominent, and specific about what was wrong; a
+                       publication's correction practice is a good proxy for its
+                       reliability generally
+
+## Data Journalism and Investigation
+
+Data journalism applies analytical methods to reporting, and its failures are the familiar
+statistical ones with a wider audience. Correlation reported as causation, a change in measurement
+reported as a change in the phenomenon, a rate presented without its base, a comparison across
+non-comparable categories — these are ordinary analytical errors that acquire real consequences when
+published to millions.
+
+The methodological discipline is straightforward and frequently skipped. Understand how the data was
+collected and what it excludes, because administrative data records what an institution chose to
+record. Check whether apparent changes are real or artifacts of definition changes, which are
+extremely common in official statistics. Compare like with like, adjusting for population and for
+composition. Consult someone who knows the domain, because the interpretation errors that matter are
+usually domain-specific rather than statistical.
+
+Investigative reporting is a longer-form practice with its own methods: document acquisition through
+public records requests and leaks, systematic cross-referencing of records to find patterns
+invisible in any single document, and building a factual case that will survive legal challenge.
+Its defining characteristic is that the subject does not want the story published, which changes the
+verification standard — every fact must be documented well enough to defend, and the standard is
+closer to a legal one than to ordinary reporting.
+
+Data and investigation:
+  the familiar errors  correlation as causation, definition changes as real
+                       changes, rates without bases
+  collection provenance  administrative data records institutional choices
+  what is excluded     usually more informative than what is included
+  definition changes   extremely common in official statistics and a frequent
+                       false signal
+  like-for-like comparison  adjusting for population and composition
+  domain consultation  the interpretation errors that matter are domain-specific
+  visualization honesty  truncated axes, inappropriate scales, and misleading
+                       area encodings
+  the uncertainty question  a point estimate published without its interval
+                       overstates what is known
+  public records       the primary investigative tool where such systems exist
+  cross-referencing    patterns invisible in any single record
+  leaked material      verification and source protection both become critical
+  the adversarial standard  the subject does not want it published, so every fact
+                       must be defensible
+  legal review         part of the process, not an obstacle to it
+  source protection    technical and procedural; a promise that cannot be
+                       withdrawn once made
+
+## Media Economics and the Platform Environment
+
+The economics of news changed fundamentally when distribution stopped being scarce. Print
+publications bundled news with classifieds, listings, and advertising reach that had no substitute,
+and that bundle funded reporting. Unbundling removed the subsidy: classifieds moved to dedicated
+platforms, advertising moved to targeted networks with far better measurement, and the news itself
+became one item competing for attention against everything else.
+
+The revenue models that replaced it each shape the product. Advertising rewards attention volume,
+which favours high-volume production, emotionally engaging framing, and headlines optimized for
+clicks. Subscription rewards sustained value to a committed audience, which favours depth and
+distinctiveness and narrows the audience. Philanthropic and public funding removes the commercial
+pressure and introduces questions about independence from the funder. None is neutral, and reading
+a publication's incentives explains a great deal about its output.
+
+Platform intermediation added a further layer. When most readers arrive through algorithmic feeds and
+search rather than directly, the platform's ranking determines what is seen, publishers optimize for
+that ranking rather than for readers directly, and a change to the algorithm can eliminate a
+publication's traffic without notice or recourse. The structural consequence is that publishers have
+limited control over their own distribution, which is a weaker position than any previous
+arrangement.
+
+Media economics:
+  the old bundle       news funded by classifieds, listings, and advertising reach
+  unbundling           each component moving to a specialized platform
+  the lost subsidy     reporting was funded by things that no longer need it
+  advertising incentives  volume, engagement, and optimized headlines
+  subscription incentives  depth and distinctiveness for a narrower audience
+  funded models        commercial pressure removed, funder independence raised
+  the reading skill    incentives explain much of the output
+  platform intermediation  algorithmic feeds determining what is seen
+  optimizing for the ranking  rather than for readers
+  algorithm dependence  traffic eliminated without notice or recourse
+  local news decline   the most consequential structural change, since local
+                       accountability reporting has no substitute and the
+                       economics that funded it are gone
+  the coverage gap     institutions with no one watching them
+  aggregation          the value captured by those who assemble rather than
+                       report
+  the free rider structure  reporting is expensive and, once published, cheap to
+                       summarize, which is the fundamental economic problem of the
+                       industry and remains unsolved
+
+## Ethics and the Information Ecosystem
+
+Journalism ethics is applied rather than abstract, and the recurring tensions are between publishing
+what is true and minimizing harm, between the public interest and privacy, between independence and
+access, and between speed and verification. These are genuine conflicts rather than problems with
+correct answers, and the discipline lies in recognizing which conflict a decision involves and
+reasoning explicitly about it.
+
+The public interest test is the standard justification for intrusion, and it is frequently invoked
+loosely. The question is whether the publication serves a substantial interest of the public rather
+than merely interesting the public, and the distinction matters: exposing corruption in office is
+the former, and a private matter that people are curious about is the latter. Being clear about
+which one applies is what separates a defensible decision from a rationalization.
+
+Independence is maintained by structure rather than by intention. Separation between the commercial
+and editorial functions, disclosure of conflicts, and refusal of arrangements that create obligations
+are procedural safeguards, and they exist because good intentions do not reliably survive commercial
+pressure. Access journalism illustrates the failure mode: a reporter dependent on continued access to
+powerful sources faces a real incentive not to publish what would end it, and the only defence is an
+institution that supports the reporter through the consequences.
+
+Ethics and ecosystem:
+  the recurring tensions  truth against harm, interest against privacy,
+                       independence against access, speed against verification
+  public interest      a substantial interest of the public
+  interesting the public  curiosity; not the same thing
+  the clarity requirement  which one applies, stated rather than assumed
+  minimizing harm      particularly for private individuals caught in a story
+  identification       naming decisions for victims, suspects, and minors
+  independence by structure  separation, disclosure, and refusal of obligations
+  access journalism    dependence on sources creating a real disincentive to
+                       publish
+  the institutional defence  supporting the reporter through the consequences
+  speed versus verification  the pressure is real and the errors are permanent
+  misinformation       false information spread without intent to deceive
+  disinformation       spread deliberately; different problem, different response
+  the correction asymmetry  a false claim reaches far more people than its
+                       correction
+  prebunking           explaining a manipulation technique before exposure; more
+                       effective than correcting afterward
+  synthetic media      fabricated audio and video; verification tools help and
+                       the deeper effect is that the existence of fakes lets
+                       genuine evidence be dismissed as fabricated
+  the practical response  provenance and verification infrastructure, and a
+                       public that understands how claims are checked, which is
+                       a slower and more durable defence than any detection tool

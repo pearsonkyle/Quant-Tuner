@@ -1,0 +1,235 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: Learning to Rank and Retrieval Models
+Subtopics: ranking objectives, features and signals, embedding retrieval, training data
+from behaviour, bias correction, evaluation, serving architecture.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Ranking Objectives and Loss Functions
+
+Ranking differs from classification and regression because the quantity being optimized is an
+ordering rather than a value. A model that predicts every relevance score slightly wrong but in the
+right order is perfect for ranking; a model with lower squared error and a scrambled order is
+useless. The loss functions of the field are attempts to express that distinction, and they divide
+into three families.
+
+Pointwise approaches treat each item independently, predicting its relevance as a regression or
+classification problem and sorting by the prediction. They are simple, they use standard machinery,
+and they optimize a proxy — accurate scores — rather than the objective. In practice they work
+better than the theory suggests, particularly when the score has a meaningful calibrated
+interpretation that downstream systems need.
+
+Pairwise approaches learn from comparisons: given two items, which should rank higher. This matches
+the objective more closely and matches the available data, since behaviour data naturally produces
+preferences rather than absolute grades. Listwise approaches consider the whole ranked list and
+optimize a metric-aligned objective directly, which is the closest match to what is wanted and
+requires smoothing, since the metrics of interest are step functions of the ordering and have zero
+gradient almost everywhere.
+
+Ranking objectives:
+  the distinction      ordering matters, absolute values do not
+  pointwise            predict each item's relevance independently
+  the pointwise proxy  accurate scores rather than correct order
+  when it is preferred  when a calibrated score is needed downstream
+  pairwise             learn from comparisons between items
+  the data match       behaviour naturally produces preferences
+  listwise             optimize a list-level objective directly
+  the gradient problem  ranking metrics are step functions with zero gradient
+  smoothed surrogates  differentiable approximations of the metric
+  position weighting   errors near the top matter more; the loss should reflect
+                       that
+  the practical finding  the family matters less than the features and the
+                       training data quality
+  calibration          whether scores mean something absolute; needed for
+                       thresholding and for combining with other signals
+  multi-objective ranking  relevance alongside freshness, diversity, revenue, or
+                       quality; usually a weighted combination whose weights are
+                       set by policy rather than learned
+
+Q: A ranking model achieves lower squared error on relevance labels than the previous model but
+performs worse on ranking metrics. This is possible because:
+A. The evaluation is broken
+B. Squared error rewards accurate absolute scores while ranking metrics depend only on ordering;
+   a model can reduce average error while making more inversions among the top results
+C. The labels are wrong
+D. The model is overfitting
+Reasoning: The two objectives are genuinely different. Reducing error on many mid-relevance items
+can outweigh degradation on the few top items, which is where ranking metrics place nearly all their
+weight. Optimizing the metric you evaluate is the resolution. Answer: B.
+
+## Features and Signals
+
+Ranking features fall into categories that behave differently and should be thought about
+separately. Query features describe the request: its length, its detected intent, its language, its
+rarity. Document features describe the item independent of the query: its quality, its popularity,
+its age, its length. Query-document features describe the match between them: lexical overlap
+scores, embedding similarity, field-specific matches. And context features describe the situation:
+device, location, time, session history.
+
+The query-document features carry most of the relevance signal and the document features carry most
+of the quality signal, and separating these is useful because they fail differently. A model relying
+heavily on popularity produces a ranking that is safe and stale, reinforcing whatever is already
+popular; a model relying only on match produces relevant but low-quality results. The balance
+between them is a policy decision that should be made explicitly rather than emerging from whatever
+the training data happened to favour.
+
+Feature freshness and availability at serving time are practical constraints that shape which
+features are usable. A feature computed from a nightly batch is a day stale, which is fatal for
+anything time-sensitive. A feature requiring a service call adds latency to every request and a
+dependency that can fail. Training with features that are unavailable or differently computed at
+serving time is the classic training-serving skew, and it produces models that evaluate well offline
+and underperform in production for reasons that are hard to find without explicitly comparing
+feature distributions across the two paths.
+
+Features and signals:
+  query features       length, intent, language, rarity
+  document features    quality, popularity, age, length
+  query-document features  lexical scores, embedding similarity, field matches
+  context features     device, location, time, session
+  the relevance carrier  query-document features
+  the quality carrier  document features
+  the popularity trap  safe, stale, and self-reinforcing rankings
+  the match-only failure  relevant but low quality
+  the balance          a policy decision, made explicitly
+  feature freshness    batch-computed features are stale by their cycle time
+  serving availability  a feature requiring a service call adds latency and a
+                       failure mode
+  training-serving skew  features computed differently in the two paths
+  the diagnostic       compare feature distributions between training and serving
+                       directly; this finds skew that offline metrics cannot
+  feature logging      log the features as served, not as recomputed later; the
+                       recomputation will differ
+
+## Embedding Retrieval and Two-Tower Models
+
+Dense retrieval encodes queries and documents into a shared vector space and retrieves by nearest
+neighbour. The architecture that makes this practical at scale is the two-tower model: separate
+encoders for query and document, with no interaction between them until a final similarity
+computation. This separation is what allows document embeddings to be computed offline and indexed,
+so serving requires only encoding the query and searching the index.
+
+The cost of that separation is expressiveness. Because the towers never see each other's input, the
+model cannot represent interactions between specific query terms and specific document passages,
+which a cross-encoder scoring the pair jointly can. Cross-encoders are substantially more accurate
+and cannot be precomputed, so the standard architecture uses the two-tower model for retrieval and a
+cross-encoder for reranking the small candidate set.
+
+Training a two-tower model requires negatives, and the choice of negatives dominates the result.
+In-batch negatives are free and easy and are mostly trivially irrelevant, which teaches the model
+only to distinguish obviously different documents. Hard negatives — documents that are similar but
+not relevant, typically mined from a first-pass retriever — are what teach the fine distinctions that
+matter, and models trained without them retrieve plausible-looking but wrong results. The
+counterpart risk is false negatives: mined hard negatives may actually be relevant but unlabelled,
+and training against them actively harms the model.
+
+Embedding retrieval:
+  two-tower model      separate encoders, late interaction
+  the enabling property  document embeddings precomputed and indexed
+  the expressiveness cost  no term-level interaction between query and document
+  cross-encoder        joint scoring; accurate and not precomputable
+  the standard cascade  two-tower retrieve, cross-encoder rerank
+  distillation         a cross-encoder teaching a two-tower model; recovers part
+                       of the gap
+  in-batch negatives   free, mostly trivial
+  hard negatives       similar but not relevant; where the learning happens
+  mining               a first-pass retriever supplying candidates
+  false negatives      mined negatives that are actually relevant; actively
+                       harmful
+  the mitigation       score-based filtering or a threshold on the mining
+                       retriever
+  index refresh        embeddings must be recomputed when the model changes; a
+                       full reindex is the migration cost of every model update
+  the operational implication  model iteration speed is bounded by reindex time,
+                       which should be measured before committing to an
+                       architecture
+
+## Behaviour Data and Bias Correction
+
+Explicit relevance judgements are expensive and limited in volume; behavioural data is abundant and
+biased. Clicks, dwell time, purchases, and subsequent queries all carry relevance signal and all
+carry systematic distortions that must be corrected or the model learns the distortions rather than
+relevance.
+
+Position bias is the largest. Items shown higher receive more clicks regardless of relevance, so a
+model trained on raw clicks learns to reproduce the current ranking. Since the current ranking came
+from the previous model, the system converges on its own history and stops improving. Correcting it
+requires either an estimate of the examination probability by position — used to weight each
+observation inversely — or randomization that breaks the correlation between position and relevance
+in a fraction of traffic.
+
+Other biases compound this. Presentation bias means items with images or particular formats attract
+attention independently of relevance. Selection bias means only items the current system retrieved
+were ever seen, so nothing is learned about items it never showed. Trust bias means users click
+top results partly because they trust the ranking. And the feedback loop closes on all of them: today's
+model determines what data is collected, which trains tomorrow's model. Deliberate exploration —
+occasionally showing items the model ranks lower — is the only reliable way to break the loop, and
+it costs immediate quality in exchange for the ability to improve.
+
+Behaviour and bias:
+  behavioural signals  clicks, dwell, purchases, reformulations
+  the tradeoff         abundant and biased against scarce and clean
+  position bias        higher items clicked more regardless of relevance
+  the convergence failure  the model reproducing the ranking that generated its
+                       data
+  propensity weighting  observations weighted by inverse examination probability
+  randomization        swapping positions in a fraction of traffic to estimate
+                       the bias
+  presentation bias    formatting and imagery attracting attention
+  selection bias       nothing learned about items never retrieved
+  trust bias           clicks reflecting confidence in the ranking itself
+  the feedback loop    today's model determines tomorrow's training data
+  exploration          deliberately showing lower-ranked items
+  the cost             immediate quality traded for the ability to improve
+  dwell time           a stronger relevance signal than click, with its own
+                       biases by content type
+  negative signals     quick returns to the results page; informative and
+                       underused
+  the judgement complement  a small clean judgement set for evaluation even when
+                       training is behavioural, because a behavioural evaluation
+                       inherits every bias the training data has
+
+## Evaluation and Serving
+
+Offline evaluation on a judgement set iterates quickly and correlates imperfectly with online
+outcomes. Counterfactual evaluation using logged data with propensity weights estimates what a new
+ranker would have achieved on past traffic, which is stronger than a judgement set and depends on
+the logged policy having had support for the actions the new policy would take. Online evaluation is
+authoritative, and interleaving — mixing two rankings within one result list and attributing clicks —
+is far more sensitive than a conventional split test for ranking comparisons specifically.
+
+Serving architecture is the multi-stage cascade, and each stage's job is to reduce the candidate set
+cheaply enough that the next stage can afford to be more expensive. Retrieval produces thousands
+from millions; a lightweight ranker reduces to hundreds; a heavy reranker orders the top tens; and
+final policies apply diversity, deduplication, and business rules. The latency budget is divided
+among these, and the design question at each stage is how much recall is lost for how much cost
+saved.
+
+Recall at the first stage bounds everything downstream, and it is the metric most often unmeasured.
+A reranker cannot recover a relevant document the retriever never returned, so an investment in
+reranking quality is wasted if the retrieval stage is the binding constraint. Measuring stage-wise
+recall against a superset produced by an expensive method is the diagnostic that tells you where to
+spend effort, and it frequently redirects work from the sophisticated end of the pipeline to the
+simple end.
+
+Evaluation and serving:
+  offline judgement sets  fast iteration, imperfect correlation
+  counterfactual evaluation  logged data with propensity weights
+  the support requirement  the logged policy must have had a chance of taking the
+                       new policy's actions
+  interleaving         mixing two rankings; far more sensitive for ranking
+                       comparisons
+  split testing        authoritative and less sensitive
+  the cascade          retrieval, light ranking, heavy reranking, policy
+  the budget division  latency allocated across stages
+  the stage question   how much recall lost for how much cost saved
+  first-stage recall   bounds everything downstream
+  the unmeasured metric  stage-wise recall is frequently not measured at all
+  the diagnostic       compare each stage's output against an expensive superset
+  where effort goes    frequently the simple end rather than the sophisticated one
+  diversity and deduplication  applied last; a ranking of near-identical results
+                       is worse than a slightly less relevant varied one
+  freshness policy     time-sensitive queries need recency weighting that general
+                       queries do not; detecting which is which is itself a
+                       ranking problem and one of the higher-value ones to solve

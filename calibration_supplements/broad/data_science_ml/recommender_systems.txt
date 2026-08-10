@@ -1,0 +1,328 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: Recommender Systems
+Subtopics: problem framing, collaborative filtering, matrix factorization, content and
+hybrid methods, deep and sequential models, candidate generation and ranking, evaluation,
+feedback loops and ethics.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Problem Framing
+
+A recommender system predicts what a user will engage with from a large catalogue, and the
+framing decision that governs everything downstream is what "engage" means. Predicting explicit
+ratings, predicting a click, predicting a purchase, predicting long-term satisfaction, and
+maximizing catalogue diversity are different objectives that produce different systems, and the
+gap between the optimizable proxy and the actual goal is the field's central difficulty.
+
+The data is almost always implicit rather than explicit. Explicit ratings are sparse, biased
+toward the extremes since people rate what they loved or hated, and available for a tiny
+fraction of interactions. Implicit signals — views, clicks, dwell time, purchases, skips — are
+abundant and ambiguous, because the absence of an interaction may mean dislike or may mean the
+item was never seen. That asymmetry is fundamental: implicit feedback gives positive signals
+with confidence and negative signals only by inference.
+
+Sparsity and scale set the engineering constraints. A catalogue of millions of items and a
+user base of millions produces an interaction matrix that is typically over 99.9 percent empty,
+so any method requiring the dense matrix is infeasible and the algorithms must exploit
+sparsity. Serving requires selecting from millions of candidates within tens of milliseconds,
+which is why production systems are staged rather than scoring everything.
+
+Framing considerations:
+  explicit feedback     ratings; sparse, biased toward extremes, low coverage
+  implicit feedback     clicks, views, purchases; abundant and ambiguous
+  missing not at random  unobserved does not mean disliked; it usually means
+                        unseen, and the exposure was determined by the previous
+                        model
+  position bias         items shown higher are clicked more regardless of quality
+  popularity bias       popular items accumulate more interactions, which makes
+                        them more recommended, which makes them more popular
+  cold start            new users and new items have no interaction history
+  the long tail         most items have few interactions; most value may be there
+  objective mismatch    clicks are measurable and are a proxy for satisfaction;
+                        optimizing the proxy diverges from the goal
+  short vs long term    engagement now versus retention over months
+  scale                 millions of items; candidate generation must precede
+                        ranking
+
+Position bias deserves early emphasis because it contaminates every metric computed from
+logged data. Items presented at the top of a list receive far more clicks than identical items
+presented lower, so click-through rate confounds relevance with position. Training on that data
+without correction teaches the model to reproduce the previous model's ordering rather than to
+predict relevance. The corrections are inverse propensity weighting using an estimated
+examination probability, randomized exploration that produces unbiased data at some cost, and
+models that estimate position and relevance jointly.
+
+Q: A recommender is trained on click logs and its offline metrics improve substantially, but
+online engagement is flat. The most likely explanation is:
+A. The model is undertrained
+B. The offline data reflects the previous system's exposure and position bias, so the model
+   learned to reproduce it rather than to improve relevance
+C. The catalogue changed
+D. The metric is computed incorrectly
+Reasoning: Logged interactions occur only for items the previous system showed, in the
+positions it showed them. A model trained to predict those clicks is rewarded for agreeing with
+the previous system, and offline metrics computed on the same logs reward the same agreement.
+Improvement on that measure need not correspond to improvement in relevance. Answer: B.
+
+## Collaborative Filtering and Matrix Factorization
+
+Collaborative filtering recommends based on interaction patterns without using item content,
+on the principle that users who agreed in the past will agree in the future. User-based
+filtering finds similar users and recommends what they liked; item-based filtering finds items
+similar in their interaction patterns and recommends items similar to what a user liked.
+Item-based is usually preferred in production because item-item similarities are more stable
+than user-user ones and can be precomputed, since users' preferences change faster than items'
+audiences do.
+
+Matrix factorization learns low-dimensional latent representations of users and items whose
+inner product approximates the interaction. The interpretation is that the latent dimensions
+capture unnamed factors — genre, tone, complexity, price sensitivity — discovered from the data
+rather than specified. It handles sparsity far better than neighbourhood methods because it
+generalizes across the observed entries rather than requiring direct overlap.
+
+Training on implicit feedback requires treating the missing entries carefully, because
+treating them as zeros trains the model to predict that everything unobserved is disliked, and
+ignoring them entirely gives a degenerate solution predicting high scores everywhere. Weighted
+approaches treat all missing entries as weak negatives with low confidence and observed entries
+as positives with confidence increasing in the interaction strength. Ranking approaches
+sidestep the question by optimizing the relative order of an observed item against a sampled
+unobserved one, which matches the ranking objective directly.
+
+Collaborative methods:
+  user-based CF        find similar users; unstable as preferences shift
+  item-based CF        find similar items; stable, precomputable, the practical
+                       neighbourhood choice
+  similarity measures  cosine, Pearson, Jaccard; cosine on centred data is the
+                       usual default
+  matrix factorization  latent factors for users and items; the inner product
+                       predicts the interaction
+  ALS                  alternating least squares; convex in each factor
+                       separately, parallelizes well
+  SGD                  stochastic optimization; flexible objectives
+  implicit ALS         confidence-weighted; treats unobserved as weak negatives
+  BPR                  Bayesian personalized ranking; optimizes the order of an
+                       observed item over a sampled unobserved one
+  biases               user and item bias terms capture systematic generosity and
+                       popularity; they account for a large share of the
+                       predictable variance and cost almost nothing
+  regularization       essential; the factorization overfits badly without it
+  factor count         typically 32-256; more captures finer structure and
+                       overfits sooner
+
+The bias terms deserve mention because they are easy to omit and account for a surprising
+fraction of predictive power. Some users rate everything highly and others harshly; some items
+are broadly liked and others broadly disliked. Modelling these additively before the
+interaction term means the latent factors capture genuine preference structure rather than
+spending capacity on systematic offsets, and a model with biases and few factors frequently
+beats one with many factors and none.
+
+## Content, Hybrid, and Deep Approaches
+
+Content-based filtering represents items by their attributes — text, category, tags, images,
+audio features — and recommends items similar to what a user engaged with. Its advantage is
+that a new item can be recommended immediately from its attributes, solving item cold start
+entirely. Its limitation is that it recommends more of the same, since similarity in attribute
+space rarely surfaces anything unexpected, and it cannot capture quality or appeal that the
+attributes do not encode.
+
+Hybrid systems combine approaches, and essentially every production system is one. The
+combination may be a weighted blend of scores, a switch selecting a method by situation, a
+cascade where one method filters and another ranks, or a unified model taking both interaction
+and content features as input. The last is now the common architecture, since a model that
+consumes user history, item content, and context in one function subsumes the others.
+
+Deep learning contributes several capabilities that earlier methods lacked. Embeddings learned
+end-to-end capture item and user representations from raw features including text and images.
+Sequential models capture the order and recency of interactions, which matters because
+preference is not a static vector — what someone wants next depends on what they just did.
+Attention lets the model weight past interactions by relevance to the current context rather
+than treating history as an unordered set.
+
+Approaches beyond collaborative filtering:
+  content-based        item attributes; solves item cold start, limited discovery
+  demographic          user attributes; weak, and raises fairness concerns
+  knowledge-based      explicit constraints and requirements; suits infrequent
+                       high-consideration purchases
+  hybrid               weighted, switching, cascade, or unified; universal in
+                       production
+  two-tower            separate user and item encoders producing embeddings scored
+                       by dot product; enables approximate nearest neighbour
+                       retrieval at scale
+  wide and deep        memorization of feature crosses alongside generalization
+  sequential models    order and recency; RNN, then self-attention
+  session-based        no persistent user identity; the only signal is the current
+                       session
+  graph neural nets    propagate over the user-item interaction graph; captures
+                       higher-order connectivity
+  multi-task           predict several objectives jointly; shares representation
+                       and lets the objectives be weighted explicitly
+  side information     content, context, time, device; helps most where
+                       interaction data is sparsest
+
+The two-tower architecture deserves specific attention because it is what makes deep
+retrieval feasible at scale. Encoding users and items separately into a shared embedding space,
+with the score being a dot product, means item embeddings can be precomputed and indexed, and
+retrieval becomes an approximate nearest neighbour search over millions of vectors in
+milliseconds. A model that jointly encodes the user-item pair is more expressive and requires
+scoring every candidate, which is impossible at retrieval scale — so the architecture choice is
+dictated by the serving constraint rather than by modelling preference.
+
+## Candidate Generation, Ranking, and Serving
+
+Production recommenders are staged because scoring millions of items with an expensive model
+per request is impossible. Candidate generation retrieves a few hundred to a few thousand
+plausible items cheaply from the full catalogue. Ranking scores those candidates with a much
+more expensive model. Re-ranking adjusts the final ordering for diversity, freshness, business
+rules, and constraints that are awkward to express in a pointwise score.
+
+The stages have genuinely different objectives, which is frequently misunderstood. Candidate
+generation optimizes recall — it must not miss anything good, and precision matters little
+since ranking will sort it out. Ranking optimizes precision at the top of the list, since only
+the first few items are seen. Using the same model or the same metric for both leads to a
+retrieval stage tuned for the wrong thing.
+
+Multiple candidate sources are standard, each contributing a slice: a collaborative source for
+personalized items, a content source for similar items, a trending source for freshness, a
+sequential source for session continuity, and an exploration source for items the system knows
+little about. Blending several sources gives coverage that a single retrieval method cannot,
+and it makes the system robust to any one source degrading.
+
+Serving architecture:
+  candidate generation  cheap retrieval; optimize recall
+  multiple sources      collaborative, content, trending, sequential, exploration
+  ANN index             approximate nearest neighbour over item embeddings
+  ranking               expensive model on hundreds of candidates; optimize
+                        precision at the top
+  feature availability  ranking features must be computable within the latency
+                        budget; precompute what can be precomputed
+  re-ranking            diversity, freshness, business rules, constraints
+  diversity             maximal marginal relevance or determinantal point
+                        processes; a list of ten near-identical items is worse
+                        than a varied one even if each scores higher
+  freshness             new items need exposure to accumulate signal
+  business rules        promotions, contractual obligations, editorial
+                        constraints; better applied explicitly here than smuggled
+                        into the model
+  latency budget        typically tens of milliseconds end to end
+  caching               precomputed recommendations for the common case, with
+                        real-time adjustment for session context
+  fallback              a non-personalized ranking when the model or features are
+                        unavailable
+
+Diversity deserves explicit treatment because a purely score-maximizing list is usually worse
+than a slightly lower-scoring diverse one. If the top ten items by predicted relevance are ten
+near-identical items, the list satisfies a narrow interpretation of the user's preference and
+fails if that interpretation was wrong, which the system cannot know. A diverse list hedges
+across interpretations and covers more of the user's possible intents, which is why maximal
+marginal relevance — selecting each item to balance its score against its similarity to already
+selected items — reliably improves online metrics despite lowering the sum of predicted scores.
+
+[user] Our recommender's offline NDCG improved 8% but online CTR dropped 3%. What's going on?
+[assistant] tool_call recsys.offline_online_gap({"offline_metric": "ndcg@10",
+"offline_delta": 0.08, "online_metric": "ctr", "online_delta": -0.03,
+"eval_data": "logged_impressions", "propensity_correction": false,
+"exploration_traffic_pct": 0, "candidate_source_changed": false})
+[tool] {"likely_causes": ["offline_eval_on_biased_logs", "no_propensity_correction",
+"popularity_amplification", "diversity_reduction"], "diagnostic":
+"compare_recommendation_distribution_before_after"}
+[assistant] The offline metric is measured on logged impressions from the old system, which
+means it rewards agreeing with the old system rather than being better than it. That gap is the
+most common failure in this field and it has a specific diagnosis path.
+
+Your evaluation data contains only items the previous model chose to show, in the positions it
+showed them, with no propensity correction. A new model that ranks those same items in a more
+similar order to the observed clicks scores higher on NDCG without necessarily being better,
+because the clicks themselves were shaped by position. Meanwhile the new model may be
+retrieving and promoting different items entirely in production, where the offline data says
+nothing about them.
+
+Run one diagnostic before anything else: compare the distribution of what the two models
+actually recommend. Specifically, the popularity distribution of recommended items, the number
+of distinct items appearing across all users, and the intra-list similarity. Two patterns
+account for most cases like this. If the new model concentrates more heavily on popular items,
+it will score well offline — popular items dominate the logs — and reduce online engagement
+because users see less that is personalized to them. If intra-list similarity rose, the lists
+became less diverse, which lowers click-through even when each item scores higher.
+
+Three fixes, in order of how much circularity each one removes.
+
+Add propensity correction to the offline evaluation. Weight each logged interaction by the
+inverse of the probability that item was shown at that position, so the metric estimates
+performance under uniform exposure rather than under the old policy's exposure. This alone
+usually collapses spurious offline gains.
+
+Reserve a small fraction of traffic for randomized exploration. A few percent of impressions
+with randomized ordering produces unbiased data, which gives you an offline evaluation set that
+actually predicts online performance. The cost is small and it is the only way to break the
+circularity permanently.
+
+Treat offline metrics as a filter rather than a decision. Their job is to reject clearly worse
+candidates cheaply; the decision belongs to an online test. A model that improves offline is
+worth testing, and only the test settles it.
+
+## Evaluation, Feedback Loops, and Ethics
+
+Offline evaluation splits logged data and measures ranking quality, and its central weakness
+is that it measures agreement with historical exposure rather than performance under the new
+policy. Metrics divide into rating prediction accuracy, which is largely obsolete since the
+task is ranking rather than rating, and ranking metrics measuring the quality of an ordered
+list. Beyond accuracy, coverage measures what fraction of the catalogue is ever recommended,
+and diversity, novelty, and serendipity measure properties that accuracy metrics actively
+penalize.
+
+Online evaluation through controlled experiments is the ground truth, with the standard
+cautions of experimentation applying with particular force. Novelty effects are strong in
+recommendation, since a changed interface or a changed selection draws attention initially.
+Network and marketplace interference is common, since recommending one item to more users takes
+exposure from others. And short-term engagement metrics diverge from long-term satisfaction
+more sharply here than in most domains, which is why holdback groups maintained for months are
+standard practice at the larger platforms.
+
+Metrics and evaluation:
+  precision@k          fraction of the top k that are relevant
+  recall@k             fraction of relevant items in the top k
+  MAP                  mean average precision across users
+  NDCG                 discounted cumulative gain; weights position, the standard
+                       ranking metric
+  MRR                  mean reciprocal rank of the first relevant item
+  hit rate             whether any relevant item appears in the top k
+  coverage             fraction of the catalogue ever recommended
+  novelty              inverse popularity of recommendations
+  serendipity          relevant and unexpected; hard to measure, valuable
+  intra-list diversity  dissimilarity within a recommendation list
+  temporal split       train on past, evaluate on future; random splits leak
+  counterfactual eval  inverse propensity or doubly robust estimators
+  online A/B           the ground truth; watch for novelty and interference
+  long-term holdback   a group excluded from a change for months, to measure
+                       retention effects that short experiments cannot
+
+The feedback loop is the structural problem that distinguishes recommendation from other
+prediction tasks. The system's recommendations determine what users see, which determines what
+they interact with, which becomes the training data for the next model. A model that
+under-recommends a category will see fewer interactions with it, will conclude it is less
+relevant, and will recommend it less — a self-reinforcing narrowing that no amount of model
+improvement corrects, because the model is learning correctly from data the model itself
+generated. Breaking it requires deliberate exploration, which costs measurable short-term
+engagement for a benefit that is counterfactual and therefore hard to defend.
+
+Filter bubbles and their consequences follow from the same mechanism at the level of the
+individual user. A system optimizing engagement narrows toward what reliably engages, which for
+many users means progressively more of the same, and in content domains it can mean
+progressively more extreme material because extremity engages. Whether observed narrowing is
+caused by the algorithm or by user choice is empirically contested and the mechanism by which an
+engagement-optimizing system would produce it is not in doubt. The mitigations are diversity
+objectives with explicit weight, exposure to varied content as a constraint rather than as an
+outcome, and multi-objective optimization that includes something other than engagement — each
+of which costs the metric the system is measured on, which is why they require organizational
+commitment rather than technical work alone.
+
+Fairness in recommendation has two sides that can conflict. User-side fairness asks whether
+different groups receive comparable recommendation quality, and disparities arise naturally
+because groups with less interaction data get worse personalization. Provider-side fairness
+asks whether items and creators receive comparable exposure, and popularity bias systematically
+disadvantages the long tail regardless of quality. Improving one can worsen the other, and both
+trade against accuracy, so the resolution is a stated policy about what the system should
+achieve rather than a technique — which is the same conclusion the field reaches on nearly every
+question where the optimizable proxy diverges from the intended goal.

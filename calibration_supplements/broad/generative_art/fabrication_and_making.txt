@@ -1,0 +1,235 @@
+================================================================================
+AREA: Generative and Creative Technology
+SUBJECT: Digital Fabrication and Making
+Subtopics: additive processes, subtractive processes, laser and vinyl cutting, CAD and CAM,
+materials for makers, finishing, prototyping practice.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Additive Processes
+
+Material extrusion is the most accessible additive process: a filament is melted and deposited layer
+by layer along a path computed from a sliced model. Its characteristics follow from that mechanism.
+Layer lines are visible and the surface finish is anisotropic. Strength is substantially lower across
+layers than within them, because the bond between layers is a partial weld rather than continuous
+material. Overhangs beyond a certain angle require support structures, which leave marks where they
+attach.
+
+The orientation decision is the most consequential choice in preparing a part and it is frequently
+made carelessly. Orientation determines where the weak interlayer direction lies relative to the
+load, how much support is needed, how the surfaces that matter are finished, and how long the print
+takes. A part that fails in use has usually been oriented so that its load path crosses layers, and
+reorienting it costs nothing and can multiply its strength.
+
+Resin processes cure a photopolymer layer by layer with light, producing much finer feature
+resolution and smoother surfaces with essentially isotropic properties. The costs are handling —
+uncured resin is messy and requires care — a post-processing sequence of washing and additional
+curing, and mechanical properties that are generally more brittle and less stable over time,
+particularly under ultraviolet exposure. Powder-based processes fuse a bed of powder and need no
+support structures because the surrounding powder supports the part, which permits geometries the
+other processes cannot make.
+
+Additive processes:
+  material extrusion   melted filament deposited along a path
+  layer adhesion       a partial weld; the weak direction
+  anisotropy           strength substantially lower across layers
+  overhang limit       beyond roughly forty-five degrees needs support
+  support marks        where structures attach; plan which surface bears them
+  orientation          the most consequential preparation choice
+  the failure pattern  parts oriented with the load crossing layers
+  infill               internal density and pattern; strength and weight
+  perimeters           usually contribute more strength than infill for the same
+                       material
+  first layer          the foundation; adhesion problems here cause most failures
+  resin curing         photopolymer solidified by light
+  resolution           finer features and smoother surfaces
+  isotropy             essentially uniform properties
+  the costs            messy handling, post-processing, brittleness, ultraviolet
+                       degradation
+  powder fusion        the surrounding powder supports the part
+  the geometric freedom  no support structures permits internal and interlocking
+                       geometries other processes cannot produce
+
+Q: A printed bracket snaps cleanly along a horizontal plane under load. The most effective fix is:
+A. Increase the infill density
+B. Reorient the part so the load runs within layers rather than across them, since interlayer bonds
+   are the weak direction and orientation costs nothing to change
+C. Use a stronger material
+D. Print more slowly
+Reasoning: A clean break along a layer plane is the signature of interlayer failure. Infill density
+adds material in the wrong direction to help, and a stronger filament still has weak interlayer
+bonds. Orientation directly addresses the mechanism and is free. Answer: B.
+
+## Subtractive and Cutting Processes
+
+Computer-controlled milling removes material with a rotating cutter, and its constraints are
+geometric and physical. The tool has a diameter, so internal corners have that radius and cannot be
+sharp. The tool must reach the feature, so undercuts and deep narrow pockets require special tooling
+or additional setups. Material is removed at a rate limited by the tool, the material, and the
+machine's rigidity, and exceeding it produces poor finish, tool wear, or breakage.
+
+Feeds and speeds are the parameters governing this, and their relationship is worth understanding
+rather than looking up. Spindle speed sets the surface velocity at the cutting edge, which
+determines heat generation and is bounded by the tool and material combination. Feed rate sets the
+thickness of material each tooth removes, and the counterintuitive point is that too slow a feed is
+harmful — the tool rubs rather than cuts, generating heat instead of chips and dulling rapidly.
+Chips carry heat away, so producing proper chips is the goal rather than a side effect.
+
+Laser cutting vaporizes or burns through material along a path and excels at flat parts from sheet
+stock. Its geometry constraints are minimal in two dimensions and absolute in the third: it makes
+flat parts, and three-dimensional objects are built by assembling them. The kerf — the width the beam
+removes — must be accounted for in fitted joints, and the cut edge is tapered slightly and darkened on
+many materials. Material compatibility is a genuine safety matter rather than a quality one, since
+some plastics release corrosive or toxic gases when cut.
+
+Subtractive and cutting:
+  milling              material removed by a rotating cutter
+  internal corner radius  set by the tool diameter; sharp corners impossible
+  tool reach           undercuts and deep pockets need special tooling or setups
+  setups               reorientations; a major cost driver
+  spindle speed        surface velocity at the edge; heat generation
+  feed rate            material per tooth
+  the counterintuitive point  too slow a feed rubs and dulls the tool
+  chip formation       chips carry heat away; producing them is the goal
+  climb and conventional milling  cutter rotation relative to feed direction;
+                       affects finish and load
+  workholding          how the part is secured; frequently harder than the cutting
+  laser cutting        vaporizing along a path; flat parts from sheet
+  kerf                 the removed width; must be accounted for in fitted joints
+  edge taper           the cut is slightly conical
+  material compatibility  a safety matter; some plastics release corrosive or
+                       toxic gases
+  vinyl cutting        a blade cutting sheet material without cutting the backing;
+                       weeding the waste is the labour
+  living hinges        thin flexures cut into sheet material; a laser-specific
+                       technique that turns a flat part into a folding one
+
+## CAD, CAM, and the Digital Chain
+
+Parametric modelling defines geometry by dimensions and relationships rather than by fixed
+coordinates, so changing a dimension updates everything derived from it. The practical value is that
+a design is modifiable rather than remade, and the practical difficulty is that a model built
+carelessly breaks when modified — features referencing faces that move, sketches constrained
+ambiguously, and dependency chains that were never intended.
+
+Design intent is the discipline that prevents this. Constraining a sketch fully, referencing stable
+geometry rather than incidental faces, and naming and organizing features so their purpose is
+evident are what make a model survive revision. A model that regenerates correctly after a dimension
+change is worth several that require rebuilding, and the difference is entirely in how it was
+constructed rather than in what it looks like.
+
+The path from model to machine passes through a toolpath generator that computes the actual motion.
+Its inputs are the geometry, the tool, the material, and the strategy — roughing to remove bulk,
+finishing to produce the surface, and specific operations for holes and pockets. Simulation before
+cutting catches collisions and errors that are expensive to discover on the machine, and the
+practical rule is that the first run of any new program is watched with a hand on the stop.
+
+CAD and CAM:
+  parametric modelling  geometry from dimensions and relationships
+  the value            modifiable rather than remade
+  the fragility        careless models break on modification
+  design intent        constraining and referencing so the model survives
+                       revision
+  full constraint      a sketch with no undefined degrees of freedom
+  stable references    avoid referencing faces that move
+  feature organization  named and ordered so the purpose is evident
+  the regeneration test  does it rebuild correctly after a dimension change
+  assemblies           parts positioned by relationships; interference checked
+  tolerance in design  clearance built in deliberately for the process used
+  toolpath generation  geometry, tool, material, and strategy into motion
+  roughing and finishing  bulk removal then surface quality
+  simulation           collisions and errors caught before cutting
+  the first run rule   watched, with a hand on the stop
+  slicing              the additive equivalent; layer height, speed,
+                       temperature, and support settings
+  the profile approach  a tuned profile per material rather than adjusting
+                       settings per print, because the interactions between
+                       settings are strong and per-print fiddling loses the
+                       knowledge
+
+## Materials and Finishing
+
+Material selection for making balances mechanical requirements against processability, cost, and
+availability. Common printing plastics span a range: an easy-to-print material that is stiff and
+brittle and softens at low temperature; a tougher one that is harder to print and more temperature
+resistant; a flexible one requiring a specific extruder arrangement; and engineering materials
+requiring enclosed chambers and dried filament. Choosing the easiest material that meets the
+requirement is usually correct, since a failed print in a demanding material is worse than a
+successful one in an adequate material.
+
+Wood, acrylic, and metal sheet each behave differently under the same process. Plywood cuts and
+machines readily and varies between sheets. Acrylic cuts beautifully with a laser and cracks under
+stress concentrations, so drilled holes need generous clearance and no pinching. Aluminium machines
+well and gums up tooling if the chip clearance is inadequate. Knowing a handful of materials
+thoroughly is more useful than knowing many superficially.
+
+Finishing determines how a piece is perceived far more than its dimensional accuracy does. Sanding
+progressively through grits, filling and priming, and applying a finish transform a printed or
+machined surface, and the labour involved usually exceeds the fabrication time by a wide margin.
+Planning which surfaces are visible and orienting the fabrication so those surfaces need the least
+work is the efficient approach, and it is a decision made before making rather than after.
+
+Materials and finishing:
+  the selection balance  requirements against processability and cost
+  the easy-material principle  the least demanding material that meets the need
+  the failed print cost  worse than an adequate material succeeding
+  plywood              readily cut and machined; varies between sheets
+  acrylic              cuts beautifully, cracks at stress concentrations
+  the acrylic detail   generous clearance at holes and no pinching
+  aluminium            machines well with adequate chip clearance
+  the depth principle  a few materials known thoroughly beats many known
+                       superficially
+  sanding              progressive grits; skipping grits wastes time overall
+  filling and priming  what makes layer lines disappear
+  the labour ratio     finishing usually exceeds fabrication time
+  visible surface planning  orient so the seen surfaces need least work
+  adhesives            matched to the material pair; the joint design matters as
+                       much as the adhesive
+  fasteners into plastic  heat-set inserts rather than threading directly, for
+                       anything disassembled more than once
+  post-processing for resin  wash and cure; the cure step determines final
+                       properties and is frequently rushed
+
+## Prototyping Practice
+
+The purpose of a prototype is to answer a question, and being explicit about which question
+determines what to build. A fit prototype tests whether parts assemble and needs only dimensional
+accuracy at the interfaces. A form prototype tests appearance and ergonomics and needs surface
+quality and correct proportions. A function prototype tests whether a mechanism works and needs the
+right materials in the loaded regions and nowhere else. Building a prototype that answers all three
+costs several times more than building three that each answer one.
+
+Iteration speed matters more than iteration quality in early stages. A rough part in hand tomorrow
+teaches more than a refined part next week, because the questions it answers redirect the design
+before more effort is invested in the wrong direction. The practical corollary is that the
+fabrication method for early prototypes should be chosen for turnaround rather than for fidelity, and
+cardboard, tape, and hand-cut parts remain genuinely useful at this stage.
+
+Documentation is what makes a project repeatable and transferable, and it is what almost every
+project lacks. Source files with the parameters that matter, the machine settings used, the material
+specifications, an assembly sequence, and a note about what did not work are enough. The last item is
+the most valuable and the least often recorded — the failed approaches are what prevent the next
+person, frequently oneself six months later, from repeating them.
+
+Prototyping practice:
+  the question first   what is this prototype for
+  fit prototype        assembly; accuracy at the interfaces only
+  form prototype       appearance and ergonomics; surface and proportion
+  function prototype   mechanism; correct material where loaded
+  the separation economy  three focused prototypes cost less than one that does
+                       everything
+  iteration speed      more valuable than iteration quality early
+  the redirect value   rough parts answer questions before effort is committed
+  low-fidelity methods  cardboard, tape, and hand-cut parts remain useful
+  tolerance discovery  print or cut a test piece with a range of clearances and
+                       measure which fits; faster than calculating
+  the test piece habit  a small calibration part before a long job
+  documentation        source files, settings, materials, assembly, and failures
+  the parameters that matter  recorded explicitly rather than embedded implicitly
+  the failure record   the most valuable and least often kept
+  version discipline   a file naming or version control scheme, because a folder
+                       of similarly named files is how a working design gets lost
+  sharing              a documented project that others can reproduce is a
+                       different artifact from a finished object, and deciding
+                       which one is being made changes what work is worth doing

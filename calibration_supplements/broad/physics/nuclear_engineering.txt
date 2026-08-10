@@ -1,0 +1,248 @@
+================================================================================
+AREA: Physics
+SUBJECT: Nuclear Engineering and Radiation
+Subtopics: nuclear reactions and cross sections, reactor physics, thermal hydraulics,
+radiation interaction and shielding, detection and dosimetry, fuel cycle, fusion.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Nuclear Reactions and Cross Sections
+
+Nuclear energy comes from the difference in binding energy per nucleon across the chart of nuclides.
+That curve peaks near iron, which means that combining light nuclei releases energy and splitting
+heavy nuclei releases energy, while the reverse of each consumes it. This single curve explains why
+fusion powers stars, why fission powers reactors, and why iron is the endpoint of stellar
+nucleosynthesis.
+
+The cross section quantifies the probability of a reaction, expressed as an effective area presented
+by a target nucleus. It depends strongly on the incident particle's energy, and for neutrons the
+dependence has structure that dominates reactor design: cross sections generally rise as neutron
+energy falls, with sharp resonances at specific energies where the compound nucleus has an excited
+state. Fission cross sections for the common fissile isotopes are much larger for slow neutrons than
+for fast ones, by roughly two orders of magnitude.
+
+That energy dependence is why most power reactors are thermal reactors. Fission produces fast
+neutrons; slowing them to thermal energies through collisions with a moderator dramatically raises
+the probability that they cause further fission, which permits a chain reaction with fuel that is
+only slightly enriched. A fast reactor, operating without moderation, needs much higher enrichment
+and in exchange can breed fissile material from the abundant fertile isotope, which is the tradeoff
+underlying the entire design space.
+
+Reactions and cross sections:
+  binding energy per nucleon  peaks near iron; explains fusion and fission both
+                       releasing energy
+  cross section        an effective area representing reaction probability
+  energy dependence    generally rising as neutron energy falls
+  resonances           sharp peaks at compound nucleus excited states
+  fissile              fissions with slow neutrons
+  fertile              becomes fissile after capture and decay
+  thermal neutrons     slowed to equilibrium with the medium
+  the two-order factor  thermal fission cross sections vastly exceed fast ones
+  moderation           slowing neutrons through collisions
+  good moderators      light nuclei that scatter without absorbing; hydrogen,
+                       deuterium, carbon
+  the moderator tradeoff  ordinary water moderates well and absorbs some
+                       neutrons, so it requires enriched fuel; heavy water absorbs
+                       far less and permits natural uranium
+  fast reactors        no moderation; higher enrichment, breeding capability
+  neutron economy      the accounting of where every neutron goes; the central
+                       design consideration
+  delayed neutrons     a small fraction emitted seconds after fission by decay
+                       products, and they are what makes a reactor controllable
+
+Q: Delayed neutrons constitute under one percent of fission neutrons. Why do they dominate reactor
+control?
+A. They have higher energy
+B. Reactors are operated so that the prompt neutrons alone are slightly subcritical, making the
+   chain reaction depend on the delayed fraction; this stretches the characteristic response time
+   from microseconds to seconds, which is what makes mechanical control possible
+C. They cause more fissions
+D. They are easier to detect
+Reasoning: With prompt neutrons alone, the multiplication timescale is the prompt neutron lifetime,
+far too short for any control system. Operating in the range where criticality requires the delayed
+contribution ties the period to the precursor decay times. Exceeding prompt criticality removes this
+margin entirely and is the condition every design and procedure is arranged to prevent. Answer: B.
+
+## Reactor Physics and Control
+
+Criticality is the condition where each generation of neutrons exactly reproduces itself, quantified
+by the multiplication factor. Below one the chain reaction dies out; above one it grows; at exactly
+one it is steady. A reactor is not held at criticality by a fixed configuration but by continuous
+adjustment, because the reactivity changes as fuel depletes, as fission products accumulate, and as
+temperature varies.
+
+Reactivity feedback is the mechanism that makes a reactor stable, and it must be negative for a safe
+design. When temperature rises, several effects change the reactivity: thermal expansion reduces
+density, the moderator becomes less effective, and resonance absorption broadens with temperature so
+that more neutrons are captured without fission. A design where the net effect is negative responds
+to a power increase by reducing reactivity, which limits the excursion without any control action.
+This is inherent safety and it is a design requirement rather than a bonus.
+
+Fission product poisoning is the operational effect that most surprises people new to the field.
+Xenon-135 has an enormous absorption cross section and is produced partly by the decay of a
+precursor, so after a power reduction its concentration keeps rising for hours before falling. A
+reactor shut down or reduced in power may become impossible to restart for many hours until the
+xenon decays, and the transient after a return to power runs the other way. Managing this is a
+routine part of operation and it constrains how quickly a plant can change output.
+
+Reactor physics:
+  multiplication factor  neutrons per generation relative to the previous
+  criticality          exactly one; steady power
+  subcritical and supercritical  decaying and growing
+  reactivity           the fractional departure from criticality
+  control rods         strong absorbers moved to adjust reactivity
+  chemical shim        a dissolved absorber for slow adjustment
+  burnable poisons     absorbers that deplete as fuel does, flattening the
+                       reactivity over the cycle
+  temperature feedback  the inherent stability mechanism
+  Doppler broadening   resonance absorption widening with temperature; a prompt
+                       negative effect
+  void coefficient     the reactivity change when coolant boils or is lost; must
+                       be negative in a safe design
+  the design requirement  net negative feedback, not merely stable operation
+  xenon poisoning      a strong absorber accumulating after power reduction
+  the restart constraint  hours of inability to restart after a shutdown
+  power maneuvering    limited by poisoning dynamics as well as by thermal stress
+  decay heat           several percent of full power immediately after shutdown,
+                       falling slowly; it must be removed indefinitely, and every
+                       major reactor accident has involved a failure to do so
+
+## Thermal Hydraulics and Safety
+
+A power reactor is a heat source and the plant around it is a heat engine, so the limits are as much
+thermal as nuclear. Heat is generated in the fuel, conducted through the fuel and cladding,
+transferred to the coolant, and carried to the steam system. Each step has a limit, and the binding
+one is usually the heat flux at which boiling changes character from efficient nucleate boiling to
+film boiling, where a vapour layer insulates the surface and the temperature jumps abruptly.
+
+That transition — the critical heat flux — is the governing safety limit in water-cooled reactors,
+because exceeding it causes cladding temperature to rise sharply within seconds and can lead to
+failure. Operating margins are defined relative to it, and the instrumentation and protection system
+exists to keep the plant away from the conditions where it could be approached.
+
+Safety design follows defence in depth: multiple independent barriers between the fuel and the
+environment, multiple independent means of achieving each safety function, and a design basis that
+assumes failures occur. The fundamental safety functions are controlling reactivity, removing heat,
+and containing radioactive material, and every safety system serves one of them. Passive systems
+that work by gravity, natural circulation, or stored energy are preferred over active ones because
+they do not depend on power or on operator action, and the trend in newer designs is toward
+achieving the safety functions passively for an extended period.
+
+Thermal hydraulics and safety:
+  the heat path        fuel, cladding, coolant, steam system
+  nucleate boiling     efficient heat transfer with bubbles at the surface
+  film boiling         an insulating vapour layer; temperature jumps
+  critical heat flux   the transition; the governing thermal limit
+  operating margin     defined relative to it
+  the three safety functions  control reactivity, remove heat, contain material
+  defence in depth     independent barriers and independent means
+  the barriers         fuel matrix, cladding, pressure boundary, containment
+  single failure criterion  safety functions achievable with any one component
+                       failed
+  redundancy and diversity  multiple copies and multiple different mechanisms
+  passive systems      gravity, natural circulation, stored energy
+  the preference       no dependence on power or operator action
+  emergency core cooling  injecting coolant on loss of the primary inventory
+  containment          the final barrier; designed for the pressure and
+                       temperature of the worst analysed release
+  the accident lesson  the events that mattered involved decay heat removal
+                       failing, often for reasons outside the design basis, which
+                       is why extended station blackout coping capability became
+                       a design requirement afterward
+
+## Radiation Interaction, Shielding, and Dosimetry
+
+Radiation interacts with matter differently by type, and shielding design follows directly. Alpha
+particles are stopped by paper or the outer skin layer and are hazardous only if the source is
+inhaled or ingested. Beta particles penetrate millimetres of tissue and are shielded by low-atomic-
+number materials — using lead produces secondary photons through braking radiation, so plastic
+first and lead second is the correct order. Gamma rays are attenuated exponentially with no definite
+range, requiring dense high-atomic-number material and thickness proportional to the logarithm of
+the required reduction.
+
+Neutrons require a different approach entirely because they interact with nuclei rather than
+electrons. Shielding them means first slowing them with hydrogen-rich material, then absorbing the
+slowed neutrons with a material having a high thermal capture cross section, and finally attenuating
+the gamma rays that capture produces. A layered shield of water or polyethylene, boron, and lead
+addresses all three, and omitting any layer leaves a hazard the other layers do not cover.
+
+Dose quantities are distinguished carefully because they answer different questions. Absorbed dose
+is energy deposited per unit mass. Equivalent dose weights it by radiation type, since alpha
+particles cause more damage per unit energy than gammas. Effective dose further weights by the
+sensitivity of the tissues irradiated, giving a single number for whole-body risk comparison. Using
+the wrong one — comparing an absorbed dose to an effective dose limit, for instance — produces errors
+of an order of magnitude.
+
+Radiation and dosimetry:
+  alpha                stopped by paper; hazardous internally
+  beta                 millimetres of tissue; shield with low atomic number first
+  braking radiation    secondary photons from stopping betas in dense material
+  gamma                exponential attenuation, no definite range
+  half-value layer     the thickness halving the intensity; the practical shield
+                       unit
+  neutrons             interact with nuclei; require a layered shield
+  the neutron layers   moderate, capture, then attenuate capture gammas
+  time, distance, shielding  the three protective factors; distance is free and
+                       most effective
+  the inverse square   halving intensity requires only a modest distance increase
+                       close to a source
+  absorbed dose        energy per unit mass
+  equivalent dose      weighted by radiation type
+  effective dose       further weighted by tissue sensitivity
+  the comparison error  mixing the quantities changes answers by an order of
+                       magnitude
+  contamination versus exposure  material present versus radiation received; the
+                       responses are entirely different
+  detection            ionization chambers, scintillators, semiconductors, and
+                       thermoluminescent dosimeters, each suited to a different
+                       combination of radiation type, energy range, and whether
+                       real-time or integrated measurement is needed
+
+## Fuel Cycle and Fusion
+
+The nuclear fuel cycle runs from mining through conversion, enrichment, fabrication, irradiation,
+storage, and eventual disposal or recycling. Enrichment increases the fraction of the fissile
+isotope, and the same technology at higher output produces weapons material, which is why enrichment
+capability is the central concern of nonproliferation policy and why the fuel cycle is a political
+subject as much as a technical one.
+
+Spent fuel contains unfissioned fuel, fissile material produced during irradiation, and fission
+products of widely varying half-life. The short-lived products dominate the heat and radiation for
+decades; the long-lived ones dominate the disposal timescale. Reprocessing separates the reusable
+material from the waste, reducing the volume requiring long-term disposal and producing separated
+fissile material, which is the proliferation concern that makes the choice contested.
+
+Fusion offers a fuel supply that is effectively unlimited and no long-lived fission product waste,
+and it has proven far harder than fission. Confining a plasma hot enough for the nuclei to overcome
+their electrostatic repulsion, dense enough for collisions to be frequent, and for long enough for
+the released energy to exceed the input is the requirement, and the product of those three
+quantities must exceed a threshold. Magnetic confinement in a toroidal geometry and inertial
+confinement by compressing a fuel pellet are the two main approaches, and both have now demonstrated
+energy release exceeding the energy delivered to the fuel while remaining well short of a net-
+positive power plant.
+
+Fuel cycle and fusion:
+  the cycle stages     mining, conversion, enrichment, fabrication, irradiation,
+                       storage, disposal or recycling
+  enrichment           raising the fissile fraction
+  the dual use problem  the same capability at higher output produces weapons
+                       material
+  spent fuel composition  unfissioned fuel, bred fissile material, fission
+                       products
+  the two timescales   decades of heat and radiation, millennia of disposal
+                       concern
+  interim storage      pools then dry casks; a mature and low-risk technology
+  geological disposal  the technical consensus solution and a persistent
+                       political difficulty
+  reprocessing         separating reusable material from waste
+  the proliferation tension  separated fissile material is the concern
+  the fusion conditions  temperature, density, and confinement time above a
+                       product threshold
+  magnetic confinement  a toroidal field configuration holding the plasma
+  inertial confinement  compressing a pellet faster than it disassembles
+  tritium breeding     required for a deuterium-tritium plant; the fuel is
+                       generated from lithium in the surrounding blanket
+  materials            the hardest unsolved engineering problem, since the
+                       structure surrounding the plasma is subjected to a neutron
+                       flux that damages and activates it over the plant's life

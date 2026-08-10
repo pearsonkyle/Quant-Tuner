@@ -1,0 +1,290 @@
+================================================================================
+AREA: Mathematics
+SUBJECT: Probability Theory
+Subtopics: axioms and measure, random variables, transformations, limit theorems,
+concentration inequalities, stochastic processes, Markov chains, martingales.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Axioms, Measure, and Conditioning
+
+Kolmogorov's axioms found probability on measure theory. A probability space is a triple
+consisting of a sample space of outcomes, a sigma-algebra of events — closed under
+complement and countable union — and a probability measure assigning each event a value
+in [0,1], with the whole space measuring one and countable additivity holding over
+disjoint events. Everything else in the subject is a theorem.
+
+The restriction to a sigma-algebra rather than all subsets is not fastidiousness. For an
+uncountable sample space, no measure can assign a consistent size to every subset while
+remaining translation-invariant and countably additive — the Vitali construction, using
+the axiom of choice, produces a set for which any assigned value leads to contradiction.
+The sigma-algebra is the collection of sets on which a consistent measure exists, and
+restricting attention to it is what makes the theory coherent.
+
+Conditional probability P(A|B) = P(A and B)/P(B) restricts the sample space to B and
+renormalizes. Independence, P(A and B) = P(A)P(B), is equivalent to P(A|B) = P(A) when
+P(B) is positive: knowing B tells you nothing about A. Two subtleties recur. Pairwise
+independence does not imply mutual independence — three events can be pairwise
+independent while the third is determined by the first two, the standard example being
+two fair coin flips and the event that they agree. And conditional independence neither
+implies nor is implied by unconditional independence: two variables can be dependent
+overall and independent given a third (explaining away a common cause), or independent
+overall and dependent given a third (conditioning on a common effect, the collider
+structure that makes "controlling for everything" a source of bias rather than rigour).
+
+Foundational results:
+  axioms              P(A) >= 0;  P(Omega) = 1;  countable additivity on disjoints
+  complement          P(A^c) = 1 - P(A)
+  inclusion-exclusion P(A or B) = P(A) + P(B) - P(A and B)
+  chain rule          P(A1...An) = P(A1) P(A2|A1) ... P(An|A1...An-1)
+  total probability   P(A) = sum over a partition B_i of P(A|B_i) P(B_i)
+  Bayes               P(A|B) = P(B|A) P(A) / P(B)
+  union bound         P(union A_i) <= sum P(A_i);  crude and universally applicable
+  Borel-Cantelli I    sum P(A_n) < infinity implies P(A_n infinitely often) = 0
+  Borel-Cantelli II   independent A_n with divergent sum occur infinitely often
+
+The union bound's crudeness is its strength: it requires no independence assumption
+whatsoever and holds always. It is the workhorse of high-probability arguments across
+computer science and statistics — bounding the probability that any of many bad events
+occurs, which is exactly the structure of multiple-testing corrections, of concentration
+arguments over a finite hypothesis class, and of most randomized algorithm analyses.
+
+Q: Events A and B are independent, and A and C are independent. Does it follow that A is
+independent of B and C jointly?
+A. Yes, independence is transitive
+B. No; pairwise independence does not imply mutual independence
+C. Yes, if B and C are independent
+D. Only if all three have equal probability
+Reasoning: Pairwise independence is strictly weaker than mutual independence. Take two
+fair coin flips B and C and let A be the event that they match; A is independent of each
+individually but is determined by the pair. Option C is also false — B and C are
+independent in that very counterexample. Answer: B.
+
+## Random Variables and Transformations
+
+A random variable is a measurable function from the sample space to the reals; its
+distribution is the pushforward measure. The cumulative distribution function F(x) =
+P(X <= x) characterizes it completely and always exists, which is why it is the right
+general object — densities exist only for absolutely continuous distributions and mass
+functions only for discrete ones, but every random variable has a CDF.
+
+Expectation is the integral of the variable against the probability measure. Its
+linearity holds unconditionally, without any independence assumption, and this is the
+most exploited fact in applied probability. The expected number of fixed points in a
+random permutation is computed by writing it as a sum of indicator variables, each with
+expectation 1/n, giving exactly 1 regardless of n — a calculation that would be
+forbidding directly and is immediate by linearity, despite the indicators being
+dependent. Variance is not linear, and Var(X + Y) = Var(X) + Var(Y) requires
+uncorrelatedness.
+
+Moment generating functions and characteristic functions encode a distribution in
+transform space, converting convolution into multiplication. The sum of independent
+random variables has a density given by the convolution of theirs, which is awkward
+directly and trivial in transform space, which is why sums are analyzed there. The
+characteristic function, being the Fourier transform of the density, always exists
+whereas the MGF may not — the Cauchy and heavy-tailed distributions have no MGF — and
+Levy's continuity theorem, that pointwise convergence of characteristic functions implies
+convergence in distribution, is the machinery behind the central limit theorem.
+
+Transformation rules:
+  discrete            P(Y = y) = sum over x with g(x) = y of P(X = x)
+  monotone continuous f_Y(y) = f_X(g^{-1}(y)) |d g^{-1}/dy|
+  multivariate        f_Y(y) = f_X(g^{-1}(y)) |det J|,  J the Jacobian
+  sum of independents convolution; multiply MGFs or characteristic functions
+  linear              E[aX + b] = aE[X] + b;  Var(aX + b) = a^2 Var(X)
+  law of the unconscious statistician  E[g(X)] = integral g(x) f(x) dx, no need
+                      to derive the distribution of g(X)
+  tower property      E[X] = E[E[X|Y]]
+  variance decomposition  Var(X) = E[Var(X|Y)] + Var(E[X|Y])
+
+The variance decomposition — the law of total variance — is worth internalizing because
+it names the two sources of uncertainty in any hierarchical situation. The first term is
+the average within-group variance, the second is the variance of the group means. In
+statistics this is the ANOVA decomposition; in machine learning it separates aleatoric
+from epistemic uncertainty; in hierarchical modelling it is exactly what determines how
+much shrinkage a group receives. Whenever an analysis needs to attribute variability
+between "noise within" and "differences between", this identity is the formal statement.
+
+The Jacobian in the change-of-variables formula is where errors concentrate, and it has
+a clean interpretation: a transformation that stretches a region must reduce the density
+there proportionally, so that total probability is preserved. Forgetting it produces
+densities that do not integrate to one, which is a useful self-check. This same
+determinant is what normalizing flows track explicitly in order to remain valid
+probability models under learned invertible transformations.
+
+## Limit Theorems
+
+The laws of large numbers state that sample averages converge to expectations. The weak
+law gives convergence in probability: for any epsilon, the probability that the sample
+mean deviates by more than epsilon tends to zero. The strong law gives almost-sure
+convergence: the sample mean converges for every outcome outside a set of probability
+zero. The distinction is about whether the sequence of averages settles down permanently
+(strong) or merely becomes unlikely to deviate at any fixed time (weak). Both require
+only a finite mean; neither requires finite variance, though the simplest proofs assume it.
+
+The central limit theorem says that the standardized sample mean converges in
+distribution to a standard normal, regardless of the underlying distribution, provided
+the variance is finite. This universality is the reason the normal distribution appears
+everywhere: any quantity that is a sum of many small independent contributions is
+approximately normal, whatever those contributions look like individually. It also
+explains why measurement error, biological variation, and aggregate financial returns
+over short horizons all exhibit approximately normal behaviour.
+
+The finite-variance condition is essential and its failure is not exotic. For
+heavy-tailed distributions with infinite variance, sums converge instead to stable
+distributions with power-law tails, and the scaling is n^{1/alpha} rather than
+sqrt(n). The Cauchy distribution is the extreme case: the sample mean of n Cauchy
+variables has exactly the same distribution as a single observation, so averaging
+provides no improvement at all no matter how much data is collected. Since financial
+returns, city sizes, network degrees, and file sizes all exhibit heavy tails, applying
+CLT-based reasoning to them produces confidently wrong error bars.
+
+Convergence modes, from strongest to weakest:
+  almost sure          P(lim X_n = X) = 1;  the strong law
+  in probability       P(|X_n - X| > eps) -> 0 for every eps;  the weak law
+  in L^p               E|X_n - X|^p -> 0
+  in distribution      F_n(x) -> F(x) at continuity points;  the CLT
+  relationships        a.s. implies in probability implies in distribution;
+                       L^p implies in probability; none of the converses hold
+  Slutsky              if X_n converges in distribution and Y_n in probability to a
+                       constant, then sums and products behave as expected
+  delta method         sqrt(n)(g(Xbar) - g(mu)) -> Normal(0, g'(mu)^2 sigma^2)
+
+The delta method is how asymptotic standard errors are obtained for functions of
+estimates. It is a first-order Taylor expansion combined with the CLT: a smooth function
+of an asymptotically normal estimator is itself asymptotically normal with variance
+scaled by the squared derivative. This gives the standard error of a log-odds, of a
+ratio, of a transformed correlation, and it fails exactly where the derivative vanishes,
+in which case a second-order expansion gives a chi-square rather than a normal limit.
+
+Q: The sample mean of n independent Cauchy random variables has:
+A. Variance sigma^2/n
+B. The same distribution as a single Cauchy variable
+C. An approximately normal distribution for large n
+D. Variance decreasing as 1/sqrt(n)
+Reasoning: The Cauchy distribution has undefined mean and infinite variance, so neither
+the law of large numbers nor the central limit theorem applies. It is stable with index
+one, so the average of n copies is distributed exactly as one copy. Collecting more data
+does not improve the estimate at all — a stark demonstration that the CLT's finite-variance
+hypothesis is load-bearing. Answer: B.
+
+## Concentration Inequalities
+
+Concentration inequalities bound the probability that a random variable deviates from
+its expectation, and they are the quantitative backbone of modern statistics, learning
+theory, and randomized algorithms. Their appeal is that they hold at finite sample
+sizes, unlike asymptotic results, and often require very weak assumptions.
+
+Markov's inequality is the weakest and most general: for a non-negative random variable,
+P(X >= a) <= E[X]/a. It requires only non-negativity and the existence of a mean.
+Chebyshev's inequality follows by applying Markov to the squared deviation, giving
+P(|X - mu| >= k sigma) <= 1/k^2, which requires finite variance and holds for any
+distribution — the guarantee that at least 75% of any distribution lies within two
+standard deviations, and 89% within three. These bounds are loose for well-behaved
+distributions, where the normal gives 95% and 99.7%, but they cannot be improved without
+further assumptions, and there exist distributions attaining them.
+
+Chernoff bounds achieve exponential decay by applying Markov to the exponentiated
+variable and optimizing over the free parameter. For sums of independent bounded
+variables, Hoeffding's inequality gives P(|Xbar - mu| >= t) <= 2 exp(-2 n t^2 / (b-a)^2),
+which decays exponentially in n rather than polynomially. This is the qualitative leap
+that makes learning theory possible: it says that with n samples, the empirical mean is
+within t of the truth except with probability exponentially small, so a union bound over
+a large but finite hypothesis class still leaves high confidence.
+
+Concentration toolkit:
+  Markov            P(X >= a) <= E[X]/a;  X >= 0 only
+  Chebyshev         P(|X - mu| >= k sigma) <= 1/k^2;  any distribution
+  Chernoff          exponential bounds via the MGF; needs independence
+  Hoeffding         bounded independent summands; exp(-2 n t^2 / range^2)
+  Bernstein         uses the variance; sharper than Hoeffding when variance is
+                    small relative to the range
+  McDiarmid         bounded differences; applies to any function of independent
+                    variables that changes little when one input changes
+  Jensen            E[g(X)] >= g(E[X]) for convex g;  the source of many bounds
+  Cauchy-Schwarz    E[XY]^2 <= E[X^2] E[Y^2]
+
+McDiarmid's bounded-differences inequality is the most broadly applicable of these
+because it does not require the quantity of interest to be a sum. Any function of
+independent random variables whose value changes by at most c_i when the i-th input is
+altered concentrates around its mean with a Hoeffding-type bound. This covers the
+generalization error of a learning algorithm, the size of the largest connected component
+in a random graph, and the length of the longest common subsequence — none of which are
+sums, all of which are stable under single-coordinate changes.
+
+Jensen's inequality is the source of a great deal of structure. For a convex function,
+the expectation of the function is at least the function of the expectation. It gives
+immediately that E[X^2] >= E[X]^2, which is variance non-negativity; that the arithmetic
+mean dominates the geometric mean; that the Kullback-Leibler divergence is non-negative;
+and that the evidence lower bound in variational inference is indeed a lower bound. When
+an inequality between an expectation and a function of an expectation is needed, Jensen
+is the first thing to try.
+
+## Stochastic Processes and Markov Chains
+
+A stochastic process is a collection of random variables indexed by time. The Markov
+property — the future depends on the past only through the present — is the structural
+assumption that makes analysis tractable and is far less restrictive than it first
+appears, since any finite history can be absorbed into an enlarged state.
+
+A discrete-time Markov chain is specified by a transition matrix P whose entry (i,j) is
+the probability of moving from state i to j. Powers of P give multi-step transition
+probabilities, so the distribution after n steps is the initial distribution times P^n.
+The long-run behaviour is governed by the eigenstructure: the stationary distribution is
+the left eigenvector with eigenvalue one, and the rate of approach to it is set by the
+second-largest eigenvalue modulus. The spectral gap — one minus that modulus — determines
+the mixing time, and a chain with a small gap mixes slowly, which is exactly the
+diagnostic problem in Markov chain Monte Carlo.
+
+Existence and uniqueness of the stationary distribution require conditions. Irreducibility
+means every state is reachable from every other, ruling out disconnected components with
+separate stationary distributions. Aperiodicity rules out deterministic cycling, which
+would prevent convergence even with a unique stationary distribution — a chain
+alternating between two states has a stationary distribution it never settles into.
+Positive recurrence, automatic for finite chains, is needed in the infinite case.
+Together these give the fundamental theorem: an irreducible aperiodic positive-recurrent
+chain converges to its unique stationary distribution from any starting point.
+
+Markov chain concepts:
+  transition matrix     P_ij = P(next = j | current = i);  rows sum to 1
+  n-step                P^n
+  stationary            pi P = pi,  pi a probability vector
+  detailed balance      pi_i P_ij = pi_j P_ji;  implies stationarity, and is what
+                        Metropolis-Hastings constructs by design
+  irreducible           all states communicate
+  aperiodic             gcd of return times is 1
+  ergodic               irreducible + aperiodic + positive recurrent
+  mixing time           steps until within epsilon of stationary; ~1/spectral gap
+  hitting time          expected steps to reach a target state
+  absorbing             once entered, never left; the fundamental matrix gives
+                        expected steps to absorption
+
+Detailed balance deserves emphasis because it is the design principle of MCMC. Verifying
+that a proposed chain has a given stationary distribution is hard in general and easy if
+detailed balance holds, since detailed balance implies stationarity directly.
+Metropolis-Hastings therefore constructs its acceptance probability specifically to
+enforce detailed balance with respect to the target distribution, which is why the
+algorithm works for any target known only up to a normalizing constant — the constant
+cancels in the acceptance ratio, which is the entire reason Bayesian computation is
+feasible.
+
+Continuous-time processes add their own structure. The Poisson process counts events
+occurring at a constant rate with independent increments, and its defining properties are
+equivalent: exponential inter-arrival times, Poisson counts in any interval, and
+memorylessness. Brownian motion is the continuous-time, continuous-state limit of a
+random walk, with independent Gaussian increments whose variance is proportional to
+elapsed time; its paths are continuous everywhere and differentiable nowhere, which is
+why stochastic calculus requires the Ito integral rather than ordinary calculus, and why
+Ito's lemma carries a second-order term that has no classical analogue.
+
+A martingale is a process whose conditional expected future value equals its present
+value — a fair game. The optional stopping theorem states that under suitable conditions
+the expected value at a stopping time equals the initial value, which resolves gambling
+problems, gives the gambler's ruin probabilities in a line, and underlies sequential
+analysis. The martingale convergence theorem states that a bounded martingale converges
+almost surely, which is used constantly in proving convergence of stochastic algorithms.
+Applications extend well beyond gambling: likelihood ratios form martingales under the
+null hypothesis, which is what makes always-valid sequential testing possible, and the
+prices of traded assets under a risk-neutral measure are martingales, which is the
+foundational result of mathematical finance.

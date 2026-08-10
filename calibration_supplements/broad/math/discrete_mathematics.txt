@@ -1,0 +1,260 @@
+================================================================================
+AREA: Mathematics
+SUBJECT: Discrete Mathematics and Combinatorics
+Subtopics: logic and proof, sets and relations, counting, recurrences and generating
+functions, number theory, graph theory basics, computational complexity.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Logic and Proof
+
+Propositional logic combines statements with connectives whose truth is determined entirely
+by the truth of their components. The one that causes persistent confusion is implication:
+"if P then Q" is false only when P is true and Q is false, so an implication with a false
+antecedent is vacuously true. This is a definition rather than a discovery, chosen because it
+makes the rules of inference work, and the mismatch with ordinary language — where "if" often
+carries a causal claim — is the source of the confusion.
+
+The relationships between an implication and its variants are worth having exact. The
+converse swaps antecedent and consequent and is a different statement with no logical
+relation to the original. The inverse negates both and is likewise independent. The
+contrapositive negates and swaps and is logically equivalent to the original, which is why
+proof by contrapositive is valid and is frequently much easier than the direct route.
+Confusing an implication with its converse is probably the most common reasoning error
+outside mathematics, appearing constantly in interpretations of test results, legal
+arguments, and statistical claims.
+
+Predicate logic adds quantifiers, and quantifier order is not commutative. "For every
+person there exists someone they love" and "there exists someone whom every person loves" are
+different claims, and the second is far stronger. Negating a quantified statement flips each
+quantifier and negates the body, so the negation of "for all x, P(x)" is "there exists x with
+not P(x)" — which is why disproving a universal claim requires exactly one counterexample and
+proving it requires an argument covering every case.
+
+Proof techniques and when each applies:
+  direct              assume the hypothesis, derive the conclusion
+  contrapositive      prove not-Q implies not-P; often easier when the conclusion
+                      is a negation
+  contradiction       assume the negation, derive an absurdity; powerful and easy
+                      to misuse by hiding a direct proof inside
+  induction           base case plus inductive step; for statements over integers
+  strong induction    assume all smaller cases; needed when the step depends on
+                      more than the immediate predecessor
+  structural induction  over recursively defined structures such as trees and
+                      expressions
+  construction        exhibit an object with the property
+  counterexample      one suffices to disprove a universal claim
+  pigeonhole          n+1 objects in n boxes forces a repeat; trivially stated,
+                      surprisingly powerful
+  double counting     count the same set two ways and equate; proves many
+                      combinatorial identities immediately
+
+Induction requires both parts and the base case is where errors hide. The inductive step
+establishes that the property propagates, and without a verified base case it propagates from
+nothing. The classic fallacious proofs — that all horses are the same colour — fail precisely
+because the inductive step tacitly assumes a case size that the base does not supply. Checking
+that the step's argument is valid at the smallest case it claims to cover is the standard
+defence.
+
+Q: The statement "if it rains, the ground is wet" is given. Which is logically equivalent?
+A. If the ground is wet, it rained
+B. If it does not rain, the ground is not wet
+C. If the ground is not wet, it did not rain
+D. It rains and the ground is wet
+Reasoning: The contrapositive negates and swaps, giving "if not wet, then not rain," which is
+equivalent. Option A is the converse and B is the inverse; both are independent statements
+that happen to be equivalent to each other and not to the original. Answer: C.
+
+## Sets, Relations, and Functions
+
+A set is an unordered collection of distinct elements, specified by listing or by a defining
+property. The naive notion of forming a set from any property leads to Russell's paradox —
+the set of all sets not containing themselves both must and must not contain itself — which
+is why axiomatic set theory restricts comprehension to subsets of existing sets. The practical
+consequence for most work is nil, and the historical importance is that it forced the
+foundations to be made precise.
+
+Relations generalize functions by dropping the requirement of a unique output. A relation on
+a set may be reflexive, symmetric, antisymmetric, or transitive, and specific combinations
+give structures that recur constantly. An equivalence relation is reflexive, symmetric, and
+transitive, and it partitions the set into disjoint equivalence classes — which is the
+formal content of any statement that two things are "the same for present purposes". A partial
+order is reflexive, antisymmetric, and transitive, and it captures precedence, containment,
+and divisibility, with the crucial feature that some pairs may be incomparable.
+
+Cardinality extends counting to infinite sets and produces genuinely counterintuitive
+results. Two sets have the same cardinality when a bijection exists between them, and by that
+criterion the integers, the even integers, and the rationals all have the same cardinality —
+countably infinite — despite one being a proper subset of another. Cantor's diagonal argument
+shows the reals are strictly larger, so infinities come in different sizes, and the same
+argument technique proves the halting problem undecidable and Gödel's incompleteness theorems.
+
+Sets and relations:
+  power set            all subsets; |P(S)| = 2^|S|, always strictly larger
+  Cartesian product    ordered pairs; |A x B| = |A| |B|
+  equivalence relation reflexive, symmetric, transitive; partitions the set
+  partial order        reflexive, antisymmetric, transitive; allows incomparability
+  total order          a partial order with all pairs comparable
+  injective            distinct inputs to distinct outputs
+  surjective           every output attained
+  bijective            both; establishes equal cardinality
+  countable            in bijection with the naturals; integers and rationals are
+  uncountable          the reals, by diagonalization
+  pigeonhole           if |A| > |B| there is no injection from A to B
+
+## Counting
+
+Counting problems reduce to a handful of patterns, and the difficulty is recognizing which
+applies. The two foundational rules are the sum rule, that disjoint alternatives add, and the
+product rule, that independent sequential choices multiply. Nearly every counting formula is
+built from these plus corrections for overcounting.
+
+The central distinction is between arrangements where order matters and selections where it
+does not, and between drawing with and without replacement. Permutations count ordered
+arrangements; combinations count unordered selections and are permutations divided by the
+number of orderings of the selected items, which is exactly the correction for overcounting.
+Multiset problems — selections with repetition allowed — map to the stars and bars
+construction, where distributing identical items into distinct boxes is equivalent to
+arranging items and dividers.
+
+Inclusion-exclusion handles overlapping sets by adding the individual sizes, subtracting the
+pairwise intersections, adding back the triple intersections, and alternating. It is the
+correction for the sum rule when alternatives are not disjoint, and it generalizes to any
+number of sets with alternating signs.
+
+Counting formulas:
+  permutations of n         n!
+  k-permutations of n       n! / (n-k)!
+  combinations              C(n,k) = n! / (k! (n-k)!)
+  with repetition, ordered  n^k
+  with repetition, unordered  C(n+k-1, k);  stars and bars
+  multiset permutations     n! / (n1! n2! ... nm!)
+  circular arrangements     (n-1)!;  rotations are equivalent
+  inclusion-exclusion       |A ∪ B| = |A| + |B| - |A ∩ B|, alternating in general
+  binomial theorem          (x+y)^n = sum C(n,k) x^k y^(n-k)
+  Pascal's identity         C(n,k) = C(n-1,k-1) + C(n-1,k)
+  derangements              D(n) ≈ n!/e;  permutations with no fixed point
+  Catalan numbers           C(2n,n)/(n+1);  balanced parentheses, binary trees,
+                            triangulations, and many equivalent structures
+
+Double counting is the proof technique that makes combinatorial identities transparent
+rather than algebraic. Pascal's identity, for instance, follows immediately by counting
+k-subsets of an n-set two ways: either the subsets containing a designated element, of which
+there are C(n-1,k-1), or those excluding it, of which there are C(n-1,k). The algebraic
+verification is a factorial manipulation that proves the identity and explains nothing; the
+combinatorial argument shows why it is true.
+
+The Catalan numbers deserve mention because they appear in an unreasonable number of
+contexts: the count of balanced parenthesizations, of binary trees with n nodes, of
+triangulations of a polygon, of monotonic lattice paths staying below the diagonal, and of
+ways to associate a product. Recognizing a Catalan structure in a problem immediately supplies
+the answer, and the fact that so many superficially unrelated problems share the same count
+reflects underlying bijections between them.
+
+## Recurrences, Generating Functions, and Number Theory
+
+Recurrence relations define a sequence in terms of earlier terms, and they arise naturally
+from recursive algorithms and from combinatorial decompositions. Linear homogeneous
+recurrences with constant coefficients are solved by the characteristic equation: substitute
+a geometric trial solution, obtain a polynomial, and the general solution is a combination of
+terms from its roots — with a correction of polynomial factors for repeated roots. The
+Fibonacci sequence solved this way yields the golden ratio, which is why Fibonacci numbers
+grow geometrically at that rate.
+
+The master theorem handles the divide-and-conquer recurrences that dominate algorithm
+analysis, giving the asymptotic solution by comparing the work of the recursive calls against
+the work of combining. Its three cases correspond to the recursion dominating, the combining
+dominating, or both contributing equally, which is why merge sort and binary search have the
+complexities they do.
+
+Generating functions encode a sequence as the coefficients of a formal power series, turning
+recurrence manipulation into algebra. Convolution of sequences becomes multiplication of
+series, which is why generating functions handle problems involving combining independent
+choices so cleanly. The technique is: write the generating function from the recurrence,
+solve for it algebraically, then extract coefficients by partial fractions or by recognizing
+a known expansion.
+
+Recurrences and number theory:
+  linear homogeneous     characteristic equation; roots give the general solution
+  master theorem         T(n) = aT(n/b) + f(n); compare f(n) with n^(log_b a)
+  generating function    sum a_n x^n;  convolution becomes multiplication
+  Fibonacci              F(n) = F(n-1) + F(n-2);  grows as phi^n / sqrt(5)
+  divisibility           a | b if b = ak for some integer k
+  gcd via Euclid         gcd(a,b) = gcd(b, a mod b);  O(log) steps
+  Bezout                 gcd(a,b) = ax + by for some integers x, y
+  modular arithmetic     congruence classes; addition and multiplication respect it
+  modular inverse        exists iff gcd(a,m) = 1; found by extended Euclid
+  Fermat's little        a^(p-1) ≡ 1 mod p for prime p not dividing a
+  Euler's theorem        a^phi(n) ≡ 1 mod n when gcd(a,n) = 1
+  Chinese remainder      congruences with coprime moduli have a unique joint
+                         solution modulo the product
+  prime factorization    unique; the fundamental theorem of arithmetic
+
+Modular arithmetic underpins public-key cryptography, and the reason is an asymmetry in
+computational difficulty. Multiplying two large primes is fast; factoring their product is
+believed to be hard. Modular exponentiation is fast by repeated squaring; the discrete
+logarithm — recovering the exponent — is believed to be hard. RSA rests on the first pair and
+Diffie-Hellman on the second, and the security of both rests on the word "believed": no proof
+of hardness exists, and Shor's algorithm breaks both on a sufficiently large quantum computer.
+
+## Graphs and Computational Complexity
+
+A graph is a set of vertices and a set of edges connecting them, and the abstraction is
+useful precisely because so many problems are relational. Directed edges represent asymmetric
+relationships; weights represent cost or capacity. The representation choice matters for
+algorithms: an adjacency matrix gives constant-time edge queries at quadratic space, and an
+adjacency list gives linear space proportional to edges, which is the right choice for the
+sparse graphs that occur in practice.
+
+Traversal is the foundation of most graph algorithms. Depth-first search explores as far as
+possible before backtracking and naturally computes connected components, detects cycles,
+produces topological orderings, and identifies strongly connected components. Breadth-first
+search explores level by level and finds shortest paths in unweighted graphs, which
+depth-first search does not.
+
+Complexity classes formalize what is efficiently computable. P is the class of problems
+solvable in polynomial time, and it is the standard proxy for tractable. NP is the class
+whose solutions are verifiable in polynomial time — a distinction worth stating precisely,
+since NP does not mean not polynomial. NP-complete problems are the hardest in NP, in that
+every NP problem reduces to them, so a polynomial algorithm for any one would give one for
+all. Whether P equals NP is the central open question of theoretical computer science, and
+the consensus expectation is that it does not.
+
+Graph and complexity essentials:
+  degree sum            equals twice the edge count; every graph has an even number
+                        of odd-degree vertices
+  tree                  connected and acyclic; n vertices, n-1 edges, unique paths
+  bipartite             two-colourable; equivalently, no odd cycle
+  Euler circuit         uses every edge once; exists iff connected with all even
+                        degrees
+  Hamiltonian cycle     visits every vertex once; NP-complete to decide
+  planar                drawable without crossings; V - E + F = 2
+  four colour theorem   every planar graph is 4-colourable
+  BFS                   shortest paths in unweighted graphs, O(V+E)
+  DFS                   components, cycles, topological order, O(V+E)
+  Dijkstra              shortest paths with non-negative weights, O(E log V)
+  Bellman-Ford          handles negative weights, detects negative cycles, O(VE)
+  minimum spanning tree Kruskal or Prim
+  max-flow min-cut      the maximum flow equals the minimum cut capacity
+  P                     solvable in polynomial time
+  NP                    verifiable in polynomial time
+  NP-complete           in NP and every NP problem reduces to it
+  NP-hard               at least as hard as NP-complete; need not be in NP
+
+The practical significance of NP-completeness is not that a problem is unsolvable but that
+the right strategy changes. Once a problem is known NP-complete, searching for an exact
+polynomial algorithm is almost certainly wasted effort, and attention should turn to
+approximation algorithms with provable ratios, to heuristics with good empirical behaviour,
+to exact algorithms exponential in a parameter that is small in practice, or to solvers —
+SAT and integer programming solvers routinely dispatch instances with millions of variables
+despite the worst case being intractable, because real instances have structure that worst-case
+analysis ignores.
+
+That gap between worst-case and typical-case difficulty deserves emphasis because it is
+frequently misread. NP-completeness is a statement about the hardest instances of a problem,
+and it says nothing about the instances that actually arise. Boolean satisfiability is the
+canonical NP-complete problem and is also the engine behind practical hardware verification,
+program analysis, and scheduling tools, because industrial instances are not adversarial. The
+correct inference from NP-completeness is that no algorithm will be fast on everything, not
+that no algorithm will be fast on your problem.

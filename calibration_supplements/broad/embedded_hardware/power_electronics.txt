@@ -1,0 +1,334 @@
+================================================================================
+AREA: Embedded Systems and Hardware
+SUBJECT: Power Electronics
+Subtopics: converter topologies, switching devices, magnetics, control loops, losses
+and thermal, battery systems, protection, EMI and layout.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Converter Topologies
+
+Power electronics converts electrical energy between forms efficiently, and the central idea
+is that switching is efficient while linear regulation is not. A linear regulator drops the
+voltage difference across a pass element and dissipates it as heat, so efficiency is
+approximately the output voltage divided by the input. A switching converter transfers energy in
+packets using a switch that is either fully on, where the voltage across it is near zero, or
+fully off, where the current through it is near zero — and in both states the dissipated power
+is small.
+
+The buck converter steps voltage down. A switch connects the input to an inductor during part
+of the cycle, storing energy, and during the remainder the inductor's current continues through a
+diode or a second switch, delivering energy to the output. In continuous conduction the output
+voltage is the input times the duty cycle, which is the fraction of the period the main switch is
+on — a relation that holds independent of load and is what makes the topology so tractable.
+
+The boost converter steps voltage up. The switch shorts the inductor to ground, building
+current, and when it opens the inductor's voltage adds to the input, forcing current into the
+output at a higher voltage. Its output cannot be lower than its input, and it has a
+right-half-plane zero in its control response that fundamentally limits the achievable loop
+bandwidth — a control difficulty that the buck topology does not share.
+
+Converter topologies:
+  linear regulator     efficiency ~ Vout/Vin; simple, quiet, dissipative
+  LDO                  a low-dropout linear regulator; used downstream of a
+                       switcher to clean up noise
+  buck                 step down; Vout = D times Vin in continuous conduction
+  boost                step up; Vout = Vin/(1-D); has a right-half-plane zero
+  buck-boost           either direction; inverting in the basic form
+  SEPIC and Cuk        non-inverting step up or down; more components
+  flyback              isolated, single magnetic component, low to medium power;
+                       the workhorse for small isolated supplies
+  forward              isolated, better at higher power than flyback
+  half and full bridge  isolated, high power; four switches in the full bridge
+  resonant / LLC       switches at zero voltage or current; much lower switching
+                       loss, higher efficiency at high frequency
+  charge pump          capacitors only; small, no inductor, limited current
+  synchronous rectification  replace the diode with a transistor; eliminates the
+                       diode drop and is essential at low output voltages
+  continuous vs discontinuous conduction  whether inductor current reaches zero;
+                       the transfer function and the control loop differ between
+                       modes
+
+Q: A buck converter is designed for a 5 V output from a 12 V input at 3 A. Replacing the
+freewheeling diode with a MOSFET improves efficiency substantially. The reason is:
+A. The MOSFET switches faster
+B. The diode drops roughly 0.4-0.7 V while conducting most of the cycle, dissipating over a
+   watt, whereas a low-resistance MOSFET drops far less
+C. The MOSFET has lower capacitance
+D. It reduces the inductor size
+Reasoning: The diode conducts for the off-time, which here is about 58% of the period, carrying
+3 A at a forward drop of half a volt or more — well over a watt of dissipation against a 15 W
+output. A MOSFET with a few milliohms of on-resistance drops only tens of millivolts at the same
+current. This is synchronous rectification, and its benefit grows as the output voltage falls.
+Answer: B.
+
+## Switching Devices and Losses
+
+The switching device determines the achievable frequency, efficiency, and voltage rating. The
+MOSFET dominates below a few hundred volts, switching fast with low conduction loss, and its
+on-resistance rises substantially with temperature — roughly doubling from 25 to 125 degrees —
+which must be accounted for in thermal design since the loss and the temperature reinforce each
+other. The IGBT dominates at high voltage and high current with slower switching and a
+voltage-drop characteristic rather than a resistance, making it better at high current and worse
+at high frequency.
+
+Wide bandgap devices have changed the design space. Silicon carbide and gallium nitride switch
+faster with lower losses and tolerate higher temperatures and voltages, permitting higher
+switching frequencies which in turn permit smaller magnetics and capacitors. The costs are price,
+sensitivity to gate drive details, and the fact that very fast edges generate more
+electromagnetic interference and demand far more careful layout.
+
+Losses divide into conduction and switching, and the balance determines the optimal frequency.
+Conduction loss is current squared times on-resistance and is independent of switching frequency.
+Switching loss occurs during the transitions when voltage and current are simultaneously nonzero
+and scales linearly with frequency. Raising the frequency therefore shrinks the passive
+components and raises switching loss, and the optimum is where the total is minimized — which is
+why wide bandgap devices, having much lower switching loss, move that optimum to a much higher
+frequency.
+
+Devices and losses:
+  MOSFET               below a few hundred volts; fast, resistive conduction
+  on-resistance         roughly doubles from 25 to 125 C; the thermal feedback
+                       must be accounted for
+  IGBT                 high voltage and current; slower, voltage-drop conduction
+  silicon carbide      high voltage, fast, hot; permits higher frequency
+  gallium nitride      very fast, low capacitance; extremely layout-sensitive
+  body diode           intrinsic in a MOSFET; conducts during dead time, and its
+                       slow reverse recovery is a loss and a noise source
+  gate charge          the real figure of merit for switching speed; the driver
+                       must supply it quickly
+  gate driver          supplies peak current to charge the gate; an inadequate
+                       driver slows the transition and raises switching loss
+                       quadratically
+  conduction loss      I squared R; frequency independent
+  switching loss       overlap of voltage and current; linear in frequency
+  gate drive loss      gate charge times voltage times frequency
+  dead time            both switches off, preventing shoot-through; too long
+                       forces body diode conduction, too short destroys the
+                       devices
+  soft switching       switch at zero voltage or current; nearly eliminates
+                       switching loss and constrains the operating range
+  shoot-through        both switches conducting simultaneously; a short across the
+                       supply, and usually fatal
+
+Dead time deserves emphasis because it is where a synchronous converter's reliability is
+determined. Both switches in a half bridge must never conduct simultaneously, since that shorts
+the input supply through them, so the controller inserts a dead time between turning one off and
+the other on. Too little dead time risks shoot-through, which destroys the devices in
+microseconds. Too much forces the body diode to conduct during the gap, which is lossy and whose
+reverse recovery generates a current spike and substantial electromagnetic interference. The
+correct value depends on the gate drive strength and the device capacitances, and it is
+frequently the difference between a converter that meets its efficiency target and one that does
+not.
+
+## Magnetics and Control
+
+The inductor is usually the largest, heaviest, and least standardized component in a converter,
+and its design involves several interacting constraints. Inductance sets the current ripple for a
+given voltage and frequency. The core must not saturate at peak current, since a saturated core
+loses inductance abruptly and the current rises without limit. The winding must carry the current
+without excessive loss, which at switching frequencies involves skin and proximity effects
+concentrating current in a fraction of the conductor.
+
+Core loss and copper loss trade against each other through the design. Copper loss falls with
+more conductor area and rises with more turns; core loss rises with flux swing and frequency and
+falls with a larger core. The balance is roughly equal loss in each at the optimum, and the
+design proceeds by choosing a core size, computing the turns for the required inductance,
+checking saturation, and iterating.
+
+Control regulates the output against variations in input and load by adjusting the duty cycle,
+and the loop must be stable. Voltage mode control compares the output to a reference and adjusts
+the duty directly, which is simple and has a two-pole response from the output filter that
+requires substantial compensation. Current mode control uses an inner loop regulating the
+inductor current, which makes the outer loop see a single-pole response — far easier to
+compensate — and provides inherent cycle-by-cycle current limiting.
+
+Magnetics and control:
+  inductance           sets ripple current for a given voltage-second product
+  saturation           the core loses inductance abruptly; current then rises
+                       uncontrolled
+  core material        ferrite for high frequency, powdered iron for soft
+                       saturation, amorphous and nanocrystalline for high
+                       performance
+  air gap              raises the saturation current and lowers the inductance;
+                       most power inductors are gapped
+  fringing             flux escaping around the gap; induces eddy currents in
+                       nearby windings and conductors
+  skin effect          current concentrates at the conductor surface at high
+                       frequency
+  proximity effect     adjacent conductors' fields redistribute current; often
+                       larger than skin effect in multilayer windings
+  litz wire            many insulated strands; mitigates both effects at
+                       intermediate frequencies
+  core loss            hysteresis and eddy currents; rises with flux swing and
+                       frequency
+  voltage mode         simple, two-pole response, more compensation
+  current mode         inner current loop, single-pole outer response, inherent
+                       current limit
+  slope compensation   required in current mode above 50% duty cycle, or a
+                       subharmonic oscillation appears
+  loop bandwidth       typically a fifth to a tenth of the switching frequency
+  phase margin         45 degrees or more; less produces ringing on load steps
+  right-half-plane zero  in boost and flyback; fundamentally limits bandwidth and
+                       cannot be compensated away
+
+The right-half-plane zero deserves explanation because it is a genuine limit rather than a
+tuning difficulty. In a boost converter, increasing the duty cycle to raise the output initially
+lowers it, because more of the cycle is spent charging the inductor and less delivering to the
+output. The output therefore moves the wrong way before moving the right way, which adds phase
+lag without attenuation and cannot be cancelled by any compensator. The loop bandwidth must be
+kept well below the zero's frequency, which limits transient response — and the zero moves lower
+at higher duty cycle and higher load, so the worst case must be used.
+
+[user] My buck converter is stable at light load but oscillates and the output ripples badly
+above about 2 A.
+[assistant] tool_call power.loop_diagnose({"topology": "buck", "control": "peak_current_mode",
+"vin": 12, "vout": 5, "duty": 0.42, "fsw_khz": 400, "load_a": 2.5,
+"slope_compensation": false, "observed": "subharmonic_oscillation_at_fsw_over_2"})
+[tool] {"issue": "duty_cycle_near_50pct_without_slope_compensation",
+"mechanism": "perturbation_growth_in_peak_current_mode_above_50pct_duty",
+"fix": "add_slope_compensation", "secondary_check": "output_capacitor_esr"}
+[assistant] This is subharmonic oscillation in peak current mode control, and the trigger is
+your duty cycle rather than the load directly.
+
+The mechanism: in peak current mode, the switch turns off when the inductor current reaches a
+threshold. A perturbation in the starting current propagates to the next cycle scaled by the
+ratio of the down slope to the up slope, which equals the duty cycle divided by one minus the
+duty cycle. Below 50% duty that ratio is less than one and perturbations decay; above 50% it
+exceeds one and they grow, producing an alternating pattern at half the switching frequency. Your
+duty is 0.42, close enough that load-dependent variation pushes it over.
+
+The fix is slope compensation — add an artificial ramp to the current sense signal, which
+changes the effective slope ratio and restores decay at any duty cycle. Most controllers have
+either fixed internal slope compensation or a pin for setting it externally. The standard rule is
+a compensating ramp of at least half the inductor's down slope, and a full down slope gives
+deadbeat response to a perturbation.
+
+Check whether your controller has internal compensation that is inadequate for your inductor
+value. A larger inductance gives a shallower current slope, which makes a fixed internal ramp
+relatively larger and helps; a smaller inductance makes it relatively smaller and hurts. If you
+cannot adjust the compensation, increasing the inductor value is an alternative route to the same
+result.
+
+One thing to rule out first, since the symptom overlaps: verify that your output capacitor's
+equivalent series resistance is within what the control loop was compensated for. Some
+controllers rely on the ESR zero for phase margin, and replacing an electrolytic with a ceramic
+capacitor removes it and destabilizes an otherwise fine design. If you changed the output
+capacitor recently, that is the more likely cause and the fix is different — additional
+compensation rather than slope compensation.
+
+## Thermal, Battery Systems, and Protection
+
+Thermal design determines whether a converter meets its rating, and the calculation is a chain
+of thermal resistances from the junction to the ambient. Junction to case is a device property.
+Case to heatsink depends on the interface material and mounting pressure. Heatsink to ambient
+depends on the heatsink and the airflow. The temperature rise is the total dissipation times the
+total resistance, and the junction temperature must remain below its rating with margin.
+
+The thermal feedback in MOSFETs deserves specific attention. On-resistance rises with
+temperature, so higher temperature means higher conduction loss, which means higher temperature.
+For a well-designed system this converges to a stable operating point; for a marginal one it can
+run away. The design must therefore use the on-resistance at the actual junction temperature
+rather than the room temperature figure on the datasheet's front page, which is frequently
+optimistic by a factor of two.
+
+Battery systems add their own requirements. Lithium chemistries require charging within a
+voltage and current envelope, with constant current until a target voltage and then constant
+voltage until the current falls, and exceeding the voltage or charging outside a temperature
+range degrades the cell and can cause thermal runaway. Cells in series must be balanced, since
+capacity mismatch means one cell reaches its limit before the others and would be overcharged or
+over-discharged without balancing.
+
+Thermal, batteries, and protection:
+  thermal resistance chain  junction to case to heatsink to ambient
+  thermal runaway      on-resistance rises with temperature, raising dissipation
+  derating             use the hot on-resistance and the actual ambient
+  thermal vias         conduct heat through the board to more copper area
+  lithium charging     constant current then constant voltage; temperature limits
+  cell balancing       passive by bleeding the highest cells, active by
+                       redistributing charge
+  state of charge      estimated from voltage, coulomb counting, or a model; each
+                       alone is inadequate and fusion is standard
+  battery management   protection, balancing, state estimation, thermal management
+  overcurrent          fuse, current limit, or foldback; foldback reduces current
+                       under a fault and can latch up on a capacitive load
+  overvoltage          crowbar or clamp; protects downstream circuitry
+  undervoltage lockout  prevents operation below a safe input voltage, where the
+                       gate drive would be insufficient and the switch would
+                       operate in its linear region
+  inrush limiting      NTC thermistor or an active limiter; prevents the initial
+                       capacitor charging current from tripping protection or
+                       welding contacts
+  reverse polarity     a series MOSFET is far more efficient than a series diode
+  isolation            required for safety at mains voltage; creepage and
+                       clearance distances are set by standards
+
+Undervoltage lockout is worth understanding because its absence produces a specific and
+destructive failure. A MOSFET requires an adequate gate voltage to turn fully on; below that it
+operates partially on with substantial resistance, dissipating heavily. During start-up or a
+supply sag, a converter operating with insufficient gate drive can destroy its switches in
+milliseconds. Lockout holds the converter off until the supply is adequate and adds hysteresis so
+it does not chatter at the threshold.
+
+## EMI and Layout
+
+Switching converters generate electromagnetic interference by construction, because they
+produce fast current and voltage transitions. The noise divides into conducted, travelling along
+the input and output wiring, and radiated, emitted by loops and by long conductors acting as
+antennas. Both are regulated and both must be addressed by design rather than by filtering
+afterward, since a filter large enough to fix a badly laid out converter is expensive and
+sometimes insufficient.
+
+The critical loop is the single most important layout concept in the subject. In a buck
+converter, the loop comprising the input capacitor, the high-side switch, and the low-side switch
+carries a current that switches from zero to full load in nanoseconds. The loop's inductance
+times that current slope produces a voltage spike, and the loop's area determines how much it
+radiates. Minimizing this loop's physical area — placing the input capacitor immediately adjacent
+to the switches with the shortest possible return path — is the highest-value layout action
+available and frequently determines whether the design passes emissions testing.
+
+The switch node is the corresponding voltage concern. It swings the full input voltage in
+nanoseconds, so it is a strong capacitive noise source, and its area should be minimized —
+large enough to conduct the current and carry heat, and no larger. Routing sensitive signals near
+it, or placing a ground plane directly beneath a large switch node without considering the
+coupling, injects noise into the control loop.
+
+EMI and layout:
+  critical loop        input capacitor and both switches; minimize its area above
+                       all else
+  switch node          minimize its area; it is a capacitive noise source
+  input capacitor      place it immediately adjacent to the switches; bulk
+                       capacitance further away is fine
+  ground plane         continuous beneath the power stage; return current follows
+                       the outgoing path
+  feedback routing     away from the switch node and the inductor; route it as a
+                       quiet trace referenced to the output ground
+  current sense        Kelvin connections; sense across the element rather than
+                       through the high-current path
+  gate loop            the driver, gate, and source return; minimize it, or the
+                       inductance slows switching and causes ringing
+  snubber              an RC or RCD network damping ringing; costs efficiency and
+                       is sometimes the pragmatic solution
+  spread spectrum      dither the switching frequency; spreads the emission peaks
+                       and reduces measured amplitude without reducing total
+                       energy
+  input filter         a pi or LC filter; check its interaction with the
+                       converter's negative input impedance, since a filter with
+                       inadequate damping can destabilize an otherwise stable
+                       converter
+  slew rate control    a gate resistor slows the edges; trades switching loss for
+                       reduced emissions, and is a legitimate and commonly used
+                       trade
+  shielding            a last resort; fixing the source is cheaper and more
+                       reliable
+
+The input filter interaction deserves the closing note because it produces a failure that is
+baffling without knowing the mechanism. A regulated converter behaves as a negative incremental
+input impedance — drawing more current when the input voltage falls, since it maintains constant
+output power. An input filter with insufficient damping and an output impedance comparable to
+that negative resistance forms an unstable system, and the converter oscillates at the filter's
+resonance despite both the converter and the filter being individually correct. The remedy is
+damping the filter, typically with a series resistor and capacitor across the filter capacitor,
+and the design rule is that the filter's output impedance must remain well below the converter's
+input impedance magnitude at all frequencies.

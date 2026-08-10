@@ -1,0 +1,328 @@
+================================================================================
+AREA: Generative Art and Creative Technology
+SUBJECT: Interactive Systems and Physical Computing
+Subtopics: interaction design, input sensing, latency and feedback, physical computing,
+installation practice, computer vision for interaction, sound and space, exhibition.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Interaction Design for Responsive Work
+
+An interactive work differs from a generative one in that the audience's action is part of the
+system, and the central design question is what relationship between action and response the
+piece establishes. That relationship is the work as much as any visual or sonic output, and the
+options span from direct manipulation, where the response is immediate and proportional, to
+mediated influence, where the audience shifts a system's behaviour without controlling it.
+
+Discoverability determines whether an interaction happens at all. An audience encountering a
+piece has no manual, no expectation of what it responds to, and typically less than a minute
+before they move on. Affordances — visual and physical cues suggesting what can be done — are what
+bridge this, and the reliable finding from installation practice is that people do what the piece
+appears to invite rather than what a label instructs.
+
+The mapping between input and output carries meaning. A direct mapping, where a gesture produces
+an obviously corresponding change, is immediately legible and quickly exhausted. An indirect or
+delayed mapping is more interesting to explore and risks the audience never establishing that
+they are influencing anything at all. The productive middle gives immediate confirmation that
+something responded, with the deeper structure revealed through continued engagement.
+
+Interaction design:
+  the relationship     what the audience's action does; the substance of the work
+  direct manipulation  immediate proportional response; legible, quickly exhausted
+  mediated influence   shifts behaviour without control; richer, harder to
+                       discover
+  discoverability      whether the interaction is found at all
+  affordance           a cue suggesting what can be done; stronger than any label
+  immediate feedback   confirm that something responded, even if the deeper effect
+                       is slow
+  legibility           the audience should be able to form a model of what they
+                       are doing
+  the first thirty seconds  where an installation is won or lost
+  progressive depth    a surface that is immediately legible over a structure that
+                       rewards longer engagement
+  multi-user           people arriving together; whether they cooperate, compete,
+                       or interfere is a design decision rather than an emergent
+                       accident
+  graceful degradation  behaviour with no audience present; a piece that is inert
+                       when unobserved attracts nobody
+  the attract state    what the piece does to invite approach
+
+The attract state deserves emphasis because installations frequently fail on it. A piece that
+does nothing until someone interacts is never discovered, because a passerby has no reason to
+approach an inert object. An attract behaviour — motion, sound, a visible response to distant
+presence — invites approach, and the transition from attract to engaged should be legible so the
+audience knows their arrival was registered. Designing that transition is as consequential as
+designing the interaction itself.
+
+Q: An installation responds richly to gesture but visitors walk past without engaging. The most
+likely problem is:
+A. The interaction is too complex
+B. There is no attract state or affordance signalling that the piece responds, so nobody
+   discovers there is an interaction
+C. The response is too slow
+D. The space is too small
+Reasoning: Discovery precedes interaction. A piece that is inert until engaged gives a passerby
+no reason to approach or to try anything, so the quality of the interaction is never encountered.
+An attract behaviour and a visible affordance signalling responsiveness are what convert
+passersby into participants. Answer: B.
+
+## Latency, Feedback, and Perception
+
+Latency between action and response determines whether an interaction feels connected, and the
+thresholds are perceptual rather than arbitrary. Below roughly 20 milliseconds a response feels
+simultaneous with the action. Between 20 and 100 milliseconds it feels responsive but separable.
+Above 100 milliseconds the causal link weakens, and above roughly 200 milliseconds the audience
+stops attributing the response to their action at all — which is fatal, since attribution is what
+makes an interaction an interaction.
+
+The perceptual requirement differs by modality and by the directness of the coupling. Audio
+triggered by a physical action is the most demanding, since the auditory system resolves timing to
+a few milliseconds and a delayed sound reads as a separate event rather than as the action's
+consequence. Visual response tolerates more. A slow ambient change tolerates a great deal, because
+no simultaneity is expected.
+
+Jitter is more damaging than latency, and this is frequently missed. A consistent 50 millisecond
+delay is quickly adapted to and becomes imperceptible; a delay varying between 20 and 120
+milliseconds cannot be adapted to and feels unreliable regardless of its average. Systems should
+therefore be designed for consistency, and where a pipeline has variable latency, deliberately
+buffering to a fixed worst-case delay frequently produces a better experience than delivering as
+fast as possible.
+
+Latency and feedback:
+  under 20 ms          feels simultaneous
+  20-100 ms            responsive, separable
+  100-200 ms           the causal link weakens
+  over 200 ms          attribution to the action is lost
+  audio                the most demanding modality; a few milliseconds matter
+  jitter               worse than latency; variability cannot be adapted to
+  fixed buffering      a consistent worst-case delay beats a variable minimum
+  latency sources      sensor sampling, filtering, processing, rendering, display
+                       refresh, and output; each contributes and the total is what
+                       matters
+  filtering tradeoff   smoothing sensor noise adds delay; a filter aggressive
+                       enough to remove jitter adds latency that is worse
+  prediction           extrapolate the input forward to hide latency; effective
+                       for continuous motion and produces overshoot on direction
+                       changes
+  multimodal feedback  visual, auditory, and haptic together; each confirms
+                       differently and together they are far more convincing
+  haptic               the most underused; a physical click or vibration confirms
+                       an action more definitively than any visual change
+  false feedback       immediate acknowledgement of a slow operation; honest when
+                       the operation will complete, and corrosive when it may not
+
+The filtering and latency tradeoff deserves specific attention because it is where interactive
+sensor pipelines are most often mistuned. A noisy sensor produces jittery output, and the obvious
+remedy is a low-pass filter — which introduces delay proportional to how much smoothing it
+provides. A filter aggressive enough to eliminate visible jitter frequently adds enough latency to
+break the sense of connection, so the piece trades one problem for a worse one. The better
+approaches are adaptive filtering that smooths heavily when the input is still and lightly when it
+is moving, which is what a one-euro filter does, or improving the sensor rather than the
+processing.
+
+## Physical Computing
+
+Physical computing connects code to the physical world through sensors and actuators, and the
+practical difficulty is that physical systems have properties software does not — they wear, they
+drift, they respond slowly, they fail partially, and they must be safe.
+
+Sensor selection follows from what is actually being detected, which is frequently not what it
+seems. Detecting a person's presence might use a passive infrared sensor detecting movement of a
+warm body, an ultrasonic or time-of-flight sensor detecting distance, a camera with vision
+processing, a pressure mat, a capacitive field, or a break beam. Each detects something different:
+passive infrared misses a stationary person entirely, distance sensors cannot distinguish a person
+from an object, and a pressure mat requires them to be in a specific place. The failure mode is
+choosing by convenience and discovering that the sensor answers a different question than the
+piece asks.
+
+Actuator selection has the same character. Motion can be produced by a servo with position
+feedback and limited range, a stepper with open-loop positioning and no feedback, a DC motor with
+speed rather than position control, a solenoid for discrete actuation, or a shape memory alloy
+for slow silent motion. Noise, heat, power draw, and duty cycle are the properties that determine
+whether an actuator works in an installation running eight hours a day for three months, and they
+are rarely the properties considered first.
+
+Physical computing:
+  passive infrared     detects movement of a warm body; misses stationary people
+  ultrasonic           distance; wide beam, affected by soft surfaces
+  time of flight       distance; narrow, fast, more expensive
+  capacitive           proximity and touch through a surface; sensitive to
+                       humidity and to grounding
+  pressure and force   requires the person to be in a place
+  break beam           reliable and binary; alignment sensitive
+  camera plus vision   the most flexible and the most failure-prone in variable
+                       lighting
+  servo                position feedback, limited range, audible, duty cycle
+                       limited
+  stepper              open loop positioning; loses steps silently under overload
+  DC motor             speed control; needs an encoder for position
+  solenoid             discrete actuation; heats rapidly and must be duty limited
+  the duty cycle question  what happens after eight hours a day for three months
+  debouncing           mechanical contacts bounce; required in hardware or
+                       software
+  power budget         actuators dominate; size the supply for the simultaneous
+                       worst case rather than the average
+  isolation            protect the controller from the actuator's electrical noise
+                       and from mains voltage
+  fail safe            what happens on power loss, on a crash, and when a sensor
+                       disconnects; define it rather than discovering it
+
+The duty cycle question is worth asking early because it eliminates otherwise attractive
+components. A hobby servo holding a position under load draws current continuously and overheats
+within hours. A solenoid energized for more than a short fraction of the time burns out. A bright
+LED at full current without adequate heatsinking degrades visibly over weeks. An installation runs
+far longer than a prototype, and components adequate for a demonstration frequently are not
+adequate for a run, which is discovered mid-exhibition when the piece stops working and nobody is
+on site.
+
+[user] My interactive floor projection uses a depth camera to track people, and it works in my
+studio and behaves erratically in the gallery.
+[assistant] tool_call install.debug({"sensor": "depth_camera_structured_light",
+"studio": {"lighting": "controlled_indoor", "ambient_ir": "low", "floor": "matte_grey"},
+"gallery": {"lighting": "mixed_daylight_and_halogen", "ambient_ir": "high",
+"floor": "polished_concrete"}, "symptom": "erratic_tracking"})
+[tool] {"primary_cause": "ambient_infrared_interference",
+"contributors": ["daylight_ir_saturates_sensor", "halogen_emits_strong_ir",
+"specular_floor_causes_depth_dropout"], "recommendations": ["switch_to_tof_or_stereo",
+"ir_filtering_and_shading", "matte_floor_treatment", "recalibrate_on_site"]}
+[assistant] Structured light depth cameras project an infrared pattern and read its deformation,
+and the gallery is flooding that with ambient infrared. Two sources compound.
+
+Daylight contains a great deal of infrared, and halogen lamps emit far more infrared than visible
+light — most of their power is infrared. Both raise the noise floor relative to the projected
+pattern, so the sensor cannot resolve it reliably. Your studio's controlled indoor lighting has
+comparatively little.
+
+Your polished concrete floor is the second problem and is independent. Structured light needs a
+diffuse surface to scatter the pattern back, and a specular surface reflects it away from the
+sensor, producing depth dropouts that look like erratic tracking rather than like missing data.
+
+Four things, roughly in order of practicality.
+
+Change the sensor technology if you can. Time-of-flight cameras handle ambient infrared far
+better because they modulate the emission and demodulate the return, which rejects uncorrelated
+light. Stereo depth with an active pattern degrades more gracefully than structured light because
+it can fall back on natural texture. This is the durable fix.
+
+Control the light. Shading the tracked area from daylight, and replacing halogen with LED sources
+which emit far less infrared, both raise the signal-to-noise ratio substantially. Gallery lighting
+is usually negotiable if you ask early, and it is not negotiable the day before opening.
+
+Treat the floor. A matte finish — a temporary vinyl, a matte sealant, or a rug within the tracked
+area — restores diffuse reflection. This is cheap and it often resolves half the problem on its
+own.
+
+And recalibrate on site rather than relying on studio calibration. Depth cameras drift with
+temperature and the geometry differs, and the tracking thresholds tuned in one environment are
+rarely right in another. Build the calibration into the piece as an accessible mode rather than
+as a rebuild, because you will need it again.
+
+One structural recommendation: assume the sensing will be worse than in the studio and design the
+interaction to degrade gracefully. A piece that requires precise tracking fails visibly when
+tracking degrades; a piece that uses coarse presence and approximate position remains coherent.
+Building tolerance into the interaction design is more reliable than achieving reliability in the
+sensing.
+
+## Vision, Sound, and Space
+
+Computer vision for interaction has different requirements from vision for analysis: it must run
+in real time, must be robust to lighting the artist does not control, and must degrade
+predictably rather than failing outright. This favours simpler and more robust techniques over
+more accurate ones, and background subtraction with adaptive updating remains a workhorse
+precisely because it is fast and its failure modes are legible.
+
+The lighting is the dominant variable and the one most often underestimated. Changing daylight
+through a gallery window alters the scene continuously; a visitor's shadow is detected as an
+object; a reflective floor produces phantom detections; and infrared illumination gives
+independence from visible lighting at the cost of requiring an infrared-sensitive camera and
+appropriate illuminators. Controlling the lighting is nearly always cheaper than making the
+vision robust to arbitrary lighting.
+
+Spatial audio in installation is a different problem from spatial audio in a fixed listening
+position, because the audience moves. A stereo image collapses as soon as a listener leaves the
+sweet spot, so installation sound uses either many speakers distributed through the space, with
+the localization arising from proximity, or wave field synthesis and ambisonics rendered to a
+speaker array, or directional speakers producing a beam audible only within it.
+
+Vision, sound, and space:
+  background subtraction  fast, robust, and requires adaptive updating for
+                       lighting change
+  frame differencing   detects motion; ignores stationary people
+  blob tracking        simple and adequate for many interactions
+  optical flow         motion field; more information, more computation
+  pose estimation      skeleton tracking; expressive and dependent on training
+                       distribution
+  infrared illumination  independence from visible lighting; requires an IR-capable
+                       camera and illuminators
+  control the lighting  cheaper than making vision robust to arbitrary lighting
+  shadows              detected as objects; a persistent source of false positives
+  the sweet spot problem  stereo collapses away from the listening position
+  distributed speakers  localization by proximity; robust in a moving audience
+  ambisonics           a scene representation decoded to any array; rotatable
+  directional speakers  an audible beam; creates private zones in a shared space
+  acoustic treatment   a reverberant gallery destroys detail and intelligibility;
+                       absorption is frequently the highest-value intervention
+  sound spill          adjacent works interfering; the most common installation
+                       conflict, and best resolved at the layout stage
+
+Sound spill deserves the practical emphasis because it causes more conflict between works in a
+shared exhibition than any other factor, and it is far cheaper to address in the floor plan than
+afterward. Low frequencies travel through structure and around barriers and cannot be contained by
+anything a gallery will install, so a piece with substantial bass content will be heard
+throughout the space. Discussing the acoustic requirements at the layout stage — which works need
+quiet, which produce sound, and where they can be separated — is the intervention, and it requires
+raising the question before the layout is fixed.
+
+## Exhibition Practice
+
+An installation must run unattended, and this requirement shapes the engineering more than any
+aesthetic consideration. The piece will be switched on by a gallery attendant who knows nothing
+about it, will run for eight to twelve hours, will be switched off, and will repeat for weeks or
+months. Anything requiring intervention will not receive it.
+
+Automatic startup is therefore the first requirement: the piece must reach its running state from
+a cold power-on with no login, no dialogue box, no manual launch, and no dependence on a network
+that may be down. Automatic recovery is the second: a crash must be detected and the piece
+restarted, which means a watchdog and a supervisor process rather than trusting the software not
+to crash. And a scheduled restart during closed hours resolves accumulated memory leaks and drift
+without anyone noticing.
+
+Physical robustness is the requirement that separates a gallery piece from a studio prototype.
+Cables will be walked on and pulled. Visitors will touch, lean on, and occasionally strike the
+work. Children will do things nobody anticipated. Anything reachable will be reached. Strain
+relief, secured connections, enclosed electronics, and rounded edges are not polish but
+functional requirements.
+
+Exhibition practice:
+  automatic startup    from cold power-on with no interaction
+  no dialogue boxes    disable updates, notifications, screensavers, and power
+                       management
+  watchdog             detect a hang and restart; a supervisor process restarts a
+                       crash
+  scheduled restart    during closed hours; resolves leaks and drift
+  remote monitoring    know it has failed before the gallery tells you
+  logging              enough to diagnose remotely; a failure you cannot
+                       reconstruct will recur
+  physical robustness  cables walked on, works leaned on, everything touched
+  strain relief        on every cable; the most common physical failure
+  secured connections  locking connectors or mechanical retention; friction fits
+                       work loose
+  spare parts          on site, with instructions a non-specialist can follow
+  documentation        a one-page start and stop procedure for gallery staff
+  attendant briefing   what it does, what normal looks like, what to do if it
+                       stops, and whom to call
+  power sequencing     if components must start in an order, enforce it in
+                       hardware rather than in a procedure
+  fail visible or fail dark  decide which; a piece failing into a diagnostic
+                       screen is worse than one failing into darkness
+  environmental        temperature, humidity, dust, and continuous operation
+                       degrade equipment that a studio never stresses
+
+The last consideration deserves the closing word: decide what failure looks like. A piece that
+crashes to a desktop, a driver error, or a diagnostic overlay is worse than one that goes dark,
+because the failure becomes visible as a technical failure rather than as an absence. Configuring
+the system so that any unhandled failure results in a black screen, and building an explicit
+attract or idle state that is visually complete, means that the audience encounters either the
+work or nothing — which preserves the piece's integrity when the inevitable failure occurs
+unattended on a Sunday afternoon.

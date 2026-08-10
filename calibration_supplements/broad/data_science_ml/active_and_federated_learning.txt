@@ -1,0 +1,236 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: Active, Federated, and Data-Efficient Learning
+Subtopics: active learning strategies, labelling economics, weak and semi-supervised
+learning, federated training, privacy mechanisms, continual learning, practice.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Active Learning and the Economics of Labels
+
+Supervised learning consumes labels, and labels are the expensive input in most applied machine
+learning. Active learning attacks this directly by choosing which examples to label rather than
+labelling at random, on the premise that examples differ enormously in how much they teach. The
+premise is correct — a model that already classifies an example confidently and correctly learns
+nothing from its label — and the practical gains are real when the setup is right.
+
+Uncertainty sampling is the standard strategy and the simplest: label the examples the current model
+is least confident about. Confidence can be measured by the top probability, by the margin between
+the top two classes, or by entropy over the distribution, and the three differ in which examples they
+prioritize when there are many classes. Its weakness is that it selects for ambiguity, and ambiguity
+includes inherently unlabelable examples — blurred images, contradictory text, mislabelled data —
+which a naive uncertainty sampler will happily consume the entire labelling budget on.
+
+Diversity-based strategies correct this by selecting a batch that covers the input distribution
+rather than clustering in one difficult region. In practice the strategies are combined, since batch
+labelling is how annotation actually works and a batch of a hundred near-identical uncertain
+examples wastes ninety-nine of them. The combined criterion — informative and mutually diverse — is
+what production active learning systems implement.
+
+Active learning:
+  the premise          examples differ in how much they teach
+  the economics        labels are the expensive input
+  uncertainty sampling  label what the model is least sure about
+  least confidence     the top probability is low
+  margin sampling      the top two classes are close
+  entropy              the whole distribution is flat; differs from margin when
+                       there are many classes
+  the ambiguity trap   unlabelable examples are maximally uncertain
+  diversity sampling   cover the input distribution
+  batch selection      the realistic setting; naive uncertainty produces
+                       redundant batches
+  the combined criterion  informative and mutually diverse
+  query by committee   disagreement among an ensemble
+  expected model change  which label would move the parameters most
+  cold start           active learning needs a model to be useful; the first
+                       round should be random or diversity-based
+  the distribution warning  actively selected data is not a random sample, so a
+                       test set drawn from it is biased; hold out a random set
+                       separately for evaluation
+
+Q: An active learning loop using pure uncertainty sampling plateaus after several rounds while
+consuming its labelling budget. The most likely cause is:
+A. The model has learned everything available
+B. The strategy is selecting inherently ambiguous or corrupted examples, which are maximally
+   uncertain and carry little learnable signal, and each batch is also internally redundant
+C. Too many labels were collected
+D. The learning rate is wrong
+Reasoning: Uncertainty is high both for informative boundary cases and for noise. Without a
+diversity term and some filtering of unlabelable data, the budget flows to the latter. Inspecting
+the selected examples directly is the diagnostic. Answer: B.
+
+## Weak, Semi-Supervised, and Self-Supervised Approaches
+
+When labels are scarce the alternative to labelling more is extracting signal from unlabelled data
+or from imprecise sources. Weak supervision generates noisy labels programmatically — from heuristic
+rules, existing knowledge bases, regular expressions, or other models — and then models the noise to
+combine them. The combination step matters: labelling functions have different accuracies and
+correlate with each other, and a generative model over their outputs produces better probabilistic
+labels than majority voting.
+
+Semi-supervised learning uses unlabelled data alongside a small labelled set, and the methods that
+work rest on a small number of assumptions. The smoothness assumption says nearby points share
+labels; the cluster assumption says the decision boundary lies in low-density regions; the manifold
+assumption says data lies on a lower-dimensional structure. Consistency regularization enforces
+these by requiring the model to give the same prediction for augmented versions of an unlabelled
+example, which is the mechanism behind most current methods.
+
+Pseudo-labelling trains on the model's own confident predictions and is effective and dangerous in
+equal measure. It amplifies whatever the model already believes, so an early systematic error
+becomes entrenched, and the confidence threshold plus a mechanism to prevent class collapse are what
+separate the working versions from the failing ones. Self-supervised pretraining sidesteps the issue
+entirely by constructing a task from the data's own structure, which is how the strongest general
+representations are now learned.
+
+Data-efficient approaches:
+  weak supervision     noisy programmatic labels from rules and existing sources
+  labelling functions  imprecise, differently accurate, and correlated
+  the combination      a generative model over their outputs beats majority vote
+  semi-supervised      unlabelled data alongside a small labelled set
+  smoothness assumption  nearby points share labels
+  cluster assumption   the boundary lies in low-density regions
+  manifold assumption  data occupies a lower-dimensional structure
+  consistency regularization  the same prediction under augmentation
+  the augmentation requirement  augmentations must preserve the label; the
+                       method fails silently when they do not
+  pseudo-labelling     training on confident self-predictions
+  confirmation bias    early errors entrenched by self-training
+  confidence threshold  the primary control
+  class collapse       all pseudo-labels going to one class; needs an explicit
+                       balancing term
+  self-supervised pretraining  a task constructed from the data's structure
+  transfer             a pretrained representation plus a small labelled set is
+                       usually the strongest baseline and should be tried before
+                       anything more elaborate
+
+## Federated Learning
+
+Federated learning trains a shared model across many devices or institutions without centralizing
+the data. Each participant computes updates on its local data and sends only those updates to a
+server that aggregates them into a new global model. The motivation is usually regulatory or
+contractual — health records, financial data, and personal device data that cannot be pooled — and
+sometimes bandwidth, since model updates are smaller than raw data.
+
+The algorithmic core is straightforward and its difficulties are all systems difficulties. The
+server distributes the current model; a subset of clients trains locally for several passes; the
+server averages the resulting updates weighted by data volume. Running multiple local passes before
+communicating is what makes the scheme practical, since communication is the bottleneck, and it is
+also what creates the central problem: local models drift apart when their data distributions
+differ, and averaging drifted models degrades the result.
+
+Non-identical data across clients is the norm rather than an edge case. One hospital's patient
+population differs from another's; one user's typing differs from another's. Under strong
+heterogeneity, naive averaging converges slowly or to a poor solution, and the mitigations —
+proximal terms limiting local drift, control variates correcting it, server-side momentum, or
+personalizing a shared representation with local heads — are the substance of the federated
+learning literature.
+
+Federated learning:
+  the motivation       data that cannot be centralized
+  the loop             distribute, train locally, aggregate
+  weighted averaging   by local data volume
+  local passes         more passes means less communication and more drift
+  communication cost   the bottleneck; updates compressed, quantized, or sparsified
+  client heterogeneity  non-identical distributions; the normal case
+  the drift problem    local models diverging, averaging degrading
+  proximal terms       penalize distance from the global model
+  control variates     correct the drift direction explicitly
+  personalization      a shared representation with local heads
+  systems heterogeneity  devices differ in speed, memory, and availability
+  stragglers           slow clients; usually handled by deadline-based partial
+                       participation
+  participation bias   available devices are not a random sample of users, which
+                       biases the model in ways that are hard to detect
+  cross-device versus cross-silo  millions of unreliable devices versus a few
+                       reliable institutions; different algorithms suit each
+  evaluation           a global test set may not exist; per-client metrics and
+                       their distribution are what matter, and a good average
+                       hiding poor performance for a minority of clients is the
+                       standard failure
+
+## Privacy Mechanisms
+
+Federated learning keeps raw data local and does not by itself provide privacy, because model
+updates leak information about the data that produced them. Gradient inversion attacks reconstruct
+training examples from updates with surprising fidelity under some conditions, and membership
+inference determines whether a particular record was in the training set. Treating decentralization
+as equivalent to privacy is a category error that appears frequently.
+
+Differential privacy provides a formal guarantee: the output distribution changes only slightly
+whether or not any single record is present, with the bound quantified by a privacy parameter. The
+mechanism is calibrated noise addition, and in machine learning it is applied by clipping per-example
+gradient contributions to a bounded norm and adding noise proportional to that bound. The guarantee
+is meaningful and the cost is real — utility falls as the privacy parameter tightens, and the
+tradeoff is more severe for smaller datasets and for underrepresented subgroups.
+
+Secure aggregation addresses a different threat: it lets a server compute the sum of client updates
+without seeing any individual one, using cryptographic protocols. Combined with differential
+privacy, this permits the noise to be added once to the aggregate rather than by each client
+separately, which improves the utility for a given guarantee substantially. The two mechanisms
+protect against different adversaries and are complementary rather than alternatives.
+
+Privacy mechanisms:
+  decentralization is not privacy  updates leak information about the data
+  gradient inversion   reconstructing examples from updates
+  membership inference  determining whether a record was in training
+  differential privacy  a formal bound on the influence of any single record
+  the privacy parameter  smaller means stronger and costlier
+  gradient clipping    bounding each example's contribution
+  noise calibration    proportional to the clipping bound
+  the utility cost     real, and worse for small data and rare subgroups
+  the equity concern   privacy noise disproportionately harms underrepresented
+                       groups, which is an accuracy-fairness interaction that is
+                       easy to overlook
+  secure aggregation   the server sees only the sum
+  the combination      aggregate-level noise beats per-client noise for the same
+                       guarantee
+  the threat models    inversion by the server, inference by the model's users,
+                       and collusion; state which one you are defending against
+  accounting           privacy loss accumulates across training rounds and must
+                       be tracked
+  the honest position  an unquantified claim of privacy is not a guarantee, and
+                       the value of the formal framework is that it forces the
+                       claim to be stated in a way that can be checked
+
+## Continual Learning and Practice
+
+Continual learning trains on a stream of tasks or distributions without retaining all past data, and
+its defining problem is catastrophic forgetting: training on new data degrades performance on old
+tasks, sometimes severely and quickly. The cause is that gradient descent has no reason to preserve
+parameters that matter for data it no longer sees.
+
+The mitigations fall into three families. Replay stores a small sample of past data and mixes it
+into current training, which is the most effective approach and the one that conflicts with the
+privacy motivations that often prompt continual learning in the first place. Regularization
+penalizes changes to parameters identified as important for past tasks, estimated from curvature or
+from gradient statistics. Architectural approaches allocate separate capacity per task, which avoids
+forgetting entirely and grows without bound.
+
+In practice the deployed alternative to continual learning is periodic retraining from an
+accumulating dataset, and it should be the default unless something prevents it. Retraining is
+simpler, more predictable, easier to evaluate, and avoids the entire forgetting problem. Continual
+learning earns its complexity where data cannot be retained, where the model must adapt faster than
+a retraining cycle allows, or where per-user adaptation happens on a device.
+
+Continual learning and practice:
+  the stream setting   tasks or distributions arriving over time
+  catastrophic forgetting  new training degrading old performance
+  the cause            no gradient signal preserves unseen tasks
+  replay               a stored sample of past data mixed in; most effective
+  the tension          replay conflicts with the privacy motivation
+  generative replay    synthesizing past data instead of storing it
+  regularization       penalize changes to parameters important for past tasks
+  importance estimation  from curvature or accumulated gradients
+  architectural isolation  separate capacity per task; no forgetting, unbounded
+                       growth
+  task boundaries      known or unknown; the unknown case is much harder
+  the stability-plasticity tradeoff  resisting change preserves old and prevents
+                       new
+  the default alternative  periodic retraining from accumulated data
+  when to prefer it    simpler, predictable, evaluable, and it avoids the problem
+  when continual is warranted  data cannot be retained, adaptation must be fast,
+                       or learning happens on a device
+  evaluation discipline  measure performance on every past task after every
+                       update, because an average across tasks hides a collapse
+                       on one of them and the collapse is what users experience

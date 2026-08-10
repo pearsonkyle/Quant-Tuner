@@ -1,0 +1,292 @@
+================================================================================
+AREA: Physics
+SUBJECT: Condensed Matter and Materials Physics
+Subtopics: crystal structure, lattice vibrations, electronic band structure,
+semiconductors, magnetism, superconductivity, defects and mechanical properties,
+low-dimensional systems.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Crystal Structure and Bonding
+
+Condensed matter physics studies the emergent behaviour of enormous numbers of interacting
+atoms, and its recurring theme is that collective properties are not simply the sum of atomic
+ones. Superconductivity, magnetism, and the very existence of electrical conductors and
+insulators are properties of the assembly rather than of any constituent, which is why the
+field's characteristic slogan is that more is different.
+
+A crystal is a periodic arrangement of atoms, described by a lattice specifying the repeating
+translational pattern and a basis specifying what sits at each lattice point. Fourteen Bravais
+lattices exhaust the possible three-dimensional periodicities, and the common metallic and
+semiconductor structures are a small subset: face-centred cubic and hexagonal close-packed
+achieve the densest possible sphere packing at 74 percent, body-centred cubic is slightly
+less dense and common in transition metals, and the diamond structure — two interpenetrating
+face-centred cubic lattices — is what silicon and germanium adopt.
+
+The reciprocal lattice is the Fourier transform of the direct lattice and is where most
+physics is done, because waves in a periodic medium are naturally described by wavevector.
+Diffraction occurs when the scattering vector equals a reciprocal lattice vector, which is
+Bragg's law in reciprocal space, and this is how crystal structures are determined
+experimentally. The Brillouin zone, the primitive cell of the reciprocal lattice, is the
+region within which all distinct wave states lie, and electronic band structures and phonon
+dispersions are always plotted along high-symmetry paths within it.
+
+Structure and bonding:
+  Bravais lattices     14 distinct three-dimensional periodicities
+  FCC / HCP            close packed, 74% filling, coordination 12
+  BCC                  coordination 8; many transition metals
+  diamond structure    tetrahedral coordination; Si, Ge, C
+  basis                what decorates each lattice point
+  reciprocal lattice   Fourier dual; where wave physics lives
+  Brillouin zone       primitive cell of the reciprocal lattice
+  Bragg condition      2d sin(theta) = n lambda
+  ionic bonding        electron transfer; hard, brittle, high melting, insulating
+                       until molten
+  covalent bonding     shared pairs, directional; hard, often semiconducting
+  metallic bonding     delocalized electron sea; ductile, conducting, opaque
+  van der Waals        induced dipoles; weak, soft, low melting; holds layered
+                       materials together
+  hydrogen bonding     strong dipolar; water's anomalies, biomolecular structure
+
+Bond type predicts bulk properties with reasonable reliability, and the reasoning is
+mechanical. Metallic bonding is non-directional, so planes of atoms can slide past one
+another without breaking bonds, which is why metals are ductile. Covalent bonding is
+directional, so displacement breaks bonds and the material fractures, which is why covalent
+crystals are hard and brittle. Ionic crystals are brittle for a related reason: sliding brings
+like charges into contact and the crystal cleaves. Van der Waals bonding between layers with
+covalent bonding within them gives materials such as graphite that are simultaneously very
+strong in plane and easily sheared between planes.
+
+Q: Metals are ductile while ionic crystals are brittle primarily because:
+A. Metals have lower melting points
+B. Metallic bonding is non-directional, so planes can slide without breaking bonds, while
+   sliding an ionic lattice brings like charges together
+C. Metals are less dense
+D. Ionic crystals have stronger bonds
+Reasoning: The mechanism is what happens under shear. The delocalized electron sea in a metal
+maintains bonding regardless of relative atomic positions, permitting dislocation motion.
+Displacing an ionic lattice by one lattice spacing aligns cations with cations, producing
+strong repulsion and cleavage. Bond strength alone does not determine ductility. Answer: B.
+
+## Lattice Vibrations and Thermal Properties
+
+Atoms in a crystal vibrate about their equilibrium positions, and the normal modes of that
+vibration are called phonons when quantized. The dispersion relation between frequency and
+wavevector has acoustic branches, in which neighbouring atoms move in phase and the frequency
+goes to zero at long wavelength, and optical branches when the basis contains more than one
+atom, in which atoms within a cell move against each other at finite frequency even at zero
+wavevector.
+
+Phonons carry heat in insulators and contribute in metals, and their scattering determines
+thermal conductivity. At low temperature, scattering from boundaries and defects dominates
+and conductivity rises with temperature as more modes are populated; at high temperature,
+phonon-phonon scattering dominates and conductivity falls as one over temperature. The peak
+between them is characteristic, and high thermal conductivity requires both few defects and
+weak anharmonicity — which is why isotopically pure diamond has the highest thermal
+conductivity of any bulk material, exceeding copper by a factor of five despite having no
+free electrons at all.
+
+Heat capacity was one of the early triumphs of quantum theory. Classical equipartition
+predicts a constant molar heat capacity of 3R for a solid, the Dulong-Petit value, which is
+observed at high temperature and fails badly at low temperature where the measured capacity
+falls toward zero. Einstein's model, treating all modes as having the same frequency,
+captured the qualitative behaviour; Debye's model, treating the modes as a continuum up to a
+cutoff, gives the correct cubic temperature dependence at low temperature. The physical reason
+is that modes with energy quanta exceeding the thermal energy cannot be excited and are frozen
+out.
+
+Thermal properties:
+  phonon                quantized lattice vibration
+  acoustic branch       in-phase motion; frequency to zero at long wavelength
+  optical branch        out-of-phase within the cell; finite frequency at zero k
+  Debye temperature     the characteristic scale; above it, classical behaviour
+  Dulong-Petit          3R molar heat capacity at high temperature
+  Debye T^3 law         low-temperature heat capacity of a lattice
+  electronic heat cap.  linear in T in a metal; only electrons near the Fermi
+                        level participate
+  thermal expansion     arises from bond potential anharmonicity; a perfectly
+                        harmonic solid would not expand
+  thermal conductivity  phonons in insulators, electrons in metals
+  Wiedemann-Franz       the ratio of thermal to electrical conductivity in a metal
+                        is proportional to temperature with a universal constant
+  Umklapp scattering    phonon collisions that reverse momentum; what gives a
+                        crystal finite thermal resistance at all
+
+Thermal expansion deserves note because its origin is easy to miss. If the interatomic
+potential were exactly harmonic, increasing vibrational amplitude would not shift the average
+separation, and the solid would not expand. Real potentials are asymmetric — steeply repulsive
+at short range and gently attractive at long — so larger amplitude shifts the time-averaged
+position outward. Expansion is therefore a direct consequence of anharmonicity, and materials
+engineered for near-zero expansion achieve it by structural mechanisms that compensate rather
+than by making bonds harmonic.
+
+## Electronic Structure and Semiconductors
+
+The behaviour of electrons in a periodic potential is the central problem of the field, and
+its resolution explains the existence of metals, insulators, and semiconductors. Bloch's
+theorem states that electron states in a periodic potential take the form of a plane wave
+modulated by a function with the lattice periodicity, which means an electron in a perfect
+crystal propagates without scattering — resistance comes from deviations from periodicity,
+not from the atoms themselves.
+
+Energy bands arise because the periodic potential opens gaps at Brillouin zone boundaries,
+where the electron wavelength satisfies the Bragg condition and forward and backward waves
+mix. Whether a material conducts depends on where the electrons fill. A partially filled band
+means states are available at infinitesimally higher energy, so an applied field accelerates
+electrons and the material conducts — a metal. A completely filled band separated by a gap
+from the next means no states are accessible at small energy, so the material insulates. A
+small gap means thermal excitation populates the upper band appreciably at room temperature —
+a semiconductor.
+
+The semiconductor's usefulness comes from doping. Adding impurities with one more valence
+electron than the host contributes electrons to the conduction band, giving n-type material;
+impurities with one fewer contribute holes to the valence band, giving p-type. Carrier
+concentration is thereby controlled over many orders of magnitude by adding parts per million
+of impurity, and it is this controllability, together with silicon's stable native oxide, that
+made silicon the basis of electronics rather than any superiority in intrinsic properties.
+
+Electronic structure:
+  Bloch state           plane wave times a lattice-periodic function
+  band gap              from Bragg reflection at zone boundaries
+  metal                 partially filled band
+  insulator             filled band, large gap
+  semiconductor         filled band, small gap; Si 1.12 eV, Ge 0.66, GaAs 1.42
+  direct vs indirect    whether the band extrema share a wavevector; direct gap
+                        materials emit light efficiently, indirect ones do not,
+                        which is why LEDs are GaAs-based and not silicon
+  effective mass        the curvature of the band; determines mobility
+  hole                  the absence of an electron in a nearly full band, behaving
+                        as a positive carrier
+  doping                n-type donors, p-type acceptors
+  Fermi level           the chemical potential; midgap for intrinsic material,
+                        shifted toward the relevant band by doping
+  pn junction           built-in field from carrier diffusion; the basis of diodes,
+                        transistors, and photovoltaics
+  depletion region      carrier-free zone at the junction; widens under reverse bias
+
+The pn junction is the single structure from which most of semiconductor electronics is
+built. Electrons diffuse from the n side and holes from the p side, leaving behind fixed
+ionized dopants that create an electric field opposing further diffusion, and equilibrium is
+reached when drift balances diffusion. Forward bias reduces the barrier and current flows
+exponentially with voltage; reverse bias widens the depletion region and only a small leakage
+current flows. Adding a third region gives a transistor, and controlling the depletion region
+with an insulated gate gives the field-effect transistor that constitutes essentially all
+modern digital logic.
+
+## Magnetism and Superconductivity
+
+Magnetism in solids arises from electron spin and orbital angular momentum, and its
+collective forms come from the exchange interaction — a consequence of the Pauli exclusion
+principle rather than of magnetic dipole coupling, which is far too weak to explain ordering
+at room temperature. Because identical fermions must have an antisymmetric total wavefunction,
+the spatial and spin parts are correlated, and the resulting energy difference between
+parallel and antiparallel spin configurations is electrostatic in origin and large.
+
+Diamagnetism is universal and weak, arising from induced currents opposing an applied field.
+Paramagnetism occurs when unpaired moments align partially with a field and is disordered
+without one. Ferromagnetism is spontaneous parallel alignment below the Curie temperature,
+producing a moment with no applied field. Antiferromagnetism is spontaneous antiparallel
+alignment with no net moment. Ferrimagnetism has antiparallel sublattices of unequal magnitude,
+giving a net moment, and includes the magnetite that made lodestones and the ferrites used in
+inductors.
+
+Domain structure explains why a ferromagnet is not always magnetized. The material divides
+into regions of uniform magnetization oriented so as to reduce the external field energy, and
+in the demagnetized state the domains cancel. Applying a field grows favourably oriented
+domains at the expense of others, and this process is partly irreversible because domain walls
+pin on defects, which is the origin of hysteresis. Hard magnetic materials have many pinning
+sites and retain magnetization; soft materials have few and follow the applied field, which is
+what transformer cores require.
+
+Magnetism and superconductivity:
+  diamagnetism          universal, weak, opposes the field
+  paramagnetism         unpaired moments, aligns partially, disordered without field
+  ferromagnetism        spontaneous parallel order below the Curie temperature
+  antiferromagnetism    spontaneous antiparallel order below the Neel temperature
+  exchange interaction  electrostatic in origin via Pauli exclusion; the reason
+                        ordering survives to high temperature
+  domains               reduce external field energy; explain unmagnetized ferro-
+                        magnets
+  hysteresis            from domain wall pinning; area is the energy loss per cycle
+  hard vs soft          permanent magnets versus transformer cores
+  superconductivity     zero resistance below a critical temperature
+  Meissner effect       expulsion of magnetic flux; not merely perfect conductivity
+  Cooper pairs          electrons bound via phonon exchange; bosonic, condense
+  BCS theory            explains conventional superconductors
+  type I / type II      complete flux expulsion versus flux penetration in
+                        quantized vortices; type II tolerates high fields and is
+                        what practical magnets use
+  high-Tc cuprates      above liquid nitrogen temperature; mechanism still not
+                        settled after nearly four decades
+
+The Meissner effect is what makes superconductivity a distinct thermodynamic phase rather
+than merely the limit of vanishing resistance. A hypothetical perfect conductor would trap
+whatever flux was present when it became perfectly conducting; a superconductor actively
+expels flux regardless of its history, which is a statement about the equilibrium state.
+This is why the transition is a genuine phase transition with a well-defined free energy and
+why the superconducting state can be described by a macroscopic quantum wavefunction — the
+basis of flux quantization, the Josephson effect, and superconducting quantum interference
+devices sensitive enough to measure the magnetic fields produced by the brain.
+
+## Defects, Mechanical Properties, and Low-Dimensional Systems
+
+Real crystals contain defects, and mechanical properties are governed almost entirely by
+them. Point defects — vacancies, interstitials, substitutional impurities — are
+thermodynamically required at any finite temperature, since the entropy gain from disorder
+outweighs the energy cost at low concentration. Line defects, dislocations, are the crucial
+ones for mechanics. Planar defects include grain boundaries and stacking faults, and
+volume defects include voids and precipitates.
+
+The theoretical shear strength of a perfect crystal, computed by displacing whole planes
+simultaneously, exceeds the observed strength of real metals by two to three orders of
+magnitude. The resolution is dislocations: plastic deformation occurs by the propagation of a
+line defect through the crystal, breaking and reforming bonds a few at a time rather than all
+at once, which requires far less stress. The analogy is moving a heavy rug by propagating a
+ripple across it rather than dragging the whole thing.
+
+That mechanism immediately explains every strengthening technique in metallurgy, because all
+of them impede dislocation motion. Work hardening increases dislocation density until they
+obstruct each other. Grain refinement introduces boundaries that dislocations cannot cross,
+giving strength increasing as the inverse square root of grain size. Solid solution
+strengthening introduces size-mismatched substitutional atoms whose strain fields impede
+motion. Precipitation hardening introduces second-phase particles that dislocations must cut
+through or bow around. The universal tradeoff is that everything impeding dislocation motion
+increases strength and decreases ductility, because ductility is dislocation motion.
+
+Defects and mechanical behaviour:
+  vacancy               thermodynamically required; enables diffusion
+  dislocation           line defect; carries plastic deformation
+  Burgers vector        the lattice displacement a dislocation carries
+  slip system           the plane and direction of easy dislocation motion; FCC has
+                        many, which is why FCC metals are ductile
+  work hardening        dislocation density impedes further motion
+  Hall-Petch            strength scales as inverse square root of grain size
+  solid solution        size mismatch strain fields impede dislocations
+  precipitation         second-phase particles obstruct motion
+  strength vs ductility the universal tradeoff; both come from dislocation
+                        behaviour
+  creep                 time-dependent deformation at high temperature; diffusion
+                        mediated
+  fatigue               failure under cyclic loading well below the yield stress;
+                        crack nucleation and growth
+  fracture toughness    resistance to crack propagation; brittle materials fail
+                        from pre-existing flaws far below theoretical strength
+
+Low-dimensional materials have become a major subfield because confinement qualitatively
+changes electronic behaviour rather than merely scaling it. Graphene, a single layer of
+carbon, has a linear rather than quadratic dispersion near the Fermi level, so its charge
+carriers behave as massless relativistic particles, giving extremely high mobility and an
+anomalous quantum Hall effect. Transition metal dichalcogenides transition from indirect to
+direct band gap in the monolayer limit, making them emissive. Quantum wells, wires, and dots
+confine carriers in one, two, and three dimensions respectively, and the resulting discrete
+energy levels are tunable by size — which is why quantum dot emission wavelength is set by
+particle diameter and why they are used as tunable phosphors in displays.
+
+The general principle underlying all of these is that when a dimension becomes comparable to
+the electron wavelength, the continuum of states in that direction collapses into discrete
+levels, and the density of states changes shape. That change in the density of states alters
+optical absorption, electrical transport, and heat capacity together, which is why
+low-dimensional systems are not merely small versions of bulk materials but genuinely
+different ones — the same collective-behaviour lesson that opened the subject, appearing again
+at a different scale.

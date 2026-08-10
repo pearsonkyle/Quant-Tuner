@@ -1,0 +1,269 @@
+================================================================================
+AREA: Astronomy and Space
+SUBJECT: Cosmology
+Subtopics: expansion and the Friedmann models, the hot Big Bang, nucleosynthesis,
+the microwave background, structure formation, dark matter and dark energy, inflation,
+open questions.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Expansion and Cosmological Models
+
+Cosmology applies general relativity to the universe as a whole, and it becomes tractable
+because of an assumption that observation supports: on scales above a few hundred million
+light-years, the universe is homogeneous and isotropic — the same everywhere and in every
+direction. This cosmological principle reduces the field equations to a pair of ordinary
+differential equations for a single scale factor describing how distances grow with time.
+
+Hubble's observation that galaxies recede with velocity proportional to distance is the
+foundational measurement. The relation is not a velocity through space but an expansion of
+space itself, which matters for interpretation: there is no centre from which expansion
+proceeds, every observer sees the same recession pattern, and the recession speed of
+sufficiently distant objects exceeds light without violating relativity, because nothing is
+moving through space faster than light.
+
+Cosmological redshift follows from the same picture and is distinct from a Doppler shift. As
+light travels, space expands, and the wavelength stretches proportionally. The redshift
+therefore measures the ratio of the scale factor now to the scale factor when the light was
+emitted, which is why redshift is a direct measure of the epoch of emission and is used as the
+standard cosmological time coordinate.
+
+Foundational relations:
+  cosmological principle  homogeneous and isotropic on large scales
+  Hubble's law            v = H_0 d;  H_0 ≈ 67-73 km/s/Mpc
+  scale factor            a(t);  a = 1 today
+  redshift                1 + z = 1/a at emission
+  Hubble time             1/H_0 ≈ 14 Gyr; a rough age estimate
+  Friedmann equations     expansion rate from the energy content and curvature
+  critical density        the density giving flat geometry; ~9e-27 kg/m^3
+  density parameter       Omega = density / critical density
+  flat universe           Omega_total = 1; measured to be flat within error
+  deceleration            expansion slows under matter, accelerates under dark
+                          energy
+  comoving distance       distance factoring out the expansion; constant for
+                          objects moving with the flow
+  particle horizon        the maximum distance from which light could have reached
+                          us; ~46 Gly comoving, larger than c times the age because
+                          space expanded during transit
+
+The observable universe's radius exceeding the speed of light times its age is a point that
+generates persistent confusion and has a straightforward explanation. Light emitted 13.8
+billion years ago has travelled for that duration, and the space it crossed has expanded while
+it travelled, so the emitting material is now about 46 billion light-years away. Nothing
+travelled faster than light; the intervening distance grew after the light passed through it.
+
+Q: A galaxy is observed at redshift z = 3. The universe has expanded by what factor since
+that light was emitted?
+A. 3   B. 4   C. 1/3   D. 9
+Reasoning: The relation is 1 + z = a_now / a_then, so 1 + 3 = 4. The universe was one quarter
+of its present size, and all wavelengths have been stretched by a factor of four. Answer: B.
+
+## The Hot Big Bang and Nucleosynthesis
+
+Running the expansion backward implies that the universe was denser and hotter in the past,
+and the hot Big Bang model traces the consequences. At early times the universe was a dense
+plasma in thermal equilibrium, and as it expanded and cooled, successive processes fell out of
+equilibrium and left relics that are observable today. The model's strength is that these
+relics are quantitative predictions rather than post-hoc explanations.
+
+The sequence of epochs is set by the temperature at which each interaction becomes too slow
+relative to the expansion to maintain equilibrium. Within the first second, the weak
+interactions maintaining the neutron-to-proton ratio froze out, fixing that ratio at roughly
+one to six. Between about one second and a few minutes, nuclear reactions built light
+elements. About 380,000 years later, the temperature fell enough for electrons and nuclei to
+combine into neutral atoms, at which point photons decoupled and travelled freely — producing
+the microwave background.
+
+Big Bang nucleosynthesis produced the light elements and is one of the model's strongest
+quantitative successes. Essentially all the helium-4 in the universe, about 24 percent by
+mass, was made in those few minutes, along with trace deuterium, helium-3, and lithium-7. The
+predicted abundances depend on a single free parameter — the ratio of baryons to photons — and
+they span nine orders of magnitude in abundance while agreeing with observation. Deuterium is
+the most sensitive probe, since it is destroyed rather than made in stars, so its primordial
+abundance is inferred from the least-processed gas available and gives a tight constraint on
+the baryon density.
+
+The hot Big Bang timeline:
+  < 1e-32 s        inflation (proposed); exponential expansion
+  1e-6 s           quarks bind into protons and neutrons
+  1 s              neutrinos decouple; the neutron-proton ratio freezes
+  1-200 s          nucleosynthesis; helium-4, deuterium, helium-3, lithium-7
+  ~50,000 yr       matter-radiation equality; structure growth can begin
+  ~380,000 yr      recombination; photons decouple, the CMB is released
+  ~150-1000 Myr    first stars; reionization of the intergalactic medium
+  ~1 Gyr           galaxies assembling
+  ~9 Gyr           dark energy begins to dominate; expansion accelerates
+  13.8 Gyr         present
+  predicted He-4   ~24% by mass; observed, and the agreement is a major success
+  deuterium        the most sensitive baryon-density probe; destroyed by stars
+  lithium-7        predicted abundance exceeds observation by about a factor of
+                   three; an unresolved discrepancy
+
+The lithium problem deserves mention because it is an honest anomaly. Predicted primordial
+lithium-7 exceeds what is measured in the oldest stars by roughly a factor of three, a
+discrepancy well outside the quoted uncertainties. Proposed explanations include stellar
+processes depleting lithium in those stars, unknown nuclear reaction rates, and new physics.
+It is a genuine unresolved problem in a model that otherwise fits the light element abundances
+across nine orders of magnitude, which is the appropriate framing — a specific outstanding
+discrepancy within a heavily confirmed framework.
+
+## The Cosmic Microwave Background
+
+The microwave background is relic radiation from recombination, when the universe became
+transparent. Its discovery in 1965 as an unexplained excess noise in a radio antenna
+decisively favoured the hot Big Bang over the steady-state alternative, which had no mechanism
+to produce a thermal background.
+
+Its spectrum is the most perfect blackbody ever measured, matching a temperature of 2.7255
+kelvin with deviations below a part in ten thousand. That precision is itself informative: it
+means the early universe was in thermal equilibrium and that no substantial energy was
+injected afterward, which constrains a range of exotic processes.
+
+The temperature fluctuations are the payload. After removing the dipole caused by our own
+motion, the residual variations are about one part in a hundred thousand, and their
+statistical pattern encodes the composition and geometry of the universe. The fluctuations
+arose from acoustic oscillations in the pre-recombination plasma: gravity pulled matter into
+overdense regions, radiation pressure pushed back, and the resulting standing waves were
+frozen in when photons decoupled.
+
+The power spectrum of these fluctuations — the amplitude as a function of angular scale —
+shows a series of peaks whose positions and relative heights are precise diagnostics. The
+first peak's angular position measures the geometry, because it corresponds to a known
+physical size at a known distance and the observed angle depends on the curvature of space
+between. Its measurement establishes that the universe is flat to within a fraction of a
+percent. The ratio of odd to even peak heights measures the baryon density, since baryons add
+inertia to the oscillation and enhance compressions relative to rarefactions. The third peak
+constrains the dark matter density.
+
+CMB observables:
+  temperature           2.7255 K; blackbody to better than 1 part in 10^4
+  dipole                ~3.4 mK; our motion at ~370 km/s relative to the CMB frame
+  fluctuations          ~1 part in 10^5 after dipole removal
+  angular power spectrum  amplitude versus angular scale; the primary dataset
+  first peak position   measures spatial curvature; the universe is flat
+  odd/even peak ratio   measures baryon density
+  third peak            constrains dark matter density
+  damping tail          small-scale suppression from the finite thickness of the
+                        last scattering surface
+  polarization, E-mode  from density perturbations; measured, and consistent
+  polarization, B-mode  primordial ones would be evidence for inflationary
+                        gravitational waves; not yet detected, and foreground dust
+                        has produced at least one retracted claim
+  lensing               the CMB is gravitationally lensed by intervening structure;
+                        measurable and constrains the matter distribution
+
+The consistency between independent probes is what makes the concordance model credible.
+The baryon density inferred from CMB peak ratios agrees with the value inferred from
+primordial deuterium, which is a completely independent measurement of a completely different
+phenomenon at a completely different epoch. The matter density from the CMB agrees with that
+from galaxy clustering and from cluster abundances. Agreement among methods with unrelated
+systematics is a far stronger argument than the precision of any single one.
+
+## Structure Formation, Dark Matter, and Dark Energy
+
+Structure grew from the tiny density fluctuations visible in the CMB through gravitational
+instability: overdense regions attract more matter, becoming more overdense. The growth rate
+is set by the competition between gravity and expansion, and it is slow — density contrast
+grows only linearly with the scale factor during matter domination, which is why the universe
+needed billions of years to form galaxies from fluctuations of one part in a hundred
+thousand.
+
+That timeline is impossible without dark matter, and this is one of the strongest arguments
+for it. Ordinary matter was coupled to radiation until recombination, so its fluctuations
+could not grow during that entire period — radiation pressure erased them. Dark matter, not
+interacting with radiation, began growing much earlier, and by recombination it had already
+formed the potential wells into which ordinary matter fell. Without that head start, the
+structure we observe could not have formed from CMB-level fluctuations in the available time.
+
+The evidence for dark matter comes from several independent phenomena at different scales.
+Galaxy rotation curves stay flat far beyond the visible disc rather than declining as Kepler's
+laws would require. Velocity dispersions in galaxy clusters imply far more mass than the
+luminous content. Gravitational lensing maps mass directly and finds it exceeds the visible.
+The CMB peak structure requires a non-baryonic matter component. And the Bullet Cluster, where
+two clusters have collided, shows the lensing mass separated from the X-ray-emitting gas —
+which is what collisionless dark matter would do while the gas, being collisional, was slowed
+in the collision.
+
+Dark sector evidence and properties:
+  rotation curves        flat far beyond the luminous disc
+  cluster dynamics       velocity dispersions imply excess mass
+  gravitational lensing  maps mass directly; exceeds visible matter
+  CMB peaks              require non-baryonic matter
+  structure formation    growth timeline is impossible without an early-growing
+                         component
+  Bullet Cluster         lensing mass separated from collisional gas; strong
+                         evidence for a collisionless component
+  candidates             WIMPs, axions, sterile neutrinos, primordial black holes;
+                         direct detection experiments have set stringent limits
+                         without a confirmed signal
+  MOND                   modified gravity; fits galaxy rotation curves well and
+                         struggles with clusters, the Bullet Cluster, and the CMB
+  dark energy            discovered 1998 from Type Ia supernovae appearing fainter
+                         than a decelerating universe predicts
+  equation of state      w = -1 for a cosmological constant; measurements are
+                         consistent with -1 within errors
+  composition            ~5% baryons, ~27% dark matter, ~68% dark energy
+
+Dark energy's problem is theoretical rather than observational. A cosmological constant is
+the simplest explanation, corresponds to a constant energy density of the vacuum, and fits the
+data. Quantum field theory's naive estimate of the vacuum energy exceeds the observed value by
+something between fifty and a hundred and twenty orders of magnitude depending on the cutoff
+assumed, which is the largest discrepancy between prediction and observation in physics. That
+the observed value is small and nonzero rather than either zero or enormous is unexplained,
+and the coincidence that it became dominant at roughly the present epoch — rather than long
+before galaxies formed or long after — is an additional puzzle without an accepted resolution.
+
+## Inflation and Open Questions
+
+Inflation proposes a brief period of exponential expansion in the first fraction of a second,
+and it was introduced to solve three problems in the standard hot Big Bang. The horizon
+problem is that regions of the CMB separated by more than about a degree could never have been
+in causal contact, yet they have the same temperature to a part in a hundred thousand. The
+flatness problem is that the density parameter's deviation from one grows with time, so its
+being close to one today requires it to have been extraordinarily close to one initially. The
+monopole problem is that grand unified theories predict magnetic monopoles which are not
+observed.
+
+Exponential expansion addresses all three with one mechanism. A region small enough to have
+been in causal contact is inflated to encompass the entire observable universe, explaining the
+uniformity. Any curvature is stretched flat, as the surface of an inflating balloon becomes
+locally flatter. And any pre-existing relics are diluted to undetectable density.
+
+Inflation's most consequential feature is one it was not designed to provide: quantum
+fluctuations during the inflationary period are stretched to macroscopic scales and become the
+seed density perturbations from which all structure grew. This makes the specific statistical
+properties of the CMB fluctuations a prediction — nearly scale-invariant, nearly Gaussian,
+with a slight tilt — and those predictions have been confirmed. The definitive test would be
+detection of primordial gravitational waves through their B-mode polarization signature, which
+has not been achieved and would strongly constrain the energy scale of inflation.
+
+Open questions:
+  what is dark matter        no confirmed detection despite decades of increasingly
+                             sensitive experiments
+  what is dark energy        the cosmological constant fits and is not explained
+  the Hubble tension         early-universe and late-universe measurements of the
+                             expansion rate disagree by several sigma; either a
+                             systematic error or new physics
+  the inflaton               no identified field; inflation is a framework rather
+                             than a specific model
+  B-mode detection           would confirm inflationary gravitational waves
+  baryon asymmetry           why matter dominates antimatter; the standard model's
+                             CP violation is insufficient by many orders of
+                             magnitude
+  the lithium problem        predicted primordial lithium exceeds observation
+  initial conditions         inflation pushes the question back rather than
+                             answering it
+  before the Big Bang        general relativity breaks down at the singularity;
+                             answering this needs quantum gravity
+
+The Hubble tension is the most active current disagreement and deserves the closing word.
+Measurements of the expansion rate from the CMB, extrapolated forward using the standard
+model, give roughly 67 kilometres per second per megaparsec. Direct measurements using the
+local distance ladder — Cepheids calibrating Type Ia supernovae — give roughly 73. The
+discrepancy is several times the quoted uncertainties, both methods have been scrutinized
+extensively, and independent methods have not decisively resolved it. Either one measurement
+harbours an unrecognized systematic, or the standard model requires modification in a way that
+changes the extrapolation between the early and late universe. Which of these is true is
+genuinely undetermined, and it is the clearest current example of a precision measurement
+disagreement that may or may not indicate new physics.

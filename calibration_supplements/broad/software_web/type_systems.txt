@@ -1,0 +1,314 @@
+================================================================================
+AREA: Software and Web Engineering
+SUBJECT: Type Systems and Programming Language Design
+Subtopics: what types are for, static and dynamic typing, algebraic data types,
+polymorphism, inference, advanced type features, memory and lifetime, paradigms.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## What Types Are For
+
+A type system is a syntactic method for proving the absence of certain program behaviours by
+classifying values according to the kinds of things they compute. That definition, Benjamin
+Pierce's, contains the key points: it is syntactic, so it operates on the program text without
+running it; it proves absence rather than presence, so a well-typed program is guaranteed not
+to exhibit certain errors and is not guaranteed to be correct; and it addresses certain
+behaviours, so the set of errors excluded is a design decision.
+
+Type systems are necessarily conservative. Determining whether an arbitrary program will
+exhibit a runtime error is undecidable, so any decidable type system must reject some programs
+that would in fact have run correctly. Soundness means no ill-typed behaviour escapes detection;
+completeness would mean no correct program is rejected; and no useful system achieves both. The
+practical design question is where to place the incompleteness — which correct programs to
+reject in exchange for which guarantees.
+
+The value of types extends well beyond error detection, and in practice the secondary benefits
+often dominate. Types document the interface in a form the compiler verifies, so unlike comments
+they cannot drift out of date. They enable tooling — completion, navigation, and automated
+refactoring all depend on knowing what things are. They permit optimization, since a compiler
+knowing a value is a machine integer generates different code than one that must handle any
+value. And they shape design, because expressing a domain in types forces decisions about what
+states are possible.
+
+Purposes of a type system:
+  error prevention     exclude a class of runtime failures at compile time
+  documentation        verified interface descriptions that cannot go stale
+  tooling              completion, navigation, refactoring, and analysis
+  optimization         known representations permit better code generation
+  design pressure      expressing the domain in types surfaces ambiguity
+  soundness            no ill-typed behaviour escapes; the primary guarantee
+  incompleteness       some correct programs are rejected; unavoidable
+  gradual typing       optional annotations; a migration path for existing
+                       dynamically typed code
+  type erasure         types removed at runtime; no runtime cost and no runtime
+                       introspection
+  reified types        available at runtime; enables reflection at some cost
+  make illegal states unrepresentable  the design principle that gets the most
+                       value from a type system
+
+That last principle is the one worth internalizing because it changes how types are used. A
+record with a nullable email field and a boolean indicating whether the email is verified admits
+four combinations, of which one — verified with no email — is meaningless, and every function
+touching it must handle a case that should not exist. Modelling the same domain as a sum type
+with distinct unverified and verified variants admits only the meaningful combinations, and the
+impossible case cannot be constructed. The error is eliminated by construction rather than by
+being checked for.
+
+Q: A function's type signature guarantees it returns a non-null string. This means:
+A. The function is correct
+B. The function will not return null, but may return the wrong string, loop forever, or throw
+C. The function cannot throw
+D. The function is pure
+Reasoning: A type system proves the absence of specific behaviours — here, returning null. It
+says nothing about whether the returned value is the correct one, whether the function
+terminates, or whether it performs side effects, unless the type system is designed to track
+those things, which most are not. Answer: B.
+
+## Static, Dynamic, and the Space Between
+
+Static typing checks types at compile time; dynamic typing checks at runtime. The distinction
+is orthogonal to strong versus weak typing, which concerns whether the language performs
+implicit conversions between unrelated types, and the four combinations all exist. Confusing
+the two axes is the most common imprecision in discussions of the subject.
+
+The empirical case for each is weaker than its advocates claim and the practical considerations
+are reasonably clear. Static typing catches a class of errors before execution, which matters
+more as a codebase grows and as the number of contributors rises, and it enables the tooling
+that makes large codebases navigable. Dynamic typing removes the annotation burden and permits
+patterns that a static system would reject, which matters more for exploratory work and for
+small programs. The cost of static typing is highest when the type system is weak enough to
+require workarounds and lowest when inference removes the annotation burden.
+
+Gradual typing occupies the middle and has become the dominant practical answer for languages
+with large dynamically typed codebases. Annotations are optional, checked where present, and
+absent where not, which permits incremental adoption. The soundness question is what happens at
+the boundary between typed and untyped code, and the approaches range from full runtime
+contract checking, which is sound and slow, to erasure, which is fast and provides no runtime
+guarantee — the common choice, which means the annotations document and check statically
+without constraining runtime behaviour.
+
+Typing dimensions:
+  static               checked before execution
+  dynamic              checked during execution
+  strong               no implicit conversion between unrelated types
+  weak                 implicit conversions; a source of surprising behaviour
+  gradual              optional annotations; incremental adoption
+  nominal              types are compatible by name; explicit declaration required
+  structural           types are compatible by shape; anything with the right
+                       members qualifies
+  duck typing          the dynamic analogue of structural
+  inference            types deduced rather than annotated
+  type erasure         removed at runtime; no cost, no introspection
+  variance             how subtyping relates for composed types; covariant,
+                       contravariant, invariant
+  null handling        the single largest source of runtime errors historically;
+                       option types or non-nullable-by-default eliminate the class
+
+Null deserves its own note because its cost has been enormous. A type system permitting any
+reference to be null means every dereference is a potential failure, and the resulting errors
+are the most common category of runtime failure in languages that permit it — its inventor
+called it his billion-dollar mistake. The remedies are option types, which make the possibility
+of absence explicit in the type and force handling, and non-nullable-by-default references with
+an explicit nullable annotation. Languages adopting either eliminate the class rather than
+reducing its frequency, which is the difference between a type system detecting an error and
+making it unrepresentable.
+
+## Algebraic Data Types and Pattern Matching
+
+Algebraic data types compose types by product and sum. A product type combines several values
+that all exist together — a record or tuple — and its cardinality is the product of its
+components' cardinalities. A sum type represents a value that is one of several alternatives, and
+its cardinality is the sum. The arithmetic is not a coincidence; it reflects a genuine
+correspondence between type composition and counting.
+
+Sum types are the feature most conspicuously absent from mainstream languages historically and
+the one that most changes how domains are modelled. Representing a value that is either a
+success carrying a result or a failure carrying an error requires, without sum types, either a
+nullable pair of fields with an invariant the compiler cannot check, an exception mechanism
+that escapes the type system, or a sentinel value. With sum types it is a single type that
+cannot be inspected without handling both cases.
+
+Pattern matching is the elimination form for sum types and its value depends critically on
+exhaustiveness checking. A match expression that the compiler verifies covers every case means
+that adding a new variant to the sum type produces a compile error at every place that must be
+updated — which converts a change that would otherwise silently break code at runtime into a
+list of locations to fix. This is the property that makes sum types genuinely valuable in
+evolving codebases rather than merely elegant.
+
+Algebraic types:
+  product type         all components together; record, tuple, struct
+  sum type             one of several alternatives; tagged union, enum, variant
+  cardinality          product multiplies, sum adds
+  unit type            exactly one value; the multiplicative identity
+  void / never         no values; the additive identity, and the return type of a
+                       function that does not return
+  option               a value or nothing; the principled replacement for null
+  result               success or error; makes failure explicit in the type
+  pattern matching     deconstruct by case
+  exhaustiveness       the compiler verifies every case is handled; the property
+                       that makes evolution safe
+  recursive types      lists, trees; defined in terms of themselves
+  newtype              a distinct type with the same representation; prevents
+                       mixing quantities that share a runtime form
+  phantom types        type parameters not present in the data; encode state or
+                       units in the type
+
+The newtype pattern is worth adopting more widely than it usually is. A user identifier and an
+order identifier may both be integers at runtime, and passing one where the other is expected is
+a defect that no amount of care reliably prevents. Wrapping each in a distinct type with no
+runtime representation cost makes the confusion a compile error. The same technique distinguishes
+metres from feet, sanitized from unsanitized input, and validated from unvalidated data, and in
+each case a whole category of error becomes unrepresentable for the cost of a type declaration.
+
+## Polymorphism and Abstraction
+
+Polymorphism lets code operate on multiple types, and the varieties solve different problems.
+Parametric polymorphism writes code that works uniformly for any type — a list operation that
+does not inspect its elements is the same code regardless of what they are. Ad hoc polymorphism
+provides different implementations selected by type, through overloading or through type
+classes. Subtype polymorphism lets a value of a subtype be used where a supertype is expected.
+
+Parametric polymorphism carries a guarantee that is easy to miss: because the code cannot
+inspect the type, it cannot behave differently depending on it, which constrains what the
+function can possibly do. A function taking a list of any type and returning a list of the same
+type can only rearrange, duplicate, or drop elements — it cannot invent them, because it has no
+way to construct a value of an unknown type. This is parametricity, and it means a general
+signature carries more information than a specific one.
+
+Type classes, traits, and interfaces provide constrained polymorphism: code that works for any
+type satisfying stated requirements. The difference between the approaches is where the
+implementation is attached. Interfaces implemented by a type couple the implementation to the
+type's definition, so a type cannot be made to satisfy an interface after the fact without
+wrapping it. Type classes and traits with external implementation allow a type defined
+elsewhere to be given an implementation, which resolves the expression problem in one direction.
+
+Polymorphism and abstraction:
+  parametric           uniform over any type; carries a parametricity guarantee
+  ad hoc               different implementations per type; overloading, type
+                       classes
+  subtype              a subtype where a supertype is expected
+  bounded              parametric with constraints; the practical common case
+  variance             how a container's subtyping relates to its element's
+  covariance           preserves the direction; safe for read-only containers
+  contravariance       reverses it; applies to function parameters
+  invariance           neither; required for mutable containers, since a mutable
+                       list of a subtype cannot safely be a list of the supertype
+  interface            a contract; implementation attached at type definition
+  type class / trait   a contract; implementation attachable externally
+  higher-kinded types  abstraction over type constructors; permits writing code
+                       generic over containers rather than over elements
+  existential types    hide the concrete type behind an interface
+  expression problem   adding both new types and new operations without modifying
+                       existing code; object-oriented and functional decompositions
+                       each solve one direction
+
+The mutable container variance rule is worth understanding because it is a common source of
+unsoundness in languages that got it wrong. A list of cats is intuitively a list of animals, and
+if the list is mutable, treating it as a list of animals permits inserting a dog, after which
+reading a cat out of it fails. Mutable containers must therefore be invariant in their element
+type. Some widely used languages made arrays covariant for pragmatic reasons and pay for it with
+a runtime check on every array store, which is both a performance cost and an acknowledgment
+that the static system is unsound there.
+
+## Inference, Advanced Features, and Memory
+
+Type inference deduces types without annotation, and the classical algorithm for the
+Hindley-Milner system infers the most general type for any expression in a language without
+subtyping or overloading. Adding those features breaks completeness, which is why languages with
+rich type systems require annotations at certain points — typically at function boundaries,
+where the annotation also serves as documentation.
+
+Local inference is the pragmatic compromise most languages have adopted: infer within a
+function body, require annotations on function signatures. This gives most of the convenience,
+since the majority of type annotations in a fully annotated program are on local variables,
+while preserving readable interfaces and producing error messages that point at the actual
+mistake rather than at a distant location where an inferred type first conflicted.
+
+Advanced type features extend what can be expressed and each carries a complexity cost.
+Generalized algebraic data types let a variant's type parameters be refined by which variant it
+is, which permits type-safe interpreters and heterogeneous structures. Dependent types allow
+types to depend on values, which permits expressing properties such as a vector's length in its
+type and, taken far enough, permits proofs — at the cost of substantial complexity and, in the
+full form, undecidable checking. Refinement types attach predicates to types, checked by a
+solver, which captures many useful invariants with less machinery than full dependent types.
+
+Inference, advanced features, and memory:
+  Hindley-Milner       complete inference for a restricted system
+  local inference      infer bodies, annotate signatures; the practical compromise
+  bidirectional        alternate checking against an expected type and inferring
+  GADT                 variant-refined type parameters; typed interpreters
+  dependent types      types depending on values; proofs, undecidable in general
+  refinement types     predicates on types, discharged by a solver
+  linear types         a value must be used exactly once; resource management
+  affine types         at most once; the basis of ownership
+  effect systems       track side effects in the type
+  ownership            each value has one owner; freeing is deterministic
+  borrowing            temporary access without transfer; the checker enforces
+                       that no mutable borrow coexists with any other
+  lifetimes            how long a reference is valid; prevents use after free
+  garbage collection   automatic reclamation; simple, with pause and throughput
+                       costs
+  reference counting   deterministic, cheap in the common case, leaks cycles
+  manual management    maximum control, and the source of a large fraction of
+                       historical security vulnerabilities
+
+Ownership and borrowing deserve emphasis because they demonstrate that a type system can
+address a problem previously thought to require a runtime mechanism. Memory safety without
+garbage collection was long considered to require either manual discipline, which fails, or
+runtime checks, which cost. An affine type system tracking ownership and enforcing that a
+mutable reference is unique proves at compile time that use-after-free, double-free, and data
+races cannot occur, with no runtime cost. The price is that the programmer must express
+lifetimes in a form the checker accepts, which rejects some correct programs and imposes a real
+learning cost — a concrete instance of the incompleteness tradeoff.
+
+## Paradigms and Language Design
+
+Programming paradigms are ways of organizing computation, and mature languages are
+multi-paradigm because the paradigms suit different problems. Imperative programming describes
+computation as a sequence of state changes, which maps directly onto hardware and is natural for
+algorithms defined procedurally. Object-oriented programming organizes state and behaviour into
+objects, which suits domains with clear entities and is weakest where behaviour spans many
+entities. Functional programming treats computation as evaluation of expressions without
+mutation, which makes reasoning local and parallelism safe, and is awkward where the problem is
+genuinely about mutable state.
+
+The functional properties worth adopting regardless of language are immutability by default
+and pure functions where practical. An immutable value cannot be changed by a distant caller,
+which eliminates a category of bug that is very difficult to diagnose. A pure function's output
+depends only on its inputs, which makes it testable in isolation, cacheable, parallelizable, and
+comprehensible without tracing execution history. Pushing side effects to the edges of a system
+and keeping the core pure is a design pattern that works in any language.
+
+Language design decisions:
+  imperative           sequential state change; matches hardware
+  object-oriented      entities with state and behaviour; encapsulation and
+                       polymorphism
+  functional           expressions without mutation; local reasoning, safe
+                       parallelism
+  logic                declare relations, let the system search
+  multi-paradigm       what nearly every practical language actually is
+  immutability         eliminates a whole class of distant-effect bugs
+  purity               testable, cacheable, parallelizable
+  composition over inheritance  inheritance couples tightly and is fragile across
+                       versions; composition is more flexible
+  explicit over implicit  implicit conversions, implicit context, and implicit
+                       control flow all reduce local comprehensibility
+  errors as values     forces handling and appears in the type; exceptions are
+                       invisible in signatures unless the language tracks them
+  syntax matters less  than the semantics it expresses, and more than language
+                       designers like to admit
+  ecosystem            libraries, tooling, documentation, and hiring frequently
+                       dominate technical merit in a real choice
+
+The exceptions-versus-values question is worth stating carefully because both approaches are
+defensible. Exceptions separate the error path from the success path, which keeps the common
+case readable, and they propagate automatically, which means an intermediate function need not
+mention an error it cannot handle. Their cost is invisibility: a function's signature does not
+say what it can throw unless the language tracks it, so callers cannot know what to handle
+without reading the implementation and everything it calls. Errors as values are visible in the
+type and require explicit propagation, which is more verbose and makes the possible failures
+part of the contract. The pragmatic position is that recoverable expected failures belong in the
+type and genuinely exceptional conditions — a bug, an unrecoverable environment failure — are
+reasonable exceptions, and the failure mode of both approaches is using one where the other
+belongs.

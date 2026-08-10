@@ -1,0 +1,326 @@
+================================================================================
+AREA: Generative Art and Creative Technology
+SUBJECT: Diffusion Models and Generative AI for Imagery
+Subtopics: model families, diffusion mechanics, conditioning and guidance, samplers,
+latent space, control and fine-tuning, workflow practice, evaluation and ethics.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Generative Model Families
+
+Generative models learn a distribution over data and sample new instances from it. Several
+families have dominated in succession, and each made a different tradeoff among sample
+quality, diversity, training stability, and sampling speed.
+
+Variational autoencoders encode data into a latent distribution and decode samples back,
+trained by maximizing a lower bound on the likelihood. They train stably, provide a
+meaningful and smoothly interpolable latent space, and produce characteristically blurry
+samples — a direct consequence of the reconstruction term, typically a pixel-wise
+likelihood, which is minimized by predicting the average of plausible outputs rather than
+committing to one.
+
+Generative adversarial networks pit a generator against a discriminator in a minimax game.
+When they work they produce extremely sharp samples, and the difficulty is that they
+frequently do not work: training is a two-player game with no single objective decreasing
+monotonically, so there is no loss curve that indicates progress. Mode collapse — the
+generator producing a narrow subset of the distribution because that subset reliably fools
+the discriminator — is the characteristic failure, and a decade of architectural and
+regularization work went into mitigating it.
+
+Diffusion models learn to reverse a gradual noising process, and they now dominate image
+generation. Training is a simple, stable regression objective: given a noised image and a
+noise level, predict the noise that was added. There is no adversarial game, no mode
+collapse, and coverage of the distribution is excellent. The cost is sampling speed, since
+generation requires many sequential denoising steps rather than a single forward pass, and
+a substantial fraction of research effort has gone into reducing the step count.
+
+Model families compared:
+  VAE                  stable training, smooth latent space, blurry samples;
+                       now used mainly as the encoder/decoder inside latent
+                       diffusion rather than as a generator
+  GAN                  sharp samples, fast single-pass generation, unstable
+                       training, mode collapse; still competitive for
+                       real-time and for super-resolution
+  normalizing flow     exact likelihood, invertible, architecturally constrained
+  autoregressive       exact likelihood, excellent quality, slow sequential
+                       sampling; dominant for text, competitive for images at
+                       scale
+  diffusion            stable training, excellent quality and coverage, slow
+                       multi-step sampling; the current default for images
+  consistency / distilled  diffusion distilled into few or one step; trades some
+                       quality for large speed gains
+
+The convergence worth noting is that the boundaries have blurred. Latent diffusion uses a
+VAE to compress images into a latent space where diffusion operates, combining the VAE's
+efficient representation with diffusion's sample quality. Diffusion transformers replace
+the convolutional U-Net backbone with a transformer, importing the scaling behaviour that
+worked for language. Consistency models distill a multi-step diffusion sampler into a
+one-step generator, which is functionally a GAN-quality generator trained without an
+adversary.
+
+## Diffusion Mechanics
+
+The forward process progressively adds Gaussian noise to an image over a schedule of
+timesteps, until after enough steps the result is indistinguishable from pure noise. This
+process is fixed rather than learned, and it has a convenient property: because the sum of
+Gaussians is Gaussian, the image at any timestep can be sampled directly from the original
+in one step, without simulating the intermediate steps. This is what makes training
+efficient — each training example samples a random timestep, adds the corresponding noise,
+and trains the network to predict it.
+
+The reverse process is what the model learns. Given a noised image and its noise level,
+the network predicts the noise component, which is equivalent to predicting the direction
+back toward the data manifold. Sampling starts from pure noise and iteratively removes
+predicted noise, gradually revealing structure. The intuition worth carrying is that early
+steps, at high noise, determine global composition and layout, while late steps, at low
+noise, determine fine texture and detail. This is why changing the seed alters composition
+entirely while changing the last few steps alters only surface detail.
+
+The noise schedule determines how noise is distributed across timesteps and has a
+substantial effect on quality. A linear schedule spends many steps in regimes that carry
+little information; cosine schedules distribute the signal-to-noise ratio more usefully.
+The schedule also interacts with resolution: higher-resolution images retain more
+recognizable structure at a given noise level, because noise averages out over more
+pixels, which is why schedules tuned at one resolution produce undertrained global
+structure at another and why resolution-dependent schedule shifts are applied in newer
+models.
+
+Diffusion concepts:
+  forward process        fixed Gaussian noising; closed-form at any timestep
+  reverse process        learned denoising; the model predicts the noise
+  prediction target      epsilon (noise), x0 (clean image), or v (velocity);
+                         v-prediction behaves better at the schedule extremes
+  noise schedule         linear, cosine, or sigmoid; controls signal-to-noise
+                         across timesteps
+  timestep embedding     the network is conditioned on the noise level; without
+                         it the model cannot know how much to remove
+  classifier-free guidance  the standard conditioning mechanism; see below
+  latent diffusion       operate in a compressed VAE latent rather than pixels;
+                         roughly 8x downsampling gives ~64x fewer elements
+  U-Net vs DiT           convolutional backbone with skip connections, versus a
+                         transformer operating on latent patches
+
+Latent diffusion is the change that made high-resolution generation practical on consumer
+hardware. Running diffusion directly on 1024-by-1024 pixels is enormously expensive;
+compressing to a 128-by-128 latent with a learned autoencoder reduces the element count by
+about sixty-four while preserving the perceptually relevant information, since the
+autoencoder is trained to discard exactly the high-frequency detail that a perceptual loss
+deems unimportant. The visible cost is that the autoencoder imposes a ceiling on fine
+detail — very small text and fine regular patterns are where latent-space artifacts
+appear, because those are precisely what the compression discards.
+
+Q: Changing only the last five denoising steps of a fifty-step generation produces:
+A. A completely different composition
+B. Minor changes to fine detail and texture
+C. No change at all
+D. A different subject entirely
+Reasoning: Global structure is determined at high noise levels early in sampling, when the
+image is mostly noise and the model is deciding broad layout. By the final steps the
+composition is fixed and only fine detail remains to be resolved. This is why refinement
+passes and detail-focused upscalers operate on the low-noise end. Answer: B.
+
+## Conditioning, Guidance, and Control
+
+Text conditioning works by encoding a prompt with a text encoder and injecting those
+embeddings into the denoising network through cross-attention. Which text encoder is used
+matters considerably: contrastive image-text encoders capture visual concepts well and
+handle compositional and relational language poorly, which is why early text-to-image
+models struggled with counts, spatial relations, and attribute binding. Adding a large
+language model as an additional or replacement encoder improved prompt adherence markedly,
+because such models represent syntax and relations that a contrastive encoder trained on
+short captions never learned.
+
+Classifier-free guidance is the mechanism that makes prompts actually work. The model is
+trained both conditionally and unconditionally by randomly dropping the conditioning during
+training. At sampling time both predictions are computed and extrapolated away from the
+unconditional toward the conditional, amplifying the influence of the prompt. The guidance
+scale controls the amount, and its effect is a clear tradeoff: low values give diverse,
+loosely-related images, high values give strong prompt adherence with oversaturated colours,
+harsh contrast, and reduced diversity. Typical usable ranges sit between five and nine for
+most models, with distilled and rectified-flow models often preferring much lower values.
+
+Structural control conditions generation on spatial information rather than on text. An
+auxiliary network takes a control image — edges, depth, human pose, segmentation — and
+injects features into the denoising network, so the output follows the specified structure
+while the prompt determines content and style. This is what converts text-to-image from a
+slot machine into a directable tool, because it separates the decisions an artist wants to
+make explicitly from the ones they are happy to delegate.
+
+Control mechanisms:
+  text prompt            content and style; the coarsest and most convenient handle
+  negative prompt        conditioning the unconditional branch; steers away from
+                         described attributes
+  guidance scale         prompt adherence versus diversity and naturalness
+  seed                   determines the initial noise, hence composition; fix it
+                         to isolate the effect of any other change
+  image-to-image         start from a noised version of an input rather than pure
+                         noise; the denoising strength sets how much is retained
+  inpainting             regenerate a masked region conditioned on the surround
+  outpainting            extend beyond the original frame
+  structural control     edge, depth, pose, or segmentation conditioning
+  IP-adapter / reference conditioning on an image's style or subject rather than
+                         its structure
+  regional prompting     different prompts applied to different image regions
+
+Image-to-image denoising strength is the parameter most worth understanding precisely. It
+determines how far back into the noise schedule the input is pushed before denoising
+begins. At low strength only a few steps run, so the output closely resembles the input and
+the prompt has little influence. At high strength the input is nearly destroyed and the
+result is effectively a fresh generation. The useful working range for guided variation is
+usually between 0.3 and 0.6, and the parameter interacts with step count — because the
+steps actually executed are the total multiplied by the strength, a low strength with few
+total steps may run only two or three denoising steps and produce artifacts.
+
+Samplers solve the reverse diffusion differential equation and differ in accuracy per
+step. Ancestral samplers inject fresh noise at each step, so they do not converge to a
+fixed image as steps increase — more steps give a different image rather than a better one,
+which is sometimes desirable and often confusing. Deterministic solvers converge, so
+increasing steps refines toward a limit. Higher-order solvers achieve good quality in
+fifteen to twenty-five steps where first-order methods need fifty or more. There is no
+universally best sampler; the practical approach is to fix a seed and prompt, sweep
+samplers and step counts, and choose from the grid.
+
+[user] My generations look washed out and overcooked with blown highlights, and adding more
+steps doesn't help.
+[assistant] tool_call diffusion.diagnose({"guidance_scale": 14, "steps": 60,
+"sampler": "euler_a", "model_type": "flow_matching_distilled",
+"symptoms": ["oversaturation", "clipped_highlights", "low_diversity"]})
+[tool] {"diagnosis": "guidance_too_high_for_model_class",
+"recommended_cfg_range": [1.5, 3.5], "step_recommendation": [20, 28],
+"secondary": ["ancestral_sampler_with_high_steps_adds_noise_not_detail"],
+"optional": "cfg_rescale_0.7"}
+[assistant] Your guidance scale is the problem, and it is a model-class mismatch rather
+than a taste issue.
+
+Classifier-free guidance at 14 is extrapolating far past the conditional prediction, which
+pushes latent values outside the range the decoder was trained on. That clips highlights,
+saturates colour, and collapses diversity — exactly your three symptoms. For older
+diffusion models 7 to 9 was reasonable; for a distilled flow-matching model the usable
+range is roughly 1.5 to 3.5, because the distillation already internalized much of the
+guidance effect. Try 2.5 first.
+
+Steps do not help because steps and guidance address different things. Steps control how
+accurately the sampler integrates the trajectory; guidance controls where the trajectory
+goes. An overcooked trajectory integrated more precisely is still overcooked. Worse, you
+are using an ancestral sampler, which injects fresh noise every step and therefore does not
+converge — at 60 steps you are adding stochastic variation rather than refining. Drop to
+20-28 steps, and if you want deterministic refinement behaviour, switch to a non-ancestral
+solver.
+
+If you want strong prompt adherence without the saturation, use CFG rescaling at around
+0.7. It renormalizes the guided prediction back toward the statistics of the unguided one,
+which keeps the adherence while removing most of the contrast blowout. Many interfaces
+expose this as a separate slider and it is underused.
+
+Order of changes so you can see what each does: fix the seed, set guidance to 2.5, then
+sweep steps 16/20/28, then try CFG rescale. Changing them together will tell you nothing.
+
+## Latent Space and Fine-Tuning
+
+The latent space of a generative model is where the interesting structure lives.
+Interpolating between two latent points produces a smooth transition through plausible
+images rather than a crossfade, because the path stays on the learned manifold. Spherical
+interpolation is the correct method for Gaussian latents rather than linear, since linear
+interpolation passes through the low-density centre of a high-dimensional Gaussian and
+produces washed-out midpoints — a specific consequence of the fact that in high dimensions
+almost all the probability mass of a Gaussian lies in a thin shell.
+
+Semantic directions exist in latent space and can be discovered. Finding the direction
+that corresponds to a specific attribute — adding a smile, changing age, altering lighting
+— allows controlled editing by moving along it. Directions can be found by supervised
+means, averaging the difference between labelled groups, or unsupervised, through principal
+component analysis of the latent distribution. This is the mechanism behind most latent
+editing tools, and its limitation is entanglement: directions are rarely pure, so moving
+along one attribute drags others with it.
+
+Fine-tuning adapts a pretrained model to a specific subject, style, or domain, and the
+methods differ mainly in how many parameters they touch.
+
+Fine-tuning approaches:
+  full fine-tuning     updates all weights; strongest adaptation, needs the most
+                       data and compute, and risks catastrophic forgetting of
+                       everything else the model knew
+  LoRA                 low-rank updates to attention and linear layers; a few
+                       megabytes, composable at inference, the practical default
+  DreamBooth           binds a rare token to a specific subject using a handful of
+                       images plus a prior-preservation loss to prevent the model
+                       collapsing the whole class onto that subject
+  textual inversion    learns a new token embedding only; tiny, weaker, extremely
+                       portable
+  hypernetworks        a small network modulating the main model's weights
+  IP-adapter           conditions on a reference image at inference with no
+                       training at all
+
+The most common fine-tuning failure is overfitting to incidental features of the training
+set. Training a subject on twenty photographs all taken in the same room produces a model
+that reproduces the room whenever the subject is requested, because the model has no way to
+know which co-occurring features are the subject and which are the background. The
+remedies are diverse training images varying everything except the subject, captions that
+explicitly describe the incidental features so the model attributes them elsewhere,
+conservative learning rates, and stopping early — with samples checked at multiple
+checkpoints rather than trusting the final one, since the best checkpoint is frequently not
+the last.
+
+## Practice, Evaluation, and Ethics
+
+Prompt engineering for images is more empirical and less transferable than it appears.
+Prompts that work well on one model often work poorly on another, because they are
+exploiting the particular caption distribution the text encoder was trained on. Long lists
+of quality tokens were effective on models trained on tagged aesthetic datasets and are
+largely inert on models trained on descriptive natural-language captions. The durable
+advice is to describe the intended image plainly, be specific about the elements that
+matter, and test rather than accumulate incantations.
+
+Reproducibility requires recording more than the prompt. The model checkpoint and its exact
+version, the seed, the sampler, the step count, the guidance scale, the resolution, and any
+adapters with their weights all affect the output, and a workflow that does not log them
+produces images that cannot be regenerated or systematically varied. Node-based interfaces
+encode the whole graph, which is one reason they have become standard for serious work
+despite their steeper learning curve.
+
+Evaluation of generative image models is genuinely unsolved. Automated metrics measure
+distributional similarity between generated and real images and correlate poorly with human
+judgment of individual images. Prompt-adherence metrics using image-text similarity capture
+whether the right objects appear and miss composition, count, and relation. Human
+evaluation remains the standard for quality and is expensive, slow, and subject to
+presentation biases. For an artist the relevant evaluation is whether the system reliably
+produces work they want, which no benchmark measures.
+
+Practice and ethics:
+  log every parameter    model, seed, sampler, steps, guidance, adapters,
+                         resolution; otherwise the image is unreproducible
+  fix the seed to compare changing two things at once teaches you nothing
+  work in grids          sweep one parameter across a row; judge from the grid
+  upscale separately     generate composition at native resolution, then refine;
+                         generating directly at high resolution produces duplicated
+                         subjects in models trained at lower resolution
+  training data          most large models were trained on scraped images without
+                         consent or compensation; this is an unresolved legal and
+                         ethical question, not a settled one
+  style imitation        prompting for a living artist's name is legally
+                         contested and ethically contentious; imitating a
+                         recognizable individual style is different in kind from
+                         working in a historical movement
+  provenance             content credentials and embedded metadata; disclosure
+                         norms are still forming and disclosure is cheap
+  consent for likeness   generating identifiable people raises separate issues
+                         from style, with clearer legal exposure
+
+The duplicated-subject artifact deserves mention because it confuses people and has a
+specific cause. A model trained predominantly at one resolution has learned the spatial
+frequency of composition at that scale; asked to generate at twice the linear size, it
+produces content at the learned scale twice over, yielding two heads or two horizons. The
+solution is to generate at or near the training resolution and upscale in a separate pass,
+usually with a low-strength image-to-image refinement that adds detail without changing
+composition. Models trained with multi-resolution or aspect-ratio bucketing suffer from
+this much less, which is why native resolution support has improved across generations.
+
+On the ethical questions, the honest position is that they are open rather than settled.
+The training data of most widely used image models includes copyrighted work gathered
+without permission, litigation is ongoing in multiple jurisdictions, and the outcomes will
+differ by jurisdiction. Artists working with these tools face a real choice about what they
+are comfortable with, and the available options — models trained on licensed or public
+domain data, fine-tuning only on one's own work, disclosing use — involve genuine tradeoffs
+in capability. Pretending the question is resolved in either direction misrepresents the
+situation.

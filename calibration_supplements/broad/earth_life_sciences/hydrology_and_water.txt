@@ -1,0 +1,248 @@
+================================================================================
+AREA: Earth and Life Sciences
+SUBJECT: Hydrology and Water Resources
+Subtopics: the water cycle and budgets, precipitation and runoff, groundwater, river
+systems, floods and droughts, water quality, management and infrastructure.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## The Water Cycle and Water Budgets
+
+Hydrology follows water through its reservoirs and pathways, and the organizing tool is the water
+balance: over any defined area and period, inflow equals outflow plus the change in storage. Applied
+to a catchment, the inflows are precipitation and any imports, the outflows are evapotranspiration,
+streamflow, and groundwater exiting the boundary, and the storage terms are soil moisture,
+groundwater, snowpack, and surface water bodies.
+
+The balance is simple to state and difficult to close in practice, because the terms are measured
+with very different accuracy. Precipitation is measured at points and interpolated over areas with
+substantial error, particularly for snow and in complex terrain. Streamflow is measured relatively
+well at gauges through a stage-discharge relationship that must be recalibrated as the channel
+changes. Evapotranspiration is rarely measured directly and is usually estimated from meteorological
+variables. Groundwater exchange is the least constrained term and frequently absorbs the residual
+error of everything else.
+
+Evapotranspiration deserves particular attention because it is the largest outflow in most
+catchments and the least intuitive. It combines evaporation from surfaces and transpiration through
+plants, and it is limited either by available energy or by available water depending on conditions.
+In humid regions energy is limiting, so it tracks radiation; in arid regions water is limiting, so
+it tracks supply. Vegetation change therefore alters catchment yield substantially, which is why
+afforestation reduces streamflow and why land use change is a hydrological intervention whether or
+not it is intended as one.
+
+The water cycle and budgets:
+  water balance        inflow equals outflow plus storage change
+  catchment            the area draining to a point; the natural analysis unit
+  the inflows          precipitation and imports
+  the outflows         evapotranspiration, streamflow, groundwater export
+  storage terms        soil moisture, groundwater, snowpack, surface water
+  measurement asymmetry  the terms differ greatly in accuracy
+  precipitation error  point measurements interpolated over areas
+  streamflow gauging   a stage-discharge relationship needing recalibration
+  evapotranspiration   rarely measured, usually estimated
+  the residual term    groundwater exchange absorbing everyone else's error
+  the largest outflow  evapotranspiration in most catchments
+  energy limitation    humid conditions; tracks radiation
+  water limitation     arid conditions; tracks supply
+  vegetation effects   afforestation reduces yield
+  the general point    land use change is a hydrological intervention regardless
+                       of intent
+
+Q: A catchment is reforested and downstream streamflow decreases. Why?
+A. The measurement changed
+B. Trees transpire substantially more than the previous cover and intercept more precipitation
+   before it reaches the ground, so a larger fraction of the water balance leaves as
+   evapotranspiration and less as streamflow
+C. The rainfall decreased
+D. Water is stored in the wood
+Reasoning: Evapotranspiration is the dominant outflow, and it depends strongly on vegetation type
+through rooting depth, leaf area, and canopy interception. Deeper-rooted, higher-leaf-area cover
+increases it. This is a well-documented result from paired catchment studies and it is a real
+tradeoff against the other benefits of reforestation. Answer: B.
+
+## Precipitation, Runoff, and Catchment Response
+
+When precipitation falls on a catchment, it partitions into interception by vegetation, infiltration
+into the soil, storage in depressions, and overland flow. The partition depends on rainfall
+intensity relative to the soil's infiltration capacity, on antecedent moisture, on slope, and on
+land cover, and it determines how much of a storm becomes streamflow and how quickly.
+
+The hydrograph — discharge plotted against time following a storm — has a characteristic shape whose
+features are diagnostic. A rapid rise and high peak indicates fast pathways: impervious surfaces,
+saturated soils, steep slopes, or efficient drainage. A slow broad response indicates infiltration
+and subsurface pathways. The recession after the peak reflects drainage of storage and its shape
+describes the catchment's storage-discharge relationship, which is what sustains flow between
+storms.
+
+Urbanization changes this dramatically and predictably. Impervious surfaces prevent infiltration and
+storm drains deliver water to channels far faster than overland and subsurface routes, so peaks
+become higher and earlier and baseflow between storms declines because the groundwater is no longer
+recharged. Both effects are damaging, and the design response has shifted from conveying water away
+as fast as possible toward retaining and infiltrating it near where it falls, which addresses the
+peak and the recharge simultaneously.
+
+Precipitation and runoff:
+  the partition        interception, infiltration, depression storage, overland
+                       flow
+  infiltration capacity  the rate the soil accepts water; declines during a storm
+  intensity relative to capacity  the determinant of overland flow generation
+  antecedent moisture  a wet catchment responds far more than a dry one to the
+                       same rainfall
+  saturation excess    flow generated where the soil is already saturated,
+                       typically near channels
+  the hydrograph       discharge against time following a storm
+  rise and peak        fast pathways
+  broad response       infiltration and subsurface pathways
+  recession            drainage of storage; describes the storage relationship
+  baseflow             the between-storm flow sustained by groundwater
+  time of concentration  how long until the whole catchment contributes
+  urbanization effects  higher earlier peaks and reduced baseflow
+  the drainage philosophy shift  from rapid conveyance to local retention and
+                       infiltration
+  green infrastructure  permeable surfaces, swales, and retention that address
+                       peak and recharge together
+  the scale caveat     local measures are effective for frequent small events and
+                       are progressively overwhelmed by large ones
+
+## Groundwater
+
+Groundwater occupies the pore spaces and fractures of subsurface materials, and it holds far more
+fresh water than all rivers and lakes combined. An aquifer is a formation transmitting useful
+quantities, and its behaviour depends on two properties that are frequently confused: porosity, the
+fraction of void space, which determines how much water is stored, and hydraulic conductivity, the
+ease of flow, which determines how fast it moves. Clay has high porosity and very low conductivity —
+it holds much water and yields little.
+
+Flow is driven by hydraulic head gradients and is described by a linear relationship between flow
+rate and gradient. The velocities are slow — typically metres per year to metres per day — which has
+two important consequences. Contamination moves slowly and persists for decades, so an aquifer
+contaminated today remains so long after the source is removed. And groundwater systems respond to
+changes with long lags, so the effect of a pumping regime or a recharge change may not appear for
+years and continues after the cause stops.
+
+Unconfined aquifers have a water table as their upper surface and are recharged directly from above,
+which makes them accessible and vulnerable to surface contamination. Confined aquifers lie beneath a
+low-conductivity layer, are recharged where that layer is absent, and are under pressure — a well
+penetrating one has water rising above the aquifer top and occasionally to the surface. Sustained
+extraction exceeding recharge depletes storage, and in some settings causes irreversible compaction
+of the formation, permanently destroying the storage capacity and producing land subsidence at the
+surface.
+
+Groundwater:
+  the reservoir size   far exceeding all surface fresh water
+  aquifer              a formation transmitting useful quantities
+  porosity             void fraction; storage
+  hydraulic conductivity  ease of flow; transmission
+  the clay case        high storage, negligible yield
+  head gradient        the driving force
+  flow velocities      metres per year to metres per day
+  contamination persistence  decades, long after the source is removed
+  response lags        effects appearing years later and continuing after the
+                       cause stops
+  unconfined aquifer   a water table upper surface; directly recharged and
+                       vulnerable
+  confined aquifer     beneath a confining layer; under pressure
+  artesian conditions  water rising above the aquifer top
+  recharge area        where a confined aquifer is exposed; protecting it protects
+                       the whole aquifer
+  overdraft            extraction exceeding recharge
+  compaction           irreversible loss of storage capacity
+  subsidence           the surface expression of compaction
+  saltwater intrusion  coastal aquifers drawing in seawater as heads fall; another
+                       effectively irreversible outcome
+  the connection to streams  groundwater and surface water are one system, and
+                       managing them separately produces overallocation of the
+                       same water twice
+
+## Floods, Droughts, and Extremes
+
+Flood frequency analysis fits a distribution to historical peak flows and estimates the magnitude
+associated with a given exceedance probability. The common terminology invites a specific
+misunderstanding: a hundred-year flood is one with a one percent annual exceedance probability, not
+one that occurs once per century, and two such events in consecutive years are unremarkable rather
+than evidence of a broken model.
+
+The analysis rests on assumptions that are increasingly questionable. Stationarity — that the
+statistical properties of the record apply to the future — is violated by land use change, by
+reservoir operation, and by climate trends. Independence between annual peaks is generally
+reasonable. Sufficient record length is frequently not satisfied, since estimating a one percent
+event from thirty years of data extrapolates well beyond the data and the resulting confidence
+intervals are wide enough that the point estimate should never be quoted alone.
+
+Drought is harder to define than flood because it is a deficit relative to expectation rather than an
+absolute condition, and the relevant deficit depends on the use. Meteorological drought is a
+precipitation shortfall; agricultural drought is soil moisture insufficient for crops; hydrological
+drought is low streamflow and storage; and socioeconomic drought is demand exceeding supply. They
+develop and end at different times, which is why a region can be out of meteorological drought while
+its reservoirs remain depleted, and why declaring drought over requires specifying which one.
+
+Floods and droughts:
+  frequency analysis   a distribution fitted to historical peaks
+  the return period    an annual exceedance probability, not a schedule
+  the misunderstanding  consecutive rare events are unremarkable
+  stationarity         assumed and increasingly violated
+  the violations       land use change, reservoir operation, climate trends
+  record length        usually insufficient for the probabilities of interest
+  extrapolation        estimating rare events well beyond the data
+  confidence intervals  wide enough that the point estimate alone misleads
+  flood mapping        the extent associated with a design event
+  the levee effect     protection encouraging development that increases the
+                       consequence of the eventual exceedance
+  meteorological drought  precipitation shortfall
+  agricultural drought  soil moisture insufficient for crops
+  hydrological drought  low streamflow and storage
+  socioeconomic drought  demand exceeding supply
+  the timing differences  they begin and end at different times
+  the declaration question  which drought is over must be specified
+  drought indices      standardized measures permitting comparison across regions
+                       and periods, and each encodes a particular definition
+
+## Water Quality, Management, and Infrastructure
+
+Water quality is characterized by physical, chemical, and biological parameters, and the relevant set
+depends on the use. Drinking water is concerned with pathogens first, then with chemical
+contaminants and disinfection byproducts. Aquatic ecosystems are concerned with dissolved oxygen,
+temperature, nutrients, and toxicity. Irrigation is concerned with salinity and specific ions.
+Assessing quality without specifying the use produces a list of numbers rather than a judgement.
+
+Point source pollution enters from an identifiable discharge and is comparatively straightforward to
+regulate and treat. Non-point source pollution — agricultural runoff, urban stormwater, atmospheric
+deposition — enters diffusely across a landscape and is the dominant remaining problem in most
+developed watersheds, precisely because there is no pipe to permit and no facility to upgrade.
+Addressing it requires changing practices across many landowners, which is a governance problem more
+than a technical one.
+
+Water management allocates a variable supply among competing uses, and the institutional arrangements
+matter as much as the physical infrastructure. Allocation systems that grant fixed quantities perform
+badly under variability; systems that grant proportional shares of an assessed availability adapt
+better. Environmental flows — water allocated to the ecosystem rather than to extraction — are
+increasingly recognized as a legitimate allocation rather than as water left over, and integrating
+them requires deciding what the river is for, which is a value question that hydrology can inform and
+cannot answer.
+
+Water quality and management:
+  use-specific assessment  parameters chosen by purpose
+  drinking water priorities  pathogens first, then chemicals and byproducts
+  ecosystem priorities  oxygen, temperature, nutrients, toxicity
+  irrigation priorities  salinity and specific ions
+  point source         an identifiable discharge; regulable and treatable
+  non-point source     diffuse; the dominant remaining problem
+  the governance nature  changing practices across many landowners
+  thermal pollution    discharge temperature affecting dissolved oxygen and
+                       species
+  sediment             a pollutant and a resource; both excess and deficit cause
+                       problems
+  reservoirs           storage smoothing variability; sediment trapping and
+                       ecological disruption are the costs
+  environmental flows  water allocated to the ecosystem as a legitimate use
+  allocation systems   fixed quantities against proportional shares
+  the variability performance  proportional systems adapt better
+  conjunctive use      surface and groundwater managed as the single system they
+                       physically are
+  demand management    efficiency and pricing; usually cheaper than new supply and
+                       politically harder
+  the underlying reality  water problems are almost always allocation and
+                       governance problems wearing a technical appearance, and
+                       engineering can expand the envelope without resolving who
+                       gets what when there is not enough

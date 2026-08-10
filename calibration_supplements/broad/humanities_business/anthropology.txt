@@ -1,0 +1,245 @@
+================================================================================
+AREA: Humanities and Business
+SUBJECT: Anthropology
+Subtopics: the four fields, ethnographic method, kinship and social organization,
+economic and political anthropology, symbolic systems, archaeology, applied practice.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## The Discipline and Its Method
+
+Anthropology studies human beings comparatively and holistically, and it is distinguished from
+neighbouring disciplines less by its subject than by its method and its scope. The comparative
+commitment means that no society is treated as the default against which others are variations; the
+holistic commitment means that economy, kinship, religion, and politics are studied as an
+interlocking whole rather than as separate domains.
+
+The traditional four-field structure covers cultural anthropology, which studies contemporary human
+societies; archaeology, which studies past societies through material remains; biological
+anthropology, which studies human evolution and variation; and linguistic anthropology, which
+studies language in its social context. The integration is the point — questions about human
+origins, social organization, and meaning are pursued with whichever evidence bears on them.
+
+Ethnography is the characteristic method: extended participant observation in which the researcher
+lives within a community, participates in daily life, and records what people do alongside what
+they say about it. The duration matters because the gap between stated norms and actual practice is
+usually invisible to a short visit, and because trust sufficient for candid conversation takes time
+to establish. Its epistemic strength is access to context that no survey instrument reaches; its
+weakness is that it is unrepeatable and that the observer is part of the situation observed.
+
+The discipline and its method:
+  comparative          no society as the implicit default
+  holistic             domains studied as an interlocking whole
+  cultural anthropology  contemporary societies
+  archaeology          past societies through material remains
+  biological anthropology  human evolution and variation
+  linguistic anthropology  language in social context
+  ethnography          extended participant observation
+  participant observation  living within, not visiting
+  duration             what separates practice from stated norm
+  emic and etic        the insider's categories versus the analyst's
+  reflexivity          the observer's presence and position as part of the data
+  cultural relativism  understanding practices in their own terms; a method for
+                       description, distinct from moral relativism
+  the distinction      describing a practice in context does not entail endorsing
+                       it, and conflating the two makes accurate description
+                       impossible
+  ethnocentrism        evaluating other societies by one's own categories; the
+                       failure mode the method is designed against
+
+Q: A researcher spends two weeks in a community and reports that its stated marriage rules are
+strictly followed. An ethnographer working there for two years finds frequent exceptions. This
+illustrates:
+A. The first researcher was dishonest
+B. Stated norms and actual practice diverge routinely, and the divergence is visible only with
+   enough time and trust for people to discuss what actually happens rather than what should
+C. The community changed
+D. Rules do not exist
+Reasoning: People describe their normative system when asked, and the exceptions are neither
+volunteered to strangers nor visible in a short visit. The gap between norm and practice is a
+standard finding and the reason extended fieldwork is the method rather than interviewing.
+Answer: B.
+
+## Kinship and Social Organization
+
+Kinship was anthropology's first systematic subject because in societies without formal state
+institutions, kinship organizes production, residence, inheritance, alliance, and authority.
+Studying it revealed the discipline's foundational insight: the categories that appear natural —
+who counts as a relative, what a family is, what obligations follow from a relationship — vary
+enormously and are cultural constructions built on a biological substrate rather than readings of
+it.
+
+Descent systems trace group membership through one line or both. Patrilineal systems trace through
+fathers, matrilineal through mothers, and the latter is not the mirror image of the former, because
+authority in matrilineal societies commonly rests with a woman's brother rather than with her
+husband, which produces a distinctive tension between a man's obligations to his sister's children
+and to his own. Bilateral systems trace through both and produce overlapping rather than bounded
+groups, which is the arrangement most familiar to industrialized societies and is a minority
+pattern globally.
+
+Marriage systems regulate alliance between groups as much as they regulate individual pairing.
+Rules of exogamy require marriage outside a defined group, which builds ties between groups and is
+the more common arrangement; endogamy requires marriage within one, which concentrates resources
+and maintains boundaries. Bridewealth, dowry, and bride service transfer resources in different
+directions and correlate with different economic and residential arrangements. The analytic point
+is that these are systems of exchange between groups, and interpreting them as individual romantic
+choice misses what they organize.
+
+Kinship and organization:
+  kinship as infrastructure  organizes production, residence, inheritance,
+                       authority
+  the foundational insight  kinship categories are cultural constructions on a
+                       biological substrate
+  descent              unilineal, bilateral, or ambilineal
+  patrilineal          through fathers
+  matrilineal          through mothers; authority often with the mother's brother
+  the asymmetry        matrilineal is not the mirror of patrilineal
+  lineage and clan     descent groups at different scales
+  residence rules      where a couple lives; strongly shapes daily social
+                       structure
+  exogamy              marriage outside a defined group; builds alliances
+  endogamy             marriage within; concentrates and bounds
+  bridewealth and dowry  resource transfers in opposite directions, correlating
+                       with different arrangements
+  fictive kinship      kin relations extended by choice; godparenthood, adoption,
+                       chosen family
+  the general lesson   what looks like a natural category is usually a
+                       historically specific arrangement, and recognizing that is
+                       the discipline's most transferable contribution
+
+## Economic and Political Anthropology
+
+Economic anthropology examines how societies organize production, distribution, and consumption,
+and its central finding is that market exchange is one mode among several rather than the
+underlying reality of which others are variants. Reciprocity — the mutual giving of gifts creating
+and sustaining obligation — organizes much exchange in many societies. Redistribution collects
+resources centrally and disperses them, which is what chiefdoms and states do through tribute and
+taxation. Market exchange with impersonal prices coexists with both.
+
+The classic analysis of gift exchange established that the gift is not the opposite of the
+commodity but an alternative structure with its own logic. A gift creates an obligation to
+reciprocate at a later time and in a manner that is not exactly equivalent, and the delay and
+inexactness are constitutive rather than incidental: precise immediate repayment would cancel the
+relationship rather than sustain it. This analysis illuminates a great deal of exchange in market
+societies too, where gift and commodity logics coexist and confusing them causes real social
+offence.
+
+Political anthropology examines authority in societies with and without states. The classic typology
+runs from bands, small and egalitarian with leadership by influence rather than office, through
+tribes and chiefdoms with inherited rank and redistribution, to states with formal institutions,
+specialized coercive capacity, and social stratification. The typology is a useful heuristic and it
+is not an evolutionary sequence — societies have moved in both directions, and the assumption of
+unidirectional progression was one of the discipline's early errors.
+
+Economic and political anthropology:
+  reciprocity          mutual giving sustaining obligation and relationship
+  generalized reciprocity  giving without accounting; within close kin
+  balanced reciprocity  expected return within a period
+  negative reciprocity  attempting to get more than is given
+  redistribution       collected centrally and dispersed; tribute and taxation
+  market exchange      impersonal prices; one mode among several
+  the gift analysis    delay and inexactness are constitutive
+  the coexistence      gift and commodity logics both operate in market societies
+  substantivism        the economy embedded in social relations
+  formalism            economic reasoning as universally applicable
+  bands                small, egalitarian, leadership by influence
+  tribes and chiefdoms  inherited rank, redistribution
+  states               formal institutions, coercion, stratification
+  not a sequence       societies have moved in both directions
+  the early error      assuming unidirectional progression; abandoned and worth
+                       remembering as a caution about typologies generally
+  informal economy     the large fraction of economic activity outside formal
+                       measurement; ethnography sees it where statistics do not
+
+## Symbolic Systems, Ritual, and Meaning
+
+Symbolic anthropology treats culture as a system of meanings that people use to interpret
+experience and act in the world. The interpretive approach reads social action as a text — the
+analytic task being to understand what a practice means to those performing it — and it makes
+description rather than causal explanation the primary goal, which is a substantial methodological
+commitment and a contested one within the discipline.
+
+Ritual is the most studied category because it makes implicit structure explicit. Rites of passage
+have a consistent three-part structure across societies: separation from the previous status,
+a liminal period outside ordinary categories, and reincorporation with a new status. The liminal
+phase is where the interesting things happen — ordinary rules are suspended, hierarchy is inverted
+or dissolved, and the participants form intense bonds. Recognizing this structure explains a great
+deal about initiation, pilgrimage, and even organizational practices in modern institutions.
+
+Classification systems are the other major theme. Anomalous things — those that do not fit the
+categories a society uses to organize the world — attract disproportionate ritual attention, and
+purity and pollution rules frequently track category violation rather than hygiene. The general
+argument that dirt is matter out of place, that pollution beliefs are about maintaining conceptual
+order, illuminates rules that appear arbitrary when read as practical measures and become coherent
+when read as boundary maintenance.
+
+Symbolic systems:
+  culture as meaning   a system for interpreting experience
+  interpretive approach  reading action as a text
+  thick description    an account including the meaning, not just the behaviour
+  ritual               makes implicit structure explicit
+  rites of passage     separation, liminality, reincorporation
+  liminality           outside ordinary categories; rules suspended
+  communitas           the intense undifferentiated bonding of the liminal phase
+  the modern application  initiation practices in institutions follow the same
+                       structure
+  classification       the categories organizing the world
+  anomaly              what does not fit; attracts ritual attention
+  purity and pollution  frequently about category maintenance rather than hygiene
+  myth                 narrative doing structural work; not failed history
+  taboo                prohibitions marking boundaries
+  performance          the enactment as the thing itself, not a representation of
+                       something else
+  material culture     objects carrying meaning; what people make and keep is
+                       evidence about what they think
+
+## Archaeology and Applied Practice
+
+Archaeology recovers past societies from material remains, and its central methodological problem is
+inference from a heavily filtered record. What survives is biased toward the durable, the buried,
+and the deliberately deposited, so an assemblage of stone and ceramic from a society that also used
+wood, fibre, and leather represents a small and unrepresentative fraction of its material life.
+Reasoning from what is present to what existed requires explicit models of preservation and
+deposition.
+
+Context is the primary evidence and it is destroyed by excavation, which makes archaeology unusual
+among sciences in that its method consumes its subject. An artifact removed without its
+stratigraphic position, associations, and surroundings recorded has lost most of its information
+value, which is why looted objects are archaeologically nearly worthless regardless of their
+condition and why recording standards are so exacting.
+
+Applied anthropology brings the discipline's methods to practical problems, and its value comes
+from the same source as its academic value: attention to what people actually do, in context, over
+time. Development projects that fail despite technical soundness usually fail for social reasons
+that ethnographic assessment would have identified. Design and technology research adopted
+ethnographic methods for the same reason — observing use in context reveals requirements that
+interviews and surveys do not, because people cannot report what they do not consciously notice.
+
+Archaeology and application:
+  the filtered record  biased toward durable, buried, deliberately deposited
+  preservation models  required to reason from present to existed
+  context              the primary evidence; destroyed by excavation
+  stratigraphy         the sequence of deposition; relative dating
+  radiocarbon dating   absolute dates for organic material; calibrated against
+                       tree rings because atmospheric carbon has varied
+  the calibration point  uncalibrated dates are systematically wrong and the
+                       error is not constant
+  survey               non-destructive location before excavation
+  remote sensing       ground-penetrating radar, lidar under vegetation; has
+                       transformed site discovery
+  isotope analysis     diet and mobility from skeletal chemistry
+  ancient DNA          population movement and relationships; has overturned
+                       several long-standing migration models
+  the interpretive caution  material patterns underdetermine social
+                       interpretation, and confident social conclusions from
+                       artifact distributions should be read sceptically
+  applied anthropology  the methods brought to practical problems
+  development failure  technically sound projects failing for social reasons
+                       that assessment would have found
+  design ethnography   observing use in context; reveals what interviews cannot
+                       because people do not consciously notice their own
+                       workarounds
+  ethics               informed consent, community benefit, repatriation, and a
+                       disciplinary history entangled with colonial administration
+                       that the field has had to confront directly

@@ -1,0 +1,306 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: MLOps and Model Serving
+Subtopics: the production lifecycle, feature stores, training pipelines, deployment
+patterns, monitoring and drift, experimentation, cost, governance.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## The Production Lifecycle
+
+A model in a notebook and a model in production differ less in the model than in
+everything around it. The code that trains the model is typically a small fraction of a
+production machine learning system; the majority is data collection, feature engineering,
+validation, serving infrastructure, monitoring, and the plumbing connecting them. Teams
+that budget for the model and not for the surrounding system consistently discover this
+late.
+
+The lifecycle is a loop rather than a pipeline. Data is collected and validated, features
+are computed, a model is trained and evaluated offline, it is deployed behind a serving
+layer, its predictions are monitored, and the observed outcomes feed back into the next
+training set. Each stage can fail in ways that are invisible from the others, and the
+failures that matter most in practice are silent — a model that returns confident,
+well-formed, wrong predictions produces no errors and no alerts.
+
+Reproducibility is the property that makes everything else possible, and it requires
+versioning four distinct things. Code version is the easy one. Data version is harder,
+since datasets are large and mutable, and the standard approaches are content-addressed
+storage, immutable snapshots, or a query plus a timestamp against an append-only source.
+Model version binds a specific artifact to the code and data that produced it.
+Environment version pins dependencies, since a library upgrade can silently change
+preprocessing behaviour. A model that cannot be regenerated from these four is a model
+that cannot be debugged when it misbehaves.
+
+Lifecycle stages and their characteristic failures:
+  data collection     silent schema changes, upstream outages producing nulls
+                      rather than errors
+  validation          missing; the most common gap, and the cheapest to close
+  feature engineering training/serving skew from divergent implementations
+  training            leakage, unrepresentative splits, unreproducible runs
+  evaluation          offline metrics that do not predict online outcomes
+  deployment          version mismatch between model and preprocessing
+  serving             latency, cost, and cold starts under real traffic
+  monitoring          absent, or measuring system health rather than model health
+  feedback            labels arriving late, or only for the actions taken
+
+Training-serving skew is the defining failure mode of production machine learning. The
+model is trained on features computed one way — in a batch job, in pandas, over a
+historical table — and served features computed another way — in a request handler, in a
+different language, from a live source. Any divergence in handling of nulls, of
+categorical encodings, of time zones, of unit conventions, of default values, produces a
+model receiving inputs unlike anything it was trained on. It typically degrades
+performance without producing any error, and it is the reason feature stores exist.
+
+Q: A model performs well offline and poorly in production, with no errors logged. The
+first thing to check is:
+A. Whether the model needs retraining
+B. Whether serving features match training features exactly
+C. Whether the model is too small
+D. Whether traffic has increased
+Reasoning: Silent degradation with a good offline score is the signature of
+training-serving skew. Comparing the distribution of features observed at serving against
+the training distribution, feature by feature, localizes it quickly. Retraining on the
+same skewed pipeline reproduces the problem. Answer: B.
+
+## Features and Data Management
+
+A feature store is infrastructure that computes, stores, and serves features consistently
+to both training and inference. Its central promise is a single definition per feature
+used in both paths, which eliminates skew by construction rather than by discipline. It
+provides an offline store optimized for large historical reads during training and an
+online store optimized for low-latency single-entity lookups during serving, kept
+consistent with each other.
+
+Point-in-time correctness is the subtle requirement a feature store exists to enforce.
+When constructing a training example for an event at time T, every feature must reflect
+only information available at time T. Joining a feature table naively pulls the current
+value rather than the value as of the event, which leaks future information and produces
+offline metrics that cannot be reproduced online. Doing this join correctly at scale is
+genuinely difficult — it is an as-of join across many tables with different update
+frequencies — and getting it wrong is one of the most common causes of a model that looks
+excellent in evaluation and mediocre in deployment.
+
+Data validation should run automatically on every batch, treating data quality as a test
+suite rather than as an occasional audit. Schema checks catch type changes and new or
+missing columns. Distribution checks catch shifts in the range, mean, or category
+frequencies. Volume checks catch partial loads. Null-rate checks catch upstream failures
+that substitute defaults for real values. Each of these has caught silent production
+failures in every organization that has implemented them, and their absence is why such
+failures typically surface weeks later through a business metric.
+
+Feature and data practices:
+  feature store         one definition, offline and online stores, skew eliminated
+                        by construction
+  point-in-time join    features as of the event time, never current values
+  feature versioning    changing a feature's definition is a breaking change;
+                        version it rather than mutating it
+  data contracts        explicit schema and quality expectations between producer
+                        and consumer, enforced in CI
+  validation suite      schema, distribution, volume, nulls, referential integrity
+  lineage               which data produced which features produced which model
+  backfill              recomputing history when a definition changes; expensive,
+                        so design definitions to be stable
+  labels                often delayed, often biased toward actions taken;
+                        acknowledge the delay explicitly in evaluation design
+
+Label delay and label bias deserve emphasis because they distort evaluation in ways that
+are easy to miss. If fraud labels arrive sixty days after a transaction, then any model
+evaluated on the last sixty days is evaluated against incomplete labels, systematically
+undercounting fraud. If a loan default label exists only for approved applicants, then
+training on approved applicants alone produces a model whose performance on the
+rejected population is entirely unknown — the selective labels problem, which requires
+either a deliberate randomized exploration policy or careful causal treatment.
+
+## Training Pipelines and Deployment
+
+A training pipeline should be a scheduled, parameterized, reproducible job rather than a
+notebook someone runs. The practical requirements are that it takes explicit inputs
+(data version, hyperparameters, code version), produces explicit outputs (a model
+artifact, metrics, and a lineage record), fails loudly on validation errors, and can be
+re-executed to produce an identical result. Orchestration tools provide the scheduling,
+retries, and dependency management; the discipline of parameterization and determinism has
+to come from the team.
+
+Automated retraining is desirable and dangerous in equal measure. It keeps models current
+as distributions drift and it can propagate a data quality problem straight into
+production without a human noticing. The mitigations are a validation gate that compares
+the candidate against the incumbent on a held-out set and refuses to promote a regression,
+a shadow period where the new model scores traffic without acting on it, and a
+straightforward rollback path. A retraining pipeline without a promotion gate is an
+automated way to deploy a bad model quickly.
+
+Deployment patterns trade risk against speed of feedback. Blue-green keeps two full
+environments and switches traffic atomically, giving instant rollback at the cost of
+double the infrastructure. Canary routes a small traffic percentage to the new version and
+increases it as metrics hold, limiting blast radius. Shadow mode sends a copy of live
+traffic to the new model without using its output, which is the safest way to validate a
+model on real traffic and the only way to observe its behaviour under realistic inputs
+before it affects anyone. A/B testing splits traffic to measure the causal effect on
+business metrics, which is the only way to learn whether the offline improvement matters.
+
+Deployment and serving patterns:
+  batch prediction    scored offline, results written to a store; simplest, lowest
+                      cost, appropriate whenever predictions are not needed within
+                      seconds of the input arriving
+  online / real-time  synchronous request-response; latency budget drives every
+                      architectural decision
+  streaming           continuous scoring over an event stream
+  embedded / on-device  no network, private, latency-free; update distribution and
+                      model size become the constraints
+  blue-green          two environments, atomic switch, instant rollback
+  canary              gradual traffic ramp with automated metric gates
+  shadow              scores real traffic without acting; safest pre-production
+                      validation
+  multi-armed bandit  adaptively routes traffic toward better-performing variants;
+                      faster than A/B at the cost of a cleaner causal estimate
+
+The choice between batch and online serving is worth making deliberately rather than
+defaulting to online. Batch scoring is dramatically simpler — no latency budget, no
+autoscaling, no cold starts, trivial to debug and reprocess — and is sufficient whenever
+the prediction can be computed before it is needed. Daily churn scores, weekly
+recommendations, and overnight risk assessments do not need a real-time endpoint, and
+building one imposes ongoing operational cost for no benefit. The genuine requirement for
+online serving is that the prediction depends on information available only at request
+time.
+
+[user] Our recommendation model's p99 latency is 340ms against a 100ms budget and
+autoscaling isn't helping.
+[assistant] tool_call serving.latency_profile({"model": "recsys_v4", "p50_ms": 41,
+"p99_ms": 340, "budget_ms": 100, "replicas": 24, "cpu_util_pct": 31})
+[tool] {"breakdown": {"feature_fetch_ms": {"p50": 22, "p99": 268},
+"inference_ms": {"p50": 14, "p99": 31}, "postprocess_ms": {"p50": 5, "p99": 9}},
+"feature_fetch_calls": 47, "cache_hit_rate": 0.0, "bottleneck": "feature_fetch_fanout"}
+[assistant] Autoscaling is not helping because you are not CPU-bound — utilization is 31%.
+The problem is feature fetching, which accounts for 268 ms of your 340 ms at p99.
+
+The specific cause is fan-out. You make 47 separate feature store calls per request, and
+p99 latency for a request that depends on 47 sequential or parallel calls is governed by
+the slowest of the 47, not by the average. Even if each call has a p99 of 8 ms, the
+probability that at least one of 47 is slow approaches certainty. This is the tail-at-scale
+effect and it cannot be fixed by adding replicas.
+
+Three changes, roughly in order of impact:
+
+Batch the fetches. Replace 47 individual lookups with one or two multi-get calls. Most
+online feature stores support batch retrieval, and this collapses 47 independent tail
+draws into one or two. This alone typically takes p99 feature fetch from 268 ms to under
+30 ms.
+
+Add a cache. Your hit rate is zero, which suggests no caching at all. Entity features that
+change slowly — user profile attributes, item metadata — should be cached in-process with
+a short TTL. Even a 70% hit rate removes most of the fan-out.
+
+Precompute what you can. Features that do not depend on request-time context can be
+computed in batch and embedded in the model artifact or loaded at startup, removing them
+from the request path entirely. Item embeddings are the usual candidate.
+
+If those are insufficient, add request hedging: issue a duplicate fetch after a delay
+equal to roughly the p95, and take whichever returns first. It costs a few percent extra
+load and substantially cuts the tail.
+
+One thing not to do: do not reduce the number of candidates scored to hit the budget until
+you have fixed the fetching. Inference is only 31 ms at p99 and is not your problem.
+
+## Monitoring and Drift
+
+System monitoring — latency, error rate, throughput, saturation — is necessary and does
+not tell you whether the model is working. Model monitoring requires distinct signals,
+because a model can be fast, error-free, and wrong.
+
+Prediction monitoring tracks the output distribution over time. A sudden shift in the mean
+predicted probability, or in the distribution of predicted classes, signals that something
+changed even before labels arrive. This is the earliest available warning and requires no
+ground truth, which is why it should always be implemented.
+
+Input monitoring tracks each feature's distribution against a training reference.
+Population stability index and Kullback-Leibler divergence are the common summary
+statistics, with the practical caveat that a threshold on either produces false alarms on
+naturally seasonal features and misses shifts in correlations that univariate statistics
+cannot see. Monitoring the joint distribution is harder; a practical approximation is to
+train a classifier to distinguish training data from current data, since if it succeeds,
+the distributions differ in some detectable way.
+
+Performance monitoring requires labels and is therefore delayed. The gap between
+prediction and label determines how long a degradation can persist unnoticed, which makes
+proxy metrics valuable — click-through rate as a proxy for relevance, immediate user
+action as a proxy for eventual satisfaction — with the standing caution that optimizing a
+proxy eventually diverges from the objective it stood in for.
+
+Types of drift and their appropriate responses:
+  covariate shift      P(X) changes, P(Y|X) stable; the input distribution moved.
+                       Often handled by retraining; importance weighting is the
+                       principled correction.
+  label shift          P(Y) changes, P(X|Y) stable; class balance moved. Recalibrate
+                       the threshold or reweight; often no retraining needed.
+  concept drift        P(Y|X) changes; the relationship itself moved. Retraining is
+                       required and no reweighting helps.
+  sudden drift         an abrupt change — a policy change, a competitor launch,
+                       a pandemic
+  gradual drift        slow evolution of user behaviour
+  seasonal             recurring; should be modelled rather than treated as drift
+  feedback loop        the model's own actions change the distribution it sees;
+                       recommendation systems create their own training data
+
+Feedback loops deserve their own attention because they are self-reinforcing and
+invisible to standard drift detection. A recommender that surfaces certain items causes
+those items to be clicked, which causes them to appear more relevant in the next training
+set, which causes them to be surfaced more. The distribution shifts because of the model,
+so comparing against a reference does not flag it as anomalous. Mitigations require
+deliberate exploration — reserving a small fraction of traffic for randomized or
+uncertainty-driven selection — which costs short-term performance to preserve long-term
+learnability, and which is difficult to justify to stakeholders precisely because the cost
+is visible and the benefit is counterfactual.
+
+## Cost, Governance, and Organization
+
+Inference cost usually dominates training cost over a model's lifetime, and it is
+frequently unmeasured. Training a model once for a thousand dollars and serving it a
+billion times at a hundredth of a cent each is a hundred thousand dollars of inference. The
+practical levers are model size reduction through distillation, quantization, or pruning;
+caching repeated predictions; batching requests to improve hardware utilization; and
+tiering, where a cheap model handles the easy majority and escalates uncertain cases to an
+expensive one.
+
+Quantization deserves specific mention as the highest-leverage inference optimization for
+large models, because it addresses the actual bottleneck. Decode-time inference at small
+batch sizes is memory-bandwidth-bound, so reducing the bytes per weight reduces latency
+nearly proportionally, and the arithmetic was never the constraint. The engineering
+question is how much quality is lost, which is why quantized models must be evaluated
+against the full-precision reference on the actual deployment distribution rather than on
+a generic benchmark — degradation frequently concentrates in specific capabilities, such
+as well-formed structured output, that aggregate metrics do not surface.
+
+Governance requirements vary by domain and are non-negotiable where they apply. Model
+cards document intended use, training data, evaluation results, and known limitations.
+Audit trails record which model version produced which prediction, which matters when a
+decision is contested. Explainability requirements in credit, employment, and insurance may
+mandate that an adverse decision be accompanied by specific reasons, which constrains
+model choice toward intrinsically interpretable forms or requires a defensible
+post-hoc method. Fairness assessment across protected groups requires choosing among
+mathematically incompatible definitions — demographic parity, equalized odds, and
+calibration cannot generally hold simultaneously — so the choice is a policy decision that
+should be made explicitly and documented rather than defaulted to whatever the library
+computes.
+
+Operational and organizational practices:
+  model registry       versioned artifacts with stage transitions and approvals
+  promotion gates      automated comparison against the incumbent before rollout
+  rollback plan        tested, fast, and available without a redeploy
+  on-call for models   someone owns model health, not only service health
+  runbooks             what to do when drift fires, when latency spikes, when a
+                       feature pipeline fails
+  shadow evaluation    every candidate scores real traffic before it serves any
+  cost attribution     per-model inference cost visible to the team that owns it
+  documentation        model card, data sheet, evaluation report, known failure
+                       modes
+  incident review      model failures reviewed like outages, with follow-up actions
+
+The organizational pattern that most reliably predicts success is ownership continuity:
+the team that builds a model operates it. Where a research team hands a model to a
+platform team, the failure modes that matter — subtle distribution shifts, degraded
+performance on a subpopulation, a feature whose meaning changed upstream — are invisible
+to whoever holds the pager and unremarkable to whoever understands the model. The
+alternative arrangement, where the modelling team carries operational responsibility, tends
+to produce simpler models, better monitoring, and far more attention to the data pipeline,
+because those are what make a system that can be operated rather than merely demonstrated.

@@ -1,0 +1,231 @@
+================================================================================
+AREA: Humanities and Business
+SUBJECT: Art History
+Subtopics: looking and analysis, materials and technique, periods and movements,
+patronage and institutions, modernism and after, conservation, interpretation.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Looking, Description, and Formal Analysis
+
+Art history begins with sustained looking, and the discipline's first skill is describing what is
+actually present before interpreting it. Formal analysis attends to composition, line, colour,
+light, space, scale, texture, and the handling of the medium, and its value is that it grounds
+interpretation in observable evidence rather than in what the viewer expects the work to be about.
+
+Composition organizes attention. A stable symmetrical arrangement reads differently from a diagonal
+one; a figure placed at the centre carries different weight from one at the edge; a receding
+perspectival space invites the viewer in while a flattened one holds them out. These effects are
+reliable enough to be used deliberately, and reading them is the closest thing the field has to a
+technical vocabulary.
+
+Iconography, the study of what images depict and what those depictions conventionally mean, sits
+alongside formal analysis. A viewer who does not know that a particular attribute identifies a
+particular figure, or that a certain flower carried a specific meaning to the original audience,
+misses content that was entirely explicit at the time. The standard analytic sequence moves from
+description of form, through identification of subject, to interpretation of meaning in context, and
+skipping the earlier steps is how confident misreadings are produced.
+
+Looking and analysis:
+  formal analysis      composition, line, colour, light, space, scale, texture
+  the discipline       describe before interpreting
+  composition          how attention is organized
+  symmetry and diagonal  stability versus movement
+  perspective          a constructed system, not a natural way of seeing
+  linear perspective   a single vanishing point; a specific historical invention
+  atmospheric perspective  distance through reduced contrast and cooler colour
+  picture plane        the surface; whether the work acknowledges it or denies it
+  figure and ground    what is read as object and what as space
+  colour relationships  hue, saturation, and value doing distinct work
+  chiaroscuro          strong light and dark modelling form
+  iconography          conventional subjects and their meanings
+  attribute            an object identifying a figure
+  the analytic sequence  form, then subject, then meaning in context
+  the common error     interpreting before describing, which finds what was
+                       expected
+
+Q: A viewer describes a fifteenth-century religious painting as "unrealistic" because figures are
+sized by importance rather than by distance. The better reading is:
+A. The artist lacked skill
+B. The scale is hierarchical by convention, communicating relative significance to an audience who
+   read it that way; naturalistic scale is one system among several, not a default the work fails
+   to achieve
+C. The painting is damaged
+D. Perspective had not been invented anywhere
+Reasoning: Hierarchical scale is a deliberate representational system with a long history and a
+legible meaning for its audience. Reading it as failed naturalism imposes a later convention as the
+standard. Answer: B.
+
+## Materials, Technique, and Making
+
+Understanding how a work was made changes what can be seen in it, and materials impose constraints
+that shape style far more than is usually acknowledged. Fresco requires painting into wet plaster
+that dries within hours, so the composition must be planned completely, executed in sections
+matching a day's work, and cannot be substantially revised. The resulting broad, decisive handling
+is a consequence of the medium's demands.
+
+Oil paint's slow drying permits the opposite: reworking, glazing in transparent layers, blending
+that no fast-drying medium allows, and the deep saturated darks that made a particular kind of
+illusionism possible. Tempera dries quickly and is applied in small strokes, producing the
+characteristic hatched modelling of works made before oil displaced it. Watercolour is transparent
+and largely unforgiving. Each medium's possibilities and refusals are visible in the finished
+surface once you know what to look for.
+
+Sculpture divides between subtractive processes, where material is removed and errors are permanent,
+and additive ones, where material is built up and revised freely. Casting permits multiples from one
+model, which raises questions about originality that the discipline has answered differently at
+different times. Printmaking similarly produces multiples, and the technique — relief, intaglio,
+planographic — determines the character of the line and the possible edition size.
+
+Materials and technique:
+  fresco               into wet plaster; planned, sectioned by day's work,
+                       unrevisable
+  the stylistic consequence  broad decisive handling from the medium's demands
+  tempera              fast drying, small strokes, hatched modelling
+  oil                  slow drying; glazing, blending, deep darks, revision
+  underdrawing and pentimenti  the artist's changes, visible in infrared
+  ground and support   what the paint sits on; affects colour and ageing
+  varnish              protective and optical; it yellows, altering every colour
+                       relationship in the work
+  watercolour          transparent, unforgiving
+  subtractive sculpture  carving; errors are permanent
+  additive sculpture   modelling; freely revised
+  casting              multiples from one model
+  patina               surface chemistry, deliberate or accumulated
+  relief printing      the raised surface prints
+  intaglio             the incised line holds the ink
+  planographic         a chemically differentiated flat surface
+  edition              the number of impressions; the plate degrades, so late
+                       impressions differ from early ones
+
+## Periods, Movements, and Their Limits
+
+Period labels are organizing conveniences imposed after the fact, and treating them as real entities
+produces bad history. Artists did not consider themselves to be doing the Renaissance; the term
+arrived centuries later, carrying an implicit narrative of rebirth after decline that reflects the
+attitudes of those who coined it more than the experience of those it describes. Every period label
+carries similar freight and should be used lightly.
+
+Movements with self-conscious membership are different, and the distinction is worth maintaining.
+When artists publish a manifesto, exhibit together, and define themselves against something, the
+grouping is a historical fact rather than a retrospective category. Many of the labels applied to
+nineteenth and twentieth century art fall into this class, and many others — including several
+originally coined as insults by hostile critics — do not.
+
+The traditional narrative of Western art history is also a narrative about a small geographic area
+told as though it were universal, and the field has spent decades reckoning with that. Comparable
+traditions elsewhere developed on their own terms with their own criteria, and reading them through
+a European developmental sequence misses what they were doing. The global turn in the discipline is
+not a matter of adding examples to an existing story but of questioning whether that story's shape
+was ever the right one.
+
+Periods and their limits:
+  period labels        imposed after the fact; carry the coiner's assumptions
+  the Renaissance case  the term implies decline and rebirth, a later judgement
+  self-conscious movements  manifesto, joint exhibition, defined opposition
+  the distinction      a historical grouping versus a retrospective category
+  labels from insults  several major movement names began as hostile criticism
+  stylistic development  a narrative device; artists work in many modes at once
+  regional variation   substantial within any period label
+  workshop practice    much premodern art is collaborative; single authorship is
+                       partly a modern expectation
+  the canon            a selection reflecting who was collecting and writing
+  omissions            women artists, non-European traditions, and craft media
+                       excluded by category rather than by quality
+  the global turn      questioning the narrative's shape, not adding to it
+  comparative caution  applying one tradition's criteria to another describes the
+                       critic more than the work
+  material culture     the boundary between art and artifact is a historically
+                       specific institutional decision
+
+## Patronage, Institutions, and the Art World
+
+Art is made under economic conditions and those conditions leave marks on the work. Premodern
+production was largely commissioned, with contracts specifying subject, dimensions, materials
+including how much of the expensive pigment to use, deadlines, and sometimes the degree of the
+master's own participation. Reading such contracts makes clear that the modern conception of the
+artist as an autonomous originator is a later development rather than a constant.
+
+The academy system that succeeded direct patronage institutionalized training, established a
+hierarchy of genres with history painting at the top and still life at the bottom, and controlled
+exhibition through juried salons. Much of nineteenth-century art history is the story of artists
+working against that system — organizing independent exhibitions, cultivating dealers, and
+addressing a market rather than an institution — and the dealer-critic system that replaced the
+academy created the structure that still largely operates.
+
+The contemporary art world is a set of institutions with distinct functions: galleries selling
+primary work, auction houses managing resale, museums conferring legitimacy through acquisition and
+exhibition, biennials and fairs setting international attention, and critics, curators, and
+academics producing the discourse that supports valuation. Value in this system is substantially
+institutionally produced, which is a description of how it works rather than a criticism of it.
+
+Patronage and institutions:
+  commission contracts  subject, size, materials, deadline, participation
+                       specified
+  pigment clauses      the cost of certain colours written into the agreement
+  the autonomous artist  a later conception, not a constant
+  guild system         training, standards, and market control
+  workshop             collaborative production under a master's name
+  academy              institutionalized training and a genre hierarchy
+  the genre hierarchy  history painting above portrait, landscape, and still life
+  salon                juried exhibition controlling access to audience
+  independent exhibitions  the mechanism of opposition to the academy
+  dealer-critic system  the structure that replaced academic control
+  primary and secondary market  first sale versus resale
+  museum acquisition   confers legitimacy and removes work from circulation
+  provenance           ownership history; establishes authenticity and, for some
+                       objects, whether acquisition was lawful
+  restitution          the return of objects taken under coercion or colonial
+                       administration; an active institutional issue rather than
+                       a settled historical one
+  the honest description  artistic value in the current system is produced by
+                       institutions as much as recognized by them
+
+## Modernism, Conservation, and Interpretation
+
+Modernism describes a set of related developments in which art turned its attention to its own
+means — the flatness of the canvas, the properties of the material, the nature of representation
+itself — rather than to depicting the world. The trajectory from representation toward abstraction
+was not inevitable and was contested throughout, and the accompanying critical claim that it
+constituted progress toward the medium's essence is itself a historical position rather than a
+description.
+
+Subsequent developments questioned modernism's premises in ways that make the term after it hard to
+define coherently. Conceptual practice located the work in the idea rather than the object.
+Institutional critique made the gallery's framing the subject. Appropriation questioned originality
+directly. Performance, installation, and time-based media raised the question of what is preserved
+when the work is an event or a system rather than an object, which is where conservation and theory
+meet.
+
+Conservation is intervention and every choice embeds an interpretation. Cleaning a painting removes
+discoloured varnish and reveals colours the artist chose, and it also removes a surface the work
+has had for centuries and that generations understood as part of it. Filling a loss can be visually
+integrated or deliberately distinguishable. The field's current consensus favours minimal,
+reversible, documented intervention, which is a position arrived at after considerable damage was
+done by confident restorers pursuing a different one.
+
+Modernism and conservation:
+  modernism            art attending to its own means
+  the abstraction trajectory  contested throughout, not inevitable
+  the progress claim   a critical position, not a description
+  the readymade        designation as the artistic act
+  conceptual practice  the work located in the idea
+  institutional critique  the framing apparatus as subject
+  appropriation        originality questioned directly
+  time-based media     performance, video, installation, software
+  the preservation problem  what is preserved when the work is an event or a
+                       system
+  obsolescence         hardware and software dependencies as a conservation
+                       category
+  conservation as interpretation  every choice embeds a reading
+  cleaning             reveals the artist's colour and removes an accumulated
+                       history
+  reversibility        the current standard for intervention
+  documentation        what makes a later reconsideration possible
+  authenticity         a contested concept for reproducible, reconstructable, and
+                       reperformed work
+  the interpretive stance  a work supports multiple readings, evidence
+                       constrains which are defensible, and the discipline's
+                       value lies in that constraint rather than in settling on
+                       one meaning

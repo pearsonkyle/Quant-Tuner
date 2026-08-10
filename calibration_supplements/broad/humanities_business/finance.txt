@@ -1,0 +1,316 @@
+================================================================================
+AREA: Humanities, Business, and Social Science
+SUBJECT: Finance
+Subtopics: time value of money, valuation, risk and return, portfolio theory,
+derivatives, corporate finance, market structure, financial statements.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Time Value of Money
+
+A dollar today is worth more than a dollar tomorrow, because today's dollar can be
+invested. This is the foundational principle of finance, and essentially every valuation
+technique is an elaboration of it. Discounting converts future cash flows to present value
+by dividing by one plus the discount rate raised to the number of periods; compounding runs
+the same arithmetic forward.
+
+The discount rate is where the judgment lives. It should reflect the opportunity cost of
+capital — the return available on an investment of comparable risk — so a riskier cash flow
+is discounted at a higher rate and is worth less today. Two analysts valuing the same
+project will agree on the cash flow arithmetic and disagree on the rate, and the rate
+dominates the answer for long-dated flows: at a ten percent rate, a dollar in thirty years
+is worth six cents, while at five percent it is worth twenty-three cents, a fourfold
+difference from a five-point disagreement.
+
+Compounding frequency matters more than intuition suggests. An annual rate compounded more
+frequently yields a higher effective return, converging to the continuous limit as the
+frequency increases. This is why the stated nominal rate and the effective annual rate
+differ, why credit products must disclose an annual percentage rate on a comparable basis,
+and why the distinction between a rate and a yield is worth keeping precise.
+
+Time value formulas:
+  future value          FV = PV (1 + r)^n
+  present value         PV = FV / (1 + r)^n
+  effective annual rate EAR = (1 + r/m)^m - 1 for m compounding periods
+  continuous compound   FV = PV e^(rt)
+  annuity PV            PV = C [1 - (1+r)^-n] / r
+  perpetuity            PV = C / r
+  growing perpetuity    PV = C / (r - g),  requires r > g
+  net present value     sum of discounted cash flows minus initial investment
+  internal rate         the rate making NPV zero
+  rule of 72            doubling time ≈ 72 / percentage rate
+
+Net present value is the correct capital budgeting criterion and internal rate of return is
+the more popular one, which is a persistent problem. IRR is intuitive because it is a
+percentage, and it has genuine defects: it can have multiple values when cash flows change
+sign more than once, it implicitly assumes reinvestment at the IRR itself, and it ranks
+mutually exclusive projects incorrectly when they differ in scale or timing. A small
+project with a fifty percent return may create less value than a large one with a fifteen
+percent return, and only NPV expresses that. Where both are reported, NPV governs.
+
+Q: A project requires 100,000 now and returns 40,000 per year for three years. At a 10%
+discount rate, should it be accepted?
+A. Yes, total returns of 120,000 exceed the 100,000 cost
+B. No, the NPV is negative
+C. Yes, the NPV is about -520
+D. Cannot be determined without the IRR
+Reasoning: The present value of a three-year annuity of 40,000 at 10% is 40,000 x [1 -
+1.1^-3]/0.1 = 40,000 x 2.4869 = 99,474. Subtracting the 100,000 cost gives an NPV of about
+-526. Undiscounted totals are the classic error; the timing of the flows is exactly what
+matters. Answer: B.
+
+## Risk, Return, and Portfolio Theory
+
+Risk in finance is conventionally measured as the volatility of returns, usually their
+standard deviation. This is a convenient and incomplete definition: it treats upside and
+downside deviation symmetrically, and it assumes a distribution well described by its
+first two moments, which financial returns are not — they exhibit fat tails, so extreme
+moves occur far more often than a normal distribution predicts.
+
+The central insight of portfolio theory is that risk is not additive. Combining assets
+whose returns are imperfectly correlated produces a portfolio whose volatility is less
+than the weighted average of the components', because their fluctuations partially offset.
+Diversification therefore reduces risk without a corresponding reduction in expected
+return, which is as close to a free lunch as finance offers. The benefit depends entirely
+on correlation: combining two assets with correlation of one achieves nothing, and lower
+correlation achieves more.
+
+Diversification eliminates idiosyncratic risk — the component specific to individual
+assets — and cannot eliminate systematic risk, the component driven by common factors
+affecting everything. This division is what underpins asset pricing: since idiosyncratic
+risk can be diversified away at no cost, the market does not compensate investors for
+bearing it, and expected return should depend only on exposure to systematic risk. Beta
+measures that exposure relative to the market, and the capital asset pricing model prices
+an asset's expected return as the risk-free rate plus beta times the market risk premium.
+
+Risk and portfolio quantities:
+  expected return        probability-weighted average outcome
+  volatility             standard deviation of returns; annualize by multiplying
+                         by the square root of periods per year
+  covariance             how two assets move together
+  correlation            covariance normalized to [-1, 1]
+  portfolio variance     w' Sigma w;  the cross terms are where diversification
+                         acts
+  beta                   covariance with the market divided by market variance
+  CAPM                   E[R] = R_f + beta (E[R_m] - R_f)
+  Sharpe ratio           (return - risk-free) / volatility; return per unit risk
+  Sortino ratio          same, using downside deviation only
+  efficient frontier     maximum return for each level of risk
+  value at risk          loss threshold exceeded with probability alpha
+  expected shortfall     average loss beyond VaR; coherent where VaR is not
+
+Value at risk deserves a specific warning because it is widely used and structurally
+misleading. It states a loss level that will not be exceeded with some confidence, and it
+says nothing whatever about how bad things are in the tail beyond that level. Two portfolios
+with identical VaR can have entirely different exposures to catastrophic loss. VaR also
+fails subadditivity — the VaR of a combined portfolio can exceed the sum of its parts,
+which is incoherent for a risk measure and can perversely penalize diversification. Expected
+shortfall, the average loss conditional on exceeding the threshold, fixes both problems and
+has become the regulatory standard.
+
+The equity risk premium — the excess return of stocks over risk-free assets — has averaged
+roughly four to six percent historically, and both the number and its interpretation are
+contested. Historical estimates suffer survivorship bias, since the markets with long
+continuous histories are the ones that were not destroyed by war or expropriation, and the
+sample of independent long-horizon observations is small. Forward-looking estimates from
+dividend yields and earnings growth generally produce lower figures. Anyone using a
+historical average as a forward expectation should treat the uncertainty as very large.
+
+## Valuation
+
+Valuation asks what an asset is worth, and there are three broad approaches whose
+disagreements are usually more informative than any one answer.
+
+Discounted cash flow valuation projects the cash the asset will generate and discounts
+them at the appropriate rate. It is the most theoretically sound approach and the most
+sensitive to assumptions, particularly the terminal value, which typically accounts for
+the majority of the total and depends on a perpetual growth rate applied beyond the
+forecast horizon. Small changes in that growth rate or in the discount rate produce large
+changes in the answer, so a DCF should always be presented as a range across a sensitivity
+grid rather than as a point estimate. A perpetual growth rate exceeding long-run economic
+growth is not defensible, since it implies the company eventually becomes the entire
+economy.
+
+Relative valuation compares against similar assets using multiples — price to earnings,
+enterprise value to EBITDA, price to book, price to sales. It is fast, reflects current
+market sentiment, and is entirely dependent on the comparables being genuinely comparable
+and on the market pricing them sensibly. A multiple embeds assumptions about growth, risk,
+and capital intensity, so comparing companies that differ on those dimensions produces
+misleading conclusions dressed up as arithmetic.
+
+Asset-based valuation sums the value of the underlying assets less liabilities. It provides
+a floor for asset-heavy businesses and understates any business whose value derives from
+intangibles, relationships, or growth prospects, which is most businesses.
+
+Valuation methods and their use:
+  DCF                   intrinsic value from projected cash flows; sensitive to
+                        terminal assumptions
+  free cash flow        FCF = operating cash flow - capital expenditure; what
+                        actually accrues to investors
+  WACC                  weighted cost of debt and equity; the standard firm
+                        discount rate
+  terminal value        Gordon growth or exit multiple; usually the majority of a
+                        DCF's total
+  P/E                   price per unit of earnings; meaningless for loss-makers,
+                        distorted by leverage and accounting
+  EV/EBITDA             capital-structure neutral; better for cross-company
+                        comparison
+  P/B                   relevant for financial institutions with marked assets
+  dividend discount     for stable dividend payers; the Gordon model
+  precedent transactions  what acquirers actually paid; includes a control premium
+  sum of the parts      value segments separately; useful for conglomerates
+
+Enterprise value versus equity value is the distinction most often mishandled. Enterprise
+value is the value of the operating business regardless of how it is financed — market
+capitalization plus net debt — and it is what pairs correctly with pre-interest measures
+such as EBITDA and unlevered free cash flow. Equity value is what accrues to shareholders
+after debt and pairs with net income and levered cash flow. Mixing them, such as computing
+enterprise value divided by net income, produces a number that means nothing and is
+nonetheless seen regularly.
+
+[user] Two comparable companies trade at P/E of 12 and 31. Is the first one cheap?
+[assistant] tool_call fin.multiple_analysis({"company_a": {"pe": 12, "growth": 0.03,
+"roic": 0.09, "wacc": 0.085, "leverage": 1.9}, "company_b": {"pe": 31, "growth": 0.18,
+"roic": 0.27, "wacc": 0.09, "leverage": 0.2}})
+[tool] {"peg_a": 4.0, "peg_b": 1.72, "economic_spread_a": 0.005,
+"economic_spread_b": 0.18, "implied_growth_a": 0.026, "implied_growth_b": 0.163,
+"verdict": "multiples_consistent_with_fundamentals"}
+[assistant] No — the gap is explained by fundamentals, not by mispricing. The lower
+multiple is the more expensive company on any measure that accounts for what you are
+buying.
+
+Three things drive the difference. Company B grows at 18% against A's 3%, and a multiple is
+a claim on future earnings, so faster growth justifies paying more for current earnings. B
+earns a 27% return on invested capital against a 9% cost of capital, an 18-point economic
+spread, meaning every dollar it reinvests creates value. A earns 9% against an 8.5% cost —
+essentially zero spread, so its growth creates almost no value and reinvestment is close to
+a wash. And A carries nearly ten times the leverage, which inflates its earnings per share
+in good conditions and makes those earnings far riskier.
+
+On a PEG basis A is at 4.0 and B at 1.72, which reverses the apparent ranking entirely.
+
+Two cautions on that conclusion. PEG is a crude heuristic that assumes a linear relation
+between growth and multiple, which does not hold, and it says nothing about how durable
+B's growth is — an 18% grower priced for 16% has no margin for error, and the risk in B is
+that the growth decelerates rather than that the multiple is wrong today. Meanwhile A's
+risk is different in kind: with a 1.9 leverage ratio and no economic spread, a downturn
+compresses earnings against fixed interest obligations.
+
+The useful reframe is that a multiple is not a price tag, it is an implied forecast.
+A at 12x is implying about 2.6% perpetual growth; B at 31x is implying about 16%. The
+question is not which number is lower but which implied forecast you disagree with.
+
+## Derivatives and Corporate Finance
+
+A derivative's value derives from an underlying asset. Forwards and futures obligate a
+transaction at a set price on a future date, differing in that futures are exchange-traded,
+standardized, and marked to market daily with margin, while forwards are bilateral and
+carry counterparty risk. Options grant the right without the obligation — a call to buy, a
+put to sell — and therefore have an asymmetric payoff, which is what makes them useful for
+hedging and what makes them harder to value. Swaps exchange cash flow streams, most
+commonly fixed for floating interest.
+
+Option pricing rests on the insight that an option's payoff can be replicated by a
+continuously rebalanced portfolio of the underlying and a risk-free bond. If replication
+is possible, then absence of arbitrage forces the option's price to equal the cost of the
+replicating portfolio, which yields the Black-Scholes formula under its assumptions. The
+striking feature of the result is that the underlying's expected return does not appear:
+what matters is its volatility, since the replication argument holds regardless of drift.
+This is risk-neutral valuation, and it is the central technique of derivative pricing.
+
+The model's assumptions are known to be wrong in specific ways, and the market's
+adjustments are visible in the pricing. Black-Scholes assumes constant volatility and
+lognormal returns; real returns have fat tails and volatility clusters. Inverting observed
+option prices for implied volatility therefore does not produce a single number but a
+volatility smile or skew across strikes — with out-of-the-money puts priced at higher
+implied volatility, reflecting demand for crash protection and the empirical fact that
+large downward moves are more likely than the lognormal assumption allows.
+
+Derivatives and corporate finance concepts:
+  call / put             right to buy / sell at the strike
+  intrinsic value        immediate exercise value; zero if out of the money
+  time value             the remainder; decays toward expiry, fastest at the end
+  the Greeks             delta (underlying sensitivity), gamma (delta's change),
+                         theta (time decay), vega (volatility sensitivity), rho
+                         (rate sensitivity)
+  put-call parity        C - P = S - K e^(-rT);  a model-free arbitrage relation
+  implied volatility     the market's forward-looking volatility estimate
+  volatility skew        higher implied vol for downside strikes; evidence against
+                         the lognormal assumption
+  WACC                   weighted average cost of capital; the hurdle rate
+  Modigliani-Miller      capital structure is irrelevant under strong assumptions;
+                         the value lies in identifying which assumption fails
+  tax shield             interest is deductible, favouring debt
+  distress costs         favouring equity; the tradeoff sets an optimal structure
+  agency costs           conflicts between managers, shareholders, and creditors
+  pecking order          firms prefer internal funds, then debt, then equity, to
+                         avoid signalling overvaluation
+
+The Modigliani-Miller theorem is frequently misread. Its conclusion, that capital
+structure does not affect firm value, holds in a world with no taxes, no bankruptcy costs,
+no information asymmetry, and no agency conflicts. Since firm value clearly does depend on
+capital structure in reality, the theorem's value is diagnostic: it identifies exactly which
+market imperfection is doing the work in any particular case. Interest deductibility favours
+debt; the costs of financial distress and the agency problems of leverage favour equity; the
+optimum balances them.
+
+## Markets, Statements, and Behaviour
+
+The efficient market hypothesis states that prices reflect available information, in weak
+form (past prices), semi-strong form (all public information), or strong form (including
+private information). The evidence supports something close to the semi-strong form for
+liquid markets: most active managers underperform their benchmarks after fees over long
+horizons, and the underperformance is roughly the size of the fees, which is what an
+efficient market would predict. Strong-form efficiency is contradicted by the profitability
+of insider trading, which is why it is illegal.
+
+Documented anomalies complicate the picture without overturning it. Value, momentum, size,
+quality, and low-volatility effects have persisted across markets and time periods, and the
+interpretation is contested between risk-based explanations (these are compensations for
+bearing risks the simple model omits) and behavioural ones (these are systematic errors that
+limits to arbitrage prevent from being competed away). Many anomalies also weaken
+substantially after publication, which is itself evidence that markets adapt.
+
+Financial statements are the primary evidence for any fundamental analysis, and the three
+statements answer different questions. The income statement reports profitability over a
+period on an accrual basis, recognizing revenue when earned rather than when cash arrives.
+The balance sheet reports position at a point in time, with assets equal to liabilities plus
+equity by construction. The cash flow statement reconciles the two by reporting actual cash
+movement, divided into operating, investing, and financing activities.
+
+Statement analysis points that matter:
+  accrual vs cash        profit is an opinion, cash is a fact; persistent
+                         divergence between net income and operating cash flow is
+                         the single most informative red flag
+  working capital        receivables and inventory growing faster than revenue
+                         suggests collection or demand problems
+  capitalization         costs capitalized rather than expensed flatter current
+                         earnings and defer the charge
+  ROIC vs WACC           the fundamental question of whether growth creates value
+  DuPont decomposition   ROE = margin x asset turnover x leverage; separates
+                         operating performance from financial engineering
+  free cash flow         operating cash flow less capital expenditure
+  off-balance-sheet      leases, joint ventures, guarantees; historically a common
+                         place for obligations to hide
+  segment reporting      consolidated figures often mask a strong business
+                         subsidizing a weak one
+  non-GAAP measures      adjusted figures exclude what management prefers to
+                         exclude; always reconcile to the reported number
+
+Behavioural finance documents the systematic ways in which participants depart from the
+rational model, and its findings have been substantially incorporated into mainstream
+practice. Loss aversion makes investors hold losers too long and sell winners too early,
+the disposition effect. Overconfidence produces excessive trading, and the empirical
+relation between trading frequency and net returns is strongly negative. Recency bias
+extrapolates recent performance, driving money into strategies after they have worked.
+Herding produces momentum and, in extremis, bubbles.
+
+The practical implications for an individual investor follow almost mechanically from all
+of the above and are notably unexciting: diversify broadly, since idiosyncratic risk is
+uncompensated; minimize costs, since fees compound against you exactly as returns compound
+for you; rebalance mechanically rather than tactically, which enforces buying low and
+selling high without requiring a forecast; match the time horizon of the assets to the time
+horizon of the liability; and trade rarely, because the evidence that frequent trading
+improves outcomes is essentially nonexistent while the evidence that it degrades them
+through costs and behavioural error is extensive.

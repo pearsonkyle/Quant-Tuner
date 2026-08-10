@@ -1,0 +1,285 @@
+================================================================================
+AREA: Generative Art and Creative Technology
+SUBJECT: Typography and Layout
+Subtopics: letterform anatomy, typeface classification and selection, spacing and
+rhythm, type scales, grids and layout systems, editorial and screen typography,
+variable fonts and rendering, generative typography.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Letterform Anatomy and Classification
+
+Typography is the arrangement of type to make written language legible, readable, and
+expressive, and the vocabulary for discussing it begins with the letterform's parts. The
+distinctions matter because they are what makes typefaces different from each other and what
+determines how a face performs at a given size and medium.
+
+The x-height — the height of a lowercase letter without ascenders — is the most consequential
+measurement and is not implied by the point size. Two faces set at the same point size can have
+substantially different apparent sizes because their x-heights differ, so matching point sizes
+across faces produces mismatched visual weight. A large x-height improves legibility at small
+sizes by making the letterform's distinguishing features larger, and it reduces the distinction
+between ascenders and descenders that helps word-shape recognition at reading sizes.
+
+Counters — the enclosed and partially enclosed spaces within letters — determine how a face
+performs under adverse conditions. Open counters remain distinguishable at small size, at low
+resolution, and at distance; closed or tight counters fill in and letters become
+indistinguishable. This is why faces designed for signage, for small text, and for low-resolution
+screens have notably open apertures.
+
+Letterform anatomy:
+  baseline             the line the letters sit on
+  x-height             lowercase height without ascenders; determines apparent size
+                       more than point size does
+  cap height           uppercase height
+  ascender, descender  the parts above the x-height and below the baseline
+  counter              the enclosed space within a letter
+  aperture             the opening of a partially closed counter; open apertures
+                       survive small size and low resolution
+  stroke contrast      the variation between thick and thin; high contrast is
+                       elegant at display size and fragile at text size
+  stress               the axis of the thinnest parts; vertical or angled
+  terminal             how a stroke ends
+  serif                the small terminal stroke
+  ligature             joined characters; standard ones fix collisions, and
+                       discretionary ones are decorative
+  optical size         a face designed for a specific size range; text cuts have
+                       larger x-height, lower contrast, and looser spacing than
+                       display cuts of the same family
+
+Classification groups typefaces by historical and structural characteristics, and the value is
+that the groups behave differently rather than merely looking different. Old style faces have
+angled stress, moderate contrast, and bracketed serifs, and they set comfortably at length.
+Transitional and modern faces increase contrast and verticalize the stress, becoming more elegant
+and less robust at small size. Slab serifs have heavy rectangular serifs and read as sturdy. Sans
+serifs remove the serifs entirely and divide into grotesque, neo-grotesque, humanist, and
+geometric subgroups whose differences in letterform construction produce genuinely different
+reading experiences.
+
+Q: Two typefaces are set at the same point size and one appears substantially larger. The most
+likely explanation is:
+A. One is bold
+B. They have different x-heights, which determines apparent size far more than the point size
+   does
+C. The tracking differs
+D. One is a display face
+Reasoning: Point size describes the em, which is a design space rather than a measured letter
+dimension, and the proportion of it occupied by the lowercase letters varies substantially between
+faces. Matching point size across faces therefore does not match apparent size, and setting them
+to matching x-heights is what produces visual consistency. Answer: B.
+
+## Spacing, Rhythm, and Scale
+
+Spacing operates at three levels and each has a distinct name and purpose. Kerning adjusts the
+space between specific character pairs whose default spacing collides or gaps — the pairs
+involving diagonal and round letters against straight ones are the usual cases. Tracking adjusts
+the spacing uniformly across a run, which is used to adjust colour and to fit copy. Word spacing
+separates words, and its relationship to letter spacing determines whether words read as units.
+
+The relationship between these is what produces even texture. Word spacing should be
+noticeably larger than letter spacing so that words separate visually, and noticeably smaller than
+line spacing so that lines read as horizontal units rather than the eye jumping between them.
+Violating either produces text that is technically legible and effortful to read: too-tight word
+spacing merges words, and too-loose word spacing at large tracking produces rivers of white space
+running vertically through a paragraph.
+
+The measure — the line length — has a well-established comfortable range of roughly 45 to 75
+characters, and the reasons are mechanical. A much longer line makes the return sweep to the
+beginning of the next line error-prone, so readers lose their place and re-read. A much shorter
+line breaks the reading rhythm with too-frequent returns and produces excessive hyphenation or
+ragged edges. Line height should increase with measure, because a longer line requires more
+vertical separation for the return sweep to land reliably.
+
+Spacing and scale:
+  kerning              pair-specific adjustment; matters most at display size
+  tracking             uniform adjustment across a run; tighten at display size,
+                       loosen for small caps and for light text on dark
+  word spacing         larger than letter spacing, smaller than line spacing
+  rivers               vertical channels of white space in justified text; a
+                       symptom of too-wide word spacing without hyphenation
+  measure              45-75 characters for body text
+  leading              line height; 1.4-1.6 for body, more for longer measures,
+                       tighter for headings
+  vertical rhythm      consistent baseline spacing down the page; aligns columns
+                       and produces coherence
+  type scale           a ratio between sizes; 1.125 to 1.333 are the common range
+  modular scale        sizes derived from a ratio rather than chosen individually
+  hierarchy            three or four distinct levels; more produces confusion
+                       rather than more information
+  weight over size     for small distinctions, weight differentiates more
+                       economically than size
+  optical alignment    align by appearance rather than by bounding box; a round
+                       letter or a quotation mark must overhang slightly to appear
+                       aligned
+
+Optical alignment deserves emphasis because mechanical alignment looks wrong. A round letter at
+the start of a line, aligned so its bounding box matches the flat letters above and below, appears
+inset because less of its area is at the margin. A quotation mark aligned mechanically appears to
+push the text inward. Correcting these — hanging punctuation outside the measure and slightly
+overhanging round forms — makes the margin appear straight, and the correction is invisible when
+present and conspicuous when absent.
+
+## Grids and Layout Systems
+
+A grid is a structure of columns, rows, and margins organizing a layout, and its purpose is
+consistency and speed rather than restriction. A grid makes alignment decisions once rather than
+per element, which means every element relates to every other through a shared structure, and it
+converts layout from a series of individual judgments into a set of choices within a system.
+
+The column count determines flexibility. A twelve-column grid divides evenly into halves, thirds,
+quarters, and sixths, which is why it became the standard for web layout. Fewer columns are
+simpler and less flexible; more are flexible and produce columns too narrow to be individually
+meaningful. The gutter between columns must be wide enough that adjacent content reads as
+separate, and its width relative to the column determines the layout's density.
+
+Modular grids add horizontal divisions, producing a field of modules that content can occupy in
+various spans. This suits content with varied element sizes — a catalogue, a dashboard, an
+editorial page with images and text at several scales — and it enforces vertical alignment that a
+column grid alone does not.
+
+Grids and layout:
+  column grid          vertical divisions; twelve divides conveniently
+  gutter               the space between columns; wide enough to separate
+  margin               the space at the edges; generous margins read as considered
+  modular grid         columns plus rows; a field of modules
+  baseline grid        text baselines align across columns; produces vertical
+                       coherence and is demanding to maintain
+  the grid is a tool   breaking it deliberately at one point creates emphasis;
+                       breaking it accidentally reads as error
+  white space          an active element; reducing it to fit more content reduces
+                       how much is read
+  proximity            spacing communicates grouping more strongly than any label
+  alignment            elements sharing an edge read as related; misalignment
+                       reads as carelessness even when unnoticed consciously
+  visual hierarchy     size, weight, colour, position, and isolation
+  scanning patterns    readers scan rather than read; the F and Z patterns
+                       describe typical paths and vary with content type
+  responsive layout    the grid adapts; content order and priority must be decided
+                       for each breakpoint rather than emerging
+
+The relationship between white space and how much is read deserves stating because the
+intuition runs the other way. Reducing margins and spacing to fit more content on a page increases
+what is present and decreases what is absorbed, because the structure that made the content
+scannable — the grouping, the hierarchy, the visual rest — is what allowed a reader to find and
+engage with any part of it. A dense page is read less thoroughly than a sparse one containing less,
+and the instruction to fill empty space is almost always a request to reduce the design's
+effectiveness.
+
+## Editorial and Screen Typography
+
+Typography for extended reading has requirements that display typography does not. The
+paramount consideration is that the reader should not notice the typography at all — anything
+drawing attention to the letterforms interrupts reading, so a text face is judged by its
+invisibility. This is why the faces used for books are conservative and why an expressive display
+face becomes exhausting at length.
+
+Justified and ragged-right setting differ in their failure modes. Justified text has even
+margins on both sides and requires the word spacing to vary line by line, which without
+hyphenation produces conspicuous gaps and rivers. Ragged right keeps the word spacing even and
+produces an uneven right margin, which should itself be shaped — a rag with a deep indentation
+followed by a full line, or a sequence of lines of similar length, both draw attention. Justified
+setting requires hyphenation to work, and hyphenation quality varies enormously by language and by
+implementation.
+
+Screen typography adds constraints that print does not. The resolution was historically far
+lower, which drove hinting and the preference for faces with open apertures and simple forms, and
+the constraint has substantially relaxed on high-density displays. The reading distance and angle
+vary. The size is adjustable by the reader and must be respected. And the rendering differs by
+platform in ways that are not controllable, so a design must be robust to the variation rather
+than tuned to one rendering.
+
+Editorial and screen:
+  text face invisibility  a text face is judged by not being noticed
+  justified            even margins; requires hyphenation to avoid rivers
+  ragged right         even word spacing; the rag itself should be shaped
+  hyphenation          essential for justified setting; language dependent
+  widows and orphans   a single line separated from its paragraph; avoid
+  paragraph indication  first-line indent or space between; not both
+  emphasis             italic for gentle emphasis, bold for strong; underline is a
+                       hyperlink convention on screen and should not be used for
+                       emphasis there
+  all caps             slows reading substantially by removing word shape; use for
+                       short labels only
+  contrast requirement  4.5:1 for body text; light grey on white is the most
+                       common screen readability failure
+  respect user settings  text must scale with the reader's preference; fixed pixel
+                       sizing defeats it
+  web font loading     causes layout shift; match fallback metrics with
+                       size-adjust and the override descriptors, or use a display
+                       strategy that avoids the swap
+  system font stack    fast, familiar, zero loading cost; a legitimate choice
+                       rather than a compromise
+  variable fonts       one file spanning a design space; smaller than several
+                       static weights and permits fine adjustment
+
+Variable fonts deserve emphasis because they change what is practical. A traditional family
+requires a separate file per weight and width, so a design using four weights loads four files,
+and intermediate values are unavailable. A variable font encodes a continuous design space in one
+file, typically smaller than three static weights, and permits any value along each axis. The
+practical consequences are that fine optical adjustments become available — a slightly heavier
+weight for light-on-dark text, an optical size axis adjusting the design for the rendered size —
+and that responsive typography can vary the weight and width continuously with the viewport rather
+than switching between discrete files.
+
+## Generative and Computational Typography
+
+Typography in generative work spans from using type as a design element within a generated
+composition to generating the letterforms themselves, and the two require different techniques.
+
+Type as an element within generative composition benefits from the same discipline as any other
+constrained system: a defined type scale, a limited set of weights, and consistent spacing
+relationships produce output that reads as designed rather than as arbitrary. The failure mode is
+sampling sizes and positions freely, which produces compositions that are individually plausible
+and collectively incoherent, and the remedy is the same constraint that makes any generative
+system cohere.
+
+Type on a path, along a curve, or distributed within a shape requires solving the spacing
+correctly. Placing glyphs at uniform parameter intervals along a Bezier curve produces uneven
+spacing, because the parameter is not arc length — the same problem that affects any object placed
+along a curve. Computing the arc length and placing each glyph at the correct cumulative distance,
+accounting for its own advance width, is what produces even setting.
+
+Generating letterforms computationally is a different discipline. Parametric type design defines
+letters by a skeleton and a set of parameters — weight, width, contrast, terminal shape — from
+which the outlines are constructed, so a whole family or a continuous design space is generated
+from one definition. This is what variable font technology exposes at the file format level, and
+tools for parametric design predate it substantially.
+
+Generative typography:
+  constrain the scale  a defined set of sizes and weights; free sampling produces
+                       incoherence
+  type on a path       place by arc length, not by parameter; account for each
+                       glyph's advance width
+  glyph outlines       quadratic or cubic Bezier contours with a fill rule; the
+                       raw material for manipulation
+  outline manipulation  offsetting, distorting, interpolating, and reconstructing
+                       from the contours
+  interpolation        between two compatible outlines; requires matching point
+                       counts and orders, which is why compatible masters are
+                       designed together
+  parametric design    skeleton plus parameters; generates a family or a
+                       continuous space
+  variable font axes   weight, width, optical size, slant, and custom axes;
+                       registered and arbitrary
+  font metrics         advance width, side bearings, kerning pairs; needed for
+                       correct setting and frequently ignored in generative work
+  text rendering       shaping applies substitutions and positioning per script;
+                       naive glyph-by-glyph placement fails for many writing
+                       systems entirely
+  complex scripts      Arabic contextual forms, Indic reordering and conjuncts;
+                       correct rendering requires a shaping engine rather than
+                       character-to-glyph mapping
+  legibility floor     generated type should remain readable unless
+                       unreadability is the point, and that decision should be
+                       deliberate
+
+Text shaping deserves the closing emphasis because it is where naive computational typography
+fails completely for much of the world's writing. Rendering Latin text by mapping each character
+to a glyph and advancing by its width is approximately correct. Arabic requires each letter to
+take one of four contextual forms depending on its neighbours and requires ligature substitution.
+Indic scripts require reordering, where a vowel written after a consonant in the encoding is
+displayed before it, and require conjunct formation combining consonant clusters into single
+glyphs. A rendering pipeline that maps characters to glyphs directly produces text that is
+unreadable rather than merely imperfect, and using a proper shaping engine is not an
+internationalization refinement but a correctness requirement.
