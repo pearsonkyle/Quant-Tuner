@@ -160,6 +160,32 @@ is also checked for control tokens on the bytes as written (`<tool_call>` 9,393,
 Pass `--sft-token-counts` for per-conversation `n_tokens` (a second tokenization pass over
 ~30M tokens, and specific to `--model`'s tokenizer); `--no-sft` skips the file.
 
+### The built dataset (2026-08-10)
+
+Saved at `out/corpora/qwen3-universal/` (60 MB), built with the Qwen3.6 tokenizer as the
+stand-in for Qwen3.8 — rebuild with the real tokenizer once the model lands, since the
+calibration corpus is chat-templated and therefore tokenizer-specific. The audit is tracked
+at `docs/qwen3_universal_corpora_audit.json`.
+
+| file | what |
+|---|---|
+| `corpus.cal.txt` (17.4 MB) | 4,407,923 tokens · 9,402 tool calls · 5,943 tool results · 375 reasoning blocks |
+| `corpus.cal.jsonl.gz` | the same, one record per window, source-labelled |
+| `corpus.val.txt` | AWQ cv-scoring slice (in-domain logs + out-of-domain breadth) |
+| `corpus.eval.{txt,general,tools,agentic,broad,redteam}.txt` | six disjoint eval holdouts, each needing its own `baseline.kld` |
+| `sft.jsonl.gz` (22.7 MB) | 6,643 conversations · 85,643 messages · 33,572 tool calls · 4,289 reasoning turns · **24.1M tokens** |
+
+**All three calibrators were run against this corpus, not assumed to work:**
+
+* **imatrix** — `llama-imatrix` on the real 27B F16 (`out/exp-041/model-f16.gguf`), 12 chunks
+  at ctx 4096 with `--parse-special`. 496 tensor entries, all finite, no all-zero tensor,
+  and it loads through `calibrate.imatrix._load_base_imatrix` (the input every variant
+  consumes).
+* **AWQ** — `awq.calibrate` end-to-end on Qwen3-0.6B: 56 groups, per-tensor α search with
+  `cv_strategy="gate"` scored against `corpus.val.txt`.
+* **GPTQ** — `gptq.calibrate` end-to-end: 196 Hessians (112 attn / 84 mlp) accumulated from
+  the strided sample, snapshotted without error.
+
 ## Stage 3 — imatrix + the four quants
 
 ```bash

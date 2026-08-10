@@ -1,0 +1,1082 @@
+{
+  "builder": "quant_tuner.data.universal",
+  "seed": 42,
+  "model_dir": "out/exp-041/model_extracted",
+  "sources": [
+    "logs",
+    "reasoning",
+    "swe-trajectories",
+    "broad-supplement",
+    "redteam-refusals",
+    "wiki"
+  ],
+  "template_check": {
+    "model": "out/exp-041/model_extracted",
+    "ok": true,
+    "tool_call_marker": "<tool_call>",
+    "tool_response_marker": "<tool_response>",
+    "checks": [
+      {
+        "name": "has_chat_template",
+        "ok": true,
+        "severity": "fail",
+        "detail": ""
+      },
+      {
+        "name": "renders_tool_session",
+        "ok": true,
+        "severity": "fail",
+        "detail": ""
+      },
+      {
+        "name": "tool_schemas_rendered",
+        "ok": true,
+        "severity": "fail",
+        "detail": "both tool names present"
+      },
+      {
+        "name": "tool_parameters_rendered",
+        "ok": true,
+        "severity": "fail",
+        "detail": "schema parameters reach the corpus"
+      },
+      {
+        "name": "tool_call_marker",
+        "ok": true,
+        "severity": "warn",
+        "detail": "marker: '<tool_call>'"
+      },
+      {
+        "name": "tool_call_arguments_rendered",
+        "ok": true,
+        "severity": "fail",
+        "detail": ""
+      },
+      {
+        "name": "tool_call_name_rendered",
+        "ok": true,
+        "severity": "warn",
+        "detail": ""
+      },
+      {
+        "name": "tool_result_rendered",
+        "ok": true,
+        "severity": "fail",
+        "detail": ""
+      },
+      {
+        "name": "tool_response_marker",
+        "ok": true,
+        "severity": "warn",
+        "detail": "marker: '<tool_response>'"
+      },
+      {
+        "name": "special_tokens_single_id",
+        "ok": true,
+        "severity": "fail",
+        "detail": "3 in-text special tokens each map to one id"
+      },
+      {
+        "name": "stub_tools_render",
+        "ok": true,
+        "severity": "fail",
+        "detail": ""
+      },
+      {
+        "name": "reasoning_final_turn_kept",
+        "ok": true,
+        "severity": "warn",
+        "detail": "reasoning survives on the render's final assistant turn \u2014 which is what universal.reasoning_windows relies on to get any reasoning into the corpus"
+      },
+      {
+        "name": "reasoning_history_scrubbed",
+        "ok": true,
+        "severity": "warn",
+        "detail": "history reasoning is scrubbed (expected; matches inference)"
+      },
+      {
+        "name": "session_windows_nonempty",
+        "ok": true,
+        "severity": "fail",
+        "detail": "1 window(s) emitted"
+      },
+      {
+        "name": "assistant_first_window",
+        "ok": true,
+        "severity": "warn",
+        "detail": "1 window(s)"
+      }
+    ]
+  },
+  "budgets": {
+    "cal_logs_tokens": 2000000,
+    "cal_swe_tokens": 1000000,
+    "cal_broad_tokens": null
+  },
+  "calibration": {
+    "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen3-universal/corpus.cal.txt",
+    "bytes": 17399176,
+    "total_tokens": 4407923,
+    "per_source": {
+      "logs": {
+        "tokens": 1999837,
+        "chunks": 619,
+        "files": {
+          "/Users/kpearson/Programs/ai/llm/quant-tuner/datasets/agent-logs/data/logs-cli.jsonl.gz": 253,
+          "/Users/kpearson/Programs/ai/llm/quant-tuner/datasets/agent-logs/data/logs-agents.jsonl.gz": 435
+        },
+        "sessions_after_filter": 688,
+        "sessions": {
+          "train": 544,
+          "test": 67,
+          "holdout": 77
+        },
+        "groups": {
+          "train": 275,
+          "test": 34,
+          "holdout": 35
+        },
+        "target_tokens": 2000000,
+        "reasoning_policy": "auto",
+        "reasoning_blocks_available": 4289,
+        "tool_outputs_clipped": 7952,
+        "max_tool_output_tokens": 512,
+        "pack_audit": {
+          "total_tokens": 1999837,
+          "chunk_count": 619,
+          "session_count": 212,
+          "truncated_sessions": 0,
+          "per_session_cap": 3500,
+          "tokens_per_source": {
+            "agents:c": 105541,
+            "agents:clojure": 68139,
+            "agents:cpp": 153887,
+            "agents:csharp": 27833,
+            "agents:dart": 14823,
+            "agents:elixir": 88994,
+            "agents:go": 161291,
+            "agents:java": 2994,
+            "agents:js": 144817,
+            "agents:lua": 48581,
+            "agents:ocaml": 8165,
+            "agents:php": 112314,
+            "agents:python": 116128,
+            "agents:r": 34486,
+            "agents:rust": 79732,
+            "agents:swift": 142687,
+            "agents:ts": 74335,
+            "claude": 252712,
+            "opencode": 54363,
+            "qwen": 308015
+          },
+          "tokens_per_length_bucket": {
+            "long": 1175510,
+            "medium": 674833,
+            "short": 149494
+          },
+          "tokens_per_stratum": {
+            "agents:c/long": 65920,
+            "agents:c/medium": 39621,
+            "agents:clojure/long": 48776,
+            "agents:clojure/medium": 19363,
+            "agents:cpp/long": 88146,
+            "agents:cpp/medium": 65741,
+            "agents:csharp/medium": 27833,
+            "agents:dart/long": 14823,
+            "agents:elixir/long": 55698,
+            "agents:elixir/medium": 33296,
+            "agents:go/long": 107446,
+            "agents:go/medium": 28414,
+            "agents:go/short": 25431,
+            "agents:java/long": 2994,
+            "agents:js/long": 106700,
+            "agents:js/medium": 38117,
+            "agents:lua/long": 48581,
+            "agents:ocaml/medium": 8165,
+            "agents:php/long": 70170,
+            "agents:php/medium": 38676,
+            "agents:php/short": 3468,
+            "agents:python/long": 64036,
+            "agents:python/medium": 32966,
+            "agents:python/short": 19126,
+            "agents:r/long": 3106,
+            "agents:r/medium": 31380,
+            "agents:rust/long": 51193,
+            "agents:rust/medium": 23616,
+            "agents:rust/short": 4923,
+            "agents:swift/long": 74367,
+            "agents:swift/medium": 68320,
+            "agents:ts/long": 41614,
+            "agents:ts/medium": 32721,
+            "claude/long": 131429,
+            "claude/medium": 59441,
+            "claude/short": 61842,
+            "opencode/long": 54363,
+            "qwen/long": 146148,
+            "qwen/medium": 127163,
+            "qwen/short": 34704
+          },
+          "sessions_available_per_stratum": {
+            "agents:python/short": 6,
+            "qwen/medium": 54,
+            "claude/medium": 40,
+            "qwen/long": 67,
+            "agents:rust/short": 1,
+            "agents:rust/medium": 24,
+            "agents:rust/long": 21,
+            "qwen/short": 10,
+            "agents:clojure/long": 4,
+            "agents:js/long": 6,
+            "agents:r/medium": 5,
+            "agents:r/long": 1,
+            "claude/long": 20,
+            "agents:swift/medium": 9,
+            "agents:swift/long": 7,
+            "claude/short": 11,
+            "agents:python/medium": 38,
+            "agents:c/long": 18,
+            "agents:c/medium": 30,
+            "agents:go/long": 9,
+            "agents:csharp/medium": 6,
+            "agents:python/long": 14,
+            "agents:cpp/medium": 7,
+            "agents:elixir/long": 5,
+            "agents:elixir/medium": 5,
+            "agents:lua/long": 4,
+            "agents:ocaml/medium": 1,
+            "opencode/long": 3,
+            "agents:php/short": 1,
+            "agents:php/medium": 33,
+            "agents:php/long": 18,
+            "agents:ts/medium": 15,
+            "agents:ts/long": 9,
+            "agents:go/short": 6,
+            "agents:go/medium": 5,
+            "agents:cpp/long": 18,
+            "agents:dart/long": 1,
+            "agents:js/medium": 7,
+            "agents:clojure/medium": 4,
+            "agents:java/long": 1
+          },
+          "sessions_consumed_per_stratum": {
+            "agents:c/long": 18,
+            "agents:c/medium": 30,
+            "agents:clojure/long": 4,
+            "agents:clojure/medium": 4,
+            "agents:cpp/long": 18,
+            "agents:cpp/medium": 7,
+            "agents:csharp/medium": 6,
+            "agents:dart/long": 1,
+            "agents:elixir/long": 5,
+            "agents:elixir/medium": 5,
+            "agents:go/long": 9,
+            "agents:go/medium": 5,
+            "agents:go/short": 6,
+            "agents:java/long": 1,
+            "agents:js/long": 6,
+            "agents:js/medium": 7,
+            "agents:lua/long": 4,
+            "agents:ocaml/medium": 1,
+            "agents:php/long": 18,
+            "agents:php/medium": 33,
+            "agents:php/short": 1,
+            "agents:python/long": 14,
+            "agents:python/medium": 38,
+            "agents:python/short": 6,
+            "agents:r/long": 1,
+            "agents:r/medium": 5,
+            "agents:rust/long": 21,
+            "agents:rust/medium": 24,
+            "agents:rust/short": 1,
+            "agents:swift/long": 7,
+            "agents:swift/medium": 9,
+            "agents:ts/long": 9,
+            "agents:ts/medium": 15,
+            "claude/long": 20,
+            "claude/medium": 40,
+            "claude/short": 11,
+            "opencode/long": 3,
+            "qwen/long": 67,
+            "qwen/medium": 54,
+            "qwen/short": 10
+          },
+          "windowing": {
+            "system_prose_budget": 256,
+            "full_prose_quota": 1,
+            "max_windows_per_session": 8,
+            "tool_schema_quota": 1,
+            "windows_emitted": 619,
+            "sessions_kept": 212,
+            "avg_windows_per_session": 2.92,
+            "unique_system_prompts": 174,
+            "unique_tool_schemas": 189,
+            "full_prose_sessions": 110,
+            "stub_sessions": 102,
+            "full_schema_sessions": 43,
+            "schema_stub_sessions": 169,
+            "oversize_windows": 26,
+            "oversize_dropped": 0,
+            "system_prose_tokens": 208635,
+            "boilerplate_tokens": 385706,
+            "body_tokens": 1614131,
+            "tool_turn_token_share": 0.8071
+          }
+        },
+        "tool_calls": {
+          "tool_call_markers": {
+            "<tool_call>": 5144,
+            "```json": 7
+          },
+          "tool_call_marker_total": 5151,
+          "tool_response_markers": {
+            "<tool_response>": 3522,
+            "tool\n": 1
+          },
+          "tool_response_marker_total": 3523
+        },
+        "reasoning_blocks_in_corpus": 131
+      },
+      "reasoning": {
+        "tokens": 997147,
+        "chunks": 406,
+        "target_tokens": 1000000,
+        "source": "logs train slice, windows ending on a reasoning turn",
+        "max_windows_per_session": 8,
+        "sessions_scanned": 544,
+        "sessions_contributing": 62,
+        "note": "these overlap the `logs` windows by design \u2014 they re-render the same conversations cut so the reasoning turn is LAST, which is the only position a chat template preserves it in",
+        "tool_calls": {
+          "tool_call_markers": {
+            "<tool_call>": 1774,
+            "```json": 2
+          },
+          "tool_call_marker_total": 1776,
+          "tool_response_markers": {
+            "<tool_response>": 702
+          },
+          "tool_response_marker_total": 702
+        },
+        "reasoning_blocks_in_corpus": 244
+      },
+      "swe-trajectories": {
+        "tokens": 680418,
+        "chunks": 234,
+        "dataset": "pearsonkyle/swe-agentic-trajectories:resolved",
+        "rows": 71,
+        "cal_rows": 63,
+        "eval_rows": 8,
+        "target_tokens": 1000000,
+        "reasoning_policy": "auto",
+        "reasoning_blocks_available": 1,
+        "tool_outputs_clipped": 322,
+        "max_tool_output_tokens": 512,
+        "pack_audit": {
+          "total_tokens": 680418,
+          "chunk_count": 234,
+          "session_count": 63,
+          "truncated_sessions": 0,
+          "per_session_cap": 3500,
+          "tokens_per_source": {
+            "swe-trajectories": 680418
+          },
+          "tokens_per_length_bucket": {
+            "long": 237086,
+            "medium": 415638,
+            "short": 27694
+          },
+          "tokens_per_stratum": {
+            "swe-trajectories/long": 237086,
+            "swe-trajectories/medium": 415638,
+            "swe-trajectories/short": 27694
+          },
+          "sessions_available_per_stratum": {
+            "swe-trajectories/medium": 48,
+            "swe-trajectories/short": 4,
+            "swe-trajectories/long": 11
+          },
+          "sessions_consumed_per_stratum": {
+            "swe-trajectories/long": 11,
+            "swe-trajectories/medium": 48,
+            "swe-trajectories/short": 4
+          },
+          "windowing": {
+            "system_prose_budget": 256,
+            "full_prose_quota": 1,
+            "max_windows_per_session": 32,
+            "tool_schema_quota": 1,
+            "windows_emitted": 234,
+            "sessions_kept": 63,
+            "avg_windows_per_session": 3.71,
+            "unique_system_prompts": 1,
+            "unique_tool_schemas": 1,
+            "full_prose_sessions": 1,
+            "stub_sessions": 62,
+            "full_schema_sessions": 1,
+            "schema_stub_sessions": 62,
+            "oversize_windows": 3,
+            "oversize_dropped": 0,
+            "system_prose_tokens": 35802,
+            "boilerplate_tokens": 69044,
+            "body_tokens": 611374,
+            "tool_turn_token_share": 0.8985
+          }
+        },
+        "tool_calls": {
+          "tool_call_markers": {
+            "<tool_call>": 2475
+          },
+          "tool_call_marker_total": 2475,
+          "tool_response_markers": {
+            "<tool_response>": 1712,
+            "ipython": 3
+          },
+          "tool_response_marker_total": 1715
+        },
+        "reasoning_blocks_in_corpus": 0
+      },
+      "broad-supplement": {
+        "tokens": 344589,
+        "chunks": 101,
+        "dataset": "pearsonkyle/broad-domain-supplement:corpus",
+        "calib_half_rows": 2704,
+        "eval_rows": 209,
+        "val_rows": 69,
+        "mtp_half_rows_reserved": 2554,
+        "target_tokens": "all",
+        "note": "the mtp half is reserved for MTP draft-head training and is NOT in calibration; only its eval slice is used here",
+        "tool_calls": {
+          "tool_call_markers": {},
+          "tool_call_marker_total": 0,
+          "tool_response_markers": {
+            "tool\n": 3
+          },
+          "tool_response_marker_total": 3
+        },
+        "reasoning_blocks_in_corpus": 0
+      },
+      "redteam-refusals": {
+        "tokens": 88812,
+        "chunks": 305,
+        "dataset": "pearsonkyle/redteam-safety-disclosures:all",
+        "rows": 348,
+        "sessions": 348,
+        "cal_rows": 305,
+        "eval_rows": 43,
+        "original_outcomes": {
+          "complied": 26,
+          "defended": 306,
+          "errored": 16
+        },
+        "target_ms_replaced": true,
+        "target_reasoning_included": false,
+        "n_refusal_templates": 8,
+        "target_tokens": "all",
+        "note": "attack turns kept verbatim; EVERY assistant turn replaced with a generic refusal. The targets' original completions and target_reasoning are never written to any corpus.",
+        "pack_audit": {
+          "total_tokens": 88812,
+          "chunk_count": 305,
+          "session_count": 305,
+          "truncated_sessions": 0,
+          "per_session_cap": 3500,
+          "tokens_per_source": {
+            "redteam:benignframingbypass": 4791,
+            "redteam:bias": 8001,
+            "redteam:graphic_content": 5135,
+            "redteam:illegal_activity": 15783,
+            "redteam:intellectual_property": 3152,
+            "redteam:misinformation": 13190,
+            "redteam:personal_safety": 4995,
+            "redteam:pii_leakage": 8015,
+            "redteam:prompt_leakage": 9770,
+            "redteam:robustness": 6809,
+            "redteam:structuredoutputsmuggling": 2655,
+            "redteam:toxicity": 6516
+          },
+          "tokens_per_length_bucket": {
+            "short": 87947,
+            "medium": 865
+          },
+          "tokens_per_stratum": {
+            "redteam:benignframingbypass/short": 4791,
+            "redteam:bias/short": 8001,
+            "redteam:graphic_content/short": 5135,
+            "redteam:illegal_activity/short": 15783,
+            "redteam:intellectual_property/medium": 865,
+            "redteam:intellectual_property/short": 2287,
+            "redteam:misinformation/short": 13190,
+            "redteam:personal_safety/short": 4995,
+            "redteam:pii_leakage/short": 8015,
+            "redteam:prompt_leakage/short": 9770,
+            "redteam:robustness/short": 6809,
+            "redteam:structuredoutputsmuggling/short": 2655,
+            "redteam:toxicity/short": 6516
+          },
+          "sessions_available_per_stratum": {
+            "redteam:toxicity/short": 36,
+            "redteam:personal_safety/short": 27,
+            "redteam:graphic_content/short": 24,
+            "redteam:illegal_activity/short": 46,
+            "redteam:pii_leakage/short": 22,
+            "redteam:prompt_leakage/short": 30,
+            "redteam:misinformation/short": 27,
+            "redteam:bias/short": 39,
+            "redteam:robustness/short": 21,
+            "redteam:intellectual_property/medium": 1,
+            "redteam:structuredoutputsmuggling/short": 12,
+            "redteam:intellectual_property/short": 11,
+            "redteam:benignframingbypass/short": 9
+          },
+          "sessions_consumed_per_stratum": {
+            "redteam:benignframingbypass/short": 9,
+            "redteam:bias/short": 39,
+            "redteam:graphic_content/short": 24,
+            "redteam:illegal_activity/short": 46,
+            "redteam:intellectual_property/medium": 1,
+            "redteam:intellectual_property/short": 11,
+            "redteam:misinformation/short": 27,
+            "redteam:personal_safety/short": 27,
+            "redteam:pii_leakage/short": 22,
+            "redteam:prompt_leakage/short": 30,
+            "redteam:robustness/short": 21,
+            "redteam:structuredoutputsmuggling/short": 12,
+            "redteam:toxicity/short": 36
+          },
+          "windowing": {
+            "system_prose_budget": 256,
+            "full_prose_quota": 1,
+            "max_windows_per_session": 8,
+            "tool_schema_quota": 1,
+            "windows_emitted": 305,
+            "sessions_kept": 305,
+            "avg_windows_per_session": 1.0,
+            "unique_system_prompts": 0,
+            "unique_tool_schemas": 0,
+            "full_prose_sessions": 0,
+            "stub_sessions": 305,
+            "full_schema_sessions": 0,
+            "schema_stub_sessions": 0,
+            "oversize_windows": 0,
+            "oversize_dropped": 0,
+            "system_prose_tokens": 0,
+            "boilerplate_tokens": 0,
+            "body_tokens": 88812,
+            "tool_turn_token_share": 1.0
+          }
+        },
+        "tool_calls": {
+          "tool_call_markers": {},
+          "tool_call_marker_total": 0,
+          "tool_response_markers": {},
+          "tool_response_marker_total": 0
+        },
+        "reasoning_blocks_in_corpus": 0
+      },
+      "wiki": {
+        "tokens": 297120,
+        "chunks": 89,
+        "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/exp-001/wiki/wiki.test.raw",
+        "n_chunks": 89,
+        "n_chunks_available": 89,
+        "target_tokens": null,
+        "tool_calls": {
+          "tool_call_markers": {},
+          "tool_call_marker_total": 0,
+          "tool_response_markers": {},
+          "tool_response_marker_total": 0
+        },
+        "reasoning_blocks_in_corpus": 0
+      }
+    },
+    "token_share": {
+      "logs": 0.4537,
+      "reasoning": 0.2262,
+      "swe-trajectories": 0.1544,
+      "broad-supplement": 0.0782,
+      "redteam-refusals": 0.0201,
+      "wiki": 0.0674
+    },
+    "tool_calls": {
+      "tool_call_markers": {
+        "<tool_call>": 9393,
+        "```json": 9
+      },
+      "tool_call_marker_total": 9402,
+      "tool_response_markers": {
+        "<tool_response>": 5936,
+        "ipython": 3,
+        "tool\n": 4
+      },
+      "tool_response_marker_total": 5943
+    },
+    "reasoning": {
+      "policy": "auto",
+      "blocks_in_corpus": 376,
+      "note": "chat templates keep reasoning only on a render's FINAL assistant turn, so this is far below the number of reasoning turns in the sources (see per_source.*.reasoning_blocks_available) \u2014 by design, since that is also what the model sees at inference"
+    },
+    "special_tokens": {
+      "present": {
+        "<tool_call>": 9393,
+        "<tool_response>": 5936,
+        "<|im_end|>": 16125
+      },
+      "multi_id": [],
+      "all_single_id": true,
+      "non_ascii_chars": 31081,
+      "non_ascii_share": 0.001793,
+      "has_carriage_returns": true
+    },
+    "sampled_coverage": {
+      "corpus_tokens": 4408962,
+      "ctx": 512,
+      "awq": {
+        "budget_tokens": 65536,
+        "chunks": 128,
+        "sampled_tokens": 65154,
+        "corpus_share": 0.0148,
+        "source_share": {
+          "logs": 0.4907,
+          "reasoning": 0.1794,
+          "swe-trajectories": 0.1756,
+          "broad-supplement": 0.0565,
+          "wiki": 0.055,
+          "redteam-refusals": 0.043
+        },
+        "sources_seen": 6,
+        "tool_calls_in_sample": 141,
+        "tool_results_in_sample": 104
+      },
+      "gptq": {
+        "budget_tokens": 32768,
+        "chunks": 64,
+        "sampled_tokens": 32386,
+        "corpus_share": 0.0073,
+        "source_share": {
+          "logs": 0.5047,
+          "reasoning": 0.174,
+          "swe-trajectories": 0.1154,
+          "wiki": 0.1101,
+          "broad-supplement": 0.079,
+          "redteam-refusals": 0.0167
+        },
+        "sources_seen": 6,
+        "tool_calls_in_sample": 59,
+        "tool_results_in_sample": 42
+      }
+    }
+  },
+  "validation": {
+    "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen3-universal/corpus.val.txt",
+    "sources": {
+      "logs_test": {
+        "tokens": 9711,
+        "chunks": 3,
+        "pack_audit": {
+          "total_tokens": 9711,
+          "chunk_count": 3,
+          "session_count": 3,
+          "truncated_sessions": 0,
+          "per_session_cap": 3500,
+          "tokens_per_source": {
+            "agents:go": 3173,
+            "agents:java": 6538
+          },
+          "tokens_per_length_bucket": {
+            "long": 6291,
+            "medium": 3420
+          },
+          "tokens_per_stratum": {
+            "agents:go/long": 3173,
+            "agents:java/long": 3118,
+            "agents:java/medium": 3420
+          },
+          "sessions_available_per_stratum": {
+            "qwen/medium": 5,
+            "qwen/long": 13,
+            "claude/medium": 3,
+            "opencode/medium": 1,
+            "agents:python/medium": 2,
+            "agents:js/long": 6,
+            "agents:js/medium": 3,
+            "agents:ts/long": 4,
+            "agents:python/short": 1,
+            "claude/short": 2,
+            "agents:kotlin/long": 2,
+            "agents:go/long": 3,
+            "qwen/short": 1,
+            "agents:java/medium": 10,
+            "agents:java/long": 2,
+            "agents:ts/short": 1,
+            "agents:ts/medium": 8
+          },
+          "sessions_consumed_per_stratum": {
+            "agents:go/long": 3,
+            "agents:java/long": 2,
+            "agents:java/medium": 10,
+            "agents:js/long": 6,
+            "agents:js/medium": 3,
+            "agents:kotlin/long": 2,
+            "agents:python/medium": 2,
+            "agents:python/short": 1,
+            "agents:ts/long": 4,
+            "agents:ts/medium": 8,
+            "agents:ts/short": 1,
+            "claude/medium": 3,
+            "claude/short": 2,
+            "opencode/medium": 1,
+            "qwen/long": 13,
+            "qwen/medium": 5,
+            "qwen/short": 1
+          },
+          "windowing": {
+            "system_prose_budget": 256,
+            "full_prose_quota": 1,
+            "max_windows_per_session": 8,
+            "tool_schema_quota": 1,
+            "windows_emitted": 3,
+            "sessions_kept": 3,
+            "avg_windows_per_session": 1.0,
+            "unique_system_prompts": 26,
+            "unique_tool_schemas": 30,
+            "full_prose_sessions": 3,
+            "stub_sessions": 0,
+            "full_schema_sessions": 3,
+            "schema_stub_sessions": 0,
+            "oversize_windows": 0,
+            "oversize_dropped": 0,
+            "system_prose_tokens": 1820,
+            "boilerplate_tokens": 3240,
+            "body_tokens": 6471,
+            "tool_turn_token_share": 0.6664
+          }
+        }
+      },
+      "broad_supplement": {
+        "tokens": 8110,
+        "chunks": 3
+      }
+    },
+    "note": "in-domain logs + out-of-domain breadth, so an AWQ \u03b1 that wins here generalizes past the log mix"
+  },
+  "eval": {
+    "external": {
+      "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen3-universal/corpus.eval.txt",
+      "repo": "eaddario/imatrix-calibration",
+      "domains": {
+        "code_small": {
+          "tokens": 30000,
+          "rows": 1
+        },
+        "math_small": {
+          "tokens": 30000,
+          "rows": 1
+        },
+        "tools_small": {
+          "tokens": 30000,
+          "rows": 1
+        }
+      },
+      "used_for": "headline PPL/KLD (code/math/tools) \u2014 disjoint from every cal source"
+    },
+    "general": {
+      "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen3-universal/corpus.eval.general.txt",
+      "domain": "combined_en_tiny",
+      "tokens": 30000,
+      "rows": 1
+    },
+    "tools": {
+      "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen3-universal/corpus.eval.tools.txt",
+      "source_slice": "logs.holdout (cli + agents)",
+      "tokens": 29784,
+      "windows": 10,
+      "pack_audit": {
+        "total_tokens": 29784,
+        "chunk_count": 10,
+        "session_count": 8,
+        "truncated_sessions": 0,
+        "per_session_cap": 3500,
+        "tokens_per_source": {
+          "agents:csharp": 13059,
+          "agents:go": 3091,
+          "agents:java": 10152,
+          "agents:python": 3482
+        },
+        "tokens_per_length_bucket": {
+          "long": 14441,
+          "medium": 11969,
+          "short": 3374
+        },
+        "tokens_per_stratum": {
+          "agents:csharp/long": 4404,
+          "agents:csharp/medium": 8655,
+          "agents:go/long": 3091,
+          "agents:java/long": 3464,
+          "agents:java/medium": 3314,
+          "agents:java/short": 3374,
+          "agents:python/long": 3482
+        },
+        "sessions_available_per_stratum": {
+          "qwen/long": 9,
+          "claude/medium": 3,
+          "agents:scala/medium": 1,
+          "agents:python/long": 9,
+          "agents:go/long": 10,
+          "claude/short": 1,
+          "qwen/medium": 8,
+          "agents:python/medium": 3,
+          "qwen/short": 2,
+          "agents:python/short": 2,
+          "agents:csharp/medium": 7,
+          "agents:csharp/long": 3,
+          "agents:java/short": 3,
+          "agents:java/medium": 5,
+          "agents:java/long": 2,
+          "agents:rust/medium": 5,
+          "agents:rust/long": 4
+        },
+        "sessions_consumed_per_stratum": {
+          "agents:csharp/long": 3,
+          "agents:csharp/medium": 7,
+          "agents:go/long": 10,
+          "agents:java/long": 2,
+          "agents:java/medium": 5,
+          "agents:java/short": 3,
+          "agents:python/long": 9,
+          "agents:python/medium": 3,
+          "agents:python/short": 2,
+          "agents:rust/long": 4,
+          "agents:rust/medium": 5,
+          "agents:scala/medium": 1,
+          "claude/medium": 3,
+          "claude/short": 1,
+          "qwen/long": 9,
+          "qwen/medium": 8,
+          "qwen/short": 2
+        },
+        "windowing": {
+          "system_prose_budget": 256,
+          "full_prose_quota": 1,
+          "max_windows_per_session": 8,
+          "tool_schema_quota": 1,
+          "windows_emitted": 10,
+          "sessions_kept": 8,
+          "avg_windows_per_session": 1.25,
+          "unique_system_prompts": 35,
+          "unique_tool_schemas": 28,
+          "full_prose_sessions": 6,
+          "stub_sessions": 2,
+          "full_schema_sessions": 2,
+          "schema_stub_sessions": 6,
+          "oversize_windows": 0,
+          "oversize_dropped": 0,
+          "system_prose_tokens": 6093,
+          "boilerplate_tokens": 9743,
+          "body_tokens": 20041,
+          "tool_turn_token_share": 0.6729
+        }
+      },
+      "caveat": "llama-perplexity has no --parse-special: chat markers tokenize as plain BPE. Quant-vs-quant only, not absolute PPL."
+    },
+    "agentic": {
+      "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen3-universal/corpus.eval.agentic.txt",
+      "source": "pearsonkyle/swe-agentic-trajectories:resolved holdout",
+      "tokens": 29725,
+      "windows": 10,
+      "pack_audit": {
+        "total_tokens": 29725,
+        "chunk_count": 10,
+        "session_count": 3,
+        "truncated_sessions": 0,
+        "per_session_cap": 3500,
+        "tokens_per_source": {
+          "swe-trajectories": 29725
+        },
+        "tokens_per_length_bucket": {
+          "long": 23930,
+          "medium": 5795
+        },
+        "tokens_per_stratum": {
+          "swe-trajectories/long": 23930,
+          "swe-trajectories/medium": 5795
+        },
+        "sessions_available_per_stratum": {
+          "swe-trajectories/long": 3,
+          "swe-trajectories/medium": 5
+        },
+        "sessions_consumed_per_stratum": {
+          "swe-trajectories/long": 3,
+          "swe-trajectories/medium": 5
+        },
+        "windowing": {
+          "system_prose_budget": 256,
+          "full_prose_quota": 1,
+          "max_windows_per_session": 8,
+          "tool_schema_quota": 1,
+          "windows_emitted": 10,
+          "sessions_kept": 3,
+          "avg_windows_per_session": 3.33,
+          "unique_system_prompts": 1,
+          "unique_tool_schemas": 1,
+          "full_prose_sessions": 1,
+          "stub_sessions": 2,
+          "full_schema_sessions": 1,
+          "schema_stub_sessions": 2,
+          "oversize_windows": 0,
+          "oversize_dropped": 0,
+          "system_prose_tokens": 1530,
+          "boilerplate_tokens": 2964,
+          "body_tokens": 26761,
+          "tool_turn_token_share": 0.9003
+        }
+      },
+      "caveat": "same --parse-special caveat as the tools eval"
+    },
+    "broad": {
+      "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen3-universal/corpus.eval.broad.txt",
+      "source": "pearsonkyle/broad-domain-supplement:corpus (mtp half, eval slice)",
+      "tokens": 27455,
+      "chunks": 9,
+      "used_for": "did low-bit quantization cost general knowledge outside the coding/tool distribution the imatrix was fit on?"
+    },
+    "redteam": {
+      "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen3-universal/corpus.eval.redteam.txt",
+      "source": "pearsonkyle/redteam-safety-disclosures:all holdout, refused",
+      "tokens": 9901,
+      "windows": 41,
+      "pack_audit": {
+        "total_tokens": 9901,
+        "chunk_count": 41,
+        "session_count": 41,
+        "truncated_sessions": 0,
+        "per_session_cap": 3500,
+        "tokens_per_source": {
+          "redteam:illegal_activity": 2213,
+          "redteam:misinformation": 480,
+          "redteam:personal_safety": 1378,
+          "redteam:pii_leakage": 2635,
+          "redteam:toxicity": 3195
+        },
+        "tokens_per_length_bucket": {
+          "short": 9901
+        },
+        "tokens_per_stratum": {
+          "redteam:illegal_activity/short": 2213,
+          "redteam:misinformation/short": 480,
+          "redteam:personal_safety/short": 1378,
+          "redteam:pii_leakage/short": 2635,
+          "redteam:toxicity/short": 3195
+        },
+        "sessions_available_per_stratum": {
+          "redteam:personal_safety/short": 12,
+          "redteam:toxicity/short": 9,
+          "redteam:illegal_activity/short": 11,
+          "redteam:pii_leakage/short": 8,
+          "redteam:misinformation/short": 3
+        },
+        "sessions_consumed_per_stratum": {
+          "redteam:illegal_activity/short": 11,
+          "redteam:misinformation/short": 3,
+          "redteam:personal_safety/short": 12,
+          "redteam:pii_leakage/short": 8,
+          "redteam:toxicity/short": 9
+        },
+        "windowing": {
+          "system_prose_budget": 256,
+          "full_prose_quota": 1,
+          "max_windows_per_session": 8,
+          "tool_schema_quota": 1,
+          "windows_emitted": 41,
+          "sessions_kept": 41,
+          "avg_windows_per_session": 1.0,
+          "unique_system_prompts": 0,
+          "unique_tool_schemas": 0,
+          "full_prose_sessions": 0,
+          "stub_sessions": 41,
+          "full_schema_sessions": 0,
+          "schema_stub_sessions": 0,
+          "oversize_windows": 0,
+          "oversize_dropped": 0,
+          "system_prose_tokens": 0,
+          "boilerplate_tokens": 0,
+          "body_tokens": 9901,
+          "tool_turn_token_share": 1.0
+        }
+      },
+      "used_for": "held-out attack prompts paired with refusals. PPL here is a proxy only \u2014 actual refusal behavior is measured by scripts/eval_redteam.py against the built quant, not by this corpus."
+    }
+  },
+  "disjointness": "asserted: logs train/test/holdout (grouped by issue), swe cal/eval, broad cal/eval",
+  "sft": {
+    "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen3-universal/sft.jsonl.gz",
+    "conversations": 6643,
+    "bytes_gz": 22716393,
+    "per_source": {
+      "logs": {
+        "conversations": 253,
+        "messages": 25935,
+        "tool_calls": 12231,
+        "reasoning_turns": 383,
+        "chars": 33687060,
+        "tokens": 9817487
+      },
+      "logs-agents": {
+        "conversations": 435,
+        "messages": 43040,
+        "tool_calls": 18905,
+        "reasoning_turns": 3906,
+        "chars": 40241155,
+        "tokens": 12672637
+      },
+      "swe-trajectories": {
+        "conversations": 71,
+        "messages": 4682,
+        "tool_calls": 2436,
+        "reasoning_turns": 1,
+        "chars": 2731106,
+        "tokens": 730456
+      },
+      "redteam-refusals": {
+        "conversations": 348,
+        "messages": 722,
+        "tool_calls": 0,
+        "reasoning_turns": 0,
+        "chars": 375123,
+        "tokens": 94144
+      },
+      "broad-instruct": {
+        "conversations": 5536,
+        "messages": 11264,
+        "tool_calls": 0,
+        "reasoning_turns": 0,
+        "chars": 4022261,
+        "tokens": 794287
+      }
+    },
+    "token_counts": true,
+    "system_scrub": {
+      "enabled": true,
+      "min_sessions": 4,
+      "boilerplate_blocks": 304,
+      "generic_path_tokens": 282,
+      "conversations_scrubbed": 665,
+      "blocks_dropped": 11836,
+      "system_chars_before": 6373166,
+      "system_chars_after": 397330,
+      "note": "harness boilerplate dropped from system prompts; a repeated block is KEPT when it names a path/file this conversation actually touches (data.system_prompt). The calibration corpus is not scrubbed \u2014 the packer stubs system prose there instead."
+    },
+    "fields": [
+      "id",
+      "source",
+      "split",
+      "messages",
+      "tools",
+      "meta",
+      "n_messages",
+      "n_tool_calls",
+      "n_tool_results",
+      "n_reasoning",
+      "n_chars",
+      "n_tokens"
+    ],
+    "note": "FULL conversations \u2014 no windowing, no tool-output clipping, no system/schema stubbing, no chat template applied. tool_calls and reasoning_content are separate message fields. `split` matches the calibration corpus, so training on split=='train' keeps the eval holdouts held out."
+  }
+}
