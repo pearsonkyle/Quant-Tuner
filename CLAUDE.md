@@ -714,7 +714,7 @@ Adapted (Apache-2.0, see root `NOTICE`) from `anthropics/jacobian-lens` (the
   headroom`), and the same value must reach `llama-imatrix -c`, `awq.calibrate(ctx=)` and
   `gptq.calibrate(ctx=)` — a corpus packed for one ctx and read at another either straddles
   chunk boundaries or glues unrelated conversations into one context. The corpus records
-  what it was packed for in `corpora_audit.json: calibration.ctx`. Measured on the logs: at
+  what it was packed for in `corpora_audit.json` (top-level `ctx` / `window_cap`). Measured on the logs: at
   ctx 4096 / cap 3500, **51% of log windows and 46% of SWE windows ended at the cap** (chains
   cut mid-chain); repacking for 8192 took mean tool results per agentic window from **6.1 to
   13.5**. Cost on a 27B F16 on Metal: 48.5 s per 4096-pass (84 tok/s) vs 116.2 s per

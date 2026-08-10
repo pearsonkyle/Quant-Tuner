@@ -182,7 +182,7 @@ at 8192 on this machine; it is an overnight job either way, and much faster on C
 `--cal-logs-tokens` if that is too long.
 
 `ctx` lives in `UniversalConfig` and the window budget derives from it, so the corpus always
-records the context it was packed for (`corpora_audit.json: calibration.ctx`). **Give the
+records the context it was packed for (`corpora_audit.json`, top-level `ctx` / `window_cap`). **Give the
 same value to all three**: `llama-imatrix -c`, `awq.calibrate(ctx=)`, `gptq.calibrate(ctx=)`.
 Note 59% of agentic windows still end at the 7500 cap — these trajectories are long enough
 that 16K would capture more again.
