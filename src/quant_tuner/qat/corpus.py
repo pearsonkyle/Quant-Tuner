@@ -1,6 +1,6 @@
 """QAT masked-corpus construction (log-based + strong-solver distillation).
 
-Two corpora, one masking convention:
+Three corpora, one masking convention:
 
 * :func:`build_log_corpus` — turn-aware, assistant-MASKED windows from the CLI-log
   slices (the iter-2/3/4 corpus). Renders each session with the model's real chat
@@ -12,17 +12,25 @@ Two corpora, one masking convention:
   with the same masking. Keeps resolved-only by default (a patch that doesn't pass is the
   mimicry trap iter-4 fell into). Data/trajectory distillation, not logit-KD (the solver's
   vocab differs); same-vocab logit-KD is a composable trainer lever (:mod:`.train`).
+* :func:`build_sft_corpus` — the universal-corpus path: read the ``sft.jsonl.gz`` that
+  ``quant_tuner.data.universal`` writes alongside the calibration corpus (FULL
+  conversations, real tool schemas, system prompts already boilerplate-scrubbed, a
+  ``split`` field that matches the calibration corpus) and mask/pack it the same way.
+  Superset of the other two: the CLI logs, the agent logs, the verified SWE
+  trajectories, the red-team refusals and the broad-instruct breadth in one file, with
+  per-source token budgets so one source can't swamp the mix.
 
-Both share the masking primitives (:func:`masked_ids_for_session`, :func:`pack`,
+All three share the masking primitives (:func:`masked_ids_for_session`, :func:`pack`,
 :func:`corpus_fingerprint`) so the two corpora are bit-for-bit trainer-compatible and the
-stop-token/density audits are identical. The CLI shims are ``scripts/build_qat_masked_corpus.py``
-and ``scripts/build_ornith_distill_corpus.py``.
+stop-token/density audits are identical. The CLI shims are ``scripts/build_qat_masked_corpus.py``,
+``scripts/build_ornith_distill_corpus.py`` and ``scripts/build_sft_qat_corpus.py``.
 """
 
 from __future__ import annotations
 
 import collections
 import csv
+import gzip
 import hashlib
 import json
 import random
@@ -143,7 +151,7 @@ def truncate_tool_messages(
 
 
 def masked_ids_for_session(
-    msgs: list[dict], tok, tools: list | None = None
+    msgs: list[dict], tok, tools: list | None = None, text: str | None = None
 ) -> tuple[list[int], list[int]]:
     """Return (ids, labels) with labels = ids on assistant tokens, -100 elsewhere.
 
@@ -159,8 +167,9 @@ def masked_ids_for_session(
     tool_calls/text (+ terminator) are trained."""
     if tools is None:
         tools = reconstruct_tools(msgs)
-    text = tok.apply_chat_template(msgs, tools=tools or None, tokenize=False,
-                                   add_generation_prompt=False)
+    if text is None:  # callers that already rendered pass it in to avoid a second render
+        text = tok.apply_chat_template(msgs, tools=tools or None, tokenize=False,
+                                       add_generation_prompt=False)
     enc = tok(text, add_special_tokens=False, return_offsets_mapping=True)
     ids, offs = enc["input_ids"], enc["offset_mapping"]
     # char spans: assistant *content* plus the terminating <|im_end|> (m.end(0))
@@ -460,3 +469,160 @@ def build_distill_corpus(*, traj_dirs: list[Path], results: list[Path] | None = 
                             "min_density": min_density, "max_tool_tokens": max_tool_tokens,
                             "n_trajectories": n_kept, "sources": per_source,
                             "resolved_only": not all_patched})
+
+
+# ------------------------------------------------------------------- universal SFT corpus
+#: Per-source token budgets for :func:`build_sft_corpus`. **Empty by default — every
+#: source is taken WHOLE.** This is the deliberate difference from the calibration
+#: corpus: calibration is budgeted (~4.4M tokens, see ``data.universal``) because
+#: llama-imatrix/AWQ/GPTQ sample a fixed slice and an unbalanced mix skews `E[a²]`;
+#: QAT wants every sample it can get and spends its budget in *epochs*, not in tokens
+#: on disk. Pass ``--budget SOURCE=N`` to cap one source (``0`` drops it).
+SFT_DEFAULT_BUDGETS: dict[str, int | None] = {}
+
+
+def read_sft_jsonl(path: Path) -> list[dict]:
+    """Read ``sft.jsonl`` / ``sft.jsonl.gz`` (the ``data.universal`` SFT export)."""
+    path = Path(path)
+    opener = gzip.open if path.suffix == ".gz" else open
+    with opener(path, "rt") as f:  # type: ignore[operator]
+        return [json.loads(line) for line in f if line.strip()]
+
+
+_THINK_RE = re.compile(r"<think>\n(.*?)\n</think>", re.DOTALL)
+
+
+def _sft_conversation_ids(conv: dict, tok, max_tool_tokens: int) -> tuple[list[int], list[int], dict]:
+    """One SFT row -> (ids, labels, audit), rendered with the STUDENT's chat template.
+
+    ``audit`` records what preprocessing COST, per conversation: tool-output tokens
+    dropped by truncation, tool_calls that reached the render, and reasoning turns that
+    survived it. Reasoning survival is not a given — the template keeps
+    ``reasoning_content`` only on assistant turns AFTER the last user turn, which is the
+    whole conversation for an agentic trajectory (one task turn, then dozens of
+    assistant/tool turns) but only the tail segment of a multi-turn chat log.
+    """
+    msgs = [dict(m) for m in conv["messages"]]
+    msgs, n_tr, saved = truncate_tool_messages(msgs, tok, max_tool_tokens)
+    tools = conv.get("tools") or None
+    if tools is None:
+        # Only the tool-less sources (broad-instruct, refusals) land here; reconstructing
+        # from observed calls would invent schemas for a conversation that has none.
+        tools = reconstruct_tools(msgs) or None
+    text = tok.apply_chat_template(msgs, tools=tools, tokenize=False,
+                                   add_generation_prompt=False)
+    ids, lbl = masked_ids_for_session(msgs, tok, tools=tools, text=text)
+    audit = {
+        "tool_msgs_truncated": n_tr,
+        "tool_tokens_dropped": saved,
+        "src_tool_calls": sum(len(m.get("tool_calls") or []) for m in msgs),
+        "rendered_tool_calls": text.count("<tool_call>"),
+        # reasoning arrives either as a field (agent logs) or inline in content (CLI logs)
+        "src_reasoning": sum(1 for m in msgs
+                             if (m.get("reasoning_content") or "").strip()
+                             or "</think>" in (m.get("content") or "")),
+        "rendered_reasoning": sum(1 for m in _THINK_RE.finditer(text) if m.group(1).strip()),
+    }
+    return ids, lbl, audit
+
+
+def build_sft_corpus(*, sft_path: Path, data_split: str | None = "train",
+                     sources: list[str] | None = None,
+                     budgets: dict[str, int | None] | None = None,
+                     window: int = 4096, max_tool_tokens: int = 1024,
+                     min_density: float = 0.0, seed: int = 42,
+                     out: Path | None = None, tok=None) -> dict:
+    """Masked QAT corpus from the universal ``sft.jsonl.gz``.
+
+    Rows are filtered to ``data_split`` (``None`` = every split — don't, the eval
+    holdouts live in the same file) and to ``sources``, shuffled per source with
+    ``seed``, then consumed until that source's token budget is spent. Each source is
+    packed into windows SEPARATELY so a window never glues two sources together; the
+    combined window list is shuffled by :func:`_finalize`.
+    """
+    tok = tok or load_tokenizer()
+    budgets = SFT_DEFAULT_BUDGETS if budgets is None else budgets
+    rows = read_sft_jsonl(sft_path)
+    if data_split is not None:
+        rows = [r for r in rows if r.get("split") == data_split]
+    by_source: dict[str, list[dict]] = collections.defaultdict(list)
+    for r in rows:
+        by_source[r.get("source", "?")].append(r)
+    if sources:
+        missing = [s for s in sources if s not in by_source]
+        if missing:
+            sys.exit(f"[sft] no {data_split!r} rows for source(s) {missing}; "
+                     f"available: {sorted(by_source)}")
+        by_source = {s: by_source[s] for s in sources}
+    # budget 0 = drop the source entirely (the shim's way of excluding one)
+    by_source = {s: rs for s, rs in by_source.items() if budgets.get(s, None) != 0}
+
+    windows: list[dict] = []
+    per_source: dict[str, dict] = {}
+    for src in sorted(by_source):
+        convs = list(by_source[src])
+        random.Random(seed).shuffle(convs)
+        budget = budgets.get(src, None)
+        ids_stream: list[int] = []
+        lbl_stream: list[int] = []
+        n_conv = 0
+        au: collections.Counter = collections.Counter()
+        for conv in convs:
+            ids, lbl, a = _sft_conversation_ids(conv, tok, max_tool_tokens)
+            au.update(a)
+            ids_stream += ids
+            lbl_stream += lbl
+            n_conv += 1
+            if budget is not None and len(ids_stream) >= budget:
+                break
+        src_windows = pack(ids_stream, lbl_stream, window, min_density=min_density)
+        n_all = len(pack(ids_stream, lbl_stream, window, min_density=0.0))
+        asst = sum(1 for x in lbl_stream if x != -100)
+        kept = len(ids_stream)
+        per_source[src] = {
+            "conversations_available": len(convs), "conversations_used": n_conv,
+            "tokens": kept, "windows": len(src_windows),
+            "windows_dropped_by_density": n_all - len(src_windows),
+            "assistant_frac": round(asst / max(1, kept), 4),
+            "budget": budget,
+            # what preprocessing cost — never let these go silent
+            "tool_tokens_dropped": au["tool_tokens_dropped"],
+            "tool_truncation_share": round(
+                au["tool_tokens_dropped"] / max(1, kept + au["tool_tokens_dropped"]), 4),
+            "tool_msgs_truncated": au["tool_msgs_truncated"],
+            "tool_calls_rendered": au["rendered_tool_calls"],
+            "tool_calls_in_source": au["src_tool_calls"],
+            "reasoning_rendered": au["rendered_reasoning"],
+            "reasoning_in_source": au["src_reasoning"],
+        }
+        print(f"[sft] {src:<18} {n_conv}/{len(convs)} convs  {kept:>10,} tok  "
+              f"{100 * asst / max(1, kept):4.0f}% masked  "
+              f"-> {len(src_windows)} windows (-{n_all - len(src_windows)} low-density)",
+              flush=True)
+        print(f"[sft]   {'':<16} tool-calls {au['rendered_tool_calls']}/{au['src_tool_calls']} "
+              f"kept · reasoning {au['rendered_reasoning']}/{au['src_reasoning']} kept · "
+              f"tool-output truncation dropped {au['tool_tokens_dropped']:,} tok "
+              f"({100 * per_source[src]['tool_truncation_share']:.0f}% of this source's "
+              f"conversation content)", flush=True)
+        windows += src_windows
+
+    if not windows:
+        sys.exit("[sft] no windows survived packing — check --split / --source / --min-density")
+    tot_tok = sum(v["tokens"] for v in per_source.values())
+    tot_asst = sum(v["tokens"] * v["assistant_frac"] for v in per_source.values())
+    tot_drop = sum(v["tool_tokens_dropped"] for v in per_source.values())
+    frac = tot_asst / max(1, tot_tok)
+    print(f"[sft] TOTAL {tot_tok:,} tokens ({100 * frac:.0f}% assistant-masked) "
+          f"-> {len(windows)} windows of {window}", flush=True)
+    print(f"[sft] tool-calls {sum(v['tool_calls_rendered'] for v in per_source.values())}"
+          f"/{sum(v['tool_calls_in_source'] for v in per_source.values())} · "
+          f"reasoning {sum(v['reasoning_rendered'] for v in per_source.values())}"
+          f"/{sum(v['reasoning_in_source'] for v in per_source.values())} · "
+          f"tool-output truncation dropped {tot_drop:,} tok "
+          f"({100 * tot_drop / max(1, tot_tok + tot_drop):.0f}% of conversation content) "
+          f"at --max-tool-tokens {max_tool_tokens}", flush=True)
+    return _finalize(windows, window, tok, tool_windows=len(windows), out=out,
+                     extra={"tool_windows": len(windows), "wiki_windows": 0,
+                            "assistant_frac": frac, "split": f"sft:{data_split}",
+                            "min_density": min_density, "max_tool_tokens": max_tool_tokens,
+                            "sft_path": str(sft_path), "per_source": per_source})

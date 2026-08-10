@@ -38,13 +38,19 @@ from pathlib import Path
 import torch
 import torch.nn.functional as F
 
+from quant_tuner.qat.attention import DEFAULT_CHUNK, enable_chunked_sdpa
 from quant_tuner.qat.corpus import corpus_fingerprint
 from quant_tuner.qat.master_opt import MasterOptimizer
 from quant_tuner.qat.ternary import TernaryLinear, ternarize_group
 
 REPO = Path(__file__).resolve().parents[3]
 MODEL = REPO / "out" / "exp-057" / "model"
-MPS_MAX_WINDOW = 4096  # 8192 -> MPSGraph "tensor dims larger than INT_MAX" (32*8192^2 = 2^31)
+# MPSGraph refuses a tensor with > INT_MAX elements, and the unfused training SDPA path
+# materializes [n_heads, S, S]. The ceiling is therefore n_heads*S^2 < 2^31, i.e. S <= 8191
+# at 32 heads — 8192 fails by exactly ONE element (32*8192^2 == 2^31). Measured fwd+bwd on
+# torch 2.12/M4 Max: 4096/6144/7168/8064/8128/8191 all pass, 8192 is the only failure. Use
+# 8064 (a multiple of 128) for an ~8k window; it holds the universal corpus's 7500-token cap.
+MPS_MAX_WINDOW = 8191
 
 
 @dataclass
@@ -72,6 +78,7 @@ class QATConfig:
     resume: Path | None = None
     flip_sample: int = 8
     ckpt_every: int = 40
+    chunked_attention: bool = True
 
 
 def parse_layers(spec: str, n_layers: int) -> set[int]:
@@ -242,10 +249,20 @@ def train_qat(cfg: QATConfig) -> int:
     blob = torch.load(cfg.corpus, weights_only=False)
     ids_all, lbl_all = blob["ids"], blob["labels"]
     n_win, window = ids_all.shape
-    if dev == "mps" and window > MPS_MAX_WINDOW:
-        sys.exit(f"[qat] window {window} > {MPS_MAX_WINDOW}: MPS attention hits the "
-                 f"MPSGraph INT_MAX limit (32 heads x 8192^2 = 2^31). Rebuild the "
-                 f"corpus with window {MPS_MAX_WINDOW}.")
+    if dev == "mps":
+        # Query-chunked SDPA removes the MPSGraph INT_MAX score-tensor cap entirely
+        # (bit-identical output; see qat.attention). Without it the ceiling is
+        # n_heads*S^2 < 2^31, i.e. S <= 8191 at 32 heads.
+        if cfg.chunked_attention:
+            enable_chunked_sdpa()
+            print(f"[qat] chunked SDPA enabled (query blocks of {DEFAULT_CHUNK}) — the "
+                  f"{MPS_MAX_WINDOW}-token MPSGraph cap does not apply; the limit is memory",
+                  flush=True)
+        elif window > MPS_MAX_WINDOW:
+            sys.exit(f"[qat] window {window} > {MPS_MAX_WINDOW}: MPS attention hits the "
+                     f"MPSGraph INT_MAX limit (n_heads x S^2 must stay < 2^31; at 32 heads "
+                     f"that is S <= {MPS_MAX_WINDOW}). Either rebuild the corpus at 8064 or "
+                     f"drop --no-chunked-attention.")
     fp = blob.get("fingerprint") or corpus_fingerprint(ids_all, lbl_all)
     total_steps = int(cfg.epochs * n_win / cfg.grad_accum)
     print(f"[qat] corpus {n_win} windows x {window} ({blob.get('assistant_frac',0)*100:.0f}% masked, "
@@ -492,6 +509,9 @@ def _build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--flip-sample", type=int, default=8,
                     help="trainable linears to track for code-flip telemetry")
     ap.add_argument("--ckpt-every", type=int, default=40)
+    ap.add_argument("--no-chunked-attention", dest="chunked_attention", action="store_false",
+                    help="use the stock SDPA kernel; caps the MPS window at 8191 tokens "
+                         "(n_heads*S^2 < 2^31). Chunked SDPA is bit-identical and on by default.")
     ap.add_argument("--out", type=Path, default=REPO / "out" / "exp-058" / "trained")
     return ap
 
@@ -508,6 +528,7 @@ def main(argv: list[str] | None = None) -> int:
         val_every=args.val_every, val_windows=args.val_windows,
         train_norms=args.train_norms, resume=args.resume,
         flip_sample=args.flip_sample, ckpt_every=args.ckpt_every,
+        chunked_attention=args.chunked_attention,
     )
     return train_qat(cfg)
 

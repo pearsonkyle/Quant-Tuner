@@ -356,11 +356,30 @@ no quantization error for imatrix/AWQ/GPTQ to recover. The only lever is **more 
 the ternarization in the loop** (BitNet/TWN STE). Full guide: `docs/ternary_qat.md`.
 - `qat/ternary.py` — per-group TWN straight-through estimator; reproduces the shipped weights
   **exactly** at step 0 (the fine-tune must start from the real model, not a re-derived one).
-- `qat/corpus.py` — masking/packing shared by the log corpus and the trajectory corpus. Loss is
+- `qat/corpus.py` — masking/packing shared by the log corpus, the trajectory corpus and the
+  universal SFT corpus. Loss is
   masked to assistant/tool-call tokens **plus the terminating `<|im_end|>`** — omitting the stop
   token is what caused the iter-2/3 looping, and the builder now asserts labeled stop targets
   exist. `trajectory_to_messages` is also what `datasets/swe_trajectories.py` publishes, so the
   released dataset and the training corpus cannot drift.
+  - **`build_sft_corpus` (+ `scripts/build_sft_qat_corpus.py`) is the preferred path for a
+    new run**: it reads the `sft.jsonl.gz` that `data.universal` writes beside the
+    calibration corpus (FULL conversations, real tool schemas, scrubbed system prompts,
+    a `split` field matching the calibration corpus) and masks/packs it identically.
+    `SFT_DEFAULT_BUDGETS` is **empty — every source is taken whole**, the deliberate
+    opposite of the calibration corpus (budgeted to ~4.4M because the quantizers sample a
+    fixed slice of it); QAT spends its budget in *fractional epochs*, not tokens on disk.
+    Sources are packed **separately** so a window never glues two together.
+  - **The build audits what preprocessing costs** and prints it per source (also stored in
+    the blob's `per_source`): tool-calls and reasoning turns rendered vs. present, tokens
+    lost to tool-output truncation as a share of that source's content, windows dropped by
+    the density floor. Measured on the Qwen3-universal file: tool calls survive 1:1;
+    reasoning survives **only on assistant turns after the last user turn**, so an agentic
+    trajectory keeps all of it (3141/3141) and a multi-turn chat log keeps just its tail
+    (138/367); `--max-tool-tokens` is by far the biggest cut — **1024 drops 28% of all
+    conversation content** and was only ever right at a 4096 window. Use **4096** with
+    `--min-density 0.05` (at 0.10 the extra tool context just sinks windows below the
+    floor, so keeping more history buys nothing).
 - `qat/train.py` — `QATConfig` + `train_qat()`; `scripts/exp058_qat_train_v2.py` is a CLI shim.
 - `qat/export.py` — latents → **Q2_0** GGUF; needs `LLAMA_CPP_DIR=vendor/llama.cpp-prism`
   (ftype 41 is fork-only).
@@ -376,11 +395,27 @@ the ternarization in the loop** (BitNet/TWN STE). Full guide: `docs/ternary_qat.
   (run end-to-end); Method B = CE + KL against the precomputed top-K table (precompute and loss
   validated, trainer wiring still open — `train.py` today only has the in-loop `--kd-teacher`,
   which does not fit alongside an all-36 student).
+- `qat/attention.py` — **query-chunked SDPA; this is what lifted the training window from
+  4096 to 12288.** torch has no MPS training kernel for SDPA, so training materializes
+  `[heads, S, S]` and MPSGraph rejects > INT_MAX elements: the cap was `n_heads·S² < 2³¹`,
+  i.e. `S ≤ 8191` at 32 heads (8192 fails by *one element* — which is why it was recorded
+  as "8k impossible"). Chunking the query dim makes the score tensor `[heads, chunk,
+  kv_len]` and is **bit-identical** to `is_causal=True` (unit-tested, max abs err 0.0 —
+  that exactness is what keeps long-window results comparable with short-window ones). It
+  patches the registered `"sdpa"` entry **in place** rather than adding a name, on purpose:
+  transformers' mask fast path keys off the string `"sdpa"` to return `attention_mask=None`
+  for a causal decoder, and a custom name would instead build a `[1,1,S,S]` float mask
+  (1 GB at 16128). On by default in `train.py`; `--no-chunked-attention` restores the cap.
 - **Metal constraints are hard, not preferences**: `foreach=False` (MPS multi-tensor kernels
-  deadlock at full-model scale), window ≤ 4096 (`32·8192²` overflows INT_MAX in the unfused
-  training SDPA path), **fp32 latents** (bf16 underflows the ternary threshold → no code flips),
-  `--optim adafactor` to fit all 36 layers (~66-75 GB vs AdamW's ~116 GB). `--compute-dtype bf16`
-  is a **pessimization** at all-36 (54.5 GiB vs 31 GiB — the fp32 master copy stacks on top).
+  deadlock at full-model scale), **fp32 latents** (bf16 underflows the ternary threshold → no
+  code flips), `--optim adafactor` to fit all 36 layers (~66-75 GB vs AdamW's ~116 GB).
+  `--compute-dtype bf16` is a **pessimization** at all-36 (54.5 GiB vs 31 GiB — the fp32
+  master copy stacks on top).
+- **The window ceiling is memory, not INT_MAX.** With chunked SDPA nothing fails up to
+  20480; measured full-model fwd+bwd (all-36, fp32, adafactor, M4 Max 128 GB): 8064 →
+  8.2 ms/token, **12288 → 10.3**, 16128 → 20.0, 20480 → 38.6. The knee is swap past
+  ~128 GiB, so **12288 is the practical ceiling** (+52% window for +26% per token) and
+  15-16k costs 2× per token. Free any resident LM Studio/llama-server model first.
 - **Read the code-flip telemetry, not the loss.** A ternary model only learns by flipping codes;
   lr 3e-4 flips ~0% (scale drift only) while the loss still falls. 5e-4 for ~2.2 epochs is the
   measured sweet spot; 8 epochs memorizes.
@@ -592,6 +627,10 @@ The OmniCoder reproduction is here; the CLI handles ad-hoc runs.
   *against* the generalization number, not instead of it) →
   `run_iter5_autoloop.sh` (unattended grow-data/retrain/bench until it
   generalizes). `kd_precompute.py` is the iter-6 offline-KD entry point.
+  **For a new run prefer the universal-SFT variant**: `build_sft_qat_corpus.py`
+  (`--window 12288 --max-tool-tokens 4096 --min-density 0.05`, train + `--split test`
+  val) → `run_sft_qat_pipeline.sh LR TAG EPOCHS`, which is the same train → export →
+  SWE-rebench chain over all five SFT sources instead of the 12 Python trajectories.
 - **Red-team chain** (see `docs/benchmarks.md#red-team-safety`):
   `eval_redteam.py` (sweep N targets on one frozen bank → `results.csv`,
   `results_per_case.csv`, `bank.json`) → `redteam_ladder.py` (pair every rung

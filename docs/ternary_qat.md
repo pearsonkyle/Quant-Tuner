@@ -90,12 +90,38 @@ log formats with no stored schemas fall back to `reconstruct_tools` stubs.
 - **`foreach=False` is mandatory.** MPS multi-tensor (foreach) kernels *deadlock* at
   full-model scale — the "step-5 hang." AdamW, Adafactor (per-tensor by construction),
   `clip_grad_norm_`, and the fp32-master wrapper all stay per-tensor.
-- **Window ≤ 4096** (now enforced by the trainer). seq 8192 errors with *"MPSGraph
-  tensor dims larger than INT_MAX"*: torch 2.12 has **no MPS training kernel for
-  SDPA** (fused paths are inference-only), so training materializes the full
-  `[B, heads, S, S]` scores tensor — and 32·8192² = 2³¹ overflows INT_MAX exactly.
-  Same math rules out B≥4 at 4096; B=2 is legal but compute-bound → grad-accum is
-  equivalent. Throughput is token-bound (~10 ms/token) regardless of window.
+- **The window ceiling is memory, not INT_MAX — and it is ~12288, not 4096.** torch 2.12
+  has **no MPS training kernel for SDPA** (fused paths are inference-only), so training
+  materializes the full `[B, heads, S, S]` scores tensor and MPSGraph refuses a tensor
+  with > INT_MAX elements. That gives **`n_heads · S² < 2³¹`** → `S ≤ 8191` at 32 heads;
+  seq 8192 fails by *exactly one element* (32·8192² = 2³¹), which is why it read as
+  "8k is impossible". Measured: 4096 / 6144 / 7168 / 8064 / 8128 / 8191 all pass, 8192 is
+  the sole failure.
+
+  **`qat.attention.enable_chunked_sdpa()` removes that cap outright** (on by default;
+  `--no-chunked-attention` opts out). It computes causal SDPA in query blocks, so the
+  score tensor is `[heads, chunk, kv_len]` and never `[heads, S, S]`. Output is
+  **bit-identical** to `is_causal=True` — unit-tested at max abs err 0.0, which is what
+  makes long-window results comparable with everything produced below 8191. It patches
+  the registered `"sdpa"` entry *in place* rather than adding a name, so transformers'
+  mask fast path still returns `attention_mask=None` for a plain causal decoder (a custom
+  name gets an eager `[1,1,S,S]` float mask — 1 GB at S=16128).
+
+  With chunking on, **nothing fails up to 20480**; the wall is unified memory. Measured
+  full-model fwd+bwd, all-36 layers, fp32, Adafactor, gradient checkpointing, M4 Max
+  128 GB (with ~41 GB held by an unrelated LM Studio model):
+
+  | window | fwd+bwd | ms/token | torch driver alloc |
+  |---|---|---|---|
+  | 8064 | 66 s | 8.16 | 93 GiB |
+  | **12288** | **127 s** | **10.31** | **121 GiB** |
+  | 16128 | 322 s | 19.98 | 139 GiB |
+  | 20480 | 790 s | 38.56 | 148 GiB |
+
+  The knee is sharp and it is swap: past ~128 GiB the per-token cost **doubles**. So
+  **12288 is the practical ceiling** — +52% window over 8064 for only +26% per token.
+  15-16k is reachable but costs 2× per token; take it only if you free the machine first.
+  Same math rules out B≥2; grad-accum is the equivalent lever.
 - **fp32 latents, not bf16.** bf16 either destabilizes (high lr) or *underflows* the
   ternary threshold so no codes flip (low lr) — a ~lr update is below one bf16 ulp of
   a ~1e-2 latent. `--compute-dtype bf16` is the supported middle path: fp32 masters
@@ -305,6 +331,67 @@ chat template, and masks the loss to assistant/tool-call tokens **plus the termi
 `<|im_end|>`** (see the masking rules above — omitting the stop token is what caused the
 iter-2/3 looping). Flattening is `quant_tuner.qat.corpus.trajectory_to_messages`, shared with
 the published dataset builder so the two cannot drift.
+
+### Stage 2b — the universal SFT corpus (preferred for a new run)
+
+`data.universal` writes an `sft.jsonl.gz` next to the calibration corpus: **full**
+conversations (no windowing, no clipping, no stubbing, no chat template applied), real
+tool schemas, system prompts already boilerplate-scrubbed, and a `split` field that
+matches the calibration corpus — so training on `split=="train"` keeps every eval holdout
+held out. `build_sft_qat_corpus.py` masks and packs it exactly like the other two corpora:
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/build_sft_qat_corpus.py \
+    --sft out/corpora/qwen3-universal/sft.jsonl.gz \
+    --window 12288 --max-tool-tokens 4096 --min-density 0.05 \
+    --out out/exp-058/sft_corpus_universal_12288.pt
+# and the disjoint validation corpus for --val-corpus:
+PYTHONPATH=src .venv/bin/python scripts/build_sft_qat_corpus.py \
+    --sft out/corpora/qwen3-universal/sft.jsonl.gz --split test \
+    --window 12288 --max-tool-tokens 4096 --min-density 0.05 \
+    --out out/exp-058/sft_val_universal_12288.pt
+```
+
+**Every source is taken whole** (`SFT_DEFAULT_BUDGETS = {}`). This is the deliberate
+difference from the calibration corpus, which *is* token-budgeted (~4.4M) because
+llama-imatrix/AWQ/GPTQ each sample a fixed slice of it and an unbalanced mix skews
+`E[a²]`. QAT spends its budget in **epochs**, not in tokens on disk — so put everything on
+disk and use fractional `--epochs`. Cap a source with `--budget SOURCE=N` (`0` drops it).
+
+Sources are packed **separately**, so a window never glues two of them together.
+
+#### What the preprocessing costs (audited, printed on every build)
+
+The builder prints per source, and stores in the blob's `per_source`: tool-calls
+rendered / in source, reasoning turns rendered / in source, tokens dropped by tool-output
+truncation as a **share of that source's conversation content**, and windows dropped by
+the density floor. Measured on the Qwen3-universal SFT file:
+
+- **Tool calls survive 1:1.** Nothing in the chain drops a `tool_calls` field.
+- **Reasoning survives for agentic trajectories, not for chat logs.** The template keeps
+  `reasoning_content` only on assistant turns *after the last user turn*. An agent
+  trajectory is one task turn followed by dozens of assistant/tool turns, so **all** of it
+  is kept (measured 74/74 on an agent-log sample); a multi-turn CLI chat log keeps only
+  its tail segment. That is also what the model sees at inference, so it is the right
+  distribution — but it means the ~383 reasoning turns in the CLI logs mostly don't reach
+  the corpus, while the ~3,900 in the agent logs do.
+- **Tool-output truncation is by far the biggest cut, and `--max-tool-tokens` is the
+  knob.** At an 8064 window, measured over a 24-conversation sample:
+
+  | `--max-tool-tokens` | conversation content dropped | windows kept (`--min-density` 0 / .05 / .10) |
+  |---|---|---|
+  | 1024 | **28%** | 74 / 74 / 69 |
+  | 2048 | 20% | 83 / 78 / 74 |
+  | 3072 | 15% | 87 / 81 / 74 |
+  | **4096** | **13%** | **89 / 79 / 75** |
+  | 0 (off) | 0% | 93 / 82 / 75 |
+
+  1024 was right at a 4096 window and is far too aggressive above it. **Use 4096** at a
+  12288 window — a single tool result still can't eat more than a third of a window, but
+  realistic outputs survive nearly intact (the full-corpus build drops 13% of conversation
+  content, down from 28% at 1024). Note the interaction with `--min-density`: at 0.10 the
+  extra tool context just pushes windows below the floor and they get dropped anyway, so
+  keeping more history buys nothing there. **0.05** is the setting that actually keeps it.
 
 ## Stage 3A — Method A: masked-CE training
 
