@@ -1,0 +1,303 @@
+================================================================================
+AREA: Physics
+SUBJECT: Fluid Dynamics
+Subtopics: fluid statics, conservation laws, Navier-Stokes, dimensionless numbers,
+laminar and turbulent flow, boundary layers, compressible flow, applications.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Fluid Statics and Kinematics
+
+A fluid is a substance that deforms continuously under shear stress, which distinguishes it
+from a solid that reaches a static deformation. Both liquids and gases qualify, differing in
+compressibility — liquids are nearly incompressible under ordinary conditions while gases are
+not — and that distinction determines which equations apply.
+
+Hydrostatic pressure increases with depth because the fluid above has weight, giving the
+familiar linear relation for constant density. Its consequences include buoyancy, formalized as
+Archimedes' principle: the upward force equals the weight of displaced fluid, which follows
+directly from integrating the pressure over a submerged surface. Pascal's principle, that
+pressure applied to an enclosed fluid transmits undiminished, is the basis of hydraulic force
+multiplication — a small force on a small piston produces a large force on a large one, with
+the work conserved because the large piston moves proportionally less.
+
+The kinematic description of flow admits two viewpoints that recur throughout the subject.
+The Lagrangian view follows individual fluid parcels, which is natural for deriving the
+equations from Newton's laws applied to a mass. The Eulerian view describes the field at fixed
+points in space, which is what instruments measure and what computation uses. Converting
+between them introduces the material derivative, which accounts for both the local change at a
+fixed point and the change from the parcel moving into a region with different conditions —
+the convective term, and the source of the nonlinearity that makes fluid dynamics hard.
+
+Statics and kinematics:
+  hydrostatic pressure   P = P_0 + rho g h
+  Archimedes             buoyant force equals displaced fluid weight
+  Pascal's principle     pressure transmits undiminished; hydraulic multiplication
+  streamline             tangent to the velocity field at an instant
+  pathline               the trajectory of one parcel over time
+  streakline             the locus of parcels that passed through a point; what dye
+                         injection visualizes
+  steady flow            all three coincide; in unsteady flow they differ
+  material derivative    D/Dt = d/dt + (v · grad); local plus convective change
+  convective term        the nonlinearity; the source of turbulence and of the
+                         difficulty of the subject
+  vorticity              curl of velocity; twice the local rotation rate
+  irrotational flow      zero vorticity; admits a velocity potential and enormous
+                         simplification
+  circulation            the line integral of velocity around a closed curve;
+                         directly related to lift
+
+Q: A block floats with 80% of its volume submerged in water. Its density is closest to:
+A. 200 kg/m^3   B. 800 kg/m^3   C. 1250 kg/m^3   D. 1000 kg/m^3
+Reasoning: Floating equilibrium requires the buoyant force to equal the weight, so the
+displaced fluid mass equals the object's mass. Displaced volume is 0.8 of the object's volume,
+so 0.8 times water density equals the object's density, giving 800 kg/m^3. Answer: B.
+
+## Conservation Laws and Bernoulli
+
+The governing equations express conservation of mass, momentum, and energy for a fluid.
+Continuity states that mass cannot accumulate in a fixed volume without a net inflow, which for
+incompressible flow reduces to the velocity field being divergence-free. In a pipe of varying
+area this gives the familiar result that velocity is inversely proportional to cross-sectional
+area, so a constriction speeds the flow.
+
+Bernoulli's equation relates pressure, velocity, and elevation along a streamline for steady,
+incompressible, inviscid flow. Its content is energy conservation: the sum of pressure energy,
+kinetic energy, and potential energy per unit volume is constant along a streamline. The
+counterintuitive consequence — that faster flow has lower pressure — explains the lift on a
+curved surface, the operation of a venturi meter, and why a shower curtain is pulled inward.
+
+The equation's assumptions are restrictive and routinely violated in casual application.
+Steady flow excludes anything time-varying. Incompressibility excludes gas flow above roughly
+thirty percent of the speed of sound. Inviscid excludes anything where friction matters, which
+includes flow near a wall and any flow that has separated. And it applies along a streamline,
+so comparing points on different streamlines requires additionally that the flow be
+irrotational. The standard incorrect explanation of aircraft lift — that air travelling over
+the longer upper surface must arrive simultaneously and therefore goes faster — fails on the
+premise itself, since there is no reason for simultaneous arrival, and the parcels above in
+fact arrive earlier.
+
+Conservation relations:
+  continuity, general    d(rho)/dt + div(rho v) = 0
+  continuity, incompress. div v = 0
+  pipe flow              A1 v1 = A2 v2
+  Bernoulli              P + (1/2) rho v^2 + rho g h = constant along a streamline
+  stagnation pressure    P + (1/2) rho v^2; what a pitot tube measures
+  dynamic pressure       (1/2) rho v^2
+  Torricelli             v = sqrt(2 g h) for efflux from a tank; Bernoulli applied
+  venturi                pressure drop at a constriction measures flow rate
+  momentum equation      the integral form gives forces on ducts, vanes, and jets
+  head loss              the departure from Bernoulli caused by friction; what
+                         real pipe flow analysis is about
+  Bernoulli assumptions  steady, incompressible, inviscid, along a streamline;
+                         each is violated routinely in casual application
+
+Lift is worth stating correctly because the popular explanation is wrong and a better one is
+available without mathematics. A wing deflects air downward, and by Newton's third law the air
+pushes the wing upward — this is complete and correct as far as it goes. The circulation
+picture is the more quantitative version: the flow around a lifting wing has net circulation,
+and the Kutta-Joukowski theorem relates lift to that circulation directly. The angle of attack
+and the trailing-edge shape together determine the circulation, which is why a symmetric
+aerofoil generates lift at positive angle of attack and none at zero, contradicting any
+explanation resting on the upper surface being longer.
+
+## Navier-Stokes and Dimensionless Numbers
+
+The Navier-Stokes equations are Newton's second law applied to a fluid element, with terms
+for pressure gradient, viscous stress, and body forces balanced against the material
+acceleration. They are believed to describe all classical fluid behaviour, and their general
+solution is unknown — whether smooth solutions always exist in three dimensions is one of the
+Millennium Prize problems, and the difficulty comes from the convective nonlinearity.
+
+Because analytical solutions exist only for a handful of simplified cases, dimensional
+analysis carries much of the practical load. The Buckingham pi theorem states that a
+relationship among n variables involving k independent dimensions can be expressed among n-k
+dimensionless groups, which reduces the parameter space enormously and identifies which
+combinations govern behaviour.
+
+The Reynolds number is the most important of these. It is the ratio of inertial to viscous
+forces, and it determines the character of the flow rather than merely its magnitude. Below a
+critical value the flow is laminar, with smooth layers and viscous forces dominating; above it
+the flow is turbulent, with chaotic eddies and inertia dominating. Two geometrically similar
+flows at the same Reynolds number behave identically regardless of their physical scale, which
+is dynamic similarity and is what makes scale-model testing meaningful.
+
+Dimensionless groups:
+  Reynolds       rho v L / mu;  inertial over viscous; laminar versus turbulent
+  Mach           v / c;  compressibility; below 0.3 gas flow is effectively
+                 incompressible
+  Froude         v / sqrt(g L);  inertia over gravity; free-surface and ship waves
+  Weber          rho v^2 L / sigma;  inertia over surface tension; droplet breakup
+  Prandtl        momentum over thermal diffusivity; boundary layer thickness ratio
+  Nusselt        convective over conductive heat transfer
+  Rayleigh       buoyancy-driven convection onset
+  Strouhal       vortex shedding frequency; f L / v, about 0.2 for a cylinder over
+                 a wide Reynolds range
+  Peclet         advection over diffusion
+  drag coefficient  drag / (0.5 rho v^2 A); a function of Reynolds number
+  pipe transition   laminar below Re ~2300, turbulent above ~4000
+  dynamic similarity  matched dimensionless groups give matched behaviour
+
+Matching dimensionless numbers is what makes model testing valid and is also its central
+difficulty. A ship model at one-fiftieth scale cannot simultaneously match Reynolds and Froude
+numbers — matching Froude requires a velocity scaled by the square root of length, and matching
+Reynolds requires velocity scaled inversely with length, which are incompatible. The standard
+resolution is to match Froude, since wave-making resistance dominates, and to compute the
+viscous contribution separately using empirical correlations. Recognizing which group governs
+the phenomenon of interest is therefore a prerequisite to designing a valid experiment.
+
+## Laminar Flow, Turbulence, and Boundary Layers
+
+Laminar flow is orderly, with fluid moving in smooth layers that do not mix except by
+molecular diffusion. It is analytically tractable, and pipe flow is the canonical case:
+the velocity profile is parabolic, the flow rate depends on the fourth power of the radius by
+the Hagen-Poiseuille relation, and pressure drop is linear in flow rate. That fourth-power
+dependence has striking consequences — halving a pipe's radius reduces flow to one sixteenth at
+the same pressure, which is why small changes in arterial diameter have large physiological
+effects.
+
+Turbulent flow is chaotic, with velocity fluctuating irregularly and eddies spanning a wide
+range of scales. It is dramatically better at mixing and at transferring heat and momentum, and
+dramatically worse for pressure loss, with drop scaling closer to the square of flow rate.
+The velocity profile is much flatter than the laminar parabola because turbulent mixing
+transports momentum across the pipe, and the transition between the regimes occurs over a
+range rather than at a sharp threshold, with the transition point sensitive to disturbances,
+surface roughness, and inlet conditions.
+
+The energy cascade is the central conceptual picture of turbulence. Energy enters at large
+scales set by the geometry, transfers to progressively smaller eddies through nonlinear
+interaction without dissipation, and is finally dissipated by viscosity at the smallest scale.
+Kolmogorov's theory predicts that the intermediate range has a universal statistical structure
+independent of how the energy was injected, giving the observed spectrum with a characteristic
+power law. The dissipation scale shrinks as Reynolds number rises, which is why direct
+numerical simulation resolving all scales is computationally infeasible for practical Reynolds
+numbers — the required grid points scale as Reynolds number to the power nine-fourths.
+
+Flow regimes and boundary layers:
+  laminar pipe flow      parabolic profile; Q proportional to r^4; dP linear in Q
+  turbulent pipe flow    flatter profile; dP roughly quadratic in Q
+  transition             Re ~2300-4000; sensitive to disturbances
+  energy cascade         large eddies to small; dissipation at the Kolmogorov scale
+  Kolmogorov spectrum    universal statistics in the inertial range
+  no-slip condition      fluid velocity equals the surface velocity at a wall; the
+                         origin of all viscous drag
+  boundary layer         the thin region where velocity rises from zero to free
+                         stream; thickness grows along the surface
+  laminar to turbulent   the boundary layer transitions downstream; a turbulent
+                         layer has more skin friction and resists separation
+  separation             the boundary layer detaches under an adverse pressure
+                         gradient; produces a wake and large pressure drag
+  stall                  separation on a wing at high angle of attack; lift
+                         collapses
+  drag crisis            drag coefficient drops sharply when the boundary layer
+                         becomes turbulent; the reason golf balls have dimples
+  vortex shedding        alternating vortices behind a bluff body; the Karman
+                         street, and the source of resonant structural failures
+
+Boundary layer separation is the phenomenon that dominates practical aerodynamics and
+hydrodynamics. Where the pressure rises in the flow direction — an adverse gradient — fluid
+near the wall, already slowed by friction, may lack the momentum to continue and reverses,
+detaching the layer from the surface. The resulting wake is a low-pressure region producing
+pressure drag far exceeding skin friction, and on a wing it causes stall. Streamlining is
+fundamentally about delaying separation by making the pressure recovery gradual, which is why a
+teardrop shape has a small fraction of the drag of a sphere with the same frontal area.
+
+The dimpled golf ball is the counterintuitive case worth understanding. Dimples trip the
+boundary layer into turbulence, which increases skin friction and, far more importantly, gives
+the layer more momentum near the wall so it resists separation longer. The wake narrows
+substantially, pressure drag falls, and the net drag is roughly halved — an increase in one
+drag component producing a large decrease in the total.
+
+[user] I'm sizing a pump for a 200 m pipe run, 50 mm diameter, 3 L/s of water, with 8 m of
+elevation gain.
+[assistant] tool_call fluids.pipe_system({"length_m": 200, "diameter_mm": 50,
+"flow_lps": 3.0, "elevation_m": 8, "fluid": "water_20c", "roughness_mm": 0.045,
+"fittings": {"elbow_90": 6, "gate_valve": 2}})
+[tool] {"velocity_m_s": 1.53, "reynolds": 76200, "regime": "turbulent",
+"friction_factor": 0.0212, "major_loss_m": 10.1, "minor_loss_m": 0.9,
+"static_head_m": 8, "total_head_m": 19.0, "hydraulic_power_w": 559,
+"pump_power_at_65pct_w": 860}
+[assistant] Total head is 19.0 metres, requiring about 560 watts of hydraulic power, so around
+860 watts at the shaft assuming 65% pump efficiency.
+
+The breakdown is worth seeing because it shows where the energy goes. Static lift accounts for
+8 metres — that is unavoidable work against gravity. Friction along the 200 metre run accounts
+for 10.1 metres, more than the lift itself. Fittings contribute a further 0.9 metres, which is
+minor here because you have few of them; in a compact system with many bends and valves, minor
+losses frequently exceed the straight-run friction and the name becomes misleading.
+
+The flow is turbulent at Reynolds 76,200, so pressure drop scales close to the square of flow
+rate. That scaling is the important design lever: increasing the pipe diameter from 50 mm to
+65 mm drops the velocity to 0.90 m/s and cuts the friction loss to roughly 2.7 metres, taking
+total head from 19 to about 11.6 metres and the pump power to roughly 520 watts. That is a 40%
+reduction in operating energy for a modest increase in pipe cost, and over a system operating
+continuously it pays back quickly.
+
+Two checks before finalizing. Confirm the net positive suction head available at the pump
+inlet exceeds what the pump requires, since cavitation damages impellers rapidly and is a
+function of the suction-side geometry rather than of the discharge calculation above. And
+verify the velocity is within the conventional range — 1.53 m/s is comfortable, while above
+roughly 3 m/s erosion and noise become concerns and below about 0.6 m/s sediment can settle in
+horizontal runs.
+
+If the 3 L/s is a peak rather than a continuous requirement, size the pipe for the continuous
+case and check that the peak is acceptable, rather than sizing everything for a rare
+condition.
+
+## Compressible Flow and Applications
+
+When flow speed becomes comparable to the speed of sound, density changes are no longer
+negligible and the character of the flow changes qualitatively. The Mach number, the ratio of
+flow speed to sound speed, is the governing parameter, with compressibility effects becoming
+significant above roughly 0.3 and dominant near and above one.
+
+The most striking consequence is that the relationship between area and velocity reverses. In
+subsonic flow, a constriction accelerates the flow, as continuity and Bernoulli require. In
+supersonic flow, a constriction decelerates it and an expansion accelerates it, because the
+density change outweighs the area change. This is why a converging-diverging nozzle is required
+to produce supersonic exhaust: the flow accelerates to exactly sonic at the throat and
+continues accelerating in the diverging section, which is the geometry of every rocket nozzle
+and every supersonic wind tunnel.
+
+Shock waves are discontinuities that form when a supersonic flow must adjust to conditions it
+cannot reach smoothly. Across a normal shock, the flow abruptly becomes subsonic with a rise in
+pressure, density, and temperature and a loss of stagnation pressure — an irreversible process
+that generates entropy. Oblique shocks turn the flow through an angle and are what forms on
+supersonic aircraft, and the sonic boom is the pressure discontinuity of the shock system
+sweeping across the ground.
+
+Compressible flow and applications:
+  speed of sound        sqrt(gamma R T) in an ideal gas; ~343 m/s in air at 20 C
+  Mach number           v / c;  M < 0.3 effectively incompressible
+  subsonic              constriction accelerates
+  supersonic            constriction decelerates; the area relation reverses
+  choked flow           sonic at the throat; mass flow becomes independent of
+                        further downstream pressure reduction
+  converging-diverging  the nozzle geometry required for supersonic exhaust
+  normal shock          abrupt transition to subsonic; stagnation pressure loss
+  oblique shock         turns the flow; forms on supersonic bodies
+  expansion fan         smooth isentropic turning in the opposite sense
+  transonic             mixed subsonic and supersonic regions; the most difficult
+                        regime and the origin of the historical drag rise
+  wave drag             an additional drag component appearing near and above M = 1
+  computational methods finite volume with shock-capturing schemes; turbulence
+                        modelled rather than resolved at practical Reynolds numbers
+
+Computational fluid dynamics has become the primary analysis tool, and its central practical
+issue is turbulence modelling. Resolving all turbulent scales directly is infeasible at
+engineering Reynolds numbers, so the effect of the unresolved scales is modelled. Reynolds-
+averaged approaches model all turbulence and are cheap, robust, and dependent on empirical
+constants calibrated for particular flow classes — they are reliable for attached flows and
+unreliable for separation, which is exactly what many engineering questions are about. Large
+eddy simulation resolves the large scales and models only the small, at far greater cost and
+with substantially better fidelity for separated and unsteady flows.
+
+The consequence for anyone using these tools is that a computational result requires
+validation rather than acceptance. Grid convergence must be demonstrated by refining the mesh
+and showing the answer stops changing. The turbulence model must be appropriate for the flow
+regime. Boundary conditions must reflect the real situation, and the near-wall mesh resolution
+must satisfy the requirements of the wall treatment being used. A converged solution on an
+inadequate mesh with an inappropriate model produces a colourful and confident picture of
+something that did not happen, and the discipline of validating against experimental data for
+a similar configuration is what separates useful computation from decoration.

@@ -1,0 +1,340 @@
+================================================================================
+AREA: Physics
+SUBJECT: Computational Physics
+Subtopics: simulation methodology, molecular dynamics, Monte Carlo methods, lattice
+and grid methods, N-body and astrophysical simulation, quantum computation, validation,
+high-performance practice.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Simulation Methodology
+
+Computational physics is a third mode of inquiry alongside theory and experiment, and its
+distinctive characteristic is that a simulation is an experiment on a model rather than on
+nature. This means its results are only as good as the model, and that the errors divide into
+two kinds requiring different responses: model error, where the equations do not describe the
+system adequately, and numerical error, where the equations are solved imprecisely. Reducing
+numerical error in a poor model produces a precise wrong answer.
+
+Every simulation makes choices about scale, and the choices determine what phenomena can appear.
+A molecular dynamics simulation of a nanosecond cannot exhibit a process taking microseconds. A
+grid with a cell size of a metre cannot resolve a feature of a centimetre. The physics not
+resolved must either be absent, which is a modelling decision to be justified, or represented by
+a subgrid model, which introduces parameters and assumptions. Recognizing which phenomena the
+chosen scales admit is a prerequisite to interpreting any result.
+
+Reproducibility in simulation requires more than in experiment because the entire computation
+is in principle deterministic. Recording the code version, the input parameters, the random
+seeds, the compiler and its flags, and the library versions is what permits a result to be
+regenerated — and aggressive floating-point optimization changes results, so compiler flags are
+part of the specification rather than an implementation detail. Archiving these alongside the
+output is inexpensive and is frequently omitted.
+
+Methodology:
+  model error          the equations do not describe the system; not reduced by
+                       better numerics
+  numerical error      the equations are solved imprecisely; reduced by refinement
+  verification         solving the equations correctly
+  validation           solving the correct equations; requires comparison with
+                       experiment
+  resolved scales      what the discretization can represent
+  subgrid model        represents unresolved physics; introduces parameters
+  dimensionless groups  identify the governing regimes and permit scaling
+  nondimensionalization  reduces the parameter count and improves conditioning
+  convergence study    refine and confirm the answer stops changing; the single
+                       most informative check
+  method of manufactured solutions  construct an exact solution, derive the
+                       required source, verify the code reproduces it at the
+                       expected order
+  reproducibility      code version, parameters, seeds, compiler, flags, libraries
+  ensembles            repeat with varied initial conditions or parameters; a
+                       single run tells you nothing about sensitivity
+
+Q: A simulation's results change substantially when the compiler optimization level is raised
+from -O0 to -O3. The most likely explanation is:
+A. A compiler bug
+B. Floating-point reassociation and fused operations change the rounding, which an unstable
+   algorithm or a chaotic system amplifies
+C. The code is incorrect
+D. The hardware is faulty
+Reasoning: Aggressive optimization reorders floating-point operations and may fuse multiply-add
+pairs, both of which change rounding. For a well-conditioned stable computation the difference is
+at the round-off level; for a chaotic system or an unstable algorithm it amplifies. This is why
+floating-point flags are part of a simulation's specification, and it also indicates that
+sensitivity should be quantified. Answer: B.
+
+## Molecular Dynamics
+
+Molecular dynamics integrates Newton's equations for a system of interacting particles, and its
+appeal is that it produces a trajectory from which any observable can be computed. The
+computational cost is dominated by evaluating the forces, which for pairwise interactions is
+quadratic in particle count unless the interaction is truncated.
+
+Short-range interactions are truncated at a cutoff distance beyond which the force is
+negligible, and neighbour lists track which pairs are close enough to matter, reducing the cost
+to linear. Long-range interactions, particularly electrostatics, cannot be truncated without
+introducing serious artifacts because the sum converges conditionally, and Ewald summation splits
+it into a rapidly converging real-space part and a reciprocal-space part evaluated by fast
+Fourier transform.
+
+The integrator must be symplectic, which is not a preference but a requirement for meaningful
+long-time behaviour. A general-purpose high-order integrator has local errors that accumulate as
+secular energy drift, so the simulated system slowly heats or cools and the thermodynamics
+becomes meaningless. Symplectic integrators preserve phase space volume, so energy error
+oscillates within a bound over arbitrarily long runs. Velocity Verlet is second order,
+symplectic, time-reversible, and requires one force evaluation per step, which is why it is
+near-universal.
+
+Molecular dynamics:
+  force field          the interaction model; bonded and non-bonded terms with
+                       fitted parameters
+  cutoff               truncate short-range interactions; use a switching function
+                       to avoid a force discontinuity
+  neighbour list       track nearby pairs; rebuilt periodically
+  Ewald / PME          long-range electrostatics; real and reciprocal space
+  periodic boundaries  eliminate surfaces; introduce artificial periodicity that
+                       must be checked against the correlation length
+  velocity Verlet      symplectic, time-reversible, one force evaluation per step
+  timestep             bounded by the fastest motion, typically bond vibration;
+                       ~1 fs, or ~2 fs with constrained hydrogen bonds
+  constraints          SHAKE and LINCS remove the fastest vibrations, permitting a
+                       larger timestep
+  thermostat           couples to a heat bath; Nose-Hoover and Langevin sample the
+                       canonical ensemble correctly, while naive velocity rescaling
+                       does not
+  barostat             constant pressure
+  ensembles            microcanonical, canonical, isothermal-isobaric
+  equilibration        discard the initial transient; the length required must be
+                       demonstrated rather than assumed
+  timescale gap        accessible times are microseconds while many processes take
+                       milliseconds or longer; the field's central limitation
+  enhanced sampling    umbrella sampling, metadynamics, replica exchange; bias the
+                       simulation to cross barriers and correct afterward
+
+The timescale gap is the field's defining constraint. The timestep is bounded by the fastest
+motion in the system, and bond vibrations require a step of about one femtosecond, so reaching a
+millisecond requires a trillion steps. Many processes of interest — protein folding, ligand
+binding, conformational change — occur on exactly those timescales. Enhanced sampling methods
+address this by biasing the simulation toward crossing barriers and then correcting the
+statistics, which recovers equilibrium properties at enormously reduced cost while requiring the
+relevant reaction coordinate to be identified in advance.
+
+## Monte Carlo Methods
+
+Monte Carlo methods use random sampling to compute quantities that are difficult to evaluate
+directly, and their defining advantage is that the error scales as the inverse square root of the
+sample count independent of dimension. Deterministic quadrature error scales as the sample count
+to the power of the accuracy order divided by the dimension, so it degrades rapidly with
+dimension while Monte Carlo does not. The crossover is around four to eight dimensions, above
+which sampling is the only practical approach.
+
+Markov chain Monte Carlo samples from a distribution known only up to a normalizing constant by
+constructing a chain whose stationary distribution is the target. The Metropolis algorithm
+proposes a move and accepts it with a probability depending on the ratio of target densities,
+which is exactly why the normalizing constant is unnecessary — it cancels in the ratio. This is
+what makes statistical mechanics computationally tractable, since the partition function is the
+intractable quantity.
+
+Detailed balance is the design principle: a chain satisfying it has the target as a stationary
+distribution, and constructing the acceptance probability to enforce it is how any target
+distribution is sampled. Ergodicity is the additional requirement that the chain can reach every
+state, which fails when the target has well-separated modes and the proposal cannot cross between
+them — producing a chain that samples one mode indefinitely while appearing converged.
+
+Monte Carlo methods:
+  error scaling        inverse square root of sample count, independent of
+                       dimension
+  crossover            around 4-8 dimensions; above this Monte Carlo dominates
+                       quadrature
+  importance sampling  sample from a distribution concentrating where the
+                       integrand is large; reduces variance dramatically when the
+                       proposal is well chosen and increases it when badly chosen
+  Metropolis           propose and accept; needs the target only up to a constant
+  detailed balance     the design condition ensuring the correct stationary
+                       distribution
+  ergodicity           the chain must reach every state; fails with separated
+                       modes
+  autocorrelation time  successive samples are correlated; the effective sample
+                       count is far below the raw count and must be estimated
+  burn-in              discard the initial non-stationary portion
+  critical slowing down  autocorrelation diverges near a phase transition; cluster
+                       algorithms address it by flipping correlated regions
+                       together
+  parallel tempering   run replicas at several temperatures and swap; crosses
+                       barriers that a single chain cannot
+  quantum Monte Carlo  path integral and diffusion methods for quantum systems
+  sign problem         fermionic and real-time quantum Monte Carlo produce
+                       oscillating weights whose cancellation destroys the
+                       statistics; an unsolved obstacle limiting what can be
+                       simulated
+
+The sign problem deserves emphasis because it is a genuine barrier rather than a technical
+difficulty. For fermionic systems and for real-time quantum dynamics, the quantity being sampled
+has contributions of opposite sign that largely cancel, so the signal is a small difference of
+large numbers and the statistical error grows exponentially with system size and inverse
+temperature. No general solution exists, it is believed to be computationally hard in a formal
+sense, and it is why certain regions of the quantum many-body phase diagram — including dense
+quark matter and much of high-temperature superconductivity — remain computationally
+inaccessible.
+
+## Grids, N-body, and Field Simulation
+
+Partial differential equations are solved by discretizing space and time, and the three main
+spatial approaches suit different problems. Finite differences approximate derivatives on a
+structured grid and are simple to implement and analyze at the cost of poor handling of complex
+geometry. Finite elements expand the solution in local basis functions over an unstructured mesh,
+handling arbitrary geometry with a rigorous variational error framework. Finite volumes enforce
+conservation on control volumes exactly, which is why they dominate in fluid dynamics where
+conservation is the point.
+
+Explicit time stepping is bounded by the Courant condition requiring that information not travel
+more than one cell per step, which for diffusion scales with the square of the cell size and
+therefore becomes prohibitive under refinement. Implicit methods are unconditionally stable and
+require solving a linear system per step, which is why diffusion is almost always treated
+implicitly and advection frequently explicitly, with operator splitting handling problems
+containing both.
+
+N-body simulation computes gravitational or electrostatic interaction among many particles, and
+the naive cost is quadratic. Tree methods group distant particles and approximate their combined
+influence by a multipole expansion, reducing the cost to n log n with a controllable accuracy
+parameter. Particle-mesh methods assign mass to a grid, solve for the potential by fast Fourier
+transform, and interpolate the force back, giving linear scaling at the cost of resolution
+limited by the grid. Hybrid methods use a mesh for long-range forces and direct summation for
+close pairs.
+
+Grids, N-body, and fields:
+  finite difference    structured grid; simple, poor with complex geometry
+  finite element       unstructured mesh, variational framework, complex geometry
+  finite volume        conservation enforced exactly; fluids
+  spectral method      global basis; exponential convergence for smooth periodic
+                       problems, poor with discontinuities
+  CFL condition        explicit stability limit; information travels at most one
+                       cell per step
+  implicit             unconditionally stable, requires a solve per step
+  operator splitting   treat different terms with different methods
+  adaptive mesh refinement  refine where the solution demands it; large savings
+                       and substantial implementation complexity
+  direct N-body        quadratic; exact, and limited to modest particle counts
+  tree code            n log n; multipole approximation of distant groups
+  particle mesh        linear; grid-limited resolution
+  softening            a modified force at very small separation, preventing
+                       unphysical accelerations from close encounters; a numerical
+                       necessity with physical consequences that must be reported
+  symplectic integration  required for long-term orbital and Hamiltonian dynamics
+  lattice gauge theory  discretized quantum field theory; the primary tool for
+                       non-perturbative strong interaction calculations
+
+Gravitational softening deserves specific mention because it is a numerical device with
+physical consequences that are frequently underreported. The gravitational force diverges at zero
+separation, so a close pair of simulation particles receives an enormous acceleration that
+neither the timestep nor the physics justifies — the particles represent a distribution of mass
+rather than point masses. Softening modifies the force at small separations to remove the
+divergence, and the choice of softening length sets the smallest scale on which the simulation's
+dynamics is meaningful. Structures near or below that scale are numerical artifacts, and reporting
+the softening length is necessary for a result to be interpretable.
+
+[user] My N-body galaxy simulation shows small dense clumps forming that I don't think are
+physical.
+[assistant] tool_call sim.nbody_diagnose({"particles": 1e6, "softening_pc": 5,
+"mean_separation_pc": 40, "clump_scale_pc": 8, "integrator": "leapfrog",
+"timestep": "fixed", "two_body_relaxation_check": false})
+[tool] {"clump_near_softening": true, "particles_per_clump": 12,
+"relaxation_time_vs_runtime": 0.34, "verdict": "numerical_two_body_relaxation",
+"recommendations": ["increase_particle_count", "check_clump_particle_count",
+"adaptive_timestep", "report_resolution_limit"]}
+[assistant] The clumps are almost certainly numerical. Two indicators point the same way.
+
+Their scale is 8 parsecs against a softening length of 5, so they are barely above the
+resolution limit — structures within a few softening lengths are not resolved and their
+properties are set by the numerics rather than by the physics. And each clump contains about
+twelve particles, which is far too few for its dynamics to be meaningful; a bound structure
+needs at least of order a hundred particles before its properties are reliable, and preferably
+more.
+
+The mechanism is two-body relaxation. Your simulation particles are far more massive than real
+stars, so gravitational scattering between them is much stronger than in the real system, and
+the relaxation time scales inversely with particle number. Your relaxation time is 0.34 of your
+runtime, which means the system has partially relaxed through an entirely artificial process —
+real galaxies are collisionless on these timescales and your simulation is not.
+
+Three responses, and the last one is the test that settles it.
+
+Increase the particle count. Relaxation time scales roughly with N over log N, so more particles
+push the artificial relaxation beyond the runtime. This is the direct fix and it is expensive.
+
+Apply a resolution criterion to your analysis. Discard structures below some multiple of the
+softening length — several softening lengths is a common threshold — and below a minimum
+particle count. State both in any result, because they define what the simulation can claim.
+
+Check whether your timestep is adequate in the dense regions. A fixed timestep sized for the mean
+density under-resolves the orbits in a clump, which itself produces spurious heating or
+collapse. Adaptive individual timesteps are standard for exactly this reason.
+
+One diagnostic worth running: rerun at half and double the particle count with everything else
+fixed. If the clumps' number and mass change systematically with resolution, they are numerical.
+If they converge, they are physical. That test settles the question and is the standard evidence
+to present.
+
+## Validation and High-Performance Practice
+
+Verification and validation are distinct and both are required. Verification asks whether the
+equations are being solved correctly, and it is a mathematics and software question answered by
+convergence studies, by the method of manufactured solutions, by comparison against analytic
+solutions in limiting cases, and by conservation checks. Validation asks whether the correct
+equations are being solved, and it is a physics question answered only by comparison against
+experiment.
+
+The convergence study is the single most informative verification test. Halving the
+discretization should reduce the error by the factor the method's order predicts — a factor of
+four for a second-order method. If it does not, either the implementation is not the order it
+claims, which usually indicates a boundary condition implemented at lower order, or the solution
+is under-resolved, or round-off dominates. Running this test costs a few extra runs and is what
+separates a code believed to work from one demonstrated to.
+
+High-performance practice has been reshaped by hardware trends. Arithmetic has become
+inexpensive relative to memory access, so the binding constraint in most scientific codes is
+memory bandwidth rather than floating-point throughput. This inverts traditional optimization
+priorities: recomputing a value can be cheaper than storing and reloading it, and a
+lower-arithmetic algorithm with poor memory access can lose to a higher-arithmetic one with good
+locality.
+
+Validation and performance:
+  verification         solving the equations right; convergence, manufactured
+                       solutions, conservation
+  validation           solving the right equations; comparison with experiment
+  convergence study    refine and confirm the predicted error reduction
+  conservation checks  mass, momentum, energy to round-off where the scheme
+                       should conserve them
+  benchmark problems   standard cases with known solutions; the community's shared
+                       verification set
+  uncertainty quantification  propagate input uncertainty to the output; a
+                       precise answer from uncertain inputs is not a precise
+                       prediction
+  sensitivity analysis  which inputs the result depends on; determines where
+                       effort is worth spending
+  memory bound         most scientific codes; bandwidth rather than FLOPS
+  arithmetic intensity  operations per byte moved; the roofline model predicts
+                       which bound applies
+  cache blocking       restructure loops to reuse data while it is resident
+  domain decomposition  partition the problem across processes; the standard
+                       parallel strategy
+  halo exchange        communicate boundary data between neighbouring subdomains;
+                       overlap it with interior computation
+  strong scaling       fixed problem, more processors; limited by Amdahl's law and
+                       by communication growing relative to computation
+  weak scaling         proportionally larger problem, more processors; the
+                       realistic goal at large scale
+  mixed precision      lower precision where accuracy permits; large speedups on
+                       modern accelerators, and it must be validated rather than
+                       assumed safe
+
+The distinction between strong and weak scaling is worth stating precisely because reported
+scaling results are frequently ambiguous. Strong scaling holds the problem size fixed and adds
+processors, so the work per processor shrinks and communication eventually dominates — the
+achievable speedup is bounded by the sequential fraction. Weak scaling grows the problem
+proportionally with processors, holding work per processor constant, which is what large
+simulations actually do and which can scale to very large machines. A code reported as scaling to
+a hundred thousand cores is almost always weak scaling, and its strong scaling limit is typically
+several orders of magnitude lower — a distinction that matters entirely when the question is
+whether a fixed problem can be solved faster.

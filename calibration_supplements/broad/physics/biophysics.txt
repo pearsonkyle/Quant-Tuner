@@ -1,0 +1,325 @@
+================================================================================
+AREA: Physics
+SUBJECT: Biophysics
+Subtopics: scale and physical constraints, molecular forces, thermal noise and Brownian
+motion, molecular machines, membranes and transport, mechanics of cells and tissues,
+bioelectricity, techniques.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Scale and Physical Constraints
+
+Biophysics applies physical reasoning to biological systems, and the first thing it establishes
+is that the physics at cellular scale is genuinely different from the physics of everyday
+experience. Quantities scale with different powers of length, so ratios that are negligible for a
+large organism dominate for a small one, and intuitions built at human scale mislead
+systematically.
+
+Surface area scales as length squared while volume scales as length cubed, so the surface to
+volume ratio rises as size falls. A bacterium has enormous surface relative to its volume, which
+means diffusive exchange across its membrane is fast enough to supply its entire interior, and it
+also means it loses heat and water rapidly relative to its content. This single scaling
+relationship explains why small organisms need no circulatory system, why large ones do, why
+cells are the size they are, and why heat loss constrains the minimum size of a warm-blooded
+animal.
+
+The Reynolds number for a swimming organism is the ratio of inertial to viscous forces, and it
+falls with size and speed. A human swimming operates at a Reynolds number around a million, where
+inertia dominates and coasting works. A bacterium operates around ten to the minus five, where
+viscosity dominates absolutely and inertia is irrelevant — a bacterium that stops swimming halts
+within a fraction of an atomic diameter. This is why bacterial propulsion uses rotating helical
+flagella rather than the reciprocal motion that works at high Reynolds number, since any
+reciprocal motion at low Reynolds number returns the organism exactly to where it started.
+
+Scale and constraints:
+  surface to volume    rises as size falls; governs exchange, heat loss, and the
+                       need for transport systems
+  diffusion time       scales with the square of distance; adequate over
+                       micrometres and hopeless over millimetres
+  the diffusion limit  why cells are small and why multicellular organisms need
+                       circulation
+  Reynolds number      inertial over viscous; ~1e-5 for a bacterium
+  low Reynolds number  viscosity dominates absolutely; coasting distance is
+                       subatomic
+  the scallop theorem  reciprocal motion produces no net displacement at low
+                       Reynolds number; hence rotating flagella and travelling
+                       waves
+  thermal energy       kT is the reference scale; ~4.1 pN nm at room temperature
+  energy comparison    a covalent bond is ~100 kT, a hydrogen bond ~2-10 kT, so
+                       hydrogen bonds break and reform continuously while covalent
+                       bonds do not
+  molecular crowding   the cell interior is 20-30% macromolecule by volume, not
+                       dilute solution; this changes reaction rates and binding
+                       affinities substantially
+  allometric scaling   metabolic rate scales as roughly mass to the three-quarter
+                       power across many orders of magnitude
+
+Q: A bacterium stops rotating its flagella. The distance it coasts before stopping is closest to:
+A. Several body lengths
+B. Less than an atomic diameter
+C. One body length
+D. It does not stop
+Reasoning: At a Reynolds number around ten to the minus five, viscous drag dominates inertia
+completely, and the coasting distance is of order the size times the Reynolds number — far below
+an atomic diameter. This is why bacterial motility requires continuous propulsion and why the
+mechanisms are rotational or wave-like rather than reciprocal. Answer: B.
+
+## Molecular Forces and Thermal Noise
+
+The forces holding biological structures together are almost all non-covalent and individually
+weak, and this is a design feature rather than a limitation. A structure held by covalent bonds
+would be permanent and unable to assemble, disassemble, or respond. Structures held by many weak
+interactions are stable in aggregate and reversible, so they self-assemble, they can be
+disassembled when required, and they respond to conditions.
+
+The energy scale is what makes this work. Thermal energy at room temperature is about four
+piconewton-nanometres, and a hydrogen bond is a few times that, so hydrogen bonds break and reform
+continuously on nanosecond timescales. A structure requiring ten simultaneous hydrogen bonds is
+stable because the probability of all ten breaking at once is negligible, while any individual bond
+is transient — giving both stability and the capacity to rearrange.
+
+Brownian motion is the constant thermal agitation that dominates molecular-scale dynamics, and
+its magnitude is what makes biological mechanism unintuitive. A protein in water is buffeted
+continuously and moves erratically, so a molecular machine does not push its way forward against
+resistance; it uses chemical energy to bias which thermally-driven fluctuations are captured. The
+Brownian ratchet framing captures this: thermal motion supplies the movement and the energy input
+supplies the directionality by preventing backward steps.
+
+Molecular forces and noise:
+  covalent bond        ~100 kT; effectively permanent at biological temperature
+  ionic interaction    strong in vacuum, greatly weakened by water's high
+                       dielectric constant
+  hydrogen bond        2-10 kT; transient individually, stable in aggregate
+  van der Waals        <1 kT each; significant only over large complementary
+                       surfaces, which is why shape complementarity matters
+  hydrophobic effect   entropy driven; the dominant folding and assembly force
+  the aggregate principle  many weak bonds give stability with reversibility
+  Brownian motion      thermal agitation; dominates molecular-scale dynamics
+  diffusion coefficient  inversely related to size and viscosity
+  mean square displacement  proportional to time for diffusion, to time squared
+                       for directed motion; the distinction identifies the
+                       mechanism from a trajectory
+  Brownian ratchet     thermal motion supplies movement, energy input supplies
+                       direction
+  fluctuation-dissipation  the same molecular collisions produce both random
+                       forces and viscous drag
+  entropic forces      polymer elasticity is entropic; a stretched chain recoils
+                       because coiled configurations are more numerous
+
+Entropic elasticity deserves a note because it explains a property with no mechanical analogue.
+A polymer's resistance to being stretched does not come from bond stretching but from
+configurational entropy: an extended chain has far fewer possible arrangements than a coiled one,
+so extending it reduces entropy and the free energy rises. The resulting force increases with
+temperature, which is the opposite of ordinary elastic materials and is directly observable in
+rubber, which contracts when heated under load. DNA's mechanical behaviour under tension follows
+the same physics and is described by the worm-like chain model, which is how single-molecule
+stretching experiments are interpreted.
+
+## Molecular Machines
+
+Molecular motors convert chemical energy into directed motion, and they operate under conditions
+where thermal noise is comparable to the forces involved. Their efficiencies are frequently high —
+some approach the thermodynamic limit — which is remarkable given that they work by biasing random
+fluctuations rather than by applying deterministic force.
+
+Kinesin and dynein walk along microtubules carrying cargo, taking discrete steps of a fixed
+length powered by ATP hydrolysis. Myosin moves along actin and is what produces muscle
+contraction, with the sliding filament mechanism converting many small myosin steps into
+macroscopic shortening. ATP synthase is a rotary motor driven by a proton gradient, and the
+rotation drives conformational changes that synthesize ATP — a mechanism proposed before it could
+be observed and subsequently visualized directly.
+
+The forces and step sizes involved are the scale at which single-molecule measurement operates.
+A motor generates a few piconewtons and steps by a few nanometres, so the work per step is a few
+tens of piconewton-nanometres, comparable to the energy released by hydrolysing one ATP molecule.
+That correspondence — one chemical event to one mechanical step — is what establishes the coupling
+and was demonstrated by directly observing individual steps.
+
+Molecular machines:
+  kinesin              walks toward the microtubule plus end; 8 nm steps, a few pN
+  dynein               walks toward the minus end; larger and more complex
+  myosin               actin-based; muscle contraction by the sliding filament
+                       mechanism
+  ATP synthase         a rotary motor driven by the proton gradient; visualized
+                       directly
+  bacterial flagellar motor  rotary, proton or sodium driven, reversible;
+                       switching direction is what produces the run-and-tumble
+                       search
+  processivity         how many steps before detaching; kinesin is processive
+                       because two heads coordinate so one is always bound
+  step size            a few nanometres; matched to the structural periodicity
+  force generation     a few piconewtons; comparable to thermal forces
+  energy per step      comparable to one ATP hydrolysis; the correspondence
+                       establishing the coupling
+  stall force          where the motor stops against load
+  ribosome             translates mRNA; a machine with a decoding and a catalytic
+                       function, and its catalytic core is RNA
+  polymerases          copy nucleic acids; proofreading raises fidelity by orders
+                       of magnitude at the cost of speed
+  kinetic proofreading  a general mechanism achieving accuracy beyond
+                       thermodynamic equilibrium limits by expending energy on
+                       discarding near-correct intermediates
+
+Kinetic proofreading deserves emphasis because it resolves an apparent impossibility. The
+discrimination achievable by binding energy alone is limited by the free energy difference between
+correct and incorrect substrates, and observed biological error rates are far below that limit.
+The resolution is that the process includes an irreversible energy-consuming step between initial
+binding and commitment, giving incorrect substrates additional opportunities to dissociate. The
+discrimination is applied twice, so the error rate is squared, at the cost of energy expended on
+discarding intermediates. The same principle operates in translation, in DNA replication, and in
+immune receptor discrimination.
+
+## Membranes, Transport, and Bioelectricity
+
+Membranes are lipid bilayers whose structure follows from amphipathicity, and their physical
+properties determine much of cellular function. The bilayer is a two-dimensional fluid in which
+components diffuse laterally, its thickness is set by the lipid tail length, and its mechanical
+properties — bending rigidity and area compressibility — determine what shapes it can adopt and
+what deformations cost energy.
+
+Membrane curvature is generated and sensed by several mechanisms, and it is what shapes the
+organelles and drives vesicle formation. Lipids with different head and tail cross-sections
+prefer curved arrangements. Proteins with wedge shapes insert and impose curvature. Protein
+scaffolds bind and hold a curved shape. And cytoskeletal forces pull. The energy required to bend
+a membrane is what makes vesicle budding a process requiring machinery rather than occurring
+spontaneously.
+
+Transport across membranes divides by whether it requires energy, and the physical framing is
+the electrochemical gradient — the combination of the concentration difference and the electrical
+potential difference. Passive transport moves substances down that gradient. Active transport
+moves them against it and requires energy input, either directly from ATP or by coupling to
+another substance's favourable gradient.
+
+Membrane potential arises from the combination of ion concentration gradients and selective
+permeability, and understanding it correctly requires recognizing that very few ions are involved.
+The membrane is a capacitor, and charging it to a hundred millivolts requires moving a number of
+ions that is negligible relative to the cell's total content — which is why the potential can
+change rapidly without measurably altering the concentrations, and why the gradients that
+establish it persist through many action potentials.
+
+Membranes, transport, and bioelectricity:
+  bilayer              self-assembling from amphipathicity; two-dimensional fluid
+  bending rigidity     the energy cost of curvature; makes vesicle budding require
+                       machinery
+  curvature generation  lipid shape, protein insertion, scaffolding, cytoskeletal
+                       force
+  lateral diffusion    fast within the plane; flip-flop between leaflets is slow
+                       and requires enzymes
+  lipid rafts          proposed ordered domains; their existence and size in
+                       living cells remains contested
+  electrochemical gradient  concentration plus electrical; the driving force
+  passive transport    down the gradient; channels and carriers
+  active transport     against it; primary from ATP, secondary by coupling
+  Nernst potential     the equilibrium potential for one ion
+  Goldman equation     combines ions weighted by permeability
+  membrane capacitance  ~1 microfarad per square centimetre; nearly universal
+                       because bilayer thickness is nearly universal
+  few ions move        charging the membrane capacitance requires a negligible
+                       fraction of the ion content
+  cable theory         signal propagation along a process; the length constant
+                       determines how far a passive signal travels
+  myelination          raises the length constant and lowers capacitance;
+                       saltatory conduction follows
+
+Cable theory deserves a note because it explains why axons are structured as they are. A passive
+electrical signal spreading along a process decays exponentially with a length constant determined
+by the ratio of membrane resistance to axial resistance. A thin process has high axial resistance
+and a short length constant, so a signal dies within a fraction of a millimetre. The two solutions
+are regenerating the signal periodically, which is what voltage-gated channels do in an
+unmyelinated axon, and raising the length constant by increasing the membrane resistance, which is
+what myelin does — permitting the signal to spread passively between nodes and be regenerated only
+there.
+
+[user] I'm using optical tweezers to measure the force generated by a single kinesin motor, and my
+measurements are noisy and inconsistent.
+[assistant] tool_call biophys.single_molecule({"technique": "optical_tweezers",
+"target": "kinesin_stall_force", "trap_stiffness_pn_nm": 0.02, "bead_diameter_nm": 500,
+"expected_force_pn": 5, "sampling_hz": 200, "drift_nm_per_min": 15,
+"buffer_atp_um": 2000})
+[tool] {"thermal_force_noise_pn": 1.2, "signal_to_noise": 4.2,
+"issues": ["trap_too_soft_for_force_range", "drift_comparable_to_signal",
+"bandwidth_insufficient_to_resolve_steps"], "recommendations": ["increase_trap_stiffness",
+"differential_detection", "higher_bandwidth", "drift_correction"]}
+[assistant] Three separate issues, and the thermal noise is not actually your limiting factor.
+
+Your trap stiffness of 0.02 piconewtons per nanometre is too soft for a five piconewton stall
+force — the bead would need to be displaced 250 nanometres, which is well outside the linear
+range of the detection and comparable to the trap's own dimensions. Raise the stiffness to around
+0.1, which brings the displacement at stall to about 50 nanometres and keeps you in the linear
+regime. The thermal position fluctuation also falls with stiffer trapping, since the variance is
+inversely proportional to stiffness.
+
+Your drift of 15 nanometres per minute is comparable to a kinesin step of 8 nanometres, which
+means slow drift is indistinguishable from stepping over the timescale of a measurement. Two
+remedies: use differential detection with a second trapped bead as a reference, so common-mode
+drift cancels, or use a dumbbell geometry with two traps where the measurement is between the two
+beads rather than relative to the stage. Active stabilization referenced to a fiducial marker is
+the alternative.
+
+Your sampling at 200 hertz cannot resolve individual steps. A kinesin step takes under a
+millisecond and the dwell between steps at saturating ATP is on the order of ten milliseconds, so
+you need at least a few kilohertz to see the step structure rather than an averaged velocity.
+
+One experimental suggestion: lower the ATP concentration substantially. At two millimolar you are
+saturating, so the motor steps as fast as it mechanically can and the dwells are short. At a few
+micromolar the ATP binding becomes rate-limiting, the dwells lengthen to tens or hundreds of
+milliseconds, and the steps become clearly resolvable at your current bandwidth. This is the
+standard approach to resolving stepping, and it also lets you separate the mechanical and chemical
+parts of the cycle by varying the concentration.
+
+## Cell Mechanics and Techniques
+
+Cells are mechanically active and mechanically responsive, and the recognition that mechanics is
+a signalling modality alongside chemistry has reshaped cell biology. The cytoskeleton provides
+structure and generates force: actin filaments with myosin motors produce contractility,
+microtubules provide compression resistance and transport tracks, and intermediate filaments
+provide tensile resilience.
+
+Cells sense mechanical properties of their environment and respond, which is mechanotransduction.
+Stem cells differentiate toward different lineages depending on substrate stiffness alone — soft
+substrates toward neural, stiff toward bone — with no difference in chemical signals. Cells migrate
+up stiffness gradients. Endothelial cells align with flow. The mechanisms include force-sensitive
+ion channels, proteins that unfold under tension to expose binding sites, and adhesion complexes
+that grow under load.
+
+Techniques for measuring these have developed alongside the understanding. Single-molecule methods
+manipulate and measure individual molecules directly. Optical tweezers trap a dielectric bead in a
+focused laser and measure forces of piconewtons with nanometre resolution. Magnetic tweezers apply
+force and torque to a magnetic bead, which suits twisting DNA. Atomic force microscopy images
+surfaces and measures forces on individual molecular interactions.
+
+Cell mechanics and techniques:
+  actin and myosin     contractility; the force generation system
+  microtubules         compression resistance and transport tracks
+  intermediate filaments  tensile resilience
+  cortical tension     the contractile layer beneath the membrane; sets cell shape
+  mechanotransduction  mechanical signals converted to biochemical responses
+  substrate stiffness  directs stem cell differentiation with no chemical
+                       difference
+  durotaxis            migration up stiffness gradients
+  force-sensitive channels  open under membrane tension; touch, hearing,
+                       proprioception
+  cryptic binding sites  proteins unfolding under tension to expose interaction
+                       surfaces
+  optical tweezers     piconewton forces, nanometre resolution
+  magnetic tweezers    force and torque; DNA twisting
+  atomic force microscopy  imaging and force spectroscopy
+  FRET                 distance between two fluorophores over 1-10 nm; a
+                       molecular ruler reporting conformational change
+  single molecule fluorescence  observe individual molecules; reveals
+                       heterogeneity that ensemble measurement averages away
+  super-resolution     beyond the diffraction limit by localizing individual
+                       emitters or by patterned illumination
+  cryo-electron microscopy  structures without crystallization; transformative for
+                       large complexes and membrane proteins
+
+Single-molecule measurement deserves the closing emphasis for what it revealed rather than for
+its precision. Ensemble measurements report averages, and an average conceals whether a population
+is homogeneous or is a mixture of distinct behaviours. Single-molecule observation showed that
+enzymes have memory — an individual molecule's catalytic rate fluctuates over time on scales far
+longer than a single turnover — that molecular motors take discrete steps rather than moving
+smoothly, that protein folding proceeds through distinct pathways rather than one, and that
+apparently uniform populations frequently contain distinct subpopulations. These are qualitative
+findings about mechanism that no amount of precision in an ensemble measurement could have
+produced, because the averaging destroyed exactly the information they depend on.

@@ -1,0 +1,242 @@
+================================================================================
+AREA: Software and Web Engineering
+SUBJECT: Game Engines and Real-Time Systems
+Subtopics: the frame loop, entity architecture, rendering pipelines, physics,
+asset pipelines, memory and performance, networking and tooling.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## The Frame Loop and Time
+
+A real-time engine is organized around a loop that must complete within a fixed budget, repeatedly,
+without exception. At sixty frames per second the budget is under seventeen milliseconds for input,
+simulation, animation, physics, audio, culling, rendering submission, and presentation. Exceeding
+it once is a visible stutter; exceeding it regularly is an unplayable experience. This hard deadline
+is the constraint from which the entire architecture of an engine follows.
+
+Time handling within the loop is more subtle than it appears. A variable timestep — advancing the
+simulation by however long the last frame took — is simple and makes physics non-deterministic and
+unstable at frame rate extremes. A fixed timestep advances simulation in constant increments,
+running zero or several steps per frame as needed to catch up, which gives stable and reproducible
+physics. The standard architecture uses a fixed timestep for simulation and interpolates rendered
+positions between the two most recent states, which yields smooth visuals over deterministic
+simulation.
+
+The accumulator pattern implements this: add the frame's elapsed time to an accumulator, run fixed
+steps while the accumulator exceeds the step size, and render with the leftover fraction as an
+interpolation factor. The failure mode to guard against is the spiral of death, where a slow frame
+requires several simulation steps, which makes the next frame slower, requiring more steps. Clamping
+the maximum steps per frame is the standard defence, and it means the simulation falls behind real
+time rather than freezing entirely.
+
+The frame loop:
+  the hard deadline    under seventeen milliseconds at sixty frames per second
+  the architectural consequence  everything is designed around meeting it
+  variable timestep    simple; non-deterministic physics, unstable at extremes
+  fixed timestep       constant increments; stable and reproducible
+  the standard hybrid  fixed simulation, interpolated rendering
+  accumulator pattern  accumulate elapsed time, step while it exceeds the
+                       increment
+  interpolation factor  the leftover fraction, used to blend rendered state
+  spiral of death      slow frames requiring more steps making frames slower
+  the clamp            a maximum step count; the simulation falls behind rather
+                       than freezing
+  frame pacing         consistent frame times matter more than a high average;
+                       irregular delivery is perceived as worse than a lower
+                       steady rate
+  vertical sync        presentation aligned with the display refresh; avoids
+                       tearing and adds latency
+  input latency        sampled as late as possible before simulation; the
+                       difference is perceptible in responsive games
+  the update ordering  input, simulation, animation, physics, audio, render;
+                       ordering mistakes produce one-frame lags that are
+                       surprisingly hard to diagnose
+
+Q: A game's physics behaves differently on a fast machine than on a slow one, with objects passing
+through walls at low frame rates. The cause is:
+A. A collision detection bug
+B. A variable timestep — with long frames, objects move far enough in a single step to jump past
+   thin geometry, so a fixed timestep with a bounded step size, plus swept collision tests, is the
+   structural fix
+C. The walls are too thin
+D. Insufficient physics accuracy
+Reasoning: Discrete collision detection samples positions at step boundaries. A large step moves an
+object further than the collider's thickness, so no overlap is ever observed. Fixed small steps
+bound the movement per test, and swept or continuous detection catches the remaining cases.
+Answer: B.
+
+## Entity Architecture and Data Layout
+
+The organization of game objects determines both what the code can express and how fast it runs.
+Deep inheritance hierarchies were the historical approach and they fail predictably: a class tree
+built around one taxonomy cannot express objects that combine features across branches, and the
+tree accumulates a base class containing everything anyone ever needed.
+
+Composition replaces this with entities that own a set of components, each holding data for one
+aspect — transform, mesh, collider, health, inventory. An entity is defined by which components it
+has, so any combination is expressible without touching a hierarchy, and systems operate on all
+entities possessing a required set of components. This is more flexible and it also happens to
+enable a substantial performance improvement.
+
+That improvement comes from data layout. Storing components of the same type contiguously means a
+system iterating over them reads memory sequentially, which is what caches are built for. The
+alternative — objects scattered across the heap, each read pulling in a cache line mostly containing
+data the loop does not use — is frequently an order of magnitude slower on the same algorithm. Since
+memory latency rather than instruction count dominates most real-time workloads, arranging data for
+the access pattern is usually the highest-leverage optimization available.
+
+Entity architecture:
+  inheritance hierarchies  fail on combinations; accumulate a bloated base class
+  composition          entities owning sets of components
+  components as data   one aspect each, minimal behaviour
+  systems              operate on entities having a required component set
+  the flexibility gain  any combination expressible without hierarchy changes
+  contiguous storage   components of a type stored together
+  cache behaviour      sequential access is what hardware is optimized for
+  the scattered alternative  each read pulling a mostly-unused cache line
+  the magnitude        frequently an order of magnitude on identical algorithms
+  memory latency dominance  the reason data layout beats algorithmic
+                       micro-optimization in this domain
+  structure of arrays  separate arrays per field; better when systems touch few
+                       fields
+  archetypes           entities grouped by their exact component set; makes
+                       iteration dense
+  handles over pointers  stable references that survive reallocation
+  system ordering and dependencies  explicit rather than implicit; parallel
+                       execution requires knowing which systems conflict
+  the pragmatic caveat  a full data-oriented rewrite is rarely worth it for a
+                       small project, and profiling first tells you whether the
+                       bottleneck is where the architecture would help
+
+## Rendering Pipelines
+
+The renderer turns scene state into an image, and its structure is dictated by the cost of the
+operations involved. Culling removes what cannot be seen before any expensive work occurs: frustum
+culling discards objects outside the view, occlusion culling discards objects hidden behind others,
+and level-of-detail selection substitutes cheaper representations for distant objects. The best
+optimization is always not drawing something.
+
+Draw call count is the classic bottleneck. Each submission of geometry to the graphics hardware
+carries overhead, and thousands of small submissions cost more than the drawing itself. Batching
+combines objects sharing material state; instancing draws many copies of one mesh with per-instance
+data; indirect drawing lets the GPU determine what to draw without returning to the processor. Modern
+graphics interfaces reduce per-call overhead substantially and do not eliminate the principle.
+
+Forward and deferred rendering differ in when lighting is computed. Forward rendering shades each
+object as it is drawn, which handles transparency and varied materials naturally and costs
+proportionally to objects times lights. Deferred rendering writes surface properties to intermediate
+buffers and computes lighting once per pixel afterward, which decouples light count from object
+count and complicates transparency and material variety. Tiled and clustered variants of both
+partition the screen or the view volume to limit which lights affect which regions, which is the
+approach most current engines take.
+
+Rendering:
+  culling first        the best optimization is not drawing
+  frustum culling      outside the view volume
+  occlusion culling    hidden behind other geometry
+  level of detail      cheaper representations at distance
+  the transition problem  visible popping unless blended or geometrically smooth
+  draw call overhead   per-submission cost dominating at high counts
+  batching             combining objects with shared state
+  instancing           many copies of one mesh with per-instance data
+  indirect drawing     the GPU determining what to draw
+  forward rendering    shade during drawing; natural transparency, cost scales
+                       with objects times lights
+  deferred rendering   surface properties then lighting; light count decoupled,
+                       transparency awkward
+  tiled and clustered  partitioning to limit light-region pairs; the common
+                       modern approach
+  shadow mapping       depth from the light's view; resolution and bias artifacts
+                       are the perennial difficulties
+  cascaded shadows     multiple resolutions by distance
+  post-processing      tone mapping, anti-aliasing, and effects on the final image
+  temporal techniques  reusing previous frames; large quality gains and
+                       ghosting artifacts on fast motion that require careful
+                       rejection heuristics
+
+## Physics, Animation, and Assets
+
+Physics simulation runs in two phases. Broad phase finds potentially colliding pairs using spatial
+partitioning, reducing the pair count from quadratic to near-linear. Narrow phase computes exact
+contacts for the surviving pairs. Solving then resolves the contacts and constraints, typically by
+iterating toward a solution rather than solving exactly, since exact solutions are too expensive and
+iteration count becomes a direct accuracy-cost dial.
+
+Stability is the practical concern more than accuracy. Stacked objects jitter, constraints drift,
+and fast objects tunnel through thin geometry. The mitigations are standard: a fixed timestep, a
+sufficient iteration count, sleeping for objects at rest, continuous collision detection for fast
+movers, and mass ratios kept within a bounded range because solvers behave badly when a very light
+object is constrained against a very heavy one.
+
+Asset pipelines convert authored content into runtime formats, and their design determines the
+team's iteration speed more than any runtime consideration. Source assets are large and editable;
+runtime assets are compressed, platform-specific, and optimized for load. The conversion should be
+incremental, cached, and parallel, because a pipeline requiring a full rebuild for a texture change
+costs every artist several minutes many times a day, and that cost dwarfs almost any runtime
+inefficiency it might be trading against.
+
+Physics and assets:
+  broad phase          spatial partitioning to find candidate pairs
+  narrow phase         exact contact computation
+  the solver           iterative constraint resolution
+  iteration count      a direct accuracy-cost dial
+  stability over accuracy  the practical priority in games
+  sleeping             resting objects removed from simulation
+  continuous detection  swept tests for fast movers
+  mass ratio limits    solvers degrade with extreme ratios
+  skeletal animation   a hierarchy of transforms driving vertex positions
+  blending and state machines  transitions between animations
+  inverse kinematics   solving for joint angles from an end-effector target
+  root motion          animation driving movement rather than the reverse
+  source versus runtime assets  editable and large versus compressed and
+                       optimized
+  incremental builds   only what changed; cached and parallel
+  the iteration cost   pipeline latency multiplied by team size and frequency
+  hot reloading        assets and code updated without restarting; among the
+                       highest-value tooling investments available
+  texture compression  block formats decompressed by hardware; the format is
+                       platform-specific and the quality tradeoff differs by
+                       content type
+
+## Memory, Networking, and Tooling
+
+Memory management in real-time systems avoids general-purpose allocation on the frame path, because
+allocation has unpredictable cost and fragmentation accumulates over a long session. The standard
+approaches are pools of fixed-size blocks for objects of known type, linear arena allocators reset
+each frame for temporary data, and preallocation of everything needed at level load. The goal is a
+frame that performs no allocation at all.
+
+Networking for real-time games is dominated by latency rather than by bandwidth. The
+server-authoritative model prevents cheating and adds a round trip to every action, which is
+unacceptable for responsive gameplay, so clients predict the outcome of their own actions
+immediately and reconcile when the authoritative result arrives. Reconciliation must correct the
+client without visible disruption, and entity interpolation displays other players slightly in the
+past so their motion is smooth despite arriving in discrete updates.
+
+Tooling determines what the team can actually build. An in-engine editor, live parameter tweaking,
+visual debugging overlays, a profiler integrated with the frame timeline, and deterministic replay
+for reproducing bugs are each worth more than they appear on a schedule, because they multiply the
+rate at which content and gameplay can be iterated. The engines that succeed commercially are
+distinguished by their tools at least as much as by their runtime capabilities.
+
+Memory, networking, and tooling:
+  no frame-path allocation  the goal for a real-time loop
+  pool allocators      fixed-size blocks for known types
+  arena allocators     linear, reset each frame for temporaries
+  preallocation        everything reserved at load
+  fragmentation        the long-session failure of general allocation
+  budget tracking      per-subsystem memory budgets enforced in builds
+  latency over bandwidth  the networking priority
+  server authority     prevents cheating, adds a round trip
+  client prediction    act immediately, reconcile on authoritative response
+  reconciliation       correcting without visible disruption
+  entity interpolation  others displayed slightly in the past for smoothness
+  lag compensation     the server rewinding to validate a client's shot against
+                       what that client saw
+  delta compression    sending only changed state
+  the tooling multiplier  editors, live tweaking, overlays, integrated profiling
+  deterministic replay  the single most valuable debugging capability, and it
+                       constrains the whole engine's design because achieving it
+                       requires eliminating every source of nondeterminism
+                       including floating-point variation across platforms

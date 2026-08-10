@@ -1,0 +1,310 @@
+================================================================================
+AREA: Software and Web Engineering
+SUBJECT: Algorithms and Data Structures
+Subtopics: complexity analysis, sorting and searching, fundamental structures, graph
+algorithms, dynamic programming, greedy and divide-and-conquer, strings, randomized
+and approximate methods.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Complexity Analysis
+
+Asymptotic notation describes how a resource requirement grows with input size, ignoring
+constants and lower-order terms. Big-O gives an upper bound, big-Omega a lower bound, and
+big-Theta a tight bound when the two coincide. The convention of saying an algorithm is O(n log
+n) when Theta is meant is nearly universal and harmless in practice, and the distinction matters
+when a bound is being cited as tight.
+
+Analysis must specify the case being analysed and the resource being measured. Worst case
+bounds the maximum over all inputs of a given size and is what most guarantees are stated in.
+Average case requires an assumed input distribution, which is frequently unstated and
+frequently unrealistic. Amortized analysis bounds the average cost per operation over a
+sequence, which is the correct framing when individual operations vary widely — a dynamic
+array's append is amortized constant despite occasional linear reallocations, because the
+doubling schedule means the total copying across n appends is bounded by 2n.
+
+The gap between asymptotic analysis and measured performance is real and is mostly explained
+by the model. Big-O counts operations and treats all memory access as equal cost, while a
+cache-resident access is roughly a hundred times faster than a main-memory one. This is why an
+array often beats a linked list for traversal at identical asymptotic complexity, why
+production sorts switch to insertion sort below a few dozen elements, and why an O(n^2)
+algorithm with excellent locality can beat an O(n log n) one with poor locality at practical
+sizes.
+
+Complexity concepts:
+  O, Omega, Theta      upper, lower, tight bounds
+  worst / average / amortized  which case, and under what input assumption
+  constant O(1)        array index, hash lookup, stack push
+  logarithmic O(log n)  binary search, balanced tree operations
+  linear O(n)          a single pass
+  linearithmic O(n log n)  comparison sorting's lower bound
+  quadratic O(n^2)     nested loops over the input; the practical ceiling for
+                       large n
+  exponential O(2^n)   subset enumeration; feasible only for small n
+  space complexity     often the binding constraint; an in-place algorithm may be
+                       preferable to a faster one requiring O(n) extra memory
+  comparison sort bound  Omega(n log n); from the decision tree having n!
+                       leaves
+  the model's limits   uniform memory cost is false; locality frequently dominates
+
+Q: An algorithm's dynamic array append is described as amortized O(1) despite occasionally
+copying the entire array. This is valid because:
+A. The copies are rare enough to ignore
+B. Doubling the capacity means the total copying across n appends is bounded by 2n, so the
+   average per append is constant
+C. Copying is fast
+D. The worst case is also O(1)
+Reasoning: Amortized analysis bounds the total cost of a sequence, not the maximum of any
+individual operation. Geometric growth means each element is copied a bounded number of times
+in expectation over the sequence, giving a linear total and constant average. The worst-case
+individual operation remains linear, which matters when bounded latency is required. Answer: B.
+
+## Sorting and Searching
+
+Comparison-based sorting has a lower bound of n log n comparisons, provable from a decision
+tree argument: distinguishing n! possible orderings requires at least log2(n!) comparisons,
+which is Theta(n log n). Any algorithm claiming to beat it must exploit structure beyond
+comparisons.
+
+The practical algorithms make different tradeoffs. Merge sort is stable, has a guaranteed n log
+n bound, and requires O(n) auxiliary space, which makes it the choice when stability matters or
+when worst-case guarantees are required. Quicksort has the same average bound with much better
+constants and cache behaviour, degrades to quadratic on adversarial input, and sorts in place —
+which is why production implementations use it with a randomized or median-of-three pivot and a
+fallback to heapsort when recursion depth suggests a bad case. Heapsort has a guaranteed bound
+and sorts in place with poor cache locality.
+
+Non-comparison sorts exploit structure in the keys. Counting sort tallies occurrences of each
+key value and is linear when the key range is small. Radix sort processes digits and is linear
+in the number of digits times the input size, which beats comparison sorting for
+fixed-width integer keys at large n. Both require assumptions about the keys that comparison
+sorting does not.
+
+Sorting and searching:
+  merge sort           stable, guaranteed n log n, O(n) extra space
+  quicksort            in place, best constants, quadratic worst case; randomize
+                       the pivot
+  heapsort             in place, guaranteed n log n, poor locality
+  introsort            quicksort with a heapsort fallback; the common library
+                       implementation
+  timsort              merge sort exploiting existing runs; excellent on
+                       partially sorted real data
+  insertion sort       quadratic, and the fastest choice below a few dozen
+                       elements; used as the base case in hybrid sorts
+  stability            equal keys retain their relative order; required for
+                       multi-key sorting done in passes
+  counting sort        linear when the key range is small
+  radix sort           linear in digits times n; for fixed-width keys
+  binary search        O(log n) on sorted data; off-by-one errors in the boundary
+                       conditions are the classic implementation hazard
+  interpolation search  O(log log n) on uniformly distributed keys
+  selection            find the kth smallest in expected linear time by
+                       quickselect, without fully sorting
+
+Binary search deserves specific mention because it is deceptively difficult to implement
+correctly. The published implementations in widely used libraries contained an integer overflow
+bug in the midpoint calculation for over a decade, and off-by-one errors in the loop invariant
+are so common that the recommended practice is to use a library implementation or to write it
+once against a stated invariant and reuse it. The variants — first element not less than a key,
+first element greater than a key — differ only in the comparison and the returned boundary, and
+getting them confused is the usual source of subtle bugs.
+
+## Fundamental Data Structures
+
+Data structure selection follows from the operation mix, and identifying which operations
+dominate before choosing is the whole of the skill. A structure with excellent insertion and
+poor iteration is wrong for a build-once read-many workload, and the reverse holds for one that
+mutates constantly.
+
+Hash tables provide expected constant lookup by mapping keys to buckets, and their behaviour
+depends on the hash function and the collision strategy. Chaining stores colliding entries in a
+list per bucket and degrades gracefully as load rises. Open addressing probes for an empty slot
+and has better cache behaviour at low load factors and degrades sharply near full. Both degrade
+to linear time under a hash function that clusters, which is why hash flooding — an attacker
+supplying keys that collide deliberately — is a denial-of-service vector, addressed by
+randomized hash seeds.
+
+Balanced trees maintain sorted order with logarithmic operations, which hash tables cannot
+provide. Red-black trees and AVL trees differ in how strictly they balance: AVL is more
+strictly balanced, giving faster lookups and more rotations on modification, while red-black
+allows more imbalance and modifies less. B-trees increase the branching factor so that each node
+fills a disk block or cache line, which reduces the number of expensive accesses and is why they
+dominate in databases and filesystems.
+
+Data structures and their operations:
+  dynamic array        O(1) index and amortized append, O(n) middle insert;
+                       excellent locality
+  linked list          O(1) insert given a node, O(n) search, poor locality;
+                       rarely optimal on modern hardware
+  hash table           expected O(1) lookup, unordered, worst case O(n)
+  chaining             graceful degradation under load
+  open addressing      better locality, sharp degradation near full
+  balanced BST         O(log n) everything, ordered traversal, range queries
+  B-tree               high branching factor; block-oriented storage and caches
+  heap                 O(1) peek, O(log n) insert and extract-min
+  trie                 prefix operations, autocomplete; memory-hungry
+  disjoint set         near-constant union and find with path compression and
+                       union by rank; the structure behind Kruskal's algorithm
+  skip list            probabilistic balance; simpler than a tree, similar bounds
+  bloom filter         probabilistic membership; no false negatives, compact,
+                       cannot delete
+  LRU cache            hash map plus doubly linked list; O(1) get and put
+
+The disjoint set structure deserves note because its analysis is remarkable and its
+applications are broad. With both path compression and union by rank, a sequence of m
+operations on n elements costs O(m alpha(n)), where alpha is the inverse Ackermann function —
+which is below five for any input size that will ever occur, making it constant for practical
+purposes. It answers connectivity queries under incremental union, which is exactly what
+Kruskal's algorithm, connected component labelling, and many dynamic connectivity problems
+require.
+
+## Graph Algorithms and Dynamic Programming
+
+Graph traversal underlies most graph algorithms. Breadth-first search explores in layers and
+finds shortest paths in unweighted graphs. Depth-first search explores deeply and yields
+connected components, cycle detection, topological ordering, and strongly connected components
+through its recursion structure. Both run in time proportional to vertices plus edges, which is
+optimal since every edge must be examined.
+
+Shortest path algorithms differ by what weights they handle. Dijkstra's requires non-negative
+weights, and the requirement is a correctness condition rather than a convenience — the
+algorithm finalizes a vertex's distance when it is extracted, relying on the assumption that no
+shorter path can be discovered later, which negative edges violate. Bellman-Ford relaxes every
+edge repeatedly and handles negative weights, additionally detecting negative cycles for which
+shortest paths are undefined. Floyd-Warshall computes all pairs in cubic time with a strikingly
+short implementation.
+
+Dynamic programming solves problems with optimal substructure and overlapping subproblems by
+computing each subproblem once and reusing the result. The two implementations are top-down
+memoization, which follows the recursive structure and computes only the subproblems reached,
+and bottom-up tabulation, which fills a table in dependency order and avoids recursion overhead.
+Which is better depends on whether all subproblems are needed and on whether the recursion depth
+is a concern.
+
+Graph and dynamic programming:
+  BFS                  shortest paths unweighted; level structure
+  DFS                  components, cycles, topological sort, SCC
+  Dijkstra             non-negative weights; O(E log V) with a heap
+  Bellman-Ford         negative weights, detects negative cycles; O(VE)
+  Floyd-Warshall       all pairs; O(V^3), trivial to implement
+  A-star               heuristic-guided; optimal if the heuristic never
+                       overestimates
+  topological sort     linear order respecting edges; exists iff acyclic
+  MST                  Kruskal with disjoint set, or Prim with a heap
+  max flow             Ford-Fulkerson family; Edmonds-Karp and Dinic
+  min cut              equals max flow; the duality is widely exploited
+  optimal substructure  the optimal solution contains optimal sub-solutions
+  overlapping subproblems  the same subproblem recurs; what makes memoization pay
+  memoization          top-down; computes only what is reached
+  tabulation           bottom-up; no recursion, and computes everything
+  state design         the hardest part; identifying the minimal state that
+                       determines the remaining decisions
+  space optimization   many tabulations need only the previous row, reducing
+                       space from O(n^2) to O(n)
+
+The difficulty in dynamic programming is almost entirely in identifying the state, and the
+useful question is what information about the decisions so far is sufficient to determine the
+optimal remaining decisions. If two partial solutions lead to identical futures, they should map
+to the same state. The classical problems illustrate this — the knapsack's state is the item
+index and the remaining capacity, the edit distance's state is a position in each string, the
+longest increasing subsequence's state is a position and the previous chosen value — and
+recognizing the pattern in a new problem is what the practice develops.
+
+[user] I need to find the shortest path in a graph where some edges have negative weights.
+Dijkstra gives wrong answers.
+[assistant] tool_call algo.shortest_path({"vertices": 5000, "edges": 42000,
+"negative_edges": true, "negative_cycles_possible": true, "queries": "single_source"})
+[tool] {"dijkstra_valid": false, "reason": "premature_finalization_with_negative_edges",
+"bellman_ford_complexity": 2.1e8, "johnson_applicable": true,
+"spfa_typical": "much_faster_in_practice", "recommendation": "bellman_ford_or_spfa"}
+[assistant] Dijkstra is not merely inaccurate here — it is incorrect by construction, so no
+amount of tuning fixes it.
+
+The reason is the algorithm's core invariant. Dijkstra finalizes a vertex's distance the moment
+it is extracted from the priority queue, on the assumption that any path discovered later must
+be longer, since adding edges only increases length. A negative edge violates that assumption:
+a longer-looking path can become shorter after traversing a negative edge, and the finalized
+value is never revisited.
+
+Use Bellman-Ford. It relaxes every edge V-1 times, which is O(VE) — about 210 million
+operations for your graph, which will run in a few seconds and is entirely acceptable for a
+single query. Critically, it also detects negative cycles: if any edge can still be relaxed
+after V-1 passes, a negative cycle is reachable and the shortest path is undefined, since you
+could go round the cycle arbitrarily many times. You should check for this explicitly rather
+than returning a value, because a negative cycle usually indicates a modelling error.
+
+Two optimizations if the runtime matters. The shortest path faster algorithm is a queue-based
+refinement of Bellman-Ford that only relaxes edges from vertices whose distance changed, and it
+is typically far faster on real graphs while retaining the same worst case. And if you need
+all-pairs shortest paths rather than single-source, Johnson's algorithm reweights the graph
+using a Bellman-Ford pass to make all weights non-negative, then runs Dijkstra from every
+vertex — which is much faster than Floyd-Warshall on a sparse graph like yours.
+
+One thing worth checking first: are the negative weights genuinely negative costs, or are they
+a rewards-minus-costs formulation that could be transformed? If every edge weight can be shifted
+by a constant without changing which path is optimal — which is true only when all paths have
+equal edge counts — the problem becomes a Dijkstra one. That condition rarely holds, and it is
+worth ruling out before accepting the slower algorithm.
+
+## Strings, Randomization, and Approximation
+
+String algorithms exploit structure that general sequence algorithms cannot. Naive substring
+search compares at every position for quadratic worst-case time. Knuth-Morris-Pratt precomputes
+a failure function encoding how far to shift after a mismatch, achieving linear time by never
+re-examining a character of the text. Boyer-Moore scans the pattern backward and skips ahead on
+mismatch, achieving sublinear average time on natural text and being the practical choice for
+long patterns. Rabin-Karp uses a rolling hash, which makes it the natural choice for searching
+many patterns simultaneously or for detecting duplicate substrings.
+
+Suffix structures answer many queries about a string after preprocessing. A suffix array stores
+the sorted order of all suffixes and supports substring queries by binary search. A suffix
+automaton or suffix tree supports a wider range of queries in linear time. Both are the
+foundation of full-text indexing and of bioinformatics sequence analysis, where the same text is
+queried repeatedly.
+
+Randomized algorithms use random choices to achieve good expected behaviour or to simplify.
+Las Vegas algorithms always produce a correct answer with randomized running time —
+randomized quicksort is the standard example, where randomizing the pivot makes the quadratic
+case improbable rather than input-dependent. Monte Carlo algorithms have bounded running time
+and a bounded probability of error, which can be driven arbitrarily low by repetition.
+
+Strings, randomization, and approximation:
+  naive search         quadratic worst case
+  KMP                  linear; failure function avoids re-examining text
+  Boyer-Moore          sublinear average on natural text; long patterns
+  Rabin-Karp           rolling hash; multiple patterns, duplicate detection
+  Aho-Corasick         many patterns simultaneously; a trie with failure links
+  suffix array         sorted suffixes; substring queries by binary search
+  edit distance        dynamic programming; O(mn)
+  longest common subsequence  the same recurrence; diff is built on it
+  Las Vegas            always correct, randomized runtime
+  Monte Carlo          bounded runtime, bounded error probability
+  randomized pivot     converts an input-dependent worst case into an improbable
+                       one
+  reservoir sampling   uniform sample from a stream of unknown length
+  approximation ratio  the guaranteed factor from optimal
+  greedy set cover     ln n approximation, and no better is possible unless P
+                       equals NP
+  2-approximation      vertex cover by taking both endpoints of a maximal
+                       matching
+  heuristics           no guarantee; frequently excellent in practice
+  local search         iteratively improve; simple and effective
+
+The distinction between an approximation algorithm and a heuristic is worth keeping precise.
+An approximation algorithm carries a proven bound on how far from optimal its output can be — a
+2-approximation is never worse than twice the optimum, for any input. A heuristic has no such
+guarantee and may be arbitrarily bad on some input, while frequently performing excellently on
+the inputs that actually arise. Both are legitimate, and confusing them leads to
+misplaced confidence: a heuristic that has always worked provides no assurance about the next
+input, and an approximation guarantee that is loose may be less useful than a heuristic that is
+usually near-optimal.
+
+The final practical observation is that algorithm selection matters far less than it once did
+for most application code, and far more in the specific places where it matters at all. Library
+implementations of sorting, hashing, and search are excellent and should be used. The
+consequential decisions are choosing the right data structure for the access pattern, avoiding
+an accidentally quadratic algorithm — repeatedly searching a list, or concatenating strings in a
+loop — and recognizing when a problem has structure that a specialized algorithm exploits. Those
+three account for nearly all the algorithmic wins available in ordinary software, and the
+remainder is in the specialized systems where the algorithm is the product.

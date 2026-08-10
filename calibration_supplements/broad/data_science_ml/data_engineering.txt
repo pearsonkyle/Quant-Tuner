@@ -1,0 +1,317 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: Data Engineering
+Subtopics: storage formats and architecture, batch and stream processing, modeling,
+orchestration, quality, distributed computation, cost and governance.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Storage Formats and Architecture
+
+The choice of file format determines more about analytical performance than the query
+engine does. Row-oriented formats store all fields of a record contiguously, which suits
+transactional access retrieving whole records. Columnar formats store each field
+contiguously across records, which suits analytical access reading a few fields across many
+records — only the needed columns are read, and homogeneous values within a column compress
+far better than heterogeneous values within a row.
+
+Parquet is the standard columnar format for analytics. It stores data in row groups, each
+containing column chunks with their own statistics — minimum, maximum, null count — which
+enables predicate pushdown: a query filtering on a column can skip entire row groups whose
+statistics prove no rows match. This is why the physical ordering of data matters
+enormously. A table sorted by the column most queries filter on will skip most of its row
+groups; the same data in random order must read everything.
+
+CSV persists because it is universal and should be avoided for anything at scale. It has no
+schema, no types, no compression by default, no column pruning, ambiguous handling of
+embedded delimiters and newlines, and no way to skip data without parsing it. A CSV file
+that is ten gigabytes is typically one to two gigabytes as Parquet and queries an order of
+magnitude faster on a column subset.
+
+Format characteristics:
+  CSV / JSON lines    universal, no schema, no pruning, no compression; use for
+                      interchange, never for analytical storage
+  Parquet             columnar, compressed, statistics per row group, predicate
+                      pushdown; the analytical default
+  ORC                 similar to Parquet; strong in the Hive ecosystem
+  Avro                row-oriented with schema evolution; good for streaming and
+                      for write-heavy landing zones
+  Arrow               in-memory columnar; the interchange standard between
+                      processes and languages with zero-copy reads
+  compression         Snappy for speed, Zstandard for a better ratio at similar
+                      speed, Gzip for maximum ratio and slow decompression
+  partitioning        directory structure by a low-cardinality column; enables
+                      skipping whole directories
+  file size           target 128 MB to 1 GB per file; many small files are the
+                      most common performance pathology in data lakes
+
+The small file problem deserves emphasis because it appears in nearly every data lake that
+has been running for a while. Streaming ingestion or frequent micro-batch writes produce
+thousands of tiny files, and every query pays per-file overhead — opening, reading the
+footer, planning — that swamps the actual work. A table of a hundred thousand files of one
+megabyte each performs dramatically worse than the same data in a thousand files of a
+hundred megabytes. Compaction jobs that periodically rewrite small files into larger ones
+are not optional maintenance; they are a requirement for any table written incrementally.
+
+Table formats add a metadata layer over files, and they solve problems that plain
+directories of Parquet cannot. Delta Lake, Apache Iceberg, and Apache Hudi each provide
+atomic commits so that a reader never sees a partial write, snapshot isolation and time
+travel so that a query can read a consistent historical version, schema evolution without
+rewriting data, and efficient row-level updates and deletes — which plain immutable files
+cannot support and which regulations requiring deletion of individual records demand.
+
+Q: A Parquet table is queried with a filter on a column, and the query still reads the
+entire dataset. The most likely reason is:
+A. Parquet does not support filtering
+B. The data is not sorted or partitioned by that column, so row-group statistics do not
+   allow skipping
+C. The file is compressed
+D. The filter is on a string column
+Reasoning: Predicate pushdown skips a row group only when its min/max statistics prove no
+rows can match. If the filter column's values are scattered randomly, every row group spans
+nearly the full range and none can be skipped. Sorting by the filter column, or partitioning
+on it, is what makes skipping effective. Answer: B.
+
+## Batch and Stream Processing
+
+Batch processing operates on bounded datasets at scheduled intervals, and it remains the
+right default for most analytical work. It is simpler to reason about, easier to test, and
+trivially reprocessable — a bug is fixed by rerunning the job, which is not true of a
+streaming system whose state has already been consumed downstream.
+
+Stream processing operates on unbounded data continuously and is justified when latency
+genuinely matters. The complexity it introduces is substantial and centres on time. Event
+time is when something happened; processing time is when the system saw it. These differ,
+sometimes by a lot, because of network delays, client buffering, mobile devices coming back
+online after hours offline, and upstream retries. Windowed aggregations must be defined on
+event time to be correct, and event time arrives out of order.
+
+Watermarks are the mechanism for handling this. A watermark is an assertion that no events
+older than a given timestamp will arrive, which allows a window to be closed and its result
+emitted. The tradeoff is direct: an aggressive watermark emits results quickly and drops
+late data, while a conservative one waits longer and holds more state. Late-arriving data
+after the watermark must be either dropped, sent to a side output for separate handling, or
+used to emit a correction that updates the previously published result — and which of these
+is acceptable is a business decision rather than a technical one.
+
+Streaming concepts:
+  event time            when it happened; the semantically correct basis
+  processing time       when the system saw it; easier and usually wrong
+  watermark             assertion of completeness up to a timestamp
+  tumbling window       fixed, non-overlapping intervals
+  sliding window        fixed size, advancing by a smaller step; overlapping
+  session window        activity separated by a gap; dynamic boundaries
+  late data             arrives after the watermark; drop, side-output, or update
+  exactly-once          achieved by idempotent sinks or transactional writes, not
+                        by the transport
+  checkpointing         periodic state snapshots for recovery
+  backpressure          slow consumers must throttle producers, not accumulate
+                        unbounded buffers
+  state store           keyed state for aggregations and joins; its size is the
+                        main operational constraint
+
+The lambda architecture — running batch and streaming paths in parallel and merging their
+results — was a common response to streaming systems being unreliable, and it requires
+maintaining the same logic twice in two systems, which guarantees they eventually diverge.
+The kappa architecture treats everything as a stream and reprocesses by replaying the log,
+which requires the log to be retained long enough and the processing to be deterministic.
+Modern practice increasingly runs one engine over one storage layer with both bounded and
+unbounded modes, which is the same code in both paths and is the right target.
+
+The honest question before building a streaming pipeline is what decision depends on the
+latency. If a dashboard is read once a morning, hourly batch is sufficient and vastly
+cheaper to build and operate. Streaming is justified by fraud detection, real-time
+personalization, operational alerting, and similar cases where minutes matter. Building a
+streaming system because it is more sophisticated is a common and expensive error.
+
+## Data Modeling
+
+Analytical data modeling differs from transactional modeling because the access patterns
+differ. Transactional systems normalize to eliminate update anomalies, since updates are
+frequent and correctness is paramount. Analytical systems denormalize to eliminate joins,
+since data is written once and read many times and joins are the dominant cost.
+
+Dimensional modeling organizes analytical data into fact tables and dimension tables. Facts
+record events or measurements — a sale, a click, a sensor reading — with foreign keys to
+dimensions and numeric measures. Dimensions describe the entities involved — customer,
+product, date, store — and are wide, denormalized, and relatively small. The star schema
+places dimensions directly around the fact table; the snowflake schema normalizes dimensions
+into sub-dimensions, which saves space and adds joins, and is usually not worth it.
+
+The grain of a fact table — what one row represents — is the first and most consequential
+modeling decision. It must be declared explicitly and stated in the documentation, because
+every subsequent decision depends on it and because mixing grains within a table produces
+double counting that is very difficult to detect. One row per order line item and one row
+per order are different tables, and a measure that is correct at one grain is wrong at the
+other.
+
+Dimensional modeling concepts:
+  fact table            events with measures and dimension keys; long and narrow
+  dimension table       descriptive attributes; wide and short
+  grain                 what one fact row represents; declare it explicitly
+  additive measure      summable across all dimensions
+  semi-additive         summable across some but not time; account balances
+  non-additive          ratios and percentages; store the components instead
+  degenerate dimension  an identifier with no attributes, such as an order number
+  conformed dimension   shared across fact tables; what allows cross-process
+                        analysis
+  slowly changing type 1  overwrite; no history
+  slowly changing type 2  new row with validity dates; preserves history and is
+                        the usual correct choice
+  surrogate key         system-generated; required for type 2 dimensions
+  date dimension        pre-built with fiscal periods, holidays, weekday flags;
+                        always worth building
+
+Slowly changing dimensions are where historical correctness is won or lost. If a customer
+moves from one region to another and the dimension is overwritten, every historical sale is
+retroactively attributed to the new region and last year's regional report changes when
+rerun. Type 2 handling — inserting a new dimension row with validity dates and pointing new
+facts at it — preserves the state as of each transaction, so history is stable. The cost is
+complexity in the load and the need for surrogate keys, and the benefit is reports that do
+not change beneath the people who read them.
+
+[user] Our nightly pipeline takes 6 hours and it used to take 40 minutes. Same data volume
+growth of maybe 3x over a year.
+[assistant] tool_call data.pipeline_profile({"runtime_h": 6, "baseline_min": 40,
+"volume_growth": 3.0, "stage_times": {"ingest": 0.4, "transform": 4.9, "load": 0.7},
+"file_count": 384000, "avg_file_mb": 1.4, "partitions": 12, "shuffle_gb": 840})
+[tool] {"bottleneck": "transform", "issues": ["small_file_overhead",
+"partition_skew_12_partitions", "large_shuffle", "superlinear_scaling"],
+"expected_linear_runtime_h": 2.0, "excess_h": 4.0}
+[assistant] Volume tripled but runtime grew ninefold, so something is scaling
+superlinearly. Three causes, and the file count is the most immediate.
+
+You have 384,000 files averaging 1.4 MB. Every task pays fixed per-file overhead — open,
+read footer, plan — and at that size the overhead dominates the actual reading. Compact into
+files of 128 MB to 512 MB and this alone typically recovers a large fraction of the runtime.
+Add a scheduled compaction job so it does not silently return; incremental writes recreate
+this condition continuously.
+
+Twelve partitions is too few for your data volume and is almost certainly causing skew. With
+a large shuffle across few partitions, one or two tasks handle disproportionate data while
+the rest finish early, so the stage runs as long as its slowest task and your cluster sits
+mostly idle. Increase partition count to somewhere around two to four times your total core
+count, and check whether the partition key itself is skewed — if one key holds a large share
+of rows, salting that key or handling it separately is needed regardless of partition count.
+
+The 840 GB shuffle is worth attacking directly since it is likely the dominant cost. Look at
+whether the joins can be reordered to filter earlier, whether a broadcast join is possible
+for the smaller side, and whether you are shuffling columns the downstream stages never use —
+projecting to needed columns before a shuffle is a common large win that is easy to miss.
+
+One diagnostic to run first: look at the stage-level timings and the task duration
+distribution within the longest stage. If the maximum task duration is many times the median,
+it is skew and the partition work is the priority. If tasks are uniform and simply numerous,
+it is the small files. That distinction tells you which fix to do first rather than doing all
+three blindly.
+
+## Orchestration and Quality
+
+Orchestration coordinates the execution of interdependent tasks, and the requirements are
+dependency management, scheduling, retries, backfills, and observability. Pipelines are
+directed acyclic graphs, and the orchestrator's job is to run each task once its
+dependencies have succeeded, retry transient failures, and surface persistent ones.
+
+Idempotency is the property that makes orchestration workable. A task that can be rerun
+safely can be retried automatically, backfilled over a historical range, and recovered from
+partial failure without manual intervention. Achieving it usually means writing to a
+partition determined by the run's logical date and replacing that partition entirely rather
+than appending, so a rerun overwrites rather than duplicating. Pipelines built on appends
+without deduplication cannot be safely rerun, which means every failure requires a human to
+assess what partially completed.
+
+The distinction between logical date and execution time is a persistent source of confusion.
+A job scheduled for a given day processes that day's data, and it may execute hours later or
+be backfilled months afterward. Every task should derive its input and output locations from
+the logical date passed in, and should never call a function returning the current time — a
+pipeline that uses the wall clock cannot be backfilled and silently produces wrong results
+when a run is delayed past midnight.
+
+Orchestration and quality practices:
+  idempotent tasks       rerunnable without duplication; replace partitions
+  logical vs actual date derive everything from the logical date, never the clock
+  backfill               rerun a historical range; requires idempotency
+  retries with backoff   for transient failures; distinguish them from permanent
+  SLA monitoring         alert when a pipeline has not completed by a deadline,
+                         not only when it fails
+  data freshness check   the most valuable single check; stale data that looks
+                         current is worse than missing data
+  schema validation      types, required fields, allowed values
+  volume checks          row counts against expectation; catches partial loads
+  distribution checks    means, null rates, category frequencies against history
+  referential integrity  foreign keys resolve
+  uniqueness             primary keys are unique; duplicates are the most common
+                         real defect
+  circuit breaker        stop the pipeline rather than propagate bad data
+                         downstream
+
+Failing loudly rather than propagating bad data is a decision worth making explicitly.
+A pipeline that detects a quality violation and continues publishes wrong numbers that people
+act on; one that halts leaves the previous day's data in place and produces an alert. The
+second is almost always preferable, because stale data is visibly stale while wrong data is
+invisibly wrong. This requires the downstream consumers to tolerate a missed update, which is
+a design conversation to have before the incident rather than during it.
+
+Data contracts formalize the interface between producer and consumer. A contract specifies
+the schema, semantics, quality guarantees, and change process for a dataset, and is enforced
+in the producer's continuous integration so that a breaking change fails the producer's
+build rather than the consumer's pipeline at three in the morning. This shifts the cost of a
+breaking change onto the party making it, which is where it belongs and where it is
+cheapest to address.
+
+## Distributed Computation, Cost, and Governance
+
+Distributed processing frameworks partition data across a cluster and execute operations in
+parallel. The fundamental cost distinction is between narrow transformations, where each
+output partition depends on one input partition and computation proceeds locally, and wide
+transformations, which require a shuffle — redistributing data across the network so that
+all records with a given key land together. Shuffles are expensive, involving serialization,
+network transfer, and disk spill, and minimizing them is the core of performance tuning.
+
+Data skew is the most common distributed performance problem. When one key holds a
+disproportionate share of records, the task processing it takes far longer than the others,
+and the stage completes only when it does. Detection is by comparing maximum to median task
+duration. Remedies include salting the hot key by appending a random suffix and aggregating
+in two stages, broadcasting the smaller side of a join to avoid shuffling the larger, or
+separating the hot keys and handling them with a different strategy.
+
+Predicate and projection pushdown are the optimizations with the highest return and the
+least effort. Filtering as early as possible reduces every downstream stage's data volume;
+selecting only needed columns does the same. Modern query optimizers do a great deal of this
+automatically, and the cases they cannot handle are usually those where a user-defined
+function opaque to the optimizer sits between the source and the filter — which is a good
+reason to prefer built-in expressions over custom functions where possible.
+
+Distributed computation and cost:
+  narrow transformation  map, filter; no data movement
+  wide transformation    join, groupBy, sort; requires a shuffle
+  broadcast join         send the small side to every node; avoids shuffling the
+                         large side; bounded by memory
+  partitioning strategy  hash for even distribution, range for sorted access
+  skew handling          salting, broadcast, or separate treatment of hot keys
+  predicate pushdown     filter at the source
+  projection pushdown    read only needed columns
+  caching                persist a reused intermediate; only when actually reused
+  spot instances         large savings for fault-tolerant batch work
+  storage tiering        move cold data to cheaper storage on a lifecycle policy
+  cost attribution       tag resources by team and pipeline; unattributed cost is
+                         unmanaged cost
+  the largest saving     deleting data nobody queries, and not computing tables
+                         nobody reads
+
+Governance requirements shape architecture rather than sitting alongside it. Data lineage —
+knowing which sources produced which derived tables — is required to assess the impact of an
+upstream change and to answer where a number came from, and it is far easier to capture
+automatically from the orchestrator than to document by hand. Access control must operate at
+the column and row level for sensitive data rather than at the table level, since analysts
+frequently need aggregate access without individual-record access. Retention policies must be
+implemented as automated deletion rather than as documented intentions.
+
+The right to erasure in privacy regulation deserves specific architectural attention because
+it conflicts with the append-only immutable design that data lakes naturally adopt.
+Deleting one person's records from thousands of Parquet files requires either rewriting those
+files, which table formats with row-level delete support now make tractable, or
+crypto-shredding — encrypting each subject's data with a per-subject key and deleting the key,
+which renders the data unrecoverable without touching it. Choosing one of these before the
+first deletion request arrives is substantially cheaper than choosing one afterward.

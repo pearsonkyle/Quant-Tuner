@@ -1,0 +1,298 @@
+================================================================================
+AREA: Embedded Systems and Hardware
+SUBJECT: Digital Electronics
+Subtopics: number systems and logic, combinational design, sequential logic and
+timing, memory, logic families and signal integrity, buses, testing and debug.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Number Systems and Boolean Logic
+
+Digital systems represent information in discrete levels, almost universally two, which
+buys noise immunity: a signal need only be recognizably high or low rather than precisely at
+a value, so small disturbances are rejected entirely at each stage rather than accumulating
+as they do in analog chains. This regeneration at every gate is why complex digital systems
+work at all and why analog signal chains degrade with length.
+
+Binary representation of signed integers has settled on two's complement for a specific
+reason: it allows one adder circuit to handle both addition and subtraction, since
+subtracting is adding the negation, and the negation is the bitwise complement plus one. It
+also gives a unique representation of zero, unlike sign-magnitude or one's complement, both
+of which have distinct positive and negative zeros and require extra logic to handle them.
+The asymmetry of the range — one more negative value than positive — is the price, and it
+produces the specific edge case that negating the most negative value overflows.
+
+Fixed-point representation places an implied binary point at a chosen position, giving
+integer arithmetic with fractional interpretation. It is fast, exact within its range, and
+requires the designer to manage scaling. Floating point trades a fixed absolute precision for
+a fixed relative precision across a huge range, at substantially higher hardware cost — which
+is why small microcontrollers omit floating-point hardware and why fixed-point implementation
+remains standard in signal processing.
+
+Number representation:
+  unsigned n bits      range 0 to 2^n - 1
+  two's complement     range -2^(n-1) to 2^(n-1) - 1
+  negation             invert all bits and add one
+  sign extension       replicate the sign bit when widening
+  overflow, signed     detected when the carry into and out of the sign bit differ
+  overflow, unsigned   detected by the carry out
+  fixed point Qm.n     m integer bits, n fractional; value = raw / 2^n
+  BCD                  four bits per decimal digit; wasteful, avoids decimal
+                       conversion error in displays and financial contexts
+  Gray code            adjacent values differ in one bit; used in encoders so that
+                       a transition never produces a spurious intermediate value
+  hexadecimal          four bits per digit; the standard notation for bit patterns
+
+Gray code deserves its mention because it solves a real physical problem. In a binary
+absolute encoder, transitioning from 0111 to 1000 requires four bits to change
+simultaneously, and they never do — the sensor briefly reads an arbitrary intermediate value
+which may be wildly wrong. Gray code guarantees exactly one bit changes per transition, so
+any read during a transition returns either the old or the new value and never a spurious
+third. The same reasoning applies to crossing clock domains with a multi-bit counter, where
+Gray coding is the standard technique.
+
+Boolean algebra provides the rules for manipulating logic expressions, and De Morgan's laws
+are the most used: the complement of a conjunction is the disjunction of complements and vice
+versa. Practically, these let any circuit be rewritten in terms of NAND or NOR gates alone,
+which matters because those are the natural primitives in CMOS — an inverting gate requires
+fewer transistors than a non-inverting one, since the non-inverting version is the inverting
+one followed by an inverter.
+
+Q: A 4-bit two's complement register holds 1000. Its value and the result of negating it are:
+A. -8, and negation gives +8
+B. -8, and negation overflows, returning -8
+C. +8, and negation gives -8
+D. -7, and negation gives +7
+Reasoning: In 4-bit two's complement, 1000 is -8, the most negative value. Negating gives
+invert (0111) plus one (1000), which is -8 again. The range is asymmetric, +8 is not
+representable, and this edge case must be handled explicitly in any code performing absolute
+value or negation. Answer: B.
+
+## Combinational Design
+
+A combinational circuit's outputs depend only on its current inputs, with no memory. Design
+proceeds from a truth table or a specification to a Boolean expression, which is then
+minimized and mapped to gates. Karnaugh maps make minimization visual for up to about five
+variables by arranging the truth table so that adjacent cells differ in one variable, making
+simplifiable groupings visible as rectangles. Beyond that, algorithmic methods and synthesis
+tools take over, and in practice the designer writes behaviour in a hardware description
+language and lets synthesis handle minimization.
+
+The standard building blocks recur constantly and recognizing them shortens design
+substantially. A multiplexer selects one of several inputs based on a select code and is the
+hardware equivalent of a conditional. A decoder activates one of many outputs from a binary
+code. An encoder does the reverse, with the priority variant resolving multiple simultaneous
+inputs. Adders chain from full adders, with the ripple-carry version simple and slow because
+the carry propagates serially, and carry-lookahead computing carries in parallel at the cost
+of more logic — the classic area-versus-speed tradeoff.
+
+Combinational blocks:
+  multiplexer        2^n inputs to 1 output under n select lines
+  demultiplexer      1 to 2^n
+  decoder            n-bit code to one-hot output
+  priority encoder   resolves multiple asserted inputs by priority
+  comparator         equality and magnitude
+  full adder         sum and carry from three inputs
+  ripple carry       simple, delay proportional to width
+  carry lookahead    parallel carry computation; faster, more logic
+  barrel shifter     arbitrary shift in one operation; a multiplexer tree
+  ALU                arithmetic and logic under an operation select
+  ROM as logic       any truth table implemented as a lookup; the principle behind
+                     FPGA lookup tables
+  don't care         unspecified outputs; exploit them for minimization
+
+Hazards are transient incorrect outputs arising from unequal propagation delays along
+different paths, and they matter whenever a combinational output feeds something
+edge-sensitive or asynchronous. A static hazard produces a brief glitch on an output that
+should have remained constant; a dynamic hazard produces multiple transitions where one was
+expected. They are eliminated by adding redundant terms that cover the transitions, or
+avoided architecturally by registering outputs so that only the settled value is sampled —
+which is why synchronous design is standard and why combinational outputs driving asynchronous
+resets or clock inputs are a design review flag.
+
+## Sequential Logic and Timing
+
+Sequential circuits have memory, so outputs depend on input history. The storage primitive is
+the flip-flop, which captures its input on a clock edge and holds it until the next. The
+latch, by contrast, is level-sensitive and transparent while its enable is asserted, which
+makes it harder to reason about and is why edge-triggered flip-flops dominate synchronous
+design.
+
+Timing constraints determine whether a design works at a given clock frequency. Setup time
+requires the data input to be stable for some interval before the clock edge; hold time
+requires it to remain stable for some interval after. A setup violation means the data
+arrived too late and is fixed by slowing the clock or shortening the logic path. A hold
+violation means the data arrived too early, changing before the flip-flop captured the
+previous value, and it cannot be fixed by slowing the clock — it requires adding delay to the
+path, which is why hold violations are more serious and are usually caught by the tools
+inserting buffers.
+
+Maximum clock frequency follows from the longest combinational path between registers, the
+critical path. The period must exceed the clock-to-output delay of the source register plus
+the combinational delay plus the setup time of the destination register plus clock skew.
+Pipelining raises throughput by inserting registers to break long paths into shorter stages,
+increasing latency in cycles while raising the achievable frequency, which for
+throughput-oriented designs is the correct trade.
+
+Sequential design and timing:
+  D flip-flop        captures D on the clock edge; the standard element
+  setup time         data stable before the edge; violation fixed by slowing the
+                     clock
+  hold time          data stable after the edge; violation needs added delay, not
+                     a slower clock
+  clock-to-Q         propagation delay from edge to output
+  critical path      the longest register-to-register path; sets maximum frequency
+  clock skew         arrival-time difference between registers; helps setup on one
+                     path and hurts hold
+  pipelining         more stages, higher frequency, higher latency
+  metastability      a violated setup or hold can leave the output between levels
+                     for an unbounded time
+  synchronizer       two or more flip-flops in series to resolve metastability
+                     probabilistically; mean time between failures grows
+                     exponentially with stages
+  FSM                Moore outputs depend on state only; Mealy on state and input,
+                     giving faster response and combinational output paths
+  one-hot encoding   one flip-flop per state; more registers, less decode logic,
+                     often faster in an FPGA
+
+Clock domain crossing is where sequential designs most often fail in ways that are
+intermittent and maddening to debug. A signal generated in one clock domain and sampled in
+another can violate setup or hold on the receiving flip-flop, driving it metastable, and a
+metastable output may resolve to either level or hover between them for an unbounded time. A
+two-flip-flop synchronizer reduces the probability of an unresolved metastable state
+propagating to a level that is negligible over any realistic operating life, and it works
+only for a single-bit signal. Multi-bit values crossing domains need a handshake, an
+asynchronous FIFO with Gray-coded pointers, or another structural mechanism, because
+synchronizing each bit independently allows different bits to be captured on different cycles
+and produces values that were never present at the source.
+
+[user] My FPGA design passes simulation but fails intermittently in hardware, roughly once
+every few hours.
+[assistant] tool_call fpga.diagnose({"simulation": "pass", "hardware": "intermittent",
+"mtbf_hours": 3, "clock_domains": 3, "cdc_paths": 14, "synchronizers_found": 6,
+"timing_met": true, "async_resets": true, "reset_synchronized": false})
+[tool] {"likely_cause": "clock_domain_crossing", "unsynchronized_cdc_paths": 8,
+"secondary": "async_reset_release_not_synchronized",
+"note": "simulation_does_not_model_metastability"}
+[assistant] Clock domain crossing, almost certainly. This has the exact signature: passes
+simulation, fails randomly in hardware at long intervals, timing analysis clean.
+
+Simulation cannot find this. A simulator evaluates events at discrete times with idealized
+zero-width setup and hold windows, so a signal crossing domains is captured cleanly every
+time. Real flip-flops go metastable when their setup or hold is violated, and the probability
+per crossing is low but nonzero — which is exactly why the failure interval is hours rather
+than seconds.
+
+You have 14 crossing paths and 6 synchronizers, so 8 paths are unsynchronized. Find them
+with a clock domain crossing report from your tool — most synthesis flows will generate one,
+and there are lint tools specifically for this. For each path:
+
+Single-bit control signals need a two-flip-flop synchronizer in the destination domain. If the
+pulse is shorter than a destination clock period it can be missed entirely, so a level signal
+with handshake, or a pulse stretcher, is needed rather than a bare synchronizer.
+
+Multi-bit data must not be synchronized bit by bit. Each bit resolves independently, so
+different bits can land on different cycles and the receiver sees a value that never existed
+at the source. Use an asynchronous FIFO with Gray-coded pointers, or a handshake where the
+source holds data stable and asserts a request, the destination synchronizes only the request
+and then samples the already-stable data.
+
+Your asynchronous resets are the second issue and cause a similar class of failure. Asserting
+a reset asynchronously is fine; releasing it asynchronously is not, because the release can
+occur close to a clock edge and different flip-flops will exit reset on different cycles. Use
+a reset synchronizer — assert asynchronously, release synchronously — one per clock domain.
+
+Once fixed, the failure should disappear entirely rather than becoming rarer. If it becomes
+rarer but persists, there is another crossing path that was missed.
+
+## Memory and Logic Families
+
+Memory technologies differ in volatility, density, speed, and endurance, and the choices
+follow from the application. Static RAM stores each bit in a cross-coupled latch, is fast,
+requires no refresh, and costs six transistors per bit, which makes it dense enough only for
+caches and small on-chip memories. Dynamic RAM stores each bit as charge on a capacitor,
+requires periodic refresh because the charge leaks, and costs roughly one transistor per bit,
+which makes it the technology for main memory. Flash stores charge on a floating gate,
+retains it without power, and wears out after a finite number of erase cycles.
+
+Flash endurance and its consequences are worth understanding because they shape system
+design. NOR flash allows random read access and is used for code execution in place; NAND
+flash is denser, reads and writes in pages and erases in larger blocks, and is used for bulk
+storage. Both wear, with endurance from a hundred thousand cycles for single-level cells down
+to a few thousand for multi-level cells, and both require wear levelling to spread erase
+cycles across the device rather than concentrating them where a naive file system would.
+
+Logic families define the voltage levels, speed, and drive characteristics of gates. CMOS
+dominates because its static power consumption is essentially zero — current flows only
+during transitions — so power scales with switching activity and frequency rather than being
+constant. This is why dynamic power in CMOS is proportional to capacitance times voltage
+squared times frequency, and why reducing supply voltage is the most effective power
+reduction available, since the dependence is quadratic.
+
+Memory and logic characteristics:
+  SRAM              fast, no refresh, 6T per bit, volatile; caches
+  DRAM              dense, needs refresh, 1T1C, volatile; main memory
+  NOR flash         random read, execute in place, slower write; code storage
+  NAND flash        page read/write, block erase, dense; bulk storage
+  EEPROM            byte-erasable, limited endurance; configuration
+  FRAM / MRAM       non-volatile with RAM-like endurance and speed; niche and
+                    growing
+  CMOS dynamic power P = C V^2 f;  voltage scaling is quadratic
+  static power       leakage, increasingly significant at small process nodes
+  logic levels       3.3 V and 1.8 V dominate; level shifting needed between
+  open drain         requires a pull-up; permits wired-AND and bidirectional buses
+  fan-out            how many inputs one output can drive
+  propagation delay  rises with load capacitance
+
+## Signal Integrity, Buses, and Debug
+
+At the edge rates of modern digital signals, interconnect must be treated as a transmission
+line rather than as an ideal wire. The threshold is not the clock frequency but the edge rate:
+if the propagation delay along a trace exceeds roughly a sixth of the signal's rise time, the
+trace behaves as a transmission line and reflections matter. A 1 nanosecond edge on a
+FR4 board reaches that threshold at about 25 millimetres, which means most traces on a
+modern board qualify regardless of the nominal clock rate.
+
+Reflections occur wherever the impedance changes — at a stub, at a via, at an unterminated
+end, at a connector. They produce overshoot, undershoot, and ringing that can exceed device
+absolute maximum ratings and can cause double clocking when the ringing crosses the input
+threshold repeatedly. Termination matches the impedance and absorbs the reflection: series
+termination at the source is the common choice for point-to-point signals, and parallel
+termination at the far end suits multi-drop buses at higher static power cost.
+
+Crosstalk is coupling between adjacent traces through mutual capacitance and inductance, and
+it scales with the coupled length and inversely with separation. The standard mitigation is
+spacing — a separation of three times the trace width reduces coupling substantially — plus
+maintaining a continuous reference plane so that return currents flow directly beneath their
+signals rather than detouring and coupling into neighbours.
+
+Signal integrity and debug:
+  transmission line     when propagation delay exceeds ~1/6 of the rise time
+  characteristic Z      set by geometry and dielectric; 50 ohm single-ended,
+                        90-100 ohm differential are the conventions
+  reflection            from any impedance discontinuity
+  series termination    a resistor at the source summing with the driver impedance
+  parallel termination  at the receiver; better for multi-drop, more static power
+  crosstalk             reduce by spacing and by a continuous reference plane
+  return path           follows the signal beneath it at high frequency; a split
+                        plane under a trace forces a large loop
+  ground bounce         simultaneous switching outputs disturbing the local
+                        reference
+  decoupling            local charge reservoirs; loop inductance matters more than
+                        capacitance value
+  differential signaling  common-mode rejection and lower emissions; the standard
+                        above a few hundred megahertz
+  logic analyzer        many channels, digital thresholds; for protocol and timing
+  oscilloscope          analog detail; the only tool that shows signal integrity
+  JTAG                  boundary scan and debug access
+  built-in self test    on-chip pattern generation and checking
+
+The instrument choice deserves a closing note because it determines what can be seen. A logic
+analyzer applies a threshold and reports ones and zeros, so a signal ringing violently around
+the threshold appears as clean data or as inexplicable extra transitions, with no indication
+of why. An oscilloscope shows the actual waveform and is the only way to diagnose overshoot,
+slow edges, insufficient drive, and reflections. The standard sequence when a digital signal
+misbehaves is to look at it on an oscilloscope with adequate bandwidth and a short-ground
+probe connection first, because a signal that looks wrong analogically will never be explained
+by more digital capture.

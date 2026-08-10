@@ -1,0 +1,239 @@
+================================================================================
+AREA: Humanities and Business
+SUBJECT: Political Science
+Subtopics: institutions and constitutions, electoral systems, comparative government,
+political behaviour, international relations, political economy, methods.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Institutions and Constitutional Design
+
+Political science studies how collective decisions are made and enforced, and its most durable
+finding is that institutions matter — the same population under different rules produces different
+outcomes. Constitutional design is therefore not a formality but a determinant of what governments
+can do, how power changes hands, and how conflict is resolved.
+
+The separation of powers distributes authority among branches so that each constrains the others.
+Its purpose is not efficiency, which it deliberately sacrifices, but the prevention of concentrated
+power. The design tradeoff is explicit: a system with many veto points is difficult to capture and
+also difficult to govern with, so it resists both tyranny and reform. Which of these properties
+dominates in practice depends on how many veto players exist and how far apart their preferences
+are.
+
+Presidential and parliamentary systems differ in whether the executive derives its mandate
+separately from the legislature or from it. The parliamentary arrangement fuses them, so an
+executive that loses legislative support falls, and deadlock between them is structurally
+impossible. The presidential arrangement separates them, which produces independent legitimacy and
+also the possibility of a divided government in which neither branch can act and neither can be
+removed. Neither is uniformly superior, and the comparative literature is largely about the
+conditions under which each performs better.
+
+Institutional design:
+  institutions         the rules structuring political action; they change
+                       outcomes independently of who participates
+  separation of powers  authority divided so branches constrain each other
+  the explicit tradeoff  resistance to capture bought with resistance to action
+  veto players         actors whose agreement is required for change; more
+                       players and wider preference gaps mean less change
+  federalism           authority divided by territory as well as function
+  parliamentary        executive drawn from and accountable to the legislature
+  presidential         separate mandates; independent legitimacy and possible
+                       deadlock
+  semi-presidential    both; cohabitation when they diverge
+  judicial review      courts invalidating legislation; contested in its scope
+                       everywhere it exists
+  constitutional rigidity  how difficult amendment is; too rigid invites
+                       extra-constitutional change, too flexible offers no
+                       protection
+  unwritten constraints  norms and conventions doing much of the work; they are
+                       less visible than written rules and easier to erode
+  the durability question  institutions persist when the actors who could change
+                       them benefit from their persistence
+
+## Electoral Systems and Representation
+
+An electoral system converts votes into seats, and the conversion rule shapes the party system, the
+incentives of candidates, and the character of governments. Duverger's observation captures the
+strongest regularity: single-member districts decided by plurality tend toward two parties, because
+voters abandon candidates who cannot win and donors abandon them first. Proportional systems
+sustain more parties because a small vote share still yields representation.
+
+The consequences run further than party count. Plurality systems produce single-party majority
+governments more often, which makes accountability clear — one party governs and can be removed —
+and representation less proportional. Proportional systems produce coalitions, which represent more
+of the electorate and blur responsibility, since no party fully controls policy and voters cannot
+easily assign blame.
+
+District design under plurality rules creates its own problem, since the boundaries determine the
+outcome. Drawing them to advantage a party is achieved by concentrating opposition voters into few
+districts and spreading one's own supporters efficiently across many. Independent boundary
+commissions are the standard remedy, and quantitative measures of the resulting distortion have
+become central to the litigation over it.
+
+Electoral systems:
+  plurality            most votes wins; single-member districts
+  Duverger's law       plurality tends toward two parties
+  the mechanisms       strategic voting and strategic donation
+  proportional         seats proportional to votes; sustains more parties
+  threshold            a minimum vote share for representation; excludes small
+                       parties deliberately
+  mixed systems        district and list components combined
+  ranked choice        preferences transferred as candidates are eliminated
+  approval and score   alternatives with different strategic properties
+  Arrow's theorem      no system satisfies all reasonable criteria at once; every
+                       choice sacrifices something
+  the practical reading  the question is which failure mode is tolerable, not
+                       which system is correct
+  coalition formation  who governs when no party has a majority
+  accountability clarity  clear under single-party government, blurred under
+                       coalition
+  boundary manipulation  concentrating and dispersing voters to shape outcomes
+  independent commissions  the standard structural remedy
+  malapportionment     unequal district populations; a distinct problem from
+                       boundary shape
+
+Q: A country switches from proportional representation to single-member plurality districts. The
+most predictable consequence is:
+A. Higher turnout
+B. A reduction in the effective number of parties, as voters and donors abandon candidates who
+   cannot win a district, and single-party majority governments become more common
+C. Better policy outcomes
+D. No change in party structure
+Reasoning: This is Duverger's regularity and it is among the most robust findings in comparative
+politics. The mechanism is strategic behaviour by voters and funders under a winner-take-all rule.
+Turnout and policy quality effects are ambiguous and contested. Answer: B.
+
+## Political Behaviour and Public Opinion
+
+Individual political behaviour departs substantially from the model of an informed citizen
+evaluating policy. Most voters hold low levels of factual political knowledge, unstable positions on
+specific issues, and stable attachments to parties or groups. Partisan identity functions more like
+a social identity than like a policy conclusion, and it shapes the interpretation of information
+rather than being shaped by it.
+
+Motivated reasoning is the mechanism most responsible. People evaluate evidence more critically
+when it threatens a valued conclusion and less critically when it supports one, and this asymmetry
+is stronger among the more politically knowledgeable rather than weaker. The counterintuitive
+consequence is that political sophistication increases the capacity to defend a prior position
+rather than the propensity to update it, which is why correction of misinformation is so much
+harder than it appears.
+
+Turnout is a persistent puzzle for rational-choice accounts, since the probability of a single vote
+changing an outcome is negligible while the cost of voting is not. The explanations that survive
+appeal to expressive value, civic duty, social pressure, and habit rather than to instrumental
+benefit, and the most effective interventions to increase turnout accordingly operate on social
+mechanisms — a neighbour asking in person, or a message noting that turnout is observable.
+
+Political behaviour:
+  low information      the empirical baseline; the informed-citizen model does
+                       not describe most voters
+  partisan identity    social identity more than policy conclusion
+  motivated reasoning  evidence evaluated asymmetrically by conclusion
+  the sophistication paradox  knowledge strengthens defence of priors rather than
+                       updating
+  heuristics           party label, endorsements, incumbency; substitutes for
+                       information that work reasonably often
+  retrospective voting  judging incumbents on outcomes; simple and it applies
+                       credit and blame indiscriminately
+  the turnout puzzle   instrumental benefit cannot explain voting
+  what does explain it  duty, expression, social pressure, habit
+  effective mobilization  personal contact and social accountability
+  framing effects      the same policy described differently receives different
+                       support
+  polarization         affective more than ideological in recent measurement;
+                       dislike of the other side has grown more than positional
+                       distance
+  sorting              parties becoming internally consistent; distinct from
+                       polarization and often confused with it
+  measurement caution  survey responses on obscure issues are frequently
+                       constructed on the spot and should be read as such
+
+## International Relations and Political Economy
+
+International politics differs from domestic politics in lacking an authority above the actors,
+and the major theoretical traditions are largely answers to what follows from that. Realism argues
+that anarchy compels states to prioritize security, that power balances form, and that cooperation
+is limited by concern for relative gains. Liberalism argues that institutions, trade, and domestic
+regime type make cooperation durable. Constructivism argues that interests are not given by
+structure but produced by shared ideas, so anarchy means what states make of it.
+
+The security dilemma is the most useful specific concept. Measures one state takes for defence
+appear threatening to another, which responds in kind, leaving both less secure while neither
+intended aggression. It explains arms races and spirals of hostility without requiring anyone to
+want conflict, and it identifies the conditions that mitigate it — distinguishable offensive and
+defensive capabilities, and transparency.
+
+Political economy studies the interaction of political and economic systems, and its central
+questions concern why some countries develop and others do not. The institutional answer, now
+dominant, holds that inclusive institutions — secure property rights, constraints on the executive,
+broad participation — generate growth, while extractive institutions concentrating both political
+and economic power do not, and that the two reinforce themselves once established.
+
+International relations and political economy:
+  anarchy              no authority above states; the structural premise
+  realism              security under anarchy; balance of power; relative gains
+  liberalism           institutions, trade, and regime type enabling cooperation
+  constructivism       interests as socially produced rather than structurally
+                       given
+  security dilemma     defensive measures read as threats; conflict without
+                       intent
+  mitigating conditions  distinguishable capabilities and transparency
+  balance of power     coalitions forming against concentration
+  hegemonic stability  a dominant power supplying public goods; contested
+  democratic peace     the strong empirical regularity that democracies rarely
+                       fight each other; the mechanism is disputed
+  audience costs       leaders bearing domestic penalties for backing down; makes
+                       commitments credible
+  two-level games      negotiators bargaining internationally and domestically at
+                       once
+  inclusive institutions  property rights, executive constraint, participation
+  extractive institutions  power and rents concentrated; growth is not sustained
+  the resource curse   natural resource wealth correlating with worse governance;
+                       the mechanism is that resource revenue decouples the state
+                       from taxing its population, and a state that need not tax
+                       need not bargain
+
+## Methods and Inference
+
+Political science faces a hard inferential environment: it cannot usually randomize, its units are
+few, and the interesting variables are entangled. The methodological development of the field is
+largely a response to that, and the credible-inference standard now applied is considerably more
+demanding than it was a generation ago.
+
+Case studies remain valuable when chosen for a reason. A case selected because it should not fit a
+theory and does, or should fit and does not, carries much more evidential weight than a case
+selected for convenience or for its outcome. Selecting on the dependent variable — studying only
+revolutions to explain revolutions — is the classic error, because it makes it impossible to know
+what distinguishes the cases from the ones that did not occur.
+
+Quantitative work confronts confounding directly. Natural experiments exploit arbitrary variation —
+a boundary, a threshold, a lottery — to approximate randomization. Difference-in-differences
+compares changes rather than levels across treated and untreated groups. Regression discontinuity
+uses the arbitrariness of a cutoff. Each has assumptions that can fail, and the credible papers are
+the ones that argue for those assumptions rather than asserting them.
+
+Methods and inference:
+  the environment      no randomization, few units, entangled variables
+  case selection       chosen to test, not to illustrate
+  selecting on the outcome  the classic error; removes the comparison
+  process tracing      evidence for a mechanism within a case
+  most similar design  cases alike except in the variable of interest
+  natural experiment   arbitrary variation approximating randomization
+  difference-in-differences  compares changes across treated and control
+  parallel trends      the assumption that makes it work; check it before
+                       the treatment
+  regression discontinuity  the cutoff is arbitrary near the threshold
+  instrumental variables  a source of variation affecting the outcome only through
+                       the treatment; the exclusion restriction is untestable and
+                       is where most of these designs fail
+  survey experiments   randomize the framing; strong internal validity, uncertain
+                       external
+  field experiments    randomize in the real setting; expensive and the most
+                       credible
+  replication          a live problem; the field has improved through
+                       pre-registration and data sharing
+  the honest position  most observational political science identifies
+                       associations under assumptions, and stating the assumptions
+                       plainly is more useful than causal language that the design
+                       cannot support

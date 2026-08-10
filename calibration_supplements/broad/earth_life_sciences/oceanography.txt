@@ -1,0 +1,291 @@
+================================================================================
+AREA: Earth and Life Sciences
+SUBJECT: Oceanography
+Subtopics: physical properties, circulation, waves and tides, marine chemistry,
+marine biology and ecosystems, the seafloor, the ocean and climate, observation.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Physical Properties and Structure
+
+The ocean covers seventy-one percent of Earth's surface and contains ninety-seven percent of its
+water, and its physical behaviour is governed by two properties that determine density:
+temperature and salinity. Density controls whether water sinks or floats, which controls
+stratification, which controls almost everything else — the vertical exchange of heat, of
+nutrients, and of dissolved gases.
+
+Seawater's density increases with salinity and, over most of the ocean's range, decreases with
+temperature. The relationship is nonlinear, which produces effects that a linear intuition
+misses. Cabbeling is the clearest: mixing two water masses of equal density but different
+temperature and salinity produces water denser than either, so the mixture sinks — a mechanism
+contributing to deep water formation.
+
+The vertical structure divides into layers by density. A surface mixed layer is homogenized by
+wind and waves, its depth varying from tens of metres in summer to hundreds in winter. Below it
+the thermocline is a zone of rapid temperature decrease, and the corresponding density gradient —
+the pycnocline — acts as a barrier to vertical exchange. Below that the deep ocean is cold,
+uniform, and very slow to communicate with the surface.
+
+Physical properties and structure:
+  density              from temperature and salinity; controls everything
+  salinity             about 35 parts per thousand on average; the ratio of major
+                       ions is constant, which is why one measurement suffices
+  nonlinear equation of state  cabbeling and thermobaricity; mixing can increase
+                       density
+  mixed layer          wind and wave homogenized; tens to hundreds of metres
+  thermocline          rapid temperature decrease with depth
+  pycnocline           the density gradient; a barrier to vertical exchange
+  halocline            the salinity gradient; dominant in polar regions where
+                       temperature varies little
+  stratification       stability against vertical mixing; increasing with warming,
+                       which reduces nutrient supply to the surface
+  heat capacity        enormous; the top few metres hold as much heat as the whole
+                       atmosphere
+  sound speed          ~1500 m/s, varying with temperature, pressure, and salinity
+  SOFAR channel        a sound speed minimum trapping sound; low-frequency signals
+                       propagate across ocean basins
+  light attenuation    the photic zone is the top ~200 m; below it there is not
+                       enough light for photosynthesis
+
+The ocean's heat capacity deserves emphasis because it dominates the climate system's thermal
+behaviour. Water's specific heat is over four times air's and the ocean's mass is vastly greater,
+so the top few metres store as much heat as the entire atmosphere. This is why the ocean has
+absorbed more than ninety percent of the excess heat from the planetary energy imbalance, why
+ocean heat content is a far better measure of that imbalance than surface air temperature, and why
+the climate system's response to a forcing is delayed by decades — the ocean must warm before
+equilibrium is reached.
+
+Q: Ocean heat content is a better indicator of the planetary energy imbalance than surface air
+temperature because:
+A. It is easier to measure
+B. Over ninety percent of the excess energy goes into the ocean, and the atmosphere's small heat
+   capacity makes its temperature noisy
+C. The ocean warms faster
+D. Air temperature is not affected
+Reasoning: The ocean's enormous heat capacity means it absorbs the overwhelming majority of the
+accumulating energy, while the atmosphere stores a small fraction and its temperature fluctuates
+substantially with ocean-atmosphere heat exchange such as El Niño. Ocean heat content therefore
+integrates the imbalance directly with far less interannual noise. Answer: B.
+
+## Circulation
+
+Ocean circulation divides into a wind-driven surface component and a density-driven deep
+component, coupled to each other and operating on entirely different timescales.
+
+Surface circulation is driven by wind stress and shaped by Earth's rotation. The Coriolis effect
+deflects moving water — to the right in the northern hemisphere and left in the southern — and
+because each layer of water drags the one beneath it with progressive deflection, the net
+transport of the wind-driven layer is at right angles to the wind. This Ekman transport is why
+wind blowing parallel to a coast drives upwelling or downwelling rather than moving water directly
+onshore or offshore, and coastal upwelling brings nutrient-rich deep water to the surface,
+supporting the most productive fisheries on Earth.
+
+The great subtropical gyres result from the combination of wind patterns and rotation, and they
+are asymmetric in a way that has large consequences. Western boundary currents — the Gulf Stream,
+the Kuroshio — are narrow, fast, and deep, while the eastern return flow is broad and slow. This
+intensification follows from the variation of the Coriolis parameter with latitude, and the
+resulting concentrated poleward heat transport is why northwestern Europe is far milder than its
+latitude would suggest.
+
+Thermohaline circulation is driven by density differences arising from cooling and from salinity
+changes. Deep water forms where surface water becomes dense enough to sink, which occurs in the
+North Atlantic and around Antarctica, and it then spreads through the deep ocean and slowly
+returns to the surface through mixing and upwelling. The full circuit takes on the order of a
+thousand years, which sets the timescale over which the deep ocean communicates with the
+atmosphere.
+
+Circulation:
+  wind stress          the surface driver
+  Coriolis effect      deflection from rotation; right in the north, left in the
+                       south
+  Ekman transport      net transport at right angles to the wind
+  coastal upwelling    wind parallel to shore brings nutrient-rich deep water up;
+                       the most productive fisheries
+  subtropical gyres    wind and rotation; five major ones
+  western intensification  narrow fast western boundary currents; from the
+                       latitudinal variation of the Coriolis parameter
+  Gulf Stream          poleward heat transport; why northwest Europe is mild
+  Antarctic Circumpolar Current  the largest by volume; unobstructed by land, and
+                       it isolates Antarctica thermally
+  thermohaline circulation  density-driven deep flow
+  deep water formation  North Atlantic and around Antarctica; where surface water
+                       becomes dense enough to sink
+  overturning timescale  roughly a thousand years for a full circuit
+  AMOC                 the Atlantic overturning; evidence suggests weakening, and
+                       a collapse is a low-probability high-impact possibility
+  mesoscale eddies     tens to hundreds of kilometres; carry most of the ocean's
+                       kinetic energy and are the analogue of atmospheric weather
+
+The Atlantic overturning circulation deserves specific attention because it is among the most
+discussed tipping elements. Freshening of the North Atlantic surface — from ice melt and increased
+precipitation — reduces the density of surface water and therefore inhibits the sinking that
+drives the circulation. Palaeoclimate records show abrupt reorganizations in the past, and models
+disagree substantially on the threshold and on whether current changes indicate approach to one.
+The consequences of a substantial weakening would include cooling in the North Atlantic region
+against a warming background, shifts in tropical rainfall belts, and accelerated sea level rise on
+the North American east coast.
+
+## Waves, Tides, and Coastal Processes
+
+Surface waves are generated by wind, and their size depends on wind speed, duration, and fetch —
+the distance over which the wind blows. Waves generated locally are steep and irregular; waves
+that have travelled beyond their generating area sort themselves by speed, since longer waves
+travel faster in deep water, arriving as regular swell. This dispersion is why swell arriving from
+a distant storm becomes progressively shorter-period over the following days.
+
+Wave behaviour changes fundamentally when the depth becomes comparable to the wavelength. In deep
+water, water particles move in circles and the wave speed depends on wavelength. In shallow water
+the circles flatten into ellipses and the speed depends only on depth, which makes waves refract
+toward shallow water — bending to become parallel to the shore and concentrating energy on
+headlands while spreading it in bays. This is why headlands erode and bays accumulate sediment.
+
+Tides are forced by the gravitational gradient across the Earth from the Moon and Sun, and the
+gradient rather than the force itself is what matters: the near side is pulled more than the
+centre and the far side less, producing bulges on both sides. This is why there are two high tides
+per day rather than one. Actual tides depart substantially from the equilibrium picture because
+continents obstruct the tidal bulge, so tides propagate as waves in ocean basins with amplitudes
+and timings set by basin resonance — which is why some locations have tides of a few centimetres
+and others exceed fifteen metres.
+
+Waves, tides, and coasts:
+  wave generation      wind speed, duration, and fetch
+  dispersion           longer waves travel faster in deep water; sorts swell by
+                       period
+  deep water           speed depends on wavelength; particles move in circles
+  shallow water        speed depends on depth only; refraction toward shallow
+  refraction           concentrates energy on headlands, spreads it in bays
+  breaking             when the wave steepens beyond stability; spilling,
+                       plunging, and surging by beach slope
+  tidal forcing        the gravitational gradient, not the force; two bulges,
+                       hence two tides per day
+  spring and neap      when solar and lunar forcing align or oppose
+  amphidromic points   where the tidal range is near zero and the tide rotates
+                       around; a consequence of basin dynamics
+  tidal resonance      basin geometry amplifies; the Bay of Fundy exceeds 15 m
+  tsunami              generated by displacement rather than wind; long wavelength
+                       so it behaves as a shallow water wave everywhere,
+                       travelling at jet speed and steepening dramatically at the
+                       coast
+  longshore drift      sediment transport along the coast; interrupting it
+                       starves downdrift beaches
+  storm surge          wind-driven water pileup plus low pressure; the dominant
+                       cause of death in tropical cyclones
+
+Tsunamis behave differently from wind waves in a way that explains their destructiveness. Their
+wavelength is hundreds of kilometres, so even the deep ocean is shallow relative to it, which
+means they travel at the shallow water speed — several hundred kilometres per hour — while having
+an amplitude of under a metre and being imperceptible to a ship. On approaching the coast the
+speed falls with depth and the energy compresses into a shorter, taller wave. The long period is
+also why the water continues rising for many minutes rather than breaking and retreating like an
+ordinary wave, and why the flooding penetrates so far inland.
+
+## Marine Chemistry and Ecosystems
+
+Seawater's composition is remarkably constant in its major ions, whose ratios are the same
+everywhere despite salinity varying, because the residence times of those ions are far longer than
+the ocean's mixing time. This constancy is what permits salinity to be determined from a single
+measurement of conductivity rather than requiring a full chemical analysis.
+
+The carbonate system controls the ocean's pH and its capacity to absorb carbon dioxide. Dissolved
+carbon dioxide forms carbonic acid, which dissociates into bicarbonate and carbonate, and the
+equilibrium among these buffers the pH against change. It is also why the ocean absorbs so much
+atmospheric carbon dioxide — roughly a quarter of emissions — and why doing so lowers the pH.
+Surface ocean pH has fallen about 0.1 units since preindustrial times, which is a thirty percent
+increase in hydrogen ion concentration.
+
+Ocean acidification's consequences fall on organisms building calcium carbonate structures.
+Lowering the pH reduces the carbonate ion concentration, which reduces the saturation state with
+respect to calcium carbonate, making shell and skeleton formation more energetically costly and
+eventually causing dissolution. The saturation horizon — the depth below which calcium carbonate
+dissolves — is shoaling, and cold water holds more carbon dioxide so polar regions are affected
+first.
+
+Marine chemistry and ecosystems:
+  constant ratios      major ion proportions are uniform; salinity from
+                       conductivity
+  residence time       how long an element stays; long relative to mixing gives
+                       uniformity
+  carbonate system     buffers pH and absorbs CO2
+  acidification        pH down 0.1 units; a 30% increase in hydrogen ions
+  saturation horizon   below it, carbonate dissolves; shoaling with acidification
+  dissolved oxygen     from surface exchange and photosynthesis; consumed by
+                       respiration at depth
+  oxygen minimum zones  expanding with warming, since warm water holds less oxygen
+                       and stratification reduces resupply
+  nutrients            nitrogen, phosphorus, silicon, iron; limit productivity
+  iron limitation      large regions have abundant major nutrients and insufficient
+                       iron; dust deposition supplies it
+  primary production   phytoplankton; roughly half of global photosynthesis
+  the biological pump  sinking organic matter transports carbon to depth; a
+                       substantial part of the ocean's carbon storage
+  trophic transfer     roughly ten percent per level; long marine food chains mean
+                       top predators are supported by enormous production
+  coral reefs          high biodiversity on low-nutrient water; threatened by
+                       bleaching from heat and by acidification
+  deep sea             the largest habitat by volume; chemosynthetic communities at
+                       vents are independent of sunlight
+  bioluminescence      the majority of deep-sea organisms produce light; the most
+                       common form of communication on the planet by organism count
+
+Hydrothermal vent communities deserve emphasis for what they established. Discovered in 1977,
+they support dense ecosystems in complete darkness, based on chemosynthetic bacteria oxidizing
+hydrogen sulfide rather than on photosynthesis. This demonstrated that an ecosystem need not
+depend on sunlight, which expanded the conditions under which life is considered possible and
+directly informs where life might exist elsewhere — the subsurface oceans of icy moons have
+precisely this energy source available.
+
+## The Ocean, Climate, and Observation
+
+The ocean's role in climate operates through several coupled mechanisms. It stores heat, absorbing
+over ninety percent of the excess energy from the planetary imbalance. It absorbs carbon, taking
+up roughly a quarter of anthropogenic emissions at the cost of acidification. It transports heat
+poleward, moderating temperature gradients. And it exchanges water with the atmosphere, driving
+the hydrological cycle.
+
+Sea level rise has two roughly comparable contributions currently. Thermal expansion accounts for
+a substantial fraction, since warming water expands, and this component is committed for centuries
+because the deep ocean warms slowly and will continue to expand long after surface warming stops.
+Ice mass loss from glaciers and from the Greenland and Antarctic ice sheets accounts for the
+remainder and is the component with the larger uncertainty and the larger potential.
+
+El Niño and the Southern Oscillation is the largest source of interannual climate variability and
+is fundamentally an ocean-atmosphere coupled phenomenon. Normally trade winds pile warm water in
+the western Pacific and upwelling brings cold water to the surface in the east. During El Niño the
+winds weaken, the warm pool spreads east, upwelling ceases, and the atmospheric circulation
+reorganizes — producing drought in some regions and flooding in others and raising global mean
+surface temperature by a few tenths of a degree for a year.
+
+Climate role and observation:
+  heat storage         >90% of the excess energy; the reason surface warming lags
+  carbon uptake        ~25% of emissions; acidification is the cost
+  heat transport       poleward; moderates the equator-to-pole gradient
+  thermal expansion    a committed sea level contribution for centuries
+  ice mass loss        the larger uncertainty and the larger potential
+  ENSO                 coupled ocean-atmosphere; the largest interannual signal
+  marine heatwaves     increasing in frequency and duration; cause coral bleaching
+                       and ecosystem disruption
+  Argo floats          thousands of autonomous profiling floats; transformed ocean
+                       observation from ship-based sampling to continuous global
+                       coverage
+  satellite altimetry  sea surface height to centimetres; measures circulation and
+                       sea level rise globally
+  moorings             fixed instrumented lines; time series at a point
+  gliders and AUVs     autonomous vehicles; adaptive sampling
+  ship-based           the only way to obtain many chemical and biological
+                       measurements; expensive and sparse
+  acoustic tomography  sound travel time across basins measures average
+                       temperature along the path
+  the sampling problem  the ocean is vast, three-dimensional, and opaque to
+                       electromagnetic radiation, so it remains far less observed
+                       than the atmosphere
+
+The Argo programme deserves the closing note because it changed what is knowable about the ocean.
+Before it, ocean interior measurements came from research vessels along specific tracks, so the
+global subsurface state was known from a sparse and irregular sample and the estimates of ocean
+heat content carried enormous uncertainty. Argo deployed thousands of autonomous floats that drift
+at depth, rise to the surface every ten days measuring temperature and salinity, transmit by
+satellite, and sink again. The result is continuous global coverage of the upper two kilometres,
+and it made ocean heat content — and therefore the planetary energy imbalance — measurable with a
+precision that was previously unattainable. It is an instructive case of an observing system
+changing a field's central questions from what is happening to why.

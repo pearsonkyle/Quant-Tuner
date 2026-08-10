@@ -1,0 +1,306 @@
+================================================================================
+AREA: Earth and Life Sciences
+SUBJECT: Agriculture and Food Systems
+Subtopics: soil, plant nutrition and growth, water, crop protection, breeding and
+genetics, livestock, food processing and safety, sustainability.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Soil
+
+Soil is the foundation of terrestrial agriculture and is a biological system rather than an inert
+substrate. It comprises mineral particles, organic matter, water, air, and an enormous living
+population — a gram of productive soil contains billions of microorganisms of thousands of species,
+and their activity determines nutrient availability, structure, and disease suppression.
+
+Texture is the proportion of sand, silt, and clay, and it is essentially fixed for a given soil
+because it derives from the parent material. It determines water retention, drainage, and
+workability: sandy soils drain rapidly and hold little water or nutrient, clay soils hold both and
+drain poorly and become compacted, and loams balance them. Texture cannot be changed
+agriculturally at any practical scale, so management works within it.
+
+Structure is the arrangement of those particles into aggregates, and unlike texture it is
+manageable and it is what most determines a soil's function. Well-aggregated soil has pores of
+varying size — large ones draining and admitting air, small ones retaining water against gravity —
+so it holds water and remains aerated simultaneously. Aggregation is built by organic matter, by
+root growth, by fungal hyphae, and by soil fauna, and it is destroyed by tillage, by compaction
+under machinery, and by working soil when wet.
+
+Soil:
+  texture              sand, silt, clay proportions; fixed by the parent material
+  structure            aggregation; manageable and what determines function
+  aggregates           built by organic matter, roots, fungi, and fauna
+  destroyed by         tillage, compaction, and working wet soil
+  porosity             large pores drain and aerate, small pores retain water
+  field capacity       water held against gravity after drainage
+  wilting point        water held too tightly for plants to extract
+  available water      the difference; what the crop can actually use
+  organic matter       improves structure, water holding, nutrient supply, and
+                       biological activity; the single most valuable soil property
+                       to build and the slowest to change
+  cation exchange capacity  the soil's ability to hold nutrient cations; rises
+                       with clay and organic matter
+  pH                   controls nutrient availability far more than nutrient
+                       quantity does; most crops prefer 6 to 7
+  compaction           reduces pore space and root penetration; a subsoil pan is
+                       difficult and expensive to remediate
+  erosion              the dominant degradation process; soil forms at
+                       centimetres per millennium and erodes far faster under
+                       poor management
+  soil biology         mycorrhizal fungi extend root reach for phosphorus;
+                       nitrogen-fixing bacteria supply nitrogen to legumes
+
+Q: A soil test shows adequate phosphorus and the crop displays phosphorus deficiency symptoms.
+The most likely explanation is:
+A. The test is wrong
+B. The pH is outside the range where phosphorus is available; at high pH it precipitates with
+   calcium and at low pH with iron and aluminium
+C. The crop is diseased
+D. Insufficient nitrogen
+Reasoning: Nutrient availability depends on chemical form, and phosphorus is strongly pH-dependent
+— it forms insoluble compounds with calcium above about pH 7.5 and with iron and aluminium below
+about pH 5.5, leaving a narrow window of good availability. A soil containing adequate total
+phosphorus can therefore supply almost none. Correcting pH is the remedy rather than adding more.
+Answer: B.
+
+## Plant Nutrition and Growth
+
+Plants require a specific set of elements and the requirement is absolute rather than
+substitutable: no amount of one nutrient compensates for the absence of another. Liebig's law of
+the minimum captures this — growth is limited by the scarcest essential resource, so identifying
+and correcting the limiting factor is what improves yield while adding more of a non-limiting one
+accomplishes nothing.
+
+The macronutrients are required in quantity. Nitrogen builds proteins and chlorophyll and is
+usually the most limiting; its deficiency shows first in older leaves because the plant remobilizes
+it to new growth. Phosphorus is central to energy transfer and root development and is immobile in
+soil, so it must be placed where roots will reach it. Potassium regulates water relations and
+enzyme activity and improves stress tolerance and disease resistance.
+
+Micronutrients are required in trace amounts and are equally essential. Their deficiencies are
+frequently misdiagnosed because the symptoms resemble each other and resemble other problems, and
+the diagnostic pattern is whether the symptom appears first on old or new growth — mobile nutrients
+are remobilized from old tissue and immobile ones are not, so an immobile nutrient's deficiency
+appears on new growth while the old remains green.
+
+Plant nutrition:
+  Liebig's minimum     growth limited by the scarcest resource
+  nitrogen             proteins and chlorophyll; usually most limiting; mobile, so
+                       deficiency shows on old leaves first
+  phosphorus           energy transfer and roots; immobile in soil, so placement
+                       matters
+  potassium            water relations and stress tolerance
+  secondary            calcium, magnesium, sulfur
+  micronutrients       iron, manganese, zinc, boron, copper, molybdenum, chlorine,
+                       nickel
+  mobility diagnostic  mobile nutrient deficiencies appear on old growth, immobile
+                       on new
+  photosynthesis       light, carbon dioxide, and water to sugars; the ultimate
+                       source of all agricultural production
+  C3, C4, and CAM      photosynthetic pathways; C4 concentrates carbon dioxide and
+                       is more efficient in heat and drought, which is why maize
+                       and sugarcane outyield wheat in those conditions
+  photorespiration     the wasteful reaction C4 plants avoid; a target for
+                       improving C3 crops
+  transpiration        water loss driving nutrient transport and cooling; the
+                       unavoidable cost of admitting carbon dioxide
+  water use efficiency  carbon fixed per water lost; the stomata must open for one
+                       and lose the other
+  vernalization        a cold requirement before flowering; why winter varieties
+                       are sown in autumn
+  photoperiod          day length triggering development; determines where a
+                       variety is adapted
+
+The stomatal tradeoff deserves emphasis because it is the central constraint on plant water use.
+Carbon dioxide enters the leaf through stomata and water vapour leaves through the same openings,
+so a plant cannot acquire carbon without losing water. Closing stomata conserves water and halts
+photosynthesis. This is why drought reduces yield, why C4 plants that concentrate carbon dioxide
+internally can keep stomata less open and use water more efficiently, and why increasing
+atmospheric carbon dioxide improves water use efficiency — the same carbon is acquired with less
+stomatal opening.
+
+## Water and Crop Protection
+
+Water is the most common limiting factor in agriculture globally, and irrigation methods differ
+substantially in efficiency and in their consequences. Flood and furrow irrigation are cheap and
+apply far more water than the crop uses, with the excess draining or evaporating. Sprinkler
+irrigation is more controlled and loses water to evaporation and wind drift. Drip irrigation
+delivers water to the root zone directly at high efficiency and high capital cost.
+
+Salinization is irrigation's characteristic long-term failure and it has ended agriculture in
+regions repeatedly through history. All irrigation water contains dissolved salts, the crop takes
+up water and leaves most of the salt behind, and without drainage sufficient to carry the
+accumulated salt below the root zone it concentrates until the soil becomes unproductive. The
+remedy is applying more water than the crop uses so that the excess leaches salt downward, which
+requires drainage and conflicts directly with water conservation.
+
+Crop protection addresses pests, diseases, and weeds, and the recurring dynamic is resistance.
+Applying a control agent selects for organisms able to survive it, and repeated application with
+the same mode of action produces populations dominated by resistant individuals. This has occurred
+for insecticides, fungicides, herbicides, and antibiotics, and the timescale is years to decades.
+
+Integrated pest management responds by using several methods so that no single selection pressure
+dominates, by acting on economic thresholds rather than prophylactically, and by preserving the
+natural enemies that provide free control. The economic threshold concept is the practical core:
+treating when the damage exceeds the treatment cost rather than treating on a schedule reduces both
+cost and selection pressure.
+
+Water and protection:
+  flood and furrow     cheap; low efficiency
+  sprinkler            moderate efficiency; evaporation and drift losses
+  drip                 highest efficiency; high capital cost
+  deficit irrigation   deliberately less than full requirement; the yield loss is
+                       less than proportional for some crops and growth stages
+  salinization         salt accumulation without adequate leaching; has ended
+                       agriculture in regions repeatedly
+  leaching requirement  extra water to carry salt below the root zone; conflicts
+                       with conservation
+  drainage             required wherever irrigation is; its absence is what turns
+                       irrigation into salinization
+  waterlogging         excludes air from the root zone; roots require oxygen
+  resistance           selection by repeated application; the recurring dynamic
+  mode of action rotation  vary the selection pressure
+  economic threshold   treat when damage exceeds treatment cost, not on a schedule
+  biological control   natural enemies; free where preserved and destroyed by
+                       broad-spectrum treatment
+  cultural control     rotation, timing, resistant varieties, sanitation
+  integrated pest management  several methods; reduces cost and selection pressure
+  refuge strategy      maintaining untreated areas to preserve susceptible
+                       individuals; slows resistance in insect populations by
+                       diluting resistant survivors
+
+The refuge strategy deserves mention because it is a deliberate application of evolutionary
+reasoning to management. Resistance spreads when resistant individuals mate with each other, and
+maintaining an untreated refuge preserves a population of susceptible individuals that mate with
+the rare resistant survivors, producing heterozygous offspring that the treatment still kills. The
+strategy requires the refuge to be large enough and close enough, and its effectiveness depends on
+compliance across an area — an individual grower gains by not maintaining a refuge while everyone
+benefits from everyone maintaining one, which makes it a collective action problem requiring
+coordination or regulation.
+
+## Breeding, Genetics, and Livestock
+
+Plant breeding has been the largest single contributor to yield increases, and its methods have
+progressed while the underlying logic is unchanged: create variation, select what is desirable, and
+fix it. Traditional breeding crosses parents with complementary traits and selects among the
+progeny over generations, which is slow because each generation takes a season and because
+desirable traits are linked to undesirable ones that must be broken apart.
+
+Marker-assisted selection accelerates this by selecting on genetic markers linked to the trait
+rather than on the trait itself, which permits selection before the plant expresses it and
+selection for traits that are expensive to measure. Genomic selection extends it by predicting the
+whole genetic value from a genome-wide marker profile, which handles traits controlled by many
+genes of small effect where individual markers are uninformative.
+
+Genetic modification introduces genes directly, which permits traits unavailable in the crop's
+sexually compatible relatives and permits precise single-gene changes rather than the thousands of
+genes moved by a cross. Gene editing modifies existing sequence rather than inserting foreign
+genes, which produces changes that could in principle have arisen by mutation and which several
+jurisdictions regulate differently as a result.
+
+The hybrid vigour phenomenon deserves note because of its commercial consequence. Crossing two
+inbred lines produces offspring that outperform both parents, which is exploited in maize and many
+vegetables. The vigour does not persist into the next generation, so seed must be purchased
+annually rather than saved — which is why hybrid seed is a business model as much as a breeding
+technique, and why the distinction between hybrid and genetically modified is frequently confused
+in public discussion.
+
+Breeding and livestock:
+  traditional breeding  cross and select over generations; slow, and it has
+                       produced most of the yield gain
+  linkage drag         desirable traits linked to undesirable ones
+  marker-assisted      select on markers; before expression and for expensive
+                       traits
+  genomic selection    predict the whole genetic value from genome-wide markers
+  genetic modification  introduce genes across species boundaries
+  gene editing         modify existing sequence; regulated differently in several
+                       jurisdictions
+  hybrid vigour        the cross outperforms both parents; does not persist, so
+                       seed is bought annually
+  genetic diversity    the raw material for future breeding; narrow modern
+                       varieties and gene banks preserving landraces
+  the green revolution  semi-dwarf varieties responding to fertilizer without
+                       lodging; the specific innovation behind the yield increase
+  feed conversion ratio  feed per unit of product; the primary livestock
+                       efficiency measure
+  ruminants            digest cellulose via rumen microbes; convert
+                       human-inedible forage into food, and emit methane
+  monogastrics         pigs and poultry; better feed conversion, and they compete
+                       with humans for grain
+  animal welfare       the five freedoms framework; a genuine constraint and a
+                       consumer requirement
+  antimicrobial use    growth promotion is being restricted; therapeutic use
+                       remains and resistance selection is the concern
+
+The ruminant tradeoff deserves stating because the environmental discussion frequently omits half
+of it. Ruminants emit methane from enteric fermentation, a potent greenhouse gas, and they convert
+cellulose that humans cannot digest into protein that humans can. Grazing land is frequently
+unsuitable for crops, so the comparison is not between beef and grain on the same land but between
+beef and nothing. The unfavourable comparison applies to grain-fed production, where the animal
+consumes food humans could eat directly and returns a fraction of it — so the environmental
+assessment depends substantially on the production system rather than on the species.
+
+## Food Systems, Processing, and Sustainability
+
+Food safety concerns rest on a small number of mechanisms and the controls follow from them.
+Microbial hazards require time, temperature, moisture, and nutrients to multiply, so control means
+denying at least one — refrigeration denies temperature, drying denies moisture, acidification
+denies a favourable pH, and cooking eliminates the organisms present. The danger zone between
+refrigeration and cooking temperature is where multiplication is fastest, and time in it is the
+quantity to minimize.
+
+Cross-contamination transfers organisms from raw to ready-to-eat food, and it is the mechanism
+behind a large share of foodborne illness. Separating raw and cooked, using separate equipment, and
+sequencing preparation are the controls, and they are procedural rather than technological, which
+is why food safety depends on practice rather than on equipment.
+
+Preservation methods each target a specific requirement for microbial growth. Canning applies heat
+sufficient to destroy organisms in a sealed container, and the temperature required depends on the
+acidity — low-acid foods require pressure canning because botulinum spores survive boiling.
+Freezing halts multiplication without destroying organisms, which resume on thawing. Drying,
+salting, and sugaring reduce water activity. Fermentation produces acids and competing organisms.
+And modified atmosphere packaging removes the oxygen aerobic spoilage organisms require.
+
+Food systems and sustainability:
+  microbial growth requirements  time, temperature, moisture, nutrients, pH; deny
+                       one
+  the danger zone      between refrigeration and cooking temperature; minimize
+                       time in it
+  cross-contamination  raw to ready-to-eat; procedural controls
+  HACCP                identify hazards and the points where they are controlled;
+                       the framework underlying food safety regulation
+  canning              heat in a sealed container; low-acid foods need pressure
+                       because botulinum spores survive boiling
+  freezing             halts growth without destroying organisms
+  water activity       drying, salting, sugaring; below about 0.6 nothing grows
+  fermentation         acid and competing organisms; the oldest preservation
+  modified atmosphere  removes oxygen; extends shelf life for aerobic spoilage
+  cold chain           the sequence from harvest to consumption; a break anywhere
+                       determines the outcome
+  food loss and waste  roughly a third of production; loss occurs in production
+                       and distribution in lower-income countries and at retail
+                       and consumption in higher-income ones, so the interventions
+                       differ entirely
+  yield gap            the difference between achieved and achievable yield with
+                       existing technology; closing it is the largest available
+                       production increase
+  nitrogen use efficiency  a large fraction of applied nitrogen is lost to water
+                       and air; improving it addresses cost, eutrophication, and
+                       nitrous oxide simultaneously
+  cover crops and rotation  build organic matter, break pest cycles, and reduce
+                       erosion
+  conservation tillage  reduces erosion and preserves structure; frequently
+                       increases herbicide use, which is the tradeoff
+  perennial systems    deeper roots, no annual establishment; limited to the crops
+                       for which perennial types exist
+
+The yield gap deserves the closing emphasis because it identifies where production increases are
+most readily available. In many regions, actual yields are far below what existing varieties and
+practices achieve under good management — the gap arises from inadequate nutrients, poor timing,
+pest losses, and lack of access to inputs and knowledge rather than from any technological limit.
+Closing that gap requires no new technology and produces larger increases than any plausible
+breeding advance, and it is constrained by infrastructure, credit, extension services, and market
+access rather than by agronomy. This is why the framing of agricultural productivity as a
+technological problem is incomplete: the largest available gains are in deploying what exists
+rather than in developing what does not.

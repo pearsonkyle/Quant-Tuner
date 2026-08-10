@@ -1,0 +1,269 @@
+================================================================================
+AREA: Software and Web Engineering
+SUBJECT: Computer Networking
+Subtopics: layered models, addressing and routing, transport protocols, DNS,
+TLS, HTTP evolution, performance, load balancing and CDNs, troubleshooting.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Layers and Encapsulation
+
+Network protocols are organized in layers, each providing a service to the layer above and
+using the one below. The value of the abstraction is that a change at one layer does not
+require changes at others: an application works identically over Ethernet, Wi-Fi, or cellular
+because the layers beneath present the same interface.
+
+The OSI model defines seven layers and is primarily a teaching and vocabulary tool; the
+TCP/IP model with four or five layers describes what is actually deployed. The layers that
+matter in practice are the link layer moving frames between directly connected devices, the
+network layer routing packets across networks, the transport layer providing end-to-end
+communication between processes, and the application layer implementing the specific
+protocol.
+
+Encapsulation is the mechanism. Application data is wrapped in a transport header, that unit
+in a network header, that in a link header and trailer, and each layer at the receiver strips
+its own header and passes the payload up. The practical consequence is overhead: every layer
+adds bytes, so small payloads are dominated by headers. A single-byte payload over TCP and IP
+over Ethernet carries roughly 58 bytes of header, which is why chatty protocols sending many
+tiny messages perform far worse than their data volume suggests.
+
+Layer responsibilities:
+  physical        bits on the medium; voltages, modulation, connectors
+  link            frames between directly connected nodes; MAC addressing,
+                  error detection, media access
+  network         packets across networks; IP addressing, routing, fragmentation
+  transport       process-to-process; ports, reliability, ordering, flow control
+  application     the specific protocol; HTTP, DNS, SMTP, SSH
+  encapsulation   each layer prepends its header; ~58 bytes minimum for
+                  TCP/IP/Ethernet
+  MTU             maximum transmission unit; 1500 bytes on standard Ethernet
+  MSS             maximum segment size; MTU minus IP and TCP headers
+  path MTU        the smallest MTU along a route; discovery is broken when
+                  intermediate devices block the relevant ICMP messages
+
+Path MTU discovery failure deserves specific mention because it produces one of the most
+confusing failure modes in networking. A host sends packets sized for its local MTU with the
+don't-fragment flag set; a router with a smaller MTU drops the packet and returns an ICMP
+message indicating the correct size. If a firewall blocks that ICMP message — a common
+misconfiguration justified as security hardening — the sender never learns and retransmits
+the same oversized packet indefinitely. The symptom is a connection that establishes
+successfully and then hangs as soon as a large transfer begins, because small packets pass
+and large ones vanish silently.
+
+Q: A TCP connection completes its handshake and small requests succeed, but any response
+larger than about 1400 bytes hangs. The most likely cause is:
+A. The server is overloaded
+B. Path MTU discovery is broken because ICMP is being filtered
+C. DNS is misconfigured
+D. The TCP window is too small
+Reasoning: Handshake packets and small requests are below any plausible MTU and pass. Larger
+packets exceed an intermediate link's MTU and are dropped, and the ICMP fragmentation-needed
+message that would inform the sender is blocked, so the sender retransmits the same oversized
+packets forever. This is the classic black-hole MTU problem. Answer: B.
+
+## Addressing and Routing
+
+An IP address identifies an interface on a network. IPv4 uses 32 bits, giving about 4.3
+billion addresses, which was exhausted years ago and is managed through network address
+translation and increasingly fine-grained allocation. IPv6 uses 128 bits, giving a space large
+enough that address scarcity is not a design consideration, and its adoption has been slow
+because NAT worked well enough to defer the pain.
+
+Subnetting divides an address into a network portion and a host portion, with the split
+specified by a prefix length in CIDR notation. A /24 gives 8 host bits, so 256 addresses of
+which 254 are usable after the network and broadcast addresses. Understanding this arithmetic
+is necessary for reading routing tables and firewall rules, and the common error is
+forgetting that the network and broadcast addresses are reserved.
+
+Routing determines the path packets take. Within an organization, interior gateway protocols
+distribute reachability information; between organizations, the Border Gateway Protocol
+exchanges routes and is what makes the internet a network of networks. BGP's design reflects
+its origins in a smaller, higher-trust internet: it accepts announcements largely on trust,
+which is why route hijacks — an operator announcing address space they do not control,
+whether by error or deliberately — can redirect substantial traffic, and why cryptographic
+route origin validation has been an ongoing deployment effort for years.
+
+Addressing and routing:
+  IPv4 / IPv6         32 bits / 128 bits
+  CIDR                address plus prefix length; /24 has 254 usable hosts
+  private ranges      10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16
+  NAT                 many private addresses behind one public; breaks inbound
+                      connections and end-to-end addressing
+  ARP / NDP           resolve IP to link-layer address on the local segment
+  default gateway     where packets go when the destination is off-network
+  longest prefix match  the most specific matching route wins
+  static vs dynamic   manual routes versus protocol-distributed
+  BGP                 inter-domain routing; policy-driven, trust-based
+  anycast             the same address announced from many locations; the network
+                      routes to the nearest; used by DNS roots and CDNs
+  VLAN                logical segmentation at the link layer
+  MTU differences     tunnels and VPNs reduce the effective MTU
+
+Anycast deserves note because it does a great deal of work invisibly. The same IP address is
+announced from many geographically distributed locations, and normal routing delivers each
+client to whichever announcement is closest in routing terms. This provides low latency, load
+distribution, and resilience without any application awareness, and it is how the DNS root
+servers, public resolvers, and content delivery networks achieve global presence behind a
+single address. Its limitation is that routing changes can move a client between instances
+mid-connection, which is fine for stateless UDP request-response and problematic for long-lived
+stateful connections.
+
+## Transport Protocols
+
+TCP provides a reliable, ordered byte stream over an unreliable packet network, and nearly
+everything about it follows from that goal. The three-way handshake establishes sequence
+numbers and confirms bidirectional reachability before data flows, costing one round trip
+before any application data can be sent. Sequence numbers and acknowledgements provide
+ordering and detect loss; retransmission timers and fast retransmit on duplicate
+acknowledgements recover it.
+
+Flow control prevents a fast sender from overwhelming a slow receiver, using a window the
+receiver advertises. Congestion control prevents senders from overwhelming the network, and
+it is inferred rather than signalled: TCP treats packet loss as evidence of congestion and
+reduces its sending rate. This inference is what makes the internet stable under load and
+what makes TCP perform poorly on links where loss is caused by radio interference rather than
+by congestion — a lossy wireless link causes TCP to reduce its rate when the correct response
+would be to retransmit and continue.
+
+Congestion control algorithms have evolved substantially. Classical loss-based algorithms
+increase the window gradually and halve it on loss, producing the characteristic sawtooth and
+requiring loss to discover capacity. This interacts badly with deep buffers in network
+equipment: the buffers absorb the excess, so loss occurs only after latency has grown
+enormously — bufferbloat, in which a saturated link produces seconds of delay. Rate-based
+algorithms that model bandwidth and round-trip time directly avoid filling buffers and
+maintain much lower latency at the same throughput.
+
+Transport characteristics:
+  TCP                 reliable, ordered, connection-oriented, congestion-controlled
+  UDP                 unreliable, unordered, connectionless, minimal overhead
+  three-way handshake SYN, SYN-ACK, ACK; one round trip before data
+  head-of-line blocking  a lost segment stalls delivery of everything behind it
+                      even if it arrived
+  Nagle's algorithm   coalesces small writes; interacts badly with delayed ACK,
+                      producing latency spikes for request-response traffic
+  TCP_NODELAY         disables Nagle; usually correct for interactive protocols
+  slow start          exponential window growth from a small initial value
+  congestion avoidance  linear growth after the first loss
+  bufferbloat         excessive buffering converts congestion into latency rather
+                      than loss
+  QUIC                reliable streams over UDP; per-stream ordering avoids
+                      head-of-line blocking, integrates encryption, and survives
+                      network changes via connection IDs
+  connection migration  QUIC connections survive an IP address change; TCP
+                      connections do not
+
+Head-of-line blocking is the specific defect that motivated QUIC. TCP delivers a single
+ordered byte stream, so if one segment is lost, everything received after it waits in the
+buffer until the retransmission arrives — even data belonging to a completely independent
+request multiplexed over the same connection. HTTP/2 multiplexed many streams over one TCP
+connection and therefore made this worse rather than better under loss. QUIC implements
+independent streams over UDP with per-stream ordering, so a loss affecting one stream does
+not stall the others.
+
+## Names, TLS, and HTTP
+
+DNS translates names to addresses through a hierarchical distributed database. A resolution
+walks from the root through the top-level domain to the authoritative server for the zone,
+with caching at every level governed by each record's time to live. That caching is what makes
+the system scale and is also what makes changes propagate slowly: lowering the TTL well before
+a planned change is the standard preparation, because the old value persists in caches for up
+to its previous TTL after the change.
+
+DNS failures are disproportionately represented in outages for structural reasons. It is on
+the critical path of nearly every request, its failures are often partial and
+resolver-dependent, negative results are cached too, and the propagation delay makes
+recovery slow. Adding a hostname that resolves for some users and not others is a very
+common cause of confusing incident reports.
+
+TLS provides confidentiality, integrity, and authentication. The handshake negotiates
+parameters, authenticates the server through a certificate chained to a trusted root, and
+establishes session keys. TLS 1.3 removed the legacy options that caused most historical
+vulnerabilities, reduced the handshake to one round trip, and made forward secrecy mandatory —
+so that compromise of the server's long-term key does not permit decryption of previously
+recorded sessions.
+
+Names, security, and HTTP:
+  DNS record types     A, AAAA, CNAME, MX, TXT, NS, SRV, CAA
+  TTL                  cache lifetime; lower it before planned changes
+  negative caching     failures are cached too
+  DNSSEC               cryptographic authentication of records; deployment is
+                       partial
+  DoH / DoT            encrypted DNS transport; privacy from the local network
+  TLS handshake        1-RTT in 1.3; 0-RTT resumption with replay caveats
+  certificate chain    leaf to intermediate to trusted root; missing intermediates
+                       are a common misconfiguration that works in browsers with
+                       cached intermediates and fails elsewhere
+  SNI                  server name in the handshake; enables virtual hosting
+  forward secrecy      ephemeral keys; past sessions stay safe if the key leaks
+  HSTS                 forces HTTPS for a domain; prevents downgrade
+  HTTP/1.1             one request at a time per connection; parallelism by
+                       opening many connections
+  HTTP/2               multiplexed streams, header compression, server push; one
+                       TCP connection, subject to head-of-line blocking
+  HTTP/3               HTTP over QUIC; independent streams, faster establishment,
+                       connection migration
+
+The missing intermediate certificate is worth calling out as a recurring operational trap. A
+server must present its leaf certificate and any intermediates; only the root is expected to
+be in the client's trust store. Browsers often cache intermediates from previous sites, so a
+server missing its intermediate works in a browser test and fails for command-line clients,
+mobile applications, and other servers. Testing with a tool that does not cache intermediates
+is the way to catch it before deployment.
+
+## Performance, Delivery, and Troubleshooting
+
+Network performance is governed by three quantities that are frequently conflated. Bandwidth
+is capacity, latency is delay, and the bandwidth-delay product is how much data must be in
+flight to keep a link fully utilized. Increasing bandwidth does not reduce latency, which is
+bounded below by the speed of light in fibre at roughly two-thirds of c — about 5 microseconds
+per kilometre, giving a floor of roughly 60 milliseconds round trip for a transcontinental
+path regardless of capacity.
+
+That floor is why round trips dominate perceived performance for small transfers and why
+protocol design has focused so heavily on reducing them. A connection requiring a DNS lookup,
+a TCP handshake, and a TLS handshake spends three round trips before the first byte of
+application data, which on a 100 millisecond path is 300 milliseconds of pure protocol
+overhead. Connection reuse, TLS session resumption, and QUIC's combined handshake each remove
+round trips, and the cumulative effect on a page loading many resources is large.
+
+Content delivery networks address latency by moving content closer to users, which is the
+only way to beat the speed-of-light floor. They also absorb traffic spikes, terminate TLS at
+the edge to shorten handshake round trips, and provide denial-of-service mitigation by
+distributing the attack surface. Their effectiveness depends on cache hit rate, which depends
+on cache key design, on how aggressively cacheable responses are marked, and on whether
+personalization forces per-user responses that cannot be shared.
+
+Performance and delivery:
+  bandwidth-delay product  bytes in flight needed to saturate a link
+  latency floor            ~5 us/km in fibre; unavoidable
+  round trips              dominate small transfers; each protocol layer adds them
+  connection reuse         keep-alive; avoids repeated handshakes
+  TLS resumption           avoids the full handshake on reconnect
+  CDN                      geographic proximity, TLS termination, spike absorption
+  cache key                what distinguishes cacheable variants; too many
+                           dimensions destroys the hit rate
+  edge compute             run logic at the edge to keep responses cacheable
+  load balancing L4        by IP and port; fast, protocol-agnostic
+  load balancing L7        by path, header, or cookie; enables routing rules and
+                           request-level retries
+  health checks            must exercise the real dependency path
+  connection draining      finish in-flight requests before removing a backend
+
+Troubleshooting benefits from working the layers in order rather than guessing. Confirm
+physical and link connectivity, then address configuration, then reachability to the gateway,
+then name resolution, then transport connectivity to the port, then the application protocol.
+Each step has a standard tool: ping tests reachability and is frequently blocked by policy so
+its failure is not conclusive; traceroute shows the path with the caveat that intermediate
+hops may deprioritize the probe packets so their latency is not meaningful; a DNS query tool
+separates resolution from connectivity; a port connection test separates transport from
+application; and a packet capture answers what actually crossed the wire when everything else
+disagrees.
+
+The single most useful troubleshooting discipline is to determine which side is failing
+before investigating either. A capture at both ends of a failing connection immediately
+distinguishes packets that were never sent, packets sent and not received, and packets
+received and mishandled — three completely different problems that produce identical symptoms
+in application logs. Without that, teams routinely spend days investigating an application
+that is behaving correctly while the packets are being dropped by a firewall nobody
+remembered was there.

@@ -1,0 +1,240 @@
+================================================================================
+AREA: Earth and Life Sciences
+SUBJECT: Botany and Plant Science
+Subtopics: plant structure, photosynthesis and metabolism, water transport, growth and
+hormones, reproduction, plant-environment interaction, crops and breeding.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Plant Structure and Organization
+
+Plants are sessile autotrophs, and nearly every structural feature follows from those two facts. An
+organism that cannot move must tolerate whatever conditions arrive, which favours plasticity in
+development over the fixed body plan animals have. An organism producing its own food from light
+must maximize light interception and gas exchange while limiting water loss, and those two goals
+conflict directly.
+
+The plant body has three organ systems. Roots anchor, absorb water and minerals, and store
+reserves. Stems support, transport, and position leaves. Leaves are the photosynthetic organs,
+built as flat surfaces to intercept light with an internal air space maximizing the surface area
+available for gas exchange. The tissue systems cross these organs: dermal tissue covering,
+vascular tissue transporting, and ground tissue filling and performing metabolism.
+
+Growth in plants is indeterminate and localized to meristems — regions of dividing cells retained
+throughout life. Apical meristems extend roots and shoots; lateral meristems add girth. This means a
+plant continues producing new organs indefinitely, that its final form depends on conditions
+throughout its life rather than being genetically fixed, and that damage to any part can be
+compensated by new growth elsewhere. It is a fundamentally different developmental strategy from the
+animal one and it is what makes plants so tolerant of damage.
+
+Structure and organization:
+  sessile autotroph    the two facts explaining most plant features
+  the central conflict  gas exchange requires openings that lose water
+  roots                anchorage, absorption, storage
+  stems                support, transport, leaf positioning
+  leaves               flat for interception, internally spongy for exchange
+  dermal tissue        the covering; cuticle limiting water loss
+  vascular tissue      xylem for water, phloem for sugars
+  ground tissue        filling, storage, and photosynthesis
+  meristems            retained regions of dividing cells
+  apical meristems     extension of roots and shoots
+  lateral meristems    increase in girth
+  indeterminate growth  new organs produced indefinitely
+  developmental plasticity  form determined by conditions, not fixed genetically
+  the damage tolerance  compensation by new growth elsewhere
+  totipotency          many plant cells can regenerate a whole plant, which is
+                       why cuttings work and why plant tissue culture is routine
+                       where the animal equivalent is not
+
+Q: A plant grown in shade develops longer stems and thinner leaves than a genetically identical
+plant in full sun. This is:
+A. A genetic difference
+B. Developmental plasticity — plants adjust their form to conditions throughout life because they
+   cannot relocate, and the shade response specifically trades support and leaf thickness for
+   height to reach light
+C. A disease
+D. A measurement artifact
+Reasoning: The shade avoidance response is a well-characterized developmental program triggered by
+the light quality signal of neighbouring vegetation. Identical genotypes produce different forms in
+different environments, which is the normal condition for plants rather than an exception.
+Answer: B.
+
+## Photosynthesis and Metabolism
+
+Photosynthesis converts light energy into chemical energy in two connected stages. The light
+reactions in the thylakoid membranes use absorbed photons to split water, releasing oxygen, and to
+generate the energy carriers that power the second stage. The carbon reactions in the stroma use
+those carriers to fix carbon dioxide into sugar through a cycle whose central enzyme is the most
+abundant protein on Earth.
+
+That enzyme has a consequential flaw: it also reacts with oxygen instead of carbon dioxide,
+initiating a pathway that consumes energy and releases previously fixed carbon. This
+photorespiration wastes a substantial fraction of photosynthetic output, and it worsens at high
+temperature and when stomata close to conserve water — precisely the conditions under which a plant
+can least afford it. It is the sort of frozen accident that evolution cannot easily repair because
+the enzyme is too central to modify.
+
+Two carbon concentrating mechanisms evolved independently many times to work around it. The
+four-carbon pathway separates initial carbon capture from the main cycle spatially, concentrating
+carbon dioxide where the central enzyme operates and suppressing the oxygen reaction. Crassulacean
+acid metabolism separates them temporally, opening stomata at night to capture carbon and closing
+them during the day. The first suits hot bright environments and the second suits arid ones, and
+both cost energy relative to the basic pathway, which is why the basic pathway persists in cool moist
+conditions where it is more efficient.
+
+Photosynthesis:
+  light reactions      water split, oxygen released, energy carriers generated
+  carbon reactions     carbon dioxide fixed into sugar
+  the central enzyme   the most abundant protein on Earth
+  the flaw             it reacts with oxygen as well as carbon dioxide
+  photorespiration     energy consumed and fixed carbon released
+  when it worsens      high temperature and closed stomata
+  the evolutionary constraint  the enzyme is too central to redesign
+  four-carbon pathway  spatial separation concentrating carbon dioxide
+  crassulacean acid metabolism  temporal separation; stomata open at night
+  convergent evolution  both mechanisms arose independently many times
+  the environmental match  four-carbon for hot and bright, acid metabolism for
+                       arid
+  the energy cost      both cost more than the basic pathway
+  why the basic pathway persists  it is more efficient in cool moist conditions
+  light saturation     photosynthesis plateaus above a light level; more light
+                       then causes damage rather than more sugar
+  photoprotection      mechanisms dissipating excess absorbed energy, without
+                       which the photosynthetic apparatus is destroyed by the
+                       light it depends on
+
+## Water Transport and Stomatal Control
+
+Water moves from soil through the plant to the atmosphere along a gradient of decreasing water
+potential, and the mechanism is remarkable for requiring no energy input from the plant. Evaporation
+from leaf surfaces creates tension; water's cohesion transmits that tension down continuous columns
+in the xylem; and the columns are pulled up. The plant supplies the plumbing and the sun supplies
+the energy.
+
+The columns are under negative pressure, which is a physically precarious state — the water is
+metastable and can cavitate, forming a bubble that breaks the column and blocks that conduit
+permanently or until it can be refilled. Drought and freezing both promote cavitation, and a plant's
+drought tolerance is substantially a matter of its xylem's resistance to it. There is a direct
+tradeoff: wide conduits transport efficiently and cavitate readily, narrow ones the reverse, which
+is why fast-growing species in wet environments and slow-growing species in dry ones differ
+structurally in exactly this way.
+
+Stomata are the control point for the central conflict. They open to admit carbon dioxide and lose
+water while open, and the plant continuously trades photosynthetic gain against water cost. Guard
+cells respond to light, internal carbon dioxide concentration, humidity, and a hormonal drought
+signal, integrating these into an aperture. The efficiency of that tradeoff — carbon fixed per water
+lost — is water use efficiency, and it is a primary breeding target and a primary axis of adaptation.
+
+Water transport:
+  water potential      the gradient driving movement
+  the mechanism        evaporative tension transmitted by cohesion
+  no metabolic energy  the sun drives it; the plant supplies the conduits
+  negative pressure    a metastable state
+  cavitation           a bubble breaking the water column
+  the triggers         drought and freeze-thaw
+  the conduit tradeoff  wide and efficient against narrow and safe
+  the ecological correlation  fast growth in wet environments, safety in dry ones
+  root pressure        a minor positive-pressure mechanism; guttation is its
+                       visible sign
+  stomata              the control point for the water-carbon tradeoff
+  guard cells          responding to light, carbon dioxide, humidity, and hormone
+  the drought hormone  abscisic acid signalling stomatal closure
+  water use efficiency  carbon fixed per water lost
+  transpiration        the water lost; also drives mineral uptake and cools the
+                       leaf, so it is not purely a cost
+  the leaf temperature effect  a plant with closed stomata in bright sun heats
+                       substantially, which is a second reason drought damages
+                       photosynthesis beyond the carbon supply limit
+
+## Growth, Hormones, and Reproduction
+
+Plant hormones coordinate development, and unlike animal hormones they are simple molecules acting
+at multiple sites with effects depending on concentration, tissue, and the presence of other
+hormones. The same compound promotes growth at one concentration and inhibits it at another, and in
+one tissue and not in a neighbouring one, which is why plant hormone biology resists the clean
+signal-and-receptor descriptions that animal endocrinology often permits.
+
+Auxin is the central one. Produced at shoot tips and transported downward by a directional cellular
+transport system, it establishes polarity, drives cell elongation, maintains apical dominance by
+suppressing lateral buds, and directs vascular development. Removing the shoot tip releases the
+lateral buds, which is why pruning produces bushier growth, and the directional transport is what
+allows a plant to establish and re-establish an axis after damage.
+
+Reproduction in flowering plants involves an alternation of generations that is compressed and
+concealed relative to that of mosses and ferns. Flowers are the reproductive structures, and their
+form is largely explained by pollination strategy: wind-pollinated flowers are inconspicuous and
+produce enormous quantities of pollen, while animal-pollinated ones invest in attraction and reward
+and produce far less. Double fertilization, unique to flowering plants, produces both an embryo and
+a nutritive tissue, which is what makes cereal grains the calorie base of human diets.
+
+Growth and reproduction:
+  hormone character    simple molecules, concentration and context dependent
+  the same compound    promoting and inhibiting depending on level and tissue
+  auxin                polarity, elongation, apical dominance, vascular patterning
+  directional transport  a cellular pump establishing the gradient
+  apical dominance     the tip suppressing lateral buds
+  pruning              releasing lateral buds; the practical consequence
+  cytokinins           cell division and shoot development; often antagonistic to
+                       auxin
+  gibberellins         stem elongation and germination
+  abscisic acid        drought response, dormancy
+  ethylene             a gas; fruit ripening and stress responses, and it spreads
+                       between fruits, which is why one ripe fruit ripens its
+                       neighbours
+  tropisms             directional growth responses to light, gravity, and touch
+  photoperiodism       flowering timed by night length, measured by a pigment
+                       system
+  vernalization        a cold requirement before flowering; prevents flowering in
+                       autumn
+  flower form          largely explained by pollination strategy
+  double fertilization  embryo plus nutritive tissue; unique to flowering plants
+  seed dormancy        preventing germination until conditions are suitable; the
+                       breaking requirement is often specific and is what
+                       propagation practice must satisfy
+
+## Plant-Environment Interaction and Crops
+
+Plants interact constantly with other organisms and their responses are more sophisticated than
+their immobility suggests. They detect herbivore damage and mount induced defences — synthesizing
+toxins, strengthening tissues, and emitting volatile compounds that attract the herbivore's
+predators. They distinguish mechanical damage from herbivory by chemical cues in insect saliva.
+Neighbouring plants detect those volatiles and pre-emptively increase their own defences.
+
+Symbioses are pervasive and consequential. Most land plants form associations with fungi that extend
+their effective root system enormously in exchange for sugars, and this partnership is old enough
+that it plausibly enabled the colonization of land. Legumes host nitrogen-fixing bacteria in root
+nodules, obtaining nitrogen directly from the atmosphere at a substantial energy cost, which is why
+they enrich soils and why they anchor crop rotations.
+
+Crop improvement has proceeded through domestication, selective breeding, hybridization, and
+increasingly through molecular methods. Domestication produced a consistent syndrome across
+independently domesticated species — loss of seed shattering, reduced dormancy, larger seeds, less
+branching, reduced defensive compounds — because the same selective pressures applied. Modern
+breeding adds marker-assisted selection, which identifies desirable genotypes without waiting for the
+phenotype, and gene editing, which introduces specific changes directly. The persistent constraint is
+that yield is a complex trait influenced by many loci and by the environment, so gains are
+incremental and depend on matching varieties to conditions.
+
+Plant interactions and crops:
+  induced defences     toxins, tissue strengthening, volatile emission
+  herbivore recognition  chemical cues distinguishing damage from feeding
+  indirect defence     volatiles attracting the herbivore's predators
+  neighbour signalling  plants responding to others' volatile emissions
+  mycorrhizal symbiosis  fungi extending the effective root system
+  the antiquity        old enough to have plausibly enabled land colonization
+  nitrogen fixation    legume root nodules hosting bacteria
+  the energy cost      fixation is expensive, which is why it is not universal
+  crop rotation        exploiting the nitrogen contribution
+  allelopathy          chemical suppression of neighbouring plants
+  domestication syndrome  consistent trait changes across independent
+                       domestications
+  the shared pressures  harvest, sowing, and cultivation selecting the same way
+  selective breeding   phenotype-based selection over generations
+  hybrid vigour        the performance of crosses between inbred lines; the basis
+                       of hybrid seed and of its commercial structure
+  marker-assisted selection  genotype identified without waiting for phenotype
+  the yield constraint  a complex trait across many loci and strongly environment
+                       dependent, so improvement is incremental and variety
+                       selection for local conditions matters as much as breeding
+                       progress does

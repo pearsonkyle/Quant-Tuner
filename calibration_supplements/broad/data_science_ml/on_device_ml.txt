@@ -1,0 +1,333 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: On-Device and Efficient Machine Learning
+Subtopics: why on-device, quantization, pruning and sparsity, distillation, efficient
+architectures, compilation and runtimes, hardware, deployment practice.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Why On-Device
+
+Running inference on the device rather than on a server changes several properties at once, and
+which of them motivates a given deployment determines what tradeoffs are acceptable. Latency falls
+because there is no network round trip, which for interactive applications is frequently the
+dominant component. Privacy improves because the data does not leave the device, which for audio,
+imagery, health, and location data is a substantive rather than a cosmetic difference.
+Availability improves because the system works offline. And the marginal cost per inference falls
+to nearly zero, since the user's hardware is doing the work.
+
+The costs are equally concrete. The model must fit in the device's memory and run within its
+compute and power budget, which is orders of magnitude below a server. Updating the model requires
+distributing it to devices rather than deploying once. The hardware is heterogeneous, so
+performance varies enormously across the installed base. And debugging is harder because the
+failing execution is on someone else's device.
+
+The binding constraint differs by platform and identifying it first determines what optimization
+is worth doing. On a microcontroller, memory is typically binding — a few hundred kilobytes of RAM
+constrains the model far more than the clock speed does. On a phone, energy and thermal budget
+bind, since sustained computation throttles. On a laptop or an edge server, memory bandwidth
+usually binds for large models and compute for small ones.
+
+Why on-device and what constrains it:
+  latency              no network round trip; dominant for interactive use
+  privacy              data does not leave the device; substantive for sensitive
+                       modalities
+  availability         works offline
+  marginal cost        near zero per inference
+  memory               binding on microcontrollers; a few hundred kilobytes
+  energy and thermal   binding on phones; sustained load throttles
+  bandwidth            binding for large models; weights must be read per token
+  heterogeneity        performance varies enormously across the installed base
+  update distribution  models must reach devices rather than being deployed once
+  model size on disk   affects download size and app size limits
+  peak memory          activations plus weights; frequently the actual constraint
+                       rather than the model size
+  cold start           loading and initializing; perceptible for large models
+  the first question   which resource binds; optimizing the wrong one accomplishes
+                       nothing
+
+Q: A model is optimized to reduce its parameter count by half, and inference latency on a phone
+barely changes. The most likely explanation is:
+A. The optimization failed
+B. The workload was bound by something other than parameter count — activation memory, memory
+   bandwidth, or an unoptimized operation dominating the runtime
+C. The phone is too slow
+D. Quantization was not applied
+Reasoning: Parameter count determines weight storage and part of the compute, and latency is
+determined by whichever resource actually binds. If activations dominate peak memory, if a single
+unoptimized operator dominates the runtime, or if the workload is bandwidth-bound on activations
+rather than weights, halving parameters changes little. Profiling to identify the binding resource
+precedes optimization. Answer: B.
+
+## Quantization
+
+Quantization reduces the numerical precision of weights and activations, and it is the highest-
+return optimization because it reduces memory, bandwidth, and compute simultaneously. Moving from
+32-bit floats to 8-bit integers reduces the model size fourfold and, on hardware with integer
+acceleration, increases throughput substantially.
+
+The reason it works at all is that neural network weights are far more precise than they need to
+be. The training process produces values with full float precision and the function they compute is
+robust to considerable perturbation, so representing them on a coarse grid changes the output
+little. The reason it eventually fails is outliers: a small number of weights or activations with
+magnitudes far above the rest force the quantization scale to span a wide range, leaving little
+resolution for the majority.
+
+The methods differ in how they handle that. Finer granularity gives outliers their own scale —
+per-tensor is coarsest, then per-channel, then per-group of a hundred and twenty-eight or
+sixty-four or thirty-two weights — at the cost of storing more scale parameters, which is why the
+achieved bits per weight exceeds the nominal figure. Activation-aware methods observe which
+channels receive large activations and protect them, since those dominate the output error.
+Error-compensating methods quantize sequentially and push the resulting error into the
+not-yet-quantized weights.
+
+Quantization:
+  post-training        no retraining; fast, and degrades at low bit widths
+  quantization-aware training  simulate quantization during training with a
+                       straight-through estimator; recovers substantially more
+                       quality at higher cost
+  dynamic quantization  weights quantized, activations at runtime; no calibration
+                       needed
+  static quantization  activations quantized too; requires calibration data and is
+                       faster
+  calibration set      a few hundred representative sequences; representativeness
+                       matters more than quantity
+  symmetric            zero maps to zero; no zero-point, cheaper arithmetic
+  asymmetric           stores a zero-point; better for skewed distributions and
+                       essential at 2-3 bits where symmetric grids waste levels
+  granularity          per-tensor, per-channel, per-group; finer isolates outliers
+                       and costs scale storage
+  bits per weight      the real currency; includes scale and zero-point overhead
+                       and mixed-precision tensors
+  outliers             the reason low-bit quantization is hard
+  activation-aware     protect channels receiving large activations
+  error compensation   push quantization error into remaining weights using the
+                       input covariance
+  mixed precision      sensitive tensors at higher precision; embeddings, the
+                       output projection, and attention value projections are
+                       commonly promoted
+  KL divergence        against the full-precision reference; the most sensitive
+                       quality measure, and it detects degradation before accuracy
+                       metrics move
+
+The distinction between nominal and measured bits per weight deserves emphasis because it is
+routinely elided. A group of thirty-two weights at four bits is 128 bits of payload, and a shared
+scale in half precision adds sixteen more, which is half a bit per weight of overhead before any
+tensor is promoted. Standard low-bit recipes additionally store sensitive tensor classes at higher
+precision, so a nominally two-bit model frequently measures at 2.7 or higher on disk. Reporting the
+nominal figure without the measured one obscures exactly the tradeoff being made.
+
+The evaluation question deserves equal emphasis. Perplexity and accuracy on a general benchmark
+move late, and the capabilities that degrade first at low bit widths are frequently specific ones —
+producing well-formed structured output, following a multi-step instruction, tool calling — that
+depend on the distribution's tail rather than on the argmax. Measuring divergence from the
+full-precision model's output distribution over a representative corpus detects degradation far
+earlier, and evaluating on the actual deployment task is what establishes whether the quantized
+model is usable.
+
+## Pruning, Sparsity, and Distillation
+
+Pruning removes parameters that contribute little, on the observation that trained networks are
+substantially overparameterized. Magnitude pruning removes the smallest weights and is
+surprisingly effective; more principled criteria estimate each weight's contribution to the loss.
+The practical difficulty is that unstructured sparsity — individual weights removed anywhere —
+reduces the parameter count and does not reduce runtime on hardware that cannot exploit it, since
+the computation still touches the same tensors.
+
+Structured pruning removes whole units — channels, attention heads, layers — which produces a
+smaller dense model that runs faster on any hardware. The quality cost is higher for the same
+reduction, because removing a whole channel discards useful weights alongside the useless ones,
+and the benefit is that the speedup is real rather than nominal.
+
+Semi-structured sparsity is the compromise that hardware support has made practical. A pattern of
+two nonzero weights in every group of four is regular enough that specialized hardware exploits
+it, giving roughly a twofold speedup, and unstructured enough that the quality cost is modest.
+
+Distillation trains a smaller student model to reproduce a larger teacher's behaviour, and its
+advantage over training the student directly is that the teacher's full output distribution carries
+more information than a hard label. A teacher assigning ten percent to a plausible alternative
+tells the student something about the relationship between classes that a one-hot label does not,
+and this dark knowledge is why distillation frequently produces a student better than the same
+architecture trained on the original data.
+
+Pruning, sparsity, and distillation:
+  unstructured pruning  individual weights; high compression, no speedup without
+                       hardware support
+  structured pruning   channels, heads, layers; real speedup, higher quality cost
+  semi-structured      two of four; hardware-supported, modest quality cost
+  magnitude criterion  remove the smallest; simple and effective
+  gradient criteria    estimate the contribution to the loss
+  iterative pruning    prune and retrain repeatedly; better than one shot
+  lottery ticket       a sparse subnetwork trained from the original initialization
+                       matches the dense model; a research finding whose practical
+                       exploitation is limited
+  distillation         a student reproduces a teacher's behaviour
+  soft targets         the full distribution carries more than a hard label
+  temperature          softens the teacher's distribution to expose the relative
+                       structure among the non-argmax classes
+  intermediate matching  match hidden representations as well as outputs
+  self-distillation    a model distilled from itself; improves quality for reasons
+                       that are not fully settled
+  task-specific distillation  a small student on the deployment distribution;
+                       frequently the highest-return compression available
+  the combination      quantization plus distillation compounds; distil to a small
+                       model and then quantize it
+
+Task-specific distillation deserves emphasis because it is frequently the largest available win
+and is underused. A large general model is capable across an enormous range and a deployment
+typically needs one narrow capability. Distilling a small student on the specific distribution of
+the deployment task, using the large model to generate training targets, produces a model orders of
+magnitude smaller that matches or exceeds the teacher on that task while being useless elsewhere —
+which is exactly the trade a deployment wants. The requirement is a representative sample of the
+deployment inputs, which is usually available.
+
+## Efficient Architectures and Compilation
+
+Architectures designed for efficiency use structurally cheaper operations rather than smaller
+versions of expensive ones. Depthwise separable convolution factors a standard convolution into a
+spatial convolution per channel followed by a pointwise mixing convolution, which reduces the
+computation by roughly the kernel area at a small accuracy cost. Grouped and multi-query attention
+share key and value projections across query heads, which shrinks the attention cache
+proportionally — the dominant memory cost for long contexts.
+
+Neural architecture search automates the design, optimizing for a hardware-aware objective rather
+than for parameter count. This matters because parameter count and latency correlate poorly: an
+operation may be cheap in arithmetic and expensive in memory access, and hardware supports some
+operations far better than others. Searching against measured latency on the target device produces
+architectures that theoretical analysis would not.
+
+Compilation converts a trained model into an optimized executable for a specific target, and the
+transformations available are substantial. Operator fusion combines adjacent operations into one
+kernel, eliminating the intermediate tensor writes and reads that dominate memory-bound workloads.
+Constant folding evaluates what can be evaluated ahead of time. Layout transformation reorders
+tensors to match what the hardware's memory system prefers. Kernel selection chooses among
+implementations by measured performance.
+
+Architectures and compilation:
+  depthwise separable  spatial then pointwise; roughly the kernel area cheaper
+  inverted residuals   expand, process, project; the mobile convolution standard
+  grouped query attention  shared key and value heads; shrinks the cache
+  multi-query attention  one key and value head; the smallest cache, some quality
+                       cost
+  sliding window attention  bounded context; linear rather than quadratic
+  linear attention     removes the softmax; linear cost and consistently weaker
+  state space models   linear recurrence with a convolutional training form; long
+                       context at bounded state
+  mixture of experts   many parameters, few active per token; capacity without
+                       proportional compute, and all experts must be resident
+  neural architecture search  optimize against measured latency, not parameter
+                       count
+  operator fusion      one kernel instead of several; eliminates intermediate
+                       memory traffic
+  constant folding     evaluate what is known ahead of time
+  layout transformation  match the hardware's preferred memory arrangement
+  kernel selection     choose implementations by measurement
+  graph optimization   dead code, common subexpressions, algebraic simplification
+  the runtime          determines what is available; a model exported to a runtime
+                       lacking an operator falls back to a slow path or fails
+
+Operator fusion deserves particular attention because it addresses the actual bottleneck. Modern
+accelerators perform arithmetic far faster than they move data, so a sequence of simple operations
+each reading and writing a full tensor is bound by memory traffic rather than by computation.
+Fusing them so the intermediate values stay in registers or fast memory eliminates most of that
+traffic, and the resulting speedup on elementwise-heavy sections frequently exceeds what any
+arithmetic reduction would provide.
+
+[user] I need to run a 7B parameter model on a laptop with 16 GB of RAM. What is achievable?
+[assistant] tool_call ondevice.feasibility({"params_b": 7, "device_ram_gb": 16,
+"available_ram_gb": 10, "target": "interactive_chat", "context_tokens": 4096,
+"accelerator": "integrated_gpu_unified_memory"})
+[tool] {"fp16_weights_gb": 14, "int8_weights_gb": 7, "int4_weights_gb": 3.5,
+"kv_cache_4k_int8_gb": 0.5, "recommended": "4bit_group_quantization",
+"expected_tokens_per_s": [15, 30], "bound": "memory_bandwidth"}
+[assistant] Four-bit quantization is the answer, and it fits comfortably.
+
+At half precision the weights alone are 14 GB, which exceeds your available memory before any
+activations or cache. At eight bits they are 7 GB, which fits and leaves little headroom. At four
+bits with group-wise scales they are about 3.5 GB, plus roughly half a gigabyte for a
+four-thousand-token cache, which leaves ample room for the runtime and the rest of the system.
+
+Expect fifteen to thirty tokens per second, and the reason it is that rather than faster is
+instructive: generation at batch size one is memory-bandwidth-bound, not compute-bound. Producing
+each token requires reading every weight once and performing very little arithmetic per weight, so
+the rate is bytes moved divided by bandwidth. This is also why four-bit quantization roughly
+doubles the speed relative to eight-bit — half the bytes, half the time — and why further
+arithmetic optimization would gain nothing.
+
+Three practical points that determine whether you get the upper or lower end of that range.
+
+Use a group size of 128 or 64 rather than per-tensor scales. The quality difference at four bits is
+substantial, and the storage overhead is a fraction of a bit per weight.
+
+Promote the sensitive tensors. The embedding and output projection, and typically the attention
+value projections, degrade disproportionately at four bits; keeping them at six or eight costs
+little and recovers noticeable quality. Most quantization tooling does this by default.
+
+Quantize the cache as well if you need longer contexts. At four thousand tokens the cache is
+modest; at thirty-two thousand it approaches the weights in size, and eight-bit cache
+quantization roughly halves it with little quality effect.
+
+On evaluation: check the quantized model against the full-precision one on your actual task rather
+than on a benchmark. Perplexity moves late, and the capabilities that degrade first at four bits
+are specific — structured output formatting and multi-step instruction following are the usual
+casualties — so a benchmark showing minimal degradation is consistent with the model being
+noticeably worse at what you need.
+
+## Hardware and Deployment Practice
+
+The hardware landscape for inference is heterogeneous and the differences matter. A general
+processor is flexible and slow for this workload. A graphics processor provides massive parallel
+throughput and requires the work to be regular. A neural processing unit is specialized for the
+common operations at high efficiency and supports a restricted set, so a model using an
+unsupported operation falls back to a slower path. And a digital signal processor suits
+low-power always-on workloads.
+
+The practical consequence is that a model must be designed and exported with the target in mind.
+An operation unsupported by the target accelerator does not merely run slower — it may force the
+entire subgraph onto the processor, with the data transfers between them costing more than the
+operation saved. Checking which operations the target supports before designing the architecture
+avoids discovering this after training.
+
+Deployment practice on device differs from server deployment in ways that require planning. Model
+updates must be distributed and versioned, with the application handling a mismatch between its
+expectations and the model present. Fallback behaviour is required for devices too constrained to
+run the model at all. Telemetry is harder because the inference is on someone else's device, and
+gathering it raises exactly the privacy questions that on-device inference was chosen to address.
+
+Hardware and deployment:
+  CPU                  flexible, slow for this workload; the fallback path
+  GPU                  parallel throughput; needs regular work and sufficient
+                       batch or width to fill it
+  NPU                  specialized and efficient; restricted operation support
+  DSP                  low power, always on
+  unified memory       no copy between processor and accelerator; a substantial
+                       advantage on mobile and Apple silicon
+  operator support     check before designing; an unsupported operation can force
+                       a subgraph to the processor and cost more than it saves
+  export formats       the intermediate representation the runtime consumes;
+                       conversion is where most deployment failures occur
+  numerical differences  the converted model does not produce bit-identical
+                       output; validate the converted model rather than assuming
+  model versioning     the application must handle a mismatch
+  fallback             for devices that cannot run the model; a server path or a
+                       reduced capability
+  progressive download  ship without the model and fetch it; avoids app size
+                       limits and adds a first-run delay
+  telemetry            harder on device, and gathering it undermines the privacy
+                       motivation; aggregate and differentially private
+                       approaches are the response
+  thermal              sustained inference throttles; measure over minutes rather
+                       than in a burst
+  battery              a model that works and drains the battery in an hour will
+                       be uninstalled
+
+The validation of the converted model deserves the closing emphasis because it is the step most
+often skipped and the source of the most puzzling deployment failures. Converting a model between
+frameworks and quantizing it involves numerous transformations, each of which can introduce a
+subtle discrepancy — a different padding convention, a different default for a rarely-specified
+parameter, an operator implemented with slightly different semantics, a fused operation that
+reorders arithmetic. The converted model does not produce bit-identical output and normally should
+not need to; what is required is verifying that it produces equivalent behaviour on a
+representative sample before shipping, because the alternative is discovering the discrepancy from
+user reports about behaviour nobody can reproduce.

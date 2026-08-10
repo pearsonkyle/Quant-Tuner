@@ -1,0 +1,304 @@
+================================================================================
+AREA: Physics
+SUBJECT: Plasma Physics
+Subtopics: what makes a plasma, single particle motion, fluid and kinetic descriptions,
+waves and instabilities, magnetic confinement, laboratory and industrial plasmas,
+astrophysical plasmas, diagnostics.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## What Makes a Plasma
+
+A plasma is an ionized gas in which the free charges produce collective behaviour, and the
+collective aspect is the defining feature rather than the ionization. A gas with a few stray ions
+is a gas; a plasma is a medium in which the long-range electromagnetic interaction between
+charges dominates over the short-range collisions that govern neutral gases, so the constituents
+move in response to fields they collectively generate.
+
+Debye shielding is the mechanism producing quasineutrality. A charge introduced into a plasma
+attracts opposite charges and repels like ones, so its field is screened over a characteristic
+distance — the Debye length — beyond which the plasma appears neutral. This is why a plasma is
+quasineutral on scales larger than the Debye length while permitting substantial charge
+separation on smaller scales, and it is the first of three criteria a medium must satisfy to
+behave as a plasma.
+
+The three criteria are that the Debye length be much smaller than the system, so shielding
+operates; that many particles occupy a Debye sphere, so the shielding is a statistical rather
+than a two-body effect; and that the plasma frequency exceed the collision frequency with
+neutrals, so collective behaviour dominates over collisional damping. A medium satisfying all
+three exhibits plasma behaviour, and the parameter space they define spans from interstellar space
+at one particle per cubic centimetre to the interior of a star.
+
+Plasma fundamentals:
+  ionization           free charges; a necessary and insufficient condition
+  collective behaviour  long-range interaction dominates; the defining property
+  Debye length         the shielding distance; sqrt(eps0 k T / n e^2)
+  quasineutrality      neutral on scales above the Debye length
+  Debye sphere         many particles required for statistical shielding
+  plasma frequency     the natural oscillation of electrons about the ions;
+                       depends only on density, and light below it cannot
+                       propagate
+  plasma criteria      Debye length small, many particles per sphere, plasma
+                       frequency above the neutral collision frequency
+  degree of ionization  from a fraction of a percent to fully ionized; even
+                       weakly ionized gases behave as plasmas
+  temperature units    conventionally electronvolts; 1 eV is about 11,600 K
+  non-thermal plasma   electrons far hotter than ions; the basis of most
+                       industrial processing
+  the fourth state     the most common state of visible matter in the universe
+
+The plasma frequency deserves specific attention because it determines how a plasma interacts
+with electromagnetic waves. Electrons displaced from the ions oscillate at a frequency depending
+only on the electron density, and a wave below that frequency cannot propagate — it is reflected.
+This is why the ionosphere reflects radio below a critical frequency, enabling long-distance
+shortwave propagation, and why that frequency varies with solar activity and with day and night.
+It is also the basis of a common density diagnostic, since measuring the cutoff frequency measures
+the density directly.
+
+Q: A radio wave at 5 MHz reflects off the ionosphere while a 50 MHz wave passes through. The
+reason is:
+A. Atmospheric absorption
+B. The plasma frequency corresponding to the ionospheric electron density lies between them, and
+   waves below it cannot propagate
+C. The higher frequency has more energy
+D. Refraction by the neutral atmosphere
+Reasoning: An electromagnetic wave below the local plasma frequency cannot propagate in the
+plasma and is reflected. The ionospheric plasma frequency depends on electron density and
+typically falls in the range of several to tens of megahertz, varying with solar activity and time
+of day, which is exactly what determines the maximum usable frequency for shortwave
+communication. Answer: B.
+
+## Single Particle Motion and Descriptions
+
+Understanding plasma behaviour begins with a single charged particle in electric and magnetic
+fields, because the collective behaviour is built from it. A charge in a uniform magnetic field
+gyrates in a circle perpendicular to the field at the cyclotron frequency, with a radius
+proportional to the perpendicular velocity and inversely proportional to the field. Motion along
+the field is unaffected, so the trajectory is a helix.
+
+Adding a perpendicular electric field produces a drift. The particle accelerates and decelerates
+around its gyration, so the orbit's guiding centre moves perpendicular to both fields at a
+velocity independent of charge and mass — which means electrons and ions drift together and no
+current results. Other drifts, arising from gradients in the magnetic field, from curvature of
+the field lines, and from gravity, do depend on charge, so they separate the species and drive
+currents. Predicting whether a drift produces a current is one of the more useful pieces of
+plasma intuition.
+
+Magnetic mirroring follows from an adiabatic invariant. As a particle moves into a region of
+stronger field, its perpendicular energy increases and its parallel energy decreases to conserve
+total energy, so a particle with enough perpendicular velocity is reflected before reaching the
+strongest field. This traps particles between two regions of strong field, which is what confines
+the radiation belts and what motivated an entire class of fusion device.
+
+Descriptions and single particle motion:
+  gyration             circular motion perpendicular to B at the cyclotron
+                       frequency
+  Larmor radius        the gyration radius; proportional to perpendicular velocity
+                       over field strength
+  guiding centre       the gyration's centre; the useful coordinate when the
+                       gyration is fast compared to the motion of interest
+  E cross B drift      perpendicular to both fields; independent of charge and
+                       mass, so it drives no current
+  gradient and curvature drifts  charge dependent; separate species and drive
+                       currents
+  magnetic moment      an adiabatic invariant; conserved when the field varies
+                       slowly compared to the gyration
+  magnetic mirror      particles reflected from strong field regions; confines the
+                       radiation belts
+  loss cone            the velocity range that escapes a mirror; the fundamental
+                       limitation of mirror confinement
+  single particle picture  valid when collective effects are weak
+  fluid description    treat the plasma as one or more charged fluids; simpler,
+                       and loses velocity-space information
+  MHD                  magnetohydrodynamics; one conducting fluid with a magnetic
+                       field; the workhorse for large-scale behaviour
+  kinetic description  the full velocity distribution; the Vlasov equation;
+                       necessary where wave-particle resonance matters
+
+The choice of description is a modelling decision determining what phenomena can appear.
+Magnetohydrodynamics treats the plasma as a single conducting fluid and captures equilibrium,
+large-scale instabilities, and wave propagation, and it cannot describe anything depending on the
+velocity distribution's shape. Kinetic theory retains the full distribution and captures
+wave-particle resonance, Landau damping, and instabilities driven by distribution features, at
+enormously greater computational cost. Using a fluid model where kinetic effects matter produces
+results that are internally consistent and wrong.
+
+## Waves, Instabilities, and Magnetohydrodynamics
+
+Plasmas support a rich variety of waves because they have several restoring forces — pressure,
+electrostatic attraction, and magnetic tension — and several characteristic frequencies. The
+resulting wave zoo is one of the subject's characteristic difficulties, and the organizing
+principle is which restoring force dominates and whether the motion is parallel or perpendicular
+to the magnetic field.
+
+Alfvén waves are the most important for large-scale dynamics. Magnetic field lines behave like
+elastic strings under tension, and a transverse displacement propagates along them at the Alfvén
+speed, which depends on the field strength and the mass density. This is the mechanism carrying
+energy and information along magnetic field lines, and it appears throughout solar and
+magnetospheric physics.
+
+Landau damping is the phenomenon most distinctive to plasmas and has no fluid analogue. A wave
+can be damped in a collisionless plasma by transferring energy to particles moving at nearly the
+wave's phase velocity, and whether it damps or grows depends on whether there are more particles
+slightly slower than the wave — which gain energy — or slightly faster, which lose it. For a
+Maxwellian distribution the former dominates and the wave damps; for a distribution with a bump
+at high velocity the latter dominates and the wave grows, which is an instability.
+
+Instabilities are the practical obstacle in nearly every plasma application. Any free energy
+source — a pressure gradient, a current, a velocity shear, a non-thermal distribution — can drive
+a mode unstable, and the resulting turbulence transports particles and energy far faster than
+collisions would. This anomalous transport is why magnetic confinement is difficult and why the
+performance of a fusion device depends far more on turbulence than on classical collisional
+transport.
+
+Waves and instabilities:
+  Langmuir waves       electron oscillations near the plasma frequency
+  ion acoustic waves   the plasma analogue of sound; ions provide inertia and
+                       electrons provide pressure
+  Alfvén waves         transverse propagation along field lines; magnetic tension
+                       as the restoring force
+  magnetosonic         compressional; combines magnetic and gas pressure
+  whistlers            dispersive electron waves; descending audio tones from
+                       lightning, which is how they were discovered
+  Landau damping       collisionless damping by resonant particles; no fluid
+                       analogue
+  inverse Landau       a distribution with a positive slope drives growth; the
+                       bump-on-tail instability
+  two-stream           counterstreaming populations; a fundamental instability
+  Rayleigh-Taylor      a heavy fluid supported by a light one; the interchange
+                       mode in magnetized plasmas
+  kink and sausage     current-driven distortions of a plasma column
+  tearing mode         reconnection of field lines; changes the topology and
+                       releases magnetic energy
+  anomalous transport  turbulence transporting far faster than collisions; the
+                       central obstacle in confinement
+  frozen-in flux       in a perfectly conducting plasma the field is tied to the
+                       fluid; the fundamental MHD result
+
+Magnetic reconnection deserves emphasis because it violates the frozen-in condition and is where
+much of plasma physics' most consequential energy release occurs. Ideal magnetohydrodynamics has
+field lines frozen into the fluid so their topology cannot change, and reconnection is the process
+by which finite resistivity in a thin current sheet permits them to break and reconnect,
+converting stored magnetic energy into kinetic and thermal energy explosively. It powers solar
+flares, drives magnetospheric substorms, and limits confinement in fusion devices — and the rate
+at which it occurs is far faster than simple resistive estimates predict, a discrepancy that took
+decades to resolve and involves the current sheet becoming unstable and fragmenting.
+
+## Fusion and Magnetic Confinement
+
+Controlled fusion requires confining a plasma hot enough and dense enough for long enough that
+the fusion power exceeds the losses. The Lawson criterion expresses this as a requirement on the
+product of density, temperature, and confinement time, and the two mainstream approaches occupy
+opposite corners of that product: magnetic confinement holds a low-density plasma for seconds,
+and inertial confinement compresses a high-density target for nanoseconds.
+
+The tokamak is the most developed magnetic configuration. A toroidal field confines particles
+along field lines, and because a purely toroidal field is stronger on the inside of the torus than
+the outside, gradient and curvature drifts separate the charges and produce an electric field
+that expels the plasma. A poloidal field, generated by driving a current through the plasma
+itself, twists the field lines into helices so that a particle spends time on both the inner and
+outer sides and the drifts cancel. The plasma current is therefore essential and it is also a free
+energy source driving instabilities, which is the configuration's central tension.
+
+The stellarator achieves the twist with external coils instead, eliminating the plasma current
+and the instabilities it drives, at the cost of coils with complicated three-dimensional geometry
+that were impractical to design and build until computational optimization and precision
+manufacturing matured. The renewed interest in stellarators follows directly from those
+capabilities becoming available.
+
+Fusion and confinement:
+  Lawson criterion     the density, temperature, and confinement time product
+                       required for net energy
+  D-T reaction         the easiest; the largest cross section at accessible
+                       temperature
+  neutron production   D-T produces a 14 MeV neutron; activates the structure and
+                       is also how the energy is extracted and tritium is bred
+  tritium breeding     tritium does not occur naturally; the neutron must breed it
+                       in a lithium blanket, and the breeding ratio must exceed one
+  magnetic confinement  low density, long confinement
+  inertial confinement  high density, nanosecond confinement
+  tokamak              toroidal plus plasma-driven poloidal field
+  the drift problem    a purely toroidal field separates charges; the twist
+                       cancels the drift
+  plasma current       essential in a tokamak and a free energy source for
+                       instabilities
+  disruption           a sudden loss of confinement; deposits the stored energy on
+                       the wall and is a primary engineering concern at scale
+  stellarator          external coils provide the twist; no plasma current, harder
+                       geometry
+  divertor             directs the edge plasma to a target; handles the exhaust
+                       heat flux, which is among the hardest engineering problems
+  H-mode               a spontaneous transition to improved confinement with an
+                       edge transport barrier; discovered empirically and still
+                       not fully explained
+  ELMs                 edge instabilities releasing bursts of energy; damaging at
+                       reactor scale and requiring active mitigation
+  ignition             the fusion power sustains the temperature without external
+                       heating; achieved transiently by inertial confinement in
+                       2022
+
+The H-mode transition deserves note because it is a genuine empirical discovery that theory did
+not predict and still does not fully explain. Above a threshold heating power, a tokamak plasma
+spontaneously forms a transport barrier near its edge, and confinement roughly doubles. The
+discovery was essential to the viability of magnetic fusion, since the required device size falls
+substantially with better confinement. Its mechanism involves sheared flow suppressing turbulence,
+and the details of the threshold and the barrier structure remain active research — which is a
+reminder that this is an experimental science in which theory has not been able to predict the
+most consequential behaviours in advance.
+
+## Laboratory, Industrial, and Astrophysical Plasmas
+
+Low-temperature plasmas are the field's largest application by economic value and receive the
+least attention in accounts focused on fusion. Plasma processing is essential to semiconductor
+manufacturing: plasma etching removes material with a directionality that wet chemistry cannot
+achieve, permitting the vertical sidewalls that dense circuits require, and plasma-enhanced
+deposition grows films at temperatures the substrate can tolerate.
+
+The property making these applications work is that the plasma is far from thermal equilibrium.
+Electrons, being light, are accelerated efficiently by the applied field and reach temperatures of
+several electronvolts, while the heavy ions and neutrals remain near room temperature. The
+energetic electrons drive the chemistry — dissociating molecules and creating reactive radicals —
+while the gas stays cool enough not to damage the substrate. This separation of electron and gas
+temperature is what makes plasma processing possible and has no equilibrium analogue.
+
+Astrophysical plasmas span an enormous parameter range and share the characteristic that
+magnetic fields organize the dynamics. The solar corona, the solar wind, planetary magnetospheres,
+the interstellar medium, accretion discs, and jets from compact objects are all plasmas, and in
+each the field is dynamically important despite being weak by laboratory standards, because the
+scales are so large that the magnetic energy is comparable to or exceeds the kinetic and thermal
+energies.
+
+Applications:
+  plasma etching       directional material removal; enables vertical sidewalls
+                       and therefore dense circuits
+  plasma deposition    film growth at low substrate temperature
+  surface treatment    activation, cleaning, adhesion promotion
+  non-equilibrium      hot electrons with cool gas; the enabling property
+  lighting             fluorescent and high-intensity discharge
+  plasma displays      historical; superseded
+  arc welding and cutting  thermal plasma; high power density
+  plasma medicine      sterilization and wound treatment; reactive species at low
+                       temperature
+  thrusters            Hall and ion; high specific impulse for spacecraft
+  solar corona         a million kelvin above a six thousand kelvin surface; the
+                       heating mechanism is unsettled
+  solar wind           a continuously expanding corona
+  magnetosphere        the field deflecting the wind; reconnection couples them
+  interstellar medium  weakly ionized, magnetized, turbulent
+  accretion discs      the magnetorotational instability provides the angular
+                       momentum transport that makes accretion possible
+  astrophysical jets   collimated relativistic outflows; magnetically launched and
+                       collimated
+
+Plasma diagnostics deserve a closing note because measuring a plasma without perturbing it is a
+distinctive difficulty. Inserting a probe into a hot plasma both perturbs it and destroys the
+probe, so most diagnostics are non-invasive and infer properties from emitted or transmitted
+radiation. Spectroscopy gives temperature, density, and composition from line intensities and
+widths. Interferometry gives density from the phase shift of a transmitted beam, since the
+refractive index depends on electron density. Thomson scattering gives the electron temperature
+and density from the spectrum of scattered laser light, and it is the most direct measurement
+available. Magnetic probes outside the plasma measure the field and infer the current
+distribution. Each measures a different quantity with different assumptions, and cross-checking
+several is standard practice precisely because each inference chain has assumptions that the
+others do not share.

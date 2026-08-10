@@ -1,0 +1,311 @@
+================================================================================
+AREA: Software and Web Engineering
+SUBJECT: Backend Engineering and APIs
+Subtopics: HTTP and REST, API design, alternative paradigms, concurrency models,
+service architecture, background work, performance, operational concerns.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## HTTP and Resource Design
+
+HTTP is a request-response protocol whose semantics are more useful than they are usually
+treated. The methods carry meaning that intermediaries, caches, and clients rely on. GET is
+safe, meaning it has no side effects, and idempotent, so a retry is harmless — which is why
+browsers, proxies, and prefetchers will issue GET requests freely, and why implementing a
+state-changing operation behind GET reliably causes trouble. PUT and DELETE are idempotent
+but not safe. POST is neither, which is why a browser warns before resubmitting one. PATCH
+applies a partial modification and is not idempotent unless designed to be.
+
+Status codes communicate outcome to clients and infrastructure. The distinction between 4xx
+and 5xx is a statement about fault: 4xx says the client sent something wrong and retrying
+identically will fail identically, while 5xx says the server failed and a retry may
+succeed. Returning 200 with an error object in the body — common in APIs that grew from
+internal RPC — defeats every layer that reasons about HTTP, from client retry logic to
+monitoring to caching, and forces every consumer to parse the body to learn whether the call
+worked.
+
+Idempotency is the property that makes distributed systems tolerable, and it must often be
+designed rather than inherited. A payment endpoint is inherently non-idempotent — charging
+twice is not the same as charging once — so it needs an idempotency key supplied by the
+client, stored server-side with the result, and returned on a repeat rather than reprocessed.
+Without it, a client that times out has no safe action: retrying may double-charge, and not
+retrying may lose a payment that succeeded.
+
+HTTP essentials:
+  GET       safe, idempotent, cacheable; never state-changing
+  POST      create or process; not idempotent without an idempotency key
+  PUT       full replacement; idempotent
+  PATCH     partial update; design it to be idempotent if possible
+  DELETE    idempotent; a second delete returns 404 or 204, both acceptable
+  200/201   success / created, with a Location header
+  202       accepted for asynchronous processing
+  204       success with no body
+  400/422   malformed request / semantically invalid request
+  401/403   not authenticated / authenticated but not permitted
+  404       not found; also used to avoid disclosing existence
+  409       conflict, such as a version mismatch
+  429       rate limited; include Retry-After
+  500/503   server fault / temporarily unavailable
+  ETag      resource version for conditional requests and optimistic concurrency
+
+Conditional requests are underused and solve two problems at once. Returning an ETag lets a
+client send If-None-Match on a subsequent request and receive 304 Not Modified with no body,
+saving bandwidth. Sending If-Match on a write implements optimistic concurrency: the server
+rejects the update with 409 if the resource changed since the client read it, which prevents
+the lost-update problem without any locking. Both cost a hash computation and eliminate
+whole categories of bug and expense.
+
+Q: An API returns HTTP 200 with a body containing an error field when validation fails.
+The main practical problem is:
+A. The response is too large
+B. Clients, proxies, caches, and monitoring all treat it as success, so failures are
+   invisible to every layer that reasons about status codes
+C. It is slower
+D. It violates JSON conventions
+Reasoning: Status codes are the contract with infrastructure, not just with application
+code. A 200 is cacheable, is counted as success in every dashboard, and does not trigger
+client retry or error handling. Returning 422 makes the failure visible and actionable
+everywhere without any consumer writing special logic. Answer: B.
+
+## API Design
+
+Good API design optimizes for the consumer, and the consumer is usually a developer who has
+not read the documentation carefully. Consistency in naming, structure, and error format
+across endpoints reduces the amount that must be learned, and consistency matters more than
+any individual convention being ideal.
+
+Resource naming conventions have settled on plural nouns for collections, identifiers for
+members, and nesting for genuine containment. Actions that do not map to resource
+manipulation are the recurring difficulty — publishing a document, cancelling an order,
+sending a message — and the pragmatic answer is either a sub-resource representing the
+action's result or an explicit action endpoint. Contorting an inherently procedural
+operation into resource semantics produces something less clear than admitting it is an
+action.
+
+Pagination is required on any collection endpoint that can grow, and the choice of strategy
+has real consequences. Offset pagination is simple and degrades badly at depth, since the
+database must scan and discard the skipped rows, and it produces duplicate or missing items
+when the underlying data changes between pages. Cursor pagination encodes the position of
+the last item, so the next page starts exactly where the previous ended — stable under
+concurrent modification and efficient at any depth, at the cost of not supporting random
+access to page N.
+
+API design practices:
+  versioning            in the path or via a header; the practical requirement is
+                        that old clients keep working, not which mechanism
+  pagination            cursor-based by default; offset only for small collections
+  filtering and sorting explicit allowlists, never raw query pass-through
+  sparse fieldsets      let clients request only the fields they need
+  consistent errors     one error shape everywhere: a machine-readable code, a
+                        human message, and a field reference where applicable
+  correlation IDs       accept and propagate a request ID; return it in errors
+  rate limiting         document the limits, return remaining quota in headers,
+                        and send Retry-After on 429
+  deprecation           announce, provide a migration path, warn in headers, then
+                        remove; never remove without the first three
+  documentation         generated from the schema so it cannot drift from reality
+
+Backward compatibility rules are what distinguish an API that can evolve from one that
+cannot. Adding an optional field is safe. Adding a required request field is breaking.
+Removing or renaming a field is breaking. Changing a type is breaking. Changing the meaning
+of an existing field is the worst kind, because it is breaking and invisible — clients
+continue to parse it and silently misinterpret. Tightening validation is breaking for
+clients that were sending values you previously accepted. The discipline is to treat the
+published schema as a contract and to add rather than modify.
+
+## Alternative Paradigms
+
+REST is the default and not the only sensible choice. GraphQL exposes a schema and lets
+clients specify exactly what they need in a single query, which eliminates both
+over-fetching and the round-trip chains that REST produces when a client needs related data.
+The costs are real: caching is harder because every query is different and HTTP-level
+caching does not apply, arbitrary query shapes make performance unpredictable and enable
+denial of service through deeply nested queries, and the N+1 problem appears naturally in
+resolver implementations and requires batching to avoid.
+
+gRPC uses HTTP/2 with protocol buffers, giving efficient binary serialization, generated
+clients in many languages, streaming in both directions, and a schema that is enforced
+rather than documented. It is well suited to internal service-to-service communication where
+both ends are controlled and performance matters, and poorly suited to public browser-facing
+APIs without a proxy layer.
+
+Event-driven communication inverts the model. Rather than a service calling another and
+waiting, it publishes an event and continues; interested services subscribe. This decouples
+producers from consumers, so adding a consumer requires no change to the producer, and it
+absorbs load spikes through the queue. The costs are eventual consistency, harder debugging
+because there is no call stack spanning the flow, and the need for idempotent consumers
+since delivery is at-least-once.
+
+Paradigm selection:
+  REST                public APIs, resource-oriented domains, HTTP caching, broad
+                      client compatibility
+  GraphQL             many client shapes, deeply related data, mobile bandwidth
+                      constraints; requires query cost limiting
+  gRPC                internal service mesh, performance-sensitive, polyglot,
+                      streaming
+  WebSocket           bidirectional real-time; chat, collaboration, live updates
+  server-sent events  server-to-client streaming only; simpler than WebSocket and
+                      sufficient for most push cases
+  webhooks            outbound notification to third parties; needs signing,
+                      retries with backoff, and replay protection
+  message queue       asynchronous work distribution, load levelling, retries
+  event streaming     durable ordered log; replayable, multiple independent
+                      consumers, event sourcing
+
+Webhooks deserve specific design attention because they are an API you provide to systems
+you do not control. Deliveries must be signed so the receiver can verify authenticity,
+using a timestamp in the signed payload to prevent replay. Retries need exponential backoff
+with a cap and a dead-letter path, since a receiver that is down for hours should not be
+hammered. The payload should be small with an identifier the receiver can use to fetch full
+details, both to limit exposure and to avoid the receiver acting on stale embedded data. And
+receivers must be told to expect duplicates, because at-least-once is the only delivery
+guarantee achievable.
+
+[user] Our GraphQL API is getting hammered — some queries take 40 seconds and one client
+brought down the database.
+[assistant] tool_call api.graphql_audit({"depth_limit": null, "complexity_limit": null,
+"dataloader": false, "persisted_queries": false, "timeout_s": 60,
+"slowest_query_depth": 11, "resolver_db_calls": 3400})
+[tool] {"issues": ["no_depth_limit", "no_complexity_limit", "n_plus_one_unbatched",
+"arbitrary_queries_allowed", "timeout_too_high"], "estimated_fix_impact":
+{"dataloader": "3400_to_12_queries", "complexity_limit": "blocks_pathological"}}
+[assistant] Four missing controls, and the first one alone probably explains the 40-second
+queries.
+
+You have no batching in your resolvers, so a single query is issuing 3,400 database calls.
+This is the N+1 problem, and in GraphQL it is the default rather than an edge case: a query
+requesting 100 posts and each post's author runs one query for the posts and 100 for the
+authors, recursively at every level. Add a DataLoader-style batching layer that collects the
+individual loads within a tick and issues one batched query. For your slow query that should
+take 3,400 calls to about 12. This is the single highest-impact change and it does not
+require restricting anything.
+
+Then add the guards, because without them a client can always construct something
+pathological. Depth limiting rejects queries nested beyond a threshold — your slowest is at
+depth 11, and most legitimate queries are under 6. Complexity limiting assigns a cost to
+each field, multiplies by requested list sizes, and rejects queries above a budget; this is
+the more principled control since depth alone does not capture a shallow query requesting
+ten thousand items.
+
+Lower the timeout. Sixty seconds means a client can hold a connection and a database
+transaction for a minute. Set it to something aligned with what a legitimate query needs —
+five seconds is generous for most APIs — and return a clear error above it.
+
+For the longer term, persisted queries change the model usefully. Clients register their
+queries at build time and send an identifier at runtime, so the server only ever executes
+queries you have seen and approved. That converts arbitrary query execution into a fixed
+set you can analyze and optimize, and it eliminates this class of problem structurally
+rather than by limits. It also cuts request size substantially.
+
+Per-client rate limiting should be by query cost rather than by request count, since one
+GraphQL request is not one unit of work.
+
+## Concurrency and Runtime Models
+
+Backend concurrency models differ in how they handle waiting, and the right choice depends
+on whether the workload is bound by I/O or by computation.
+
+Thread-per-request is the traditional model: each request gets a thread, blocking calls
+block that thread, and the operating system schedules. It is simple to reason about, since
+code reads sequentially, and it is limited by thread cost — each thread consumes memory for
+its stack and context switching becomes significant at high counts, so the practical ceiling
+is in the low thousands.
+
+Event loops with asynchronous I/O run a single thread that never blocks, registering
+callbacks or awaiting futures and processing whatever is ready. This handles very high
+concurrency with modest memory because a pending request costs a small structure rather than
+a stack. The constraint is absolute: any blocking operation on the event loop thread stalls
+every other request, so a synchronous file read, a CPU-heavy computation, or a blocking
+database driver in an async application produces latency spikes that are baffling until the
+cause is identified.
+
+Lightweight threads — goroutines, virtual threads, green threads — give the programming
+model of blocking code with the scalability of an event loop, by having the runtime
+multiplex many logical threads onto few operating system threads and yield automatically at
+blocking points. This is the direction most platforms have converged on, because it removes
+the need for the programmer to track which functions are asynchronous.
+
+Concurrency considerations:
+  I/O-bound            async or lightweight threads; concurrency far exceeds cores
+  CPU-bound            process or thread pool sized near the core count; async
+                       provides nothing since nothing is waiting
+  mixed                offload CPU work to a pool so the event loop stays free
+  blocking in async    the cardinal sin; audit every library for hidden blocking
+  connection pools     size to the database's capacity, not the application's
+                       concurrency; more connections than the database can serve
+                       makes everything slower
+  backpressure         bound queues; an unbounded queue converts overload into
+                       unbounded latency and eventually an out-of-memory failure
+  timeouts             on every outbound call, with a budget that shrinks down the
+                       call chain
+  graceful shutdown    stop accepting, drain in flight, close resources; otherwise
+                       every deploy drops requests
+
+Connection pool sizing is a specific and common misconfiguration. Application instances
+each maintain a pool, and the total across instances is what reaches the database. Scaling
+from ten to a hundred instances with a pool of twenty each sends two thousand connections to
+a database that performs best with perhaps fifty active. Beyond the point where the database
+can execute queries concurrently, additional connections add contention and context
+switching and reduce total throughput. The correct sizing is derived from the database's
+capacity and divided among instances, with a connection pooler in front when instance counts
+are high.
+
+## Architecture, Background Work, and Operations
+
+The monolith versus microservices decision is usually made for the wrong reasons.
+Microservices offer independent deployment, independent scaling, technology heterogeneity,
+and team autonomy; they impose network latency between what were function calls, distributed
+transactions where there were local ones, operational complexity multiplied by service
+count, and debugging that spans process boundaries. The costs are certain and immediate
+while the benefits accrue only at organizational scale.
+
+The defensible default is a well-structured monolith with clear internal module boundaries,
+extracting services when a specific pressure justifies it — a component needing to scale
+independently, a team needing to deploy independently, a workload with different resource
+characteristics. Starting with microservices before the domain boundaries are understood
+produces a distributed system whose boundaries are wrong, and moving a boundary across a
+network interface is far harder than moving it within a codebase.
+
+Background job processing removes slow work from the request path. Anything that takes more
+than a few hundred milliseconds and does not need to complete before the response — sending
+email, generating a report, processing an upload, calling a slow third party — belongs in a
+queue. The request handler enqueues and returns immediately, typically with 202 and a way to
+check status.
+
+Background work requirements:
+  idempotent handlers   at-least-once delivery guarantees duplicates eventually
+  bounded retries       exponential backoff, a maximum attempt count, then a
+                        dead-letter queue
+  visibility timeout    long enough for the work; too short causes duplicate
+                        concurrent processing of the same job
+  poison message        one bad message must not block a partition indefinitely
+  job payload           small, with an identifier rather than embedded state that
+                        may be stale by execution time
+  scheduling            distinguish delayed jobs, recurring jobs, and cron; each
+                        needs different guarantees around missed executions
+  observability         queue depth, age of the oldest message, processing rate,
+                        failure rate; queue depth alone is not enough since a
+                        stalled consumer and a slow producer look the same
+  ordering              per-key ordering is achievable; global ordering eliminates
+                        parallelism and is almost never actually required
+
+Caching in the backend follows the general principles with one backend-specific caution:
+the cache and the database can disagree, and the window during which they do is a
+correctness question that must be answered deliberately. Read-through with a short TTL is
+the simplest and accepts bounded staleness. Write-through updates both and needs the two
+writes to be ordered so a failure leaves the cache stale rather than ahead. Explicit
+invalidation is precise and misses paths the author did not anticipate. The cache stampede
+on expiry of a hot key requires single-flight coordination so that one request recomputes
+while others wait, rather than every concurrent request recomputing simultaneously.
+
+Operationally, the properties that make a backend service manageable are unglamorous and
+consistent. Structured logs with a correlation ID that propagates across services, so one
+request can be traced end to end. Metrics on the four signals — latency, traffic, errors,
+saturation — with latency reported as percentiles rather than averages. Health checks that
+exercise the real dependency path, distinguishing liveness from readiness so that a
+temporarily unready instance is removed from rotation rather than restarted. Configuration
+from the environment rather than baked into artifacts, so the same build promotes through
+environments. Database migrations that are backward compatible so that code and schema can
+be deployed independently and either can roll back. Each of these is cheap to build in from
+the start and expensive to retrofit under incident pressure.

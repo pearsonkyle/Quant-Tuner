@@ -1,0 +1,325 @@
+================================================================================
+AREA: Humanities, Business, and Social Science
+SUBJECT: Psychology
+Subtopics: research methods, perception and attention, memory, learning, cognition
+and bias, development, social psychology, personality and clinical.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Research Methods and the Replication Crisis
+
+Psychology's methods deserve to be discussed first because the field's credibility
+depends on them and because a great deal of widely repeated psychological "knowledge"
+has not survived scrutiny. The core problem is that psychological effects are usually
+small, variable across contexts, and measured with noisy instruments, which makes the
+discipline unusually vulnerable to methodological error.
+
+Experimental design in psychology follows the general logic of causal inference. Random
+assignment to conditions is what licenses causal claims, since it makes groups
+equivalent in expectation on every variable, measured or not. Control groups establish
+the counterfactual. Blinding prevents expectation effects: single-blind keeps
+participants unaware of their condition, double-blind keeps experimenters unaware too,
+which matters because experimenters unconsciously cue participants toward expected
+results. Placebo controls are essential wherever expectation itself can produce the
+outcome, which in psychology is nearly everywhere.
+
+The replication crisis emerged when large coordinated efforts attempted to reproduce
+published findings and succeeded only around forty percent of the time in some
+subfields. The causes are structural rather than fraudulent. Publication bias means
+positive results are published and null results are not, so the literature is a biased
+sample of the research conducted. Researcher degrees of freedom — undisclosed choices
+about which participants to exclude, which measures to analyze, when to stop collecting
+data, which covariates to include — allow a determined analyst to reach significance from
+noise without any conscious dishonesty. Small samples produce underpowered studies that
+either miss real effects or, when they do reach significance, necessarily overestimate
+the effect size.
+
+Methodological reforms and concepts:
+  preregistration      hypotheses and analysis plan filed before data collection,
+                       eliminating undisclosed flexibility
+  registered reports   peer review of the design before results exist; acceptance
+                       does not depend on the outcome
+  power analysis       required sample size computed in advance from the smallest
+                       effect worth detecting
+  effect size          Cohen's d, correlation, odds ratio; report alongside p, since
+                       significance without magnitude is uninformative
+  confidence interval  the range of effects compatible with the data; more
+                       informative than a binary significance verdict
+  p-hacking            analytic flexibility exploited until p < 0.05
+  HARKing              hypothesizing after results are known, presented as a priori
+  multiverse analysis  report results across all defensible analytic choices
+  open data and code   permits reanalysis and error detection
+
+The distinction between statistical and practical significance is where a great deal of
+psychological reporting goes wrong. With a large enough sample, a trivially small
+difference reaches significance; with a small sample, a large effect may not. The
+question that matters is the size of the effect and whether it is large enough to matter
+for the application, which is why effect sizes and intervals should be the headline and
+the p-value a footnote. Cohen's conventional benchmarks — d of 0.2 small, 0.5 medium, 0.8
+large — are rough and field-dependent, and a small effect can be enormously important
+when applied at population scale or trivial when applied to an individual.
+
+Q: A study with 40 participants finds a significant effect with d = 1.2. A replication
+with 400 participants finds d = 0.15, not significant. The most likely interpretation is:
+A. The replication was flawed
+B. The original overestimated the effect, as underpowered significant results must
+C. The effect disappeared over time
+D. The larger sample introduced noise
+Reasoning: An underpowered study can only reach significance when the observed effect is
+large, so conditional on being significant, its effect estimate is inflated — the winner's
+curse, or Type M error. The larger study gives a more precise estimate with a narrower
+interval. This pattern is the signature of the replication crisis rather than of a flawed
+replication. Answer: B.
+
+## Perception and Attention
+
+Perception is constructive rather than passive. The sensory apparatus delivers an
+impoverished, ambiguous signal — a two-dimensional retinal projection of a
+three-dimensional world, with a blind spot, poor peripheral acuity, and constant
+saccadic motion — and the visual system infers a stable scene from it using strong prior
+assumptions about how the world is structured. Visual illusions are not malfunctions;
+they are cases where those assumptions, normally correct, are deliberately violated.
+
+The Gestalt principles describe how the system groups elements into objects: proximity,
+similarity, closure, continuity, common fate, and figure-ground segregation. These operate
+before conscious inspection and are difficult to override, which is why they are so
+powerful in interface and information design — elements placed close together are
+perceived as related whatever the labels say, and a designer fighting a Gestalt principle
+loses.
+
+Attention is a selection mechanism made necessary by limited processing capacity. Selective
+attention filters the incoming stream, as demonstrated by the cocktail party effect: a
+listener follows one conversation among many, yet their own name spoken in an unattended
+stream captures attention, showing that unattended input is processed at least to the
+level of meaning. Divided attention is severely limited, and the popular notion of
+multitasking is mostly rapid task-switching with a substantial switching cost — measurably
+slower and more error-prone than sequential completion.
+
+Attention phenomena worth knowing:
+  inattentional blindness   failure to notice an unexpected object while attending
+                            elsewhere; the invisible gorilla demonstration
+  change blindness          failure to detect large scene changes across an
+                            interruption; we retain far less than it feels like
+  attentional blink         a second target within ~500 ms of the first is missed
+  Stroop effect             naming ink colour is slowed by conflicting word meaning;
+                            reading is automatic and cannot be suppressed
+  task-switching cost       measurable time and accuracy penalty per switch
+  vigilance decrement       sustained attention degrades within 20-30 minutes
+  cocktail party effect     selective attention with breakthrough for salient input
+
+Inattentional and change blindness together undermine the intuition that we perceive a
+complete, detailed scene. What we actually maintain is a sparse representation plus the
+ability to look again, and the feeling of richness comes from the fact that whenever we
+check a detail, it is there. This has direct practical consequences: eyewitness testimony
+of unattended events is unreliable, safety-critical displays cannot assume that an
+unexpected change will be noticed, and interfaces must actively direct attention rather
+than assume it.
+
+## Memory
+
+Memory is not a recording. It is a reconstructive process in which a partial trace is
+combined with schemas, expectations, and post-event information to produce something that
+feels like a recollection. This is the single most consequential fact about memory and
+the one most at odds with intuition, and it has reshaped legal practice around eyewitness
+evidence.
+
+The standard model divides memory into stages. Sensory memory holds a large-capacity,
+very brief trace — under a second for vision. Short-term or working memory holds a small
+amount for tens of seconds, classically estimated at seven plus or minus two items though
+modern estimates cluster nearer four when rehearsal is prevented. Long-term memory has no
+known capacity limit and can persist for a lifetime. Information moves from short-term to
+long-term through encoding, which is greatly improved by depth of processing — attending
+to meaning rather than to surface features — and by relating new material to existing
+knowledge.
+
+Working memory is better understood as an active system than as a storage buffer.
+Baddeley's model comprises a phonological loop for verbal material, a visuospatial
+sketchpad for visual and spatial material, an episodic buffer integrating them, and a
+central executive allocating attention. The practical implication is that verbal and
+spatial tasks interfere with each other far less than two verbal tasks do, which is why
+listening to instrumental music while reading is easier than listening to speech.
+
+Memory systems and effects:
+  episodic            personal events with context; the "remembering" system
+  semantic            general facts, decontextualized
+  procedural          skills, implicit, resistant to forgetting and to conscious
+                      access
+  spacing effect      distributed practice beats massed practice, substantially
+  testing effect      retrieval practice strengthens memory more than restudying
+  serial position     primacy and recency; middle items are recalled worst
+  encoding specificity retrieval succeeds when cues match encoding context
+  interference        proactive (old disrupts new) and retroactive (new disrupts old)
+  reconsolidation     retrieved memories become labile and are re-stored, altered
+  misinformation      post-event information incorporated into the memory itself
+  flashbulb memories  vivid and confidently held; no more accurate than ordinary
+                      memories, which is the striking finding
+
+The spacing and testing effects are the two best-supported findings in applied cognitive
+psychology and remain widely ignored in educational practice. Distributing study across
+sessions produces far better long-term retention than the same total time massed, even
+though massed practice produces better immediate performance — which is exactly why
+learners prefer it and misjudge its effectiveness. Retrieval practice, attempting to
+recall rather than rereading, likewise feels harder and less productive while producing
+substantially better retention. Both are instances of desirable difficulty: conditions
+that impair performance during learning while improving it afterward.
+
+Amnesia dissociates the memory systems in a way that reveals their independence.
+Patients with hippocampal damage typically lose the ability to form new episodic memories
+while retaining procedural learning — they can acquire a motor skill across sessions
+while denying ever having practised it. This double dissociation is the strongest
+evidence that these are genuinely separate systems rather than aspects of one.
+
+## Learning, Cognition, and Bias
+
+Classical conditioning associates a neutral stimulus with a biologically significant one
+until the neutral stimulus alone produces the response. The details matter more than the
+famous demonstration: conditioning depends on the conditioned stimulus reliably
+predicting the unconditioned one, not merely on pairing, which is why a stimulus that
+occurs both with and without the outcome conditions poorly. This predictive framing,
+formalized in the Rescorla-Wagner model, connects conditioning directly to prediction
+error and hence to reinforcement learning in machine learning.
+
+Operant conditioning shapes behaviour through consequences. Reinforcement increases
+behaviour and punishment decreases it, and each can be positive (adding a stimulus) or
+negative (removing one) — a two-by-two whose labels are frequently confused. Negative
+reinforcement is not punishment; it is the strengthening of behaviour by removing
+something aversive, which is why taking a painkiller is reinforced.
+
+Reinforcement schedules govern how behaviour is maintained. Continuous reinforcement
+produces fast acquisition and fast extinction. Partial schedules produce slower
+acquisition and much greater resistance to extinction, and variable-ratio schedules —
+reinforcement after an unpredictable number of responses — produce the highest and most
+persistent response rates. This is the schedule that gambling machines and infinite-scroll
+feeds implement, and it is not a coincidence.
+
+Cognitive biases, grouped by what produces them:
+  availability heuristic   judging frequency by ease of recall; media coverage
+                           distorts risk perception systematically
+  representativeness       judging by similarity to a prototype; produces base rate
+                           neglect and the conjunction fallacy
+  anchoring                initial values contaminate subsequent estimates, even
+                           when transparently irrelevant
+  confirmation bias        seeking and weighting evidence that supports current
+                           belief; the most consequential single bias
+  hindsight bias           past events seem more predictable after the fact
+  fundamental attribution  others' behaviour attributed to disposition, one's own
+                           to situation
+  loss aversion            losses weigh roughly twice as heavily as equal gains
+  sunk cost fallacy        continuing because of unrecoverable prior investment
+  Dunning-Kruger           poor calibration at low skill; substantially a
+                           statistical artifact of regression plus a real effect
+  overconfidence           subjective confidence exceeds accuracy across domains
+
+Dual-process theory frames these as arising from two modes of thinking: a fast,
+automatic, associative system and a slow, effortful, rule-based one. The framing is
+useful as an organizing metaphor and should not be reified — there is no anatomical
+"System 1" — but it captures the real phenomenon that most judgment is intuitive and that
+deliberate reasoning is expensive enough that it is deployed sparingly. Biases are the
+predictable output of heuristics that are efficient and usually adequate, which is why
+simply knowing about a bias rarely eliminates it; structural corrections such as
+checklists, prespecified criteria, and independent judgments aggregated afterward work
+far better than exhortations to think carefully.
+
+[user] I want to reduce hiring bias on my team. What actually works?
+[assistant] tool_call psych.intervention_evidence({"domain": "hiring_bias",
+"interventions": ["unconscious_bias_training", "structured_interviews",
+"blind_resume_screening", "diverse_panels", "work_samples"]})
+[tool] {"structured_interviews": {"effect": "large", "evidence": "strong",
+"validity_r": 0.51}, "work_samples": {"effect": "large", "evidence": "strong",
+"validity_r": 0.54}, "blind_screening": {"effect": "moderate", "evidence":
+"mixed_context_dependent"}, "diverse_panels": {"effect": "small", "evidence":
+"moderate"}, "unconscious_bias_training": {"effect": "near_zero_on_behavior",
+"evidence": "strong_null", "note": "attitude_change_without_behavior_change"}}
+[assistant] Start by dropping the intervention most organizations start with.
+Unconscious bias training reliably changes what people say on attitude measures and
+reliably fails to change hiring outcomes. Some studies find backlash effects where it
+increases resentment or licenses subsequent biased behaviour — having demonstrated
+one's good faith by attending. It is popular because it is cheap and visible, not
+because it works.
+
+What does work is removing the discretion that bias operates through.
+
+Structured interviews are the highest-value change. Every candidate gets the same
+questions in the same order, answers are scored against a rubric defined before anyone is
+interviewed, and interviewers record scores independently before discussing. This roughly
+doubles the predictive validity of the interview compared with unstructured conversation,
+and it constrains bias because there is far less room for an impression to shape which
+questions get asked and how answers are interpreted.
+
+Work samples are equally strong and often better received. A task resembling the actual
+job, scored blind against a rubric, predicts performance as well as anything available.
+Keep it short and paid if it is substantial.
+
+Blind resume screening helps at the top of the funnel, though the evidence is context
+dependent — it removes name and demographic cues but not school, employer, or activity
+signals that correlate with background.
+
+Two process points that matter more than they sound. Define the evaluation criteria and
+their weights before you see any candidates, because criteria chosen afterward get chosen
+to fit whoever you already like. And have interviewers submit independent scores before
+any group discussion, since the first opinion voiced in a debrief anchors the rest of the
+panel and converts several independent judgments into one.
+
+## Development, Social, and Clinical
+
+Developmental psychology studies change across the lifespan. Piaget's stage theory —
+sensorimotor, preoperational, concrete operational, formal operational — remains a useful
+descriptive framework while being substantially revised in detail: infants demonstrate
+object permanence and rudimentary number sense far earlier than Piaget's methods
+detected, because his tasks required motor responses that infants could not yet produce.
+Vygotsky's emphasis on social scaffolding and the zone of proximal development — the gap
+between what a learner can do alone and with guidance — has proved more directly
+applicable to education.
+
+Attachment research established that early caregiver relationships shape later social
+functioning. The classification into secure, anxious-ambivalent, avoidant, and
+disorganized patterns predicts a range of later outcomes, though the effect sizes are
+moderate and the deterministic reading common in popular accounts is not supported.
+Development is probabilistic, and the research consistently finds more plasticity than
+early formulations expected.
+
+Social psychology studies how the presence and expectations of others shape behaviour,
+and its central finding is that situational forces are far stronger than intuition
+allows. Conformity experiments show people endorsing obviously wrong perceptual judgments
+when a unanimous group does. Obedience studies show ordinary participants administering
+what they believe are dangerous shocks under mild authority pressure. Bystander research
+shows that the probability of intervention falls as the number of witnesses rises, through
+diffusion of responsibility and pluralistic ignorance. These classic studies have
+methodological and ethical problems that later scholarship has documented carefully, and
+the core situational finding has held up in modified replications even where specific
+numbers have not.
+
+Social and clinical concepts:
+  fundamental attribution error   overweighting disposition, underweighting situation
+  cognitive dissonance            discomfort from inconsistent beliefs and actions,
+                                  resolved by changing the belief more often than
+                                  the action
+  self-fulfilling prophecy        expectations altering behaviour to confirm them
+  in-group favoritism             arises from arbitrary group assignment alone
+  social facilitation             presence of others improves simple tasks and
+                                  impairs complex ones
+  groupthink                      cohesion suppressing dissent and realistic appraisal
+  diathesis-stress                disorder arises from vulnerability plus stressor,
+                                  not from either alone
+  biopsychosocial model           biological, psychological, and social factors
+                                  jointly; the standard framework in clinical work
+
+Clinical psychology addresses psychological disorder, and the definitional question is
+harder than it appears. Diagnostic categories are descriptive clusters of symptoms rather
+than validated disease entities with known mechanisms, comorbidity between them is the
+norm rather than the exception, and the boundary between disorder and ordinary
+distress is drawn partly by the criterion of functional impairment. Recognizing this does
+not make the categories useless — they organize treatment and communication — but it
+argues against treating a diagnosis as an explanation.
+
+Treatment evidence is clearer than diagnostic theory. Cognitive behavioural therapy has
+the strongest evidence base across the most conditions, working by identifying and
+testing maladaptive thought patterns and by changing behaviour directly through exposure
+and activation. Behavioural activation for depression and exposure therapy for anxiety
+disorders are among the most robustly supported interventions in the field. Medication is
+effective for several conditions and is generally most effective in combination with
+therapy rather than alone. Across all modalities, a substantial fraction of the benefit
+is attributable to common factors — the therapeutic alliance, expectancy, and a coherent
+explanatory framework — rather than to the specific technique, which is why therapist
+quality often predicts outcome better than therapeutic orientation does.

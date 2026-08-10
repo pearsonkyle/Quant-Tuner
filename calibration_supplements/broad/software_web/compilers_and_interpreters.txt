@@ -1,0 +1,326 @@
+================================================================================
+AREA: Software and Web Engineering
+SUBJECT: Compilers and Interpreters
+Subtopics: the pipeline, lexing and parsing, semantic analysis, intermediate
+representations, optimization, code generation, runtime systems, JIT compilation.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## The Compilation Pipeline
+
+A compiler translates a program from one representation to another, usually from a
+human-writable source language to something a machine executes. The translation is decomposed
+into phases, and the decomposition is what makes compilers tractable: each phase has a
+well-defined input and output, and phases can be developed, tested, and replaced independently.
+
+The front end analyses the source and produces an intermediate representation. Lexical analysis
+groups characters into tokens. Parsing groups tokens into a syntax tree according to the
+grammar. Semantic analysis checks the tree for meaning — that names are declared, that types
+agree, that control flow is valid — and annotates it. The front end is language-specific and
+target-independent.
+
+The middle end transforms the intermediate representation to improve it, and it is both
+language- and target-independent, which is what makes a single optimizer serve many languages
+and architectures. The back end translates the optimized representation to target code,
+allocating registers, selecting instructions, and scheduling them, and it is target-specific.
+
+This three-part structure is what makes a compiler collection with n front ends and m back ends
+require n plus m components rather than n times m, and it is why a new language can reach many
+architectures by targeting an existing intermediate representation rather than by writing code
+generators.
+
+Pipeline phases:
+  lexical analysis     characters to tokens; regular languages, finite automata
+  parsing              tokens to a syntax tree; context-free grammars
+  semantic analysis    name resolution, type checking, scope rules
+  intermediate representation  language- and target-independent
+  optimization         transformations preserving semantics and improving some
+                       metric
+  code generation      instruction selection, register allocation, scheduling
+  linking              resolve references across compilation units
+  the n+m argument     shared IR means front ends and back ends multiply rather
+                       than combine
+  ahead-of-time        compile before execution; full program available
+  just-in-time         compile during execution; runtime information available
+  transpiling          source to source; the same pipeline with a high-level
+                       target
+  interpretation       execute the representation directly rather than translating
+
+Q: A compiler collection supports 8 source languages and 12 target architectures using a
+shared intermediate representation. Without the shared IR, the number of components required
+would be:
+A. 20   B. 96   C. 8   D. 12
+Reasoning: With a shared IR, each language needs one front end and each target one back end,
+giving 20 components. Without it, every language-target pair requires its own translator, giving
+8 times 12 equals 96. This multiplicative saving is the primary architectural justification for
+an intermediate representation. Answer: B.
+
+## Lexing and Parsing
+
+Lexical analysis converts a character stream into tokens — identifiers, keywords, literals,
+operators, punctuation — discarding whitespace and comments. Token patterns are regular
+languages, so they are recognized by finite automata, and lexer generators construct the automaton
+from regular expression specifications. The maximal munch rule resolves ambiguity by preferring
+the longest match, which is why an identifier beginning with a keyword is lexed as an identifier
+rather than as a keyword followed by more characters.
+
+Parsing constructs a tree reflecting the grammatical structure. Context-free grammars specify
+the language, and the parsing strategies divide into top-down and bottom-up. Recursive descent
+is a top-down method written directly as mutually recursive functions, one per grammatical
+construct, which makes it readable, easy to debug, and easy to produce good error messages from —
+which is why many production compilers use hand-written recursive descent parsers despite the
+availability of generators.
+
+Bottom-up parsing recognizes constructs as their components are completed, handling a larger
+class of grammars including left recursion, which top-down methods cannot handle directly. Parser
+generators producing bottom-up parsers accept more grammars and produce parsers whose errors are
+harder to explain, which is the tradeoff.
+
+Expression parsing has a standard difficulty and a standard solution. Operator precedence and
+associativity must be encoded, and doing so by grammar stratification — a rule per precedence
+level — is verbose and slow for many levels. Precedence climbing, or Pratt parsing, handles
+precedence with a table and a single recursive function, which is both concise and efficient and
+is what most hand-written parsers use.
+
+Lexing and parsing:
+  token                the lexical unit; identifier, keyword, literal, operator
+  maximal munch        prefer the longest match
+  regular languages    what lexers recognize; finite automata
+  context-free grammar  what parsers recognize; pushdown automata
+  ambiguity            a grammar admitting two parses for one input; must be
+                       resolved by precedence rules or by grammar restructuring
+  dangling else        the classic ambiguity; resolved by binding to the nearest
+                       unmatched if
+  recursive descent    top-down, hand-writable, good error messages, cannot handle
+                       left recursion directly
+  LL(k)                top-down with k tokens of lookahead
+  LR, LALR             bottom-up; accepts more grammars, harder error reporting
+  PEG                  ordered choice removes ambiguity by fiat; packrat parsing
+                       gives linear time with memoization
+  Pratt parsing        precedence by table; concise expression parsing
+  error recovery       continue after an error to report several; panic mode
+                       skips to a synchronizing token
+  concrete vs abstract syntax  the parse tree includes every grammatical detail;
+                       the abstract syntax tree keeps only what matters for
+                       subsequent phases
+
+Error recovery deserves emphasis because it determines a compiler's usability more than its
+speed does. A compiler stopping at the first error requires the programmer to iterate once per
+error, which is intolerable for a file with many. Recovery strategies allow parsing to continue
+and report several errors, at the risk of cascading — one real error producing many spurious
+follow-on messages that obscure it. The quality of error messages is a substantial engineering
+effort in its own right, and the compilers regarded as pleasant to use are those that invested in
+it.
+
+## Semantic Analysis and Intermediate Representations
+
+Semantic analysis checks properties that the grammar cannot express. Name resolution binds each
+identifier to its declaration according to the scoping rules, which requires a symbol table
+tracking what is visible where. Type checking verifies that operations are applied to
+appropriate types, either checking against declared types or inferring them. Additional checks
+verify that control flow is valid, that all paths return a value, that variables are initialized
+before use, and whatever else the language guarantees.
+
+Scoping rules determine what a name refers to, and the two disciplines differ in when the
+binding is determined. Lexical scoping resolves a name in the enclosing textual scopes, so the
+binding is determined by the program's structure and is known at compile time. Dynamic scoping
+resolves in the caller's environment, so the binding depends on the call stack at runtime.
+Lexical scoping is nearly universal in modern languages because it permits local reasoning: the
+meaning of a name can be determined by reading outward from its use.
+
+An intermediate representation is the compiler's internal language, and the design determines
+which analyses and transformations are convenient. A tree representation is close to the source
+and suits high-level transformations. A three-address form, where each instruction has at most
+one operation and a few operands, is close to machine code and suits low-level optimization. A
+control flow graph, with basic blocks as nodes and possible transfers as edges, is the structure
+that dataflow analysis operates on.
+
+Static single assignment form is the representation that made modern optimization practical.
+Each variable is assigned exactly once, with renaming to enforce it, and phi functions at control
+flow merge points select which definition reached. The benefit is that use-definition
+relationships become explicit — every use refers to exactly one definition — which makes many
+analyses substantially simpler and faster, since the dataflow they would have computed is
+encoded in the representation.
+
+Semantic analysis and IR:
+  symbol table         names to declarations, scoped
+  lexical scoping      binding by textual structure; permits local reasoning
+  dynamic scoping      binding by call stack; rare in modern languages
+  type checking        verify operations against types
+  type inference       deduce types; Hindley-Milner is complete for a restricted
+                       system
+  abstract syntax tree  close to the source; high-level transformations
+  three-address code   one operation per instruction; close to machine code
+  basic block          a straight-line sequence with one entry and one exit
+  control flow graph   basic blocks and possible transfers; the structure dataflow
+                       analysis walks
+  SSA form             each variable assigned once; makes use-def explicit
+  phi function         selects the reaching definition at a merge point
+  dominance            block A dominates B if every path to B passes through A;
+                       the relation SSA construction is built on
+  call graph           which functions call which; enables interprocedural analysis
+
+## Optimization
+
+Optimization transforms the program to improve some metric — usually speed, sometimes size,
+sometimes energy — while preserving observable behaviour. The preservation requirement is the
+constraint that makes optimization difficult, since determining whether a transformation
+preserves behaviour requires proving properties of the program that are undecidable in general,
+so optimizers use conservative analyses that transform only when they can prove safety.
+
+Local optimizations operate within a basic block and are the simplest. Constant folding
+evaluates expressions with known operands at compile time. Common subexpression elimination
+computes a repeated expression once. Dead code elimination removes computations whose results are
+unused. Strength reduction replaces expensive operations with cheaper equivalents, such as
+multiplication by a power of two with a shift.
+
+Global optimizations operate across a function using dataflow analysis, which computes facts
+about the program at every point by iterating to a fixed point over the control flow graph.
+Reaching definitions determines which assignments could have produced a value at a use.
+Liveness determines whether a variable's value will be used later, which drives dead code
+elimination and register allocation. Available expressions determines which computations are
+already computed on every path, enabling elimination.
+
+Loop optimizations matter disproportionately because programs spend most of their time in loops.
+Invariant code motion hoists computations that do not change across iterations out of the loop.
+Strength reduction converts a multiplication by the induction variable into an addition per
+iteration. Unrolling replicates the body to reduce loop overhead and expose instruction-level
+parallelism. Vectorization converts scalar operations into SIMD instructions processing several
+elements per instruction.
+
+Optimization techniques:
+  constant folding     evaluate known expressions at compile time
+  constant propagation  substitute known values forward
+  common subexpression  compute a repeated expression once
+  dead code elimination  remove computations whose results are unused
+  strength reduction   cheaper equivalent operations
+  copy propagation     replace a copy's uses with the original
+  inlining             substitute a call with the body; enables everything else
+                       and increases code size
+  loop invariant motion  hoist unchanging computations
+  loop unrolling       reduce overhead, expose parallelism, increase code size
+  vectorization        SIMD; several elements per instruction
+  tail call elimination  a call in tail position reuses the frame; makes recursion
+                       constant-space and is required for some language semantics
+  escape analysis      determine whether an object outlives its scope; permits
+                       stack allocation instead of heap
+  devirtualization     resolve a dynamic dispatch to a direct call
+  profile-guided       use measured execution frequencies; substantially better
+                       layout and inlining decisions than static heuristics
+  the phase ordering problem  optimizations enable and obstruct each other, and no
+                       ordering is optimal for all programs
+
+Inlining deserves particular emphasis because it is the enabling transformation. Substituting a
+function's body at the call site removes call overhead, and far more importantly it exposes the
+callee's code to the caller's context, so constant propagation, dead code elimination, and
+everything else can act across what was a boundary. Most of inlining's benefit is indirect, which
+is why aggressive inlining is so effective and why the decision of what to inline — trading code
+size, instruction cache pressure, and compile time against these benefits — is one of the most
+consequential heuristics in an optimizer.
+
+[user] My hot loop won't vectorize. The compiler reports a dependency but I'm sure the
+iterations are independent.
+[assistant] tool_call compiler.vectorization_report({"loop": "inner",
+"reported": "possible_aliasing", "pointers": ["float* out", "float* in"],
+"restrict_qualified": false, "trip_count": "runtime", "reduction": false,
+"branches_in_body": 1})
+[tool] {"blocker": "pointer_aliasing_unprovable", "secondary": "control_flow_in_body",
+"fixes": ["restrict_qualifier", "runtime_alias_check", "if_conversion_or_hoist"],
+"expected_speedup": 4.2}
+[assistant] The compiler cannot prove your pointers do not alias, so it must assume they might
+and cannot reorder the operations. It is not disagreeing with you about the algorithm; it lacks
+the information you have.
+
+The specific issue is that your output and input pointers are both plain float pointers, and
+nothing in the code prevents them from pointing at overlapping memory. If they overlapped,
+processing four elements at once would produce different results than processing them in
+sequence, so vectorization would change behaviour and is therefore not permitted.
+
+Three ways to provide the missing information.
+
+Mark the pointers with the restrict qualifier, which is your assertion that the memory they
+point to does not overlap. The compiler then vectorizes freely, and if you are wrong the
+behaviour is undefined — so it is a promise you must actually keep. This is the standard fix and
+usually the whole solution.
+
+If restrict is not available in your language, most compilers accept a pragma asserting the
+absence of dependencies for a specific loop, or will emit a runtime alias check that tests for
+overlap and selects a vectorized or scalar version accordingly. The runtime check costs a
+branch outside the loop and is safe.
+
+Your branch inside the loop body is a secondary blocker. A conditional prevents straightforward
+vectorization because different lanes take different paths. If the condition is loop-invariant,
+hoist it and duplicate the loop. If it is not, the compiler may be able to convert it to a
+predicated form or a select, and writing it as an arithmetic select rather than a branch makes
+that explicit.
+
+Check the compiler's optimization report after each change rather than only the timing — most
+compilers report which loops vectorized and why the others did not, and it will tell you
+directly whether the fix worked. Expect roughly four times on a float loop with 128-bit vectors,
+more with wider ones.
+
+## Code Generation and Runtime Systems
+
+Code generation translates the optimized intermediate representation into target instructions,
+and it involves three interacting problems. Instruction selection chooses which target
+instructions implement each operation, which is a pattern-matching problem over the
+representation. Register allocation assigns values to the limited physical registers, spilling to
+memory when there are not enough. Instruction scheduling orders instructions to avoid pipeline
+stalls and exploit parallelism.
+
+Register allocation is classically modelled as graph colouring: values that are live
+simultaneously interfere and must receive different registers, so the problem is colouring the
+interference graph with as many colours as there are registers. Graph colouring is NP-hard, so
+allocators use heuristics, and when a value cannot be assigned it is spilled to memory with loads
+and stores inserted — which is expensive and is why allocator quality materially affects
+performance.
+
+The runtime system provides services the generated code depends on. Memory management, whether
+manual, reference counted, or garbage collected. Exception handling, which requires either
+tables mapping instruction addresses to handler information or explicit checks. Dynamic dispatch
+for virtual method calls. Reflection and type information where the language provides it. And
+concurrency primitives.
+
+Garbage collection algorithms trade differently among throughput, pause time, and memory
+overhead. Mark and sweep traverses from roots marking reachable objects and reclaims the rest,
+which requires stopping the program and produces fragmentation. Copying collectors move live
+objects to a new region, which compacts and requires double the memory. Generational collectors
+exploit the observation that most objects die young, collecting a small young generation
+frequently and the older ones rarely, which is why they dominate in practice.
+
+Code generation and runtime:
+  instruction selection  pattern matching over the IR
+  register allocation  graph colouring; spills when registers are insufficient
+  spilling             store to memory and reload; expensive
+  instruction scheduling  avoid stalls, exploit parallelism
+  calling convention   which registers pass arguments, who saves what; must match
+                       across compilation units and languages
+  stack frame          locals, saved registers, return address
+  exception handling   tables or checks; zero-cost until thrown is the modern
+                       approach
+  reference counting   deterministic, cheap in the common case, leaks cycles
+  mark and sweep       traverse from roots; stop the world, fragments
+  copying collector    compacts; needs double the space
+  generational         most objects die young; frequent young collections
+  concurrent collector  reduces pauses at throughput cost
+  write barrier        records pointer updates for the collector; a cost on every
+                       reference store
+  weak references      do not prevent collection; caches and observers
+
+Just-in-time compilation deserves the closing treatment because it inverts a fundamental
+constraint. An ahead-of-time compiler sees the whole program and no execution; a JIT sees actual
+execution and can compile based on what happens rather than on what might. This permits
+optimizations that are impossible statically: speculating that a dynamically dispatched call site
+always resolves to one target and inlining it with a guard, specializing a function for the
+types it actually receives, and optimizing the paths that are taken while leaving cold paths
+uncompiled.
+
+The mechanism is tiered compilation. Code begins interpreted or quickly compiled with little
+optimization, execution counters identify hot methods, and those are recompiled with full
+optimization using the collected profile. Speculative optimizations install guards, and if a
+guard fails — a call site receives an unexpected type — the code deoptimizes, transferring
+execution back to a safe representation and recompiling. The cost is warm-up time and memory for
+the compiler itself, which is why JIT-compiled languages start slowly and can exceed
+ahead-of-time performance in long-running processes, and why ahead-of-time compilation remains
+preferable for short-lived programs and for environments where predictable startup matters.

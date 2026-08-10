@@ -1,0 +1,336 @@
+================================================================================
+AREA: Mathematics
+SUBJECT: Linear Algebra
+Subtopics: vector spaces, matrix operations, decompositions, eigenstructure,
+least squares, numerical conditioning, tensor and index notation.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Vector Spaces and Linear Maps
+
+A vector space over a field is a set closed under addition and scalar multiplication
+satisfying the eight axioms — associativity and commutativity of addition, an additive
+identity and inverses, and the compatibility and distributivity conditions for scalars.
+The abstraction is worth the trouble because it applies far beyond arrows in space:
+polynomials of degree at most n form a vector space of dimension n+1, continuous
+functions on an interval form an infinite-dimensional one, and the solutions of a
+homogeneous linear differential equation form a subspace. Everything proved about
+vector spaces applies verbatim to all of them.
+
+A basis is a linearly independent spanning set, and every basis of a given space has
+the same cardinality, which is the dimension. Coordinates are always relative to a
+basis: the vector exists independently, but its list of numbers does not. This
+distinction is the source of most confusion about change of basis and about tensors.
+If B is the matrix whose columns are the new basis vectors expressed in the old
+coordinates, then a vector's new coordinates are B^{-1} x, and a linear map's matrix
+transforms as B^{-1} A B — a similarity transformation. Quantities that are invariant
+under similarity, such as the trace, determinant, rank, and eigenvalues, are
+properties of the map itself rather than of any coordinate choice, which is exactly
+why they matter.
+
+Every matrix A of size m by n induces four fundamental subspaces, and their
+relationships are the core structural theorem of the subject. The column space (range)
+lives in R^m and has dimension r, the rank. The null space (kernel) lives in R^n and
+has dimension n - r. The row space lives in R^n with dimension r, and the left null
+space lives in R^m with dimension m - r. The rank-nullity theorem, rank + nullity = n,
+is just the statement that the domain splits into the part that survives the map and
+the part that is annihilated. The orthogonality relations are equally important: the
+row space and null space are orthogonal complements in R^n, and the column space and
+left null space are orthogonal complements in R^m.
+
+The four subspaces summarized:
+  column space C(A)      subset of R^m,  dim r,      spanned by pivot columns
+  null space N(A)        subset of R^n,  dim n - r,  solutions of Ax = 0
+  row space C(A^T)       subset of R^n,  dim r,      orthogonal complement of N(A)
+  left null space N(A^T) subset of R^m,  dim m - r,  orthogonal complement of C(A)
+
+The solvability of Ax = b follows immediately: a solution exists if and only if b lies
+in the column space, and it is unique if and only if the null space is trivial.
+Overdetermined systems (m > n) usually have no exact solution and are handled by least
+squares; underdetermined systems (m < n) have infinitely many and are usually resolved
+by choosing the minimum-norm one. Both are special cases of the pseudoinverse.
+
+Q: A is a 7 by 4 matrix with rank 3. The dimension of its null space and the
+dimension of its left null space are:
+A. 1 and 4   B. 3 and 3   C. 1 and 3   D. 4 and 1
+Reasoning: Null space dimension is n - r = 4 - 3 = 1. Left null space dimension is
+m - r = 7 - 3 = 4. Answer: A.
+
+Q: Ax = b has a 7-by-4 coefficient matrix of rank 4 and b is not in the column space.
+The system has:
+A. Exactly one solution
+B. Infinitely many solutions
+C. No exact solution, but a unique least-squares solution
+D. No solution and no least-squares solution
+Reasoning: Since b is not in C(A) there is no exact solution. Full column rank means
+A^T A is invertible, so the normal equations have a unique solution — the unique point
+minimizing the residual norm. Answer: C.
+
+## Matrix Operations and Structure
+
+Matrix multiplication composes linear maps, and its non-commutativity is a feature
+rather than a defect: rotating then translating differs from translating then
+rotating. The associativity AB(C) = A(BC) is what makes the order of operations a
+performance decision. Multiplying a 1000-by-1 vector chain in the wrong order can cost
+orders of magnitude more arithmetic — computing (A B) x for square A and B costs
+O(n^3), while A (B x) costs O(n^2). This is the entire content of matrix chain
+optimization and it appears constantly in machine learning code, where a low-rank
+factor should always be applied to the activation rather than reconstituted into a
+full matrix first.
+
+Special structures each buy computational savings. A diagonal matrix scales each
+coordinate independently, so multiplication is O(n) and inversion is elementwise
+reciprocal. A triangular matrix is solved by forward or back substitution in O(n^2)
+rather than O(n^3), which is why decompositions aim at triangular factors. An
+orthogonal matrix satisfies Q^T Q = I, so its inverse is its transpose, it preserves
+lengths and angles, and its condition number is exactly one — numerically the best
+possible object to multiply by. A symmetric matrix has real eigenvalues and an
+orthonormal eigenbasis. A positive definite matrix has all eigenvalues positive,
+admits a Cholesky factorization at half the cost of LU, and defines a genuine inner
+product.
+
+The determinant measures signed volume scaling. It is zero exactly when the map
+collapses dimension, which is exactly when the matrix is singular. Useful properties:
+det(AB) = det(A)det(B), det(A^T) = det(A), det(A^{-1}) = 1/det(A), and the determinant
+of a triangular matrix is the product of its diagonal. The last of these is how
+determinants are actually computed — factor into triangular form and multiply the
+diagonal — because cofactor expansion costs O(n!) and is unusable beyond about n = 4.
+For numerical work the log-determinant is preferred, since determinants of large
+matrices overflow or underflow catastrophically; the log of a positive definite
+matrix's determinant is twice the sum of the logs of the Cholesky diagonal.
+
+The trace is the sum of the diagonal, and its cyclic property tr(ABC) = tr(BCA) =
+tr(CAB) is the single most useful identity for matrix calculus. It converts scalar
+expressions into forms where derivatives are readable, and it lets you evaluate
+tr(A B) for a tall-thin A and short-wide B in O(mn) without ever forming the m-by-m
+product. The trace equals the sum of the eigenvalues, just as the determinant equals
+their product, which gives two cheap sanity checks on any eigen-computation.
+
+Matrix calculus identities, with the denominator-layout convention:
+  d(a^T x)/dx        = a
+  d(x^T A x)/dx      = (A + A^T) x,  and 2Ax when A is symmetric
+  d(tr(AX))/dX       = A^T
+  d(tr(X^T A X))/dX  = (A + A^T) X
+  d(log det X)/dX    = X^{-T}
+  d(X^{-1})/dt       = -X^{-1} (dX/dt) X^{-1}
+  d||Ax - b||^2/dx   = 2 A^T (Ax - b)
+
+That last line is the gradient of the least-squares objective, and setting it to zero
+gives the normal equations A^T A x = A^T b directly. It is worth deriving once and
+remembering, because it appears in linear regression, in the Gauss-Newton method, in
+Kalman filtering, and in the inner loop of essentially every optimization over linear
+models.
+
+## Decompositions
+
+Matrix decompositions factor a matrix into structured pieces that make a problem easy.
+Choosing the right one is most of applied linear algebra.
+
+LU decomposition writes A = LU with L unit lower triangular and U upper triangular,
+computed by Gaussian elimination. With partial pivoting for stability it becomes PA =
+LU. It costs about (2/3)n^3 operations and is the standard method for solving general
+square systems: factor once at O(n^3), then each additional right-hand side costs only
+O(n^2) via two triangular solves. This is why you never compute an explicit inverse to
+solve a system — the inverse costs more, is less accurate, and the subsequent
+multiplication is no cheaper than a triangular solve.
+
+Cholesky decomposition writes a symmetric positive definite A as LL^T, at half the
+cost of LU and with guaranteed stability requiring no pivoting. It is the workhorse
+for covariance matrices, Gaussian process kernels, normal equations, and the Hessian
+systems inside second-order optimizers. Its failure is informative: the algorithm
+breaks when it tries to take the square root of a non-positive pivot, so a failed
+Cholesky is a positive-definiteness test. In practice near-singular kernel matrices are
+regularized by adding a small multiple of the identity — jitter, or ridge, or
+Tikhonov damping depending on the field — which lifts every eigenvalue and restores
+factorability.
+
+QR decomposition writes A = QR with Q orthogonal and R upper triangular. Computed by
+Householder reflections (stable, the default) or Gram-Schmidt (intuitive, numerically
+poor in its classical form, acceptable when modified and reorthogonalized). QR is the
+numerically sound way to solve least squares: rather than forming A^T A, which squares
+the condition number, solve R x = Q^T b directly. For an ill-conditioned design matrix
+this is the difference between a usable answer and numerical noise.
+
+Eigendecomposition writes A = V Lambda V^{-1} when a full set of independent
+eigenvectors exists. For symmetric matrices this specializes to A = Q Lambda Q^T with
+orthogonal Q and real eigenvalues — the spectral theorem — which is the well-behaved
+case that covers covariance matrices, graph Laplacians, and Hessians. Non-symmetric
+matrices may be defective, lacking a complete eigenbasis, in which case the Jordan
+form is the theoretical answer and is numerically useless because it is discontinuous
+in the entries; the Schur decomposition A = Q T Q^T with upper triangular T always
+exists and is what numerical libraries actually compute.
+
+The singular value decomposition writes any m-by-n matrix as A = U Sigma V^T with U
+and V orthogonal and Sigma diagonal with non-negative entries in decreasing order. It
+always exists, for any shape and any rank, which makes it the most general and most
+useful decomposition. The singular values are the square roots of the eigenvalues of
+A^T A; the number of nonzero ones is the rank; the ratio of largest to smallest is the
+condition number. The Eckart-Young theorem states that truncating to the top k
+singular triplets gives the best rank-k approximation in both the Frobenius and
+spectral norms, which is the mathematical foundation of principal component analysis,
+latent semantic analysis, low-rank adaptation of neural networks, and image
+compression.
+
+Decomposition selection guide:
+  general square solve                   LU with partial pivoting
+  symmetric positive definite solve      Cholesky
+  least squares, well-conditioned        QR (Householder)
+  least squares, rank-deficient          SVD or column-pivoted QR
+  symmetric eigenproblem                 QR algorithm / divide-and-conquer
+  general eigenproblem                   Schur (Hessenberg + QR iteration)
+  low-rank approximation                 truncated SVD, or randomized SVD at scale
+  a few extreme eigenpairs, sparse A     Lanczos (symmetric) / Arnoldi (general)
+  nonneg data, parts-based factors       NMF (no unique solution; not a rotation)
+
+[user] I need the top 50 principal components of a 200,000 by 4,000 dense matrix and a
+full SVD is thrashing memory.
+[assistant] tool_call linalg.plan_svd({"shape": [200000, 4000], "k": 50,
+"dtype": "float32"})
+[tool] {"full_svd_flops": 6.4e12, "full_svd_peak_gb": 12.8, "randomized_flops": 8.1e10,
+"randomized_peak_gb": 3.3, "recommended": "randomized_svd", "oversampling": 10,
+"power_iterations": 2}
+[assistant] Use a randomized SVD — you want 50 of 4,000 components, so computing all
+of them is about 80 times more arithmetic than you need.
+
+The algorithm is short. Draw a random Gaussian matrix Omega of shape 4000 by 60 (your
+50 components plus 10 oversampling, which is what makes the tail accurate). Form Y =
+A Omega, a 200,000 by 60 sketch. Orthonormalize it with a QR factorization to get Q,
+then form the small matrix B = Q^T A of shape 60 by 4,000 and take its exact SVD,
+which is trivial at that size. The left singular vectors of A are Q times those of B.
+
+Two practical notes. Add two power iterations — replace Y with A (A^T Y) before the QR
+— because the singular value spectrum of real data usually decays slowly, and without
+them the subspace captured by the sketch is contaminated by the tail. Reorthonormalize
+between power iterations or you will lose the gains to round-off.
+
+Also centre the columns before you start, since PCA is the SVD of the *centred*
+matrix; skipping that gives you the components of the uncentred second-moment matrix,
+whose first component is essentially the mean vector. If memory is tight, centring
+implicitly by subtracting the mean inside the matrix-vector products avoids
+materializing a second copy. Expect around 3 GB peak instead of 13 GB.
+
+## Eigenstructure and Its Applications
+
+An eigenvector is a direction the map preserves, scaled by its eigenvalue: Av =
+lambda v. The eigenvalues are the roots of the characteristic polynomial det(A -
+lambda I) = 0, which is a fine definition and a terrible algorithm — polynomial
+rooting is ill-conditioned, and the practical methods (QR iteration on a Hessenberg
+form) never form the polynomial at all.
+
+Diagonalization is what makes eigenstructure useful. If A = V Lambda V^{-1}, then A^k
+= V Lambda^k V^{-1}, so raising a matrix to a power reduces to raising numbers to a
+power. This immediately solves linear recurrences, discrete dynamical systems, and
+Markov chains: the long-run behaviour is governed by the largest-magnitude eigenvalue,
+and the system converges, oscillates, or diverges according to whether the spectral
+radius is below, on, or above the unit circle. The same idea gives the matrix
+exponential exp(At) = V exp(Lambda t) V^{-1}, which solves the linear system of
+differential equations dx/dt = Ax in closed form and underlies stability analysis in
+control theory — the system is stable exactly when every eigenvalue has negative real
+part.
+
+For symmetric matrices the picture is especially clean. The spectral theorem
+guarantees real eigenvalues and an orthonormal eigenbasis, so a symmetric matrix is a
+pure rescaling along perpendicular axes. The Rayleigh quotient x^T A x / x^T x is
+bounded by the smallest and largest eigenvalues and attains them at the corresponding
+eigenvectors, which turns eigenvalue computation into an optimization problem and is
+the basis of both the power method and of many spectral bounds. The Courant-Fischer
+min-max theorem generalizes this to all the intermediate eigenvalues.
+
+Positive definiteness — all eigenvalues strictly positive — is the matrix analogue of
+a positive number, and it appears wherever a quadratic form must be a genuine measure.
+A covariance matrix is positive semidefinite by construction, since x^T Sigma x is the
+variance of a projection and variances are non-negative. A Hessian that is positive
+definite at a critical point certifies a local minimum; indefinite means a saddle,
+which is the generic situation in high-dimensional non-convex optimization and the
+reason saddle points, not local minima, are the real obstacle in deep learning. Tests
+for positive definiteness in order of practicality: attempt a Cholesky factorization,
+check that all eigenvalues are positive, or check that all leading principal minors
+are positive.
+
+Principal component analysis is the eigendecomposition of the covariance matrix, or
+equivalently the SVD of the centred data. The eigenvectors are the directions of
+maximal variance, mutually orthogonal, and the eigenvalues are the variance captured
+along each. The proportion of total variance explained by the top k is the ratio of
+their eigenvalue sum to the trace. Two cautions that catch people repeatedly: PCA is
+not scale-invariant, so features in different units must be standardized first or the
+components will simply track whichever variable has the largest numerical range; and
+the components are directions of variance, not of predictive relevance, so discarding
+low-variance components can discard exactly the signal that predicts the target.
+
+Q: A Markov transition matrix has eigenvalues 1, 0.7, and -0.3. The chain's
+convergence to its stationary distribution is governed by:
+A. The eigenvalue 1
+B. The eigenvalue 0.7, giving a rate of 0.7^n
+C. The eigenvalue -0.3
+D. The product of all three
+Reasoning: A stochastic matrix always has eigenvalue 1, whose eigenvector is the
+stationary distribution — that is the limit, not the rate. The approach to it is
+governed by the second-largest eigenvalue in absolute value, here 0.7, so the error
+decays like 0.7^n. This quantity, the spectral gap 1 - 0.7 = 0.3, is what determines
+mixing time. Answer: B.
+
+Q: A symmetric matrix has eigenvalues 4, 2, and -1. It is:
+A. Positive definite   B. Positive semidefinite   C. Indefinite   D. Negative definite
+Reasoning: Positive definite requires every eigenvalue strictly positive; semidefinite
+allows zeros but not negatives. With both positive and negative eigenvalues the
+quadratic form takes both signs, so the matrix is indefinite — geometrically a saddle.
+Answer: C.
+
+## Least Squares, Conditioning, and Numerical Reality
+
+The least-squares problem minimizes ||Ax - b||^2 over x. Setting the gradient to zero
+gives the normal equations A^T A x = A^T b, whose solution is x = (A^T A)^{-1} A^T b
+when A has full column rank. Geometrically, the residual is orthogonal to the column
+space, so Ax is the orthogonal projection of b onto C(A), and the projection matrix is
+P = A(A^T A)^{-1}A^T, which satisfies P^2 = P and P^T = P — the defining properties of
+an orthogonal projector.
+
+The normal equations are correct mathematics and poor numerics. Forming A^T A squares
+the condition number, so a design matrix with condition number 10^8 — entirely
+ordinary when predictors are correlated or badly scaled — yields a normal-equation
+system with condition number 10^16, which is the reciprocal of double-precision
+machine epsilon. All accuracy is gone. Solving via QR keeps the conditioning at
+kappa(A) rather than kappa(A)^2 and costs only about twice as much. Every serious
+library does this, which is why `numpy.linalg.lstsq` does not implement the textbook
+formula.
+
+Condition number quantifies how much a relative perturbation in the input can be
+amplified in the output: kappa(A) = sigma_max / sigma_min for the 2-norm. A system
+with kappa = 10^k loses roughly k digits of accuracy. Since double precision carries
+about 16 digits, kappa above 10^12 or so means the answer is mostly noise. The
+diagnosis matters more than the number: ill-conditioning usually signals that the
+columns are nearly linearly dependent, meaning the data does not actually determine
+the parameters, and no algorithm can invent information the data lacks. The honest
+responses are to regularize (ridge adds lambda I, lifting sigma_min and capping the
+condition number), to reduce dimension (truncated SVD discards the directions the data
+does not constrain), or to collect data that breaks the degeneracy.
+
+The Moore-Penrose pseudoinverse A^+ = V Sigma^+ U^T, where Sigma^+ inverts the nonzero
+singular values and transposes, unifies all these cases. It gives the exact solution
+when one exists, the least-squares solution when the system is overdetermined, and the
+minimum-norm least-squares solution when it is rank-deficient. Truncating the small
+singular values before inverting — treating anything below a tolerance as zero — is
+regularization by another name, and choosing that tolerance is the same decision as
+choosing a ridge parameter.
+
+Numerical rules of thumb:
+  never invert to solve            factor and do triangular solves
+  never form A^T A                 use QR, or SVD if rank-deficient
+  prefer orthogonal transforms     Householder/Givens have condition number 1
+  scale columns to similar norms   before any decomposition or penalty
+  use log-determinant              via Cholesky diagonal, not det()
+  check residuals, not just x      ||Ax - b|| is what you minimized
+  fp32 gives ~7 digits             fp64 ~16; kappa consumes them directly
+  iterative refinement             one extra residual solve can recover digits
+
+For large sparse systems, direct factorization is often infeasible because the factors
+fill in — L and U acquire nonzeros where A had none, sometimes catastrophically —
+and iterative methods take over. Conjugate gradients solves symmetric positive
+definite systems using only matrix-vector products, converging in a number of
+iterations governed by sqrt(kappa), which is why preconditioning matters so much:
+a preconditioner M approximating A but cheap to invert transforms the problem into one
+with a far smaller effective condition number. GMRES handles general nonsymmetric
+systems. In both cases the matrix never needs to be stored explicitly, only applied,
+which is what makes them the methods of choice for discretized PDEs and for the
+implicit Hessian products in large-scale optimization.

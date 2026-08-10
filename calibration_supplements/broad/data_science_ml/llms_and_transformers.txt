@@ -1,0 +1,394 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: Large Language Models and Transformers
+Subtopics: attention, positional encoding, tokenization, pretraining objectives,
+scaling laws, fine-tuning and alignment, inference and serving, evaluation.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Attention
+
+Scaled dot-product attention is the operation the entire architecture is built from.
+Given queries Q, keys K, and values V, it computes softmax(QK^T / sqrt(d_k))V. Each
+query is compared against every key by dot product, those similarities are normalized
+into weights summing to one, and the output is the weighted average of the values. The
+mechanism is content-based retrieval: the query asks what it is looking for, the keys
+advertise what each position offers, and the values carry what is actually retrieved.
+
+The sqrt(d_k) scaling is not cosmetic. If the components of Q and K are roughly
+independent with unit variance, their dot product over d_k dimensions has variance
+d_k, so the logits grow with dimension. Large logits push softmax into a saturated
+regime where it approaches a one-hot distribution and its gradient nearly vanishes,
+which stalls training. Dividing by sqrt(d_k) restores unit variance and keeps the
+softmax in its responsive range. This is a good example of a detail that looks like
+tuning and is actually load-bearing.
+
+Multi-head attention runs several attention operations in parallel on projected
+subspaces, then concatenates and projects the result. The motivation is that a single
+softmax-weighted average can only attend to one thing at a time in a meaningful sense —
+averaging over several distinct positions blends them — whereas separate heads can
+simultaneously track syntactic dependency, coreference, and positional adjacency.
+Empirically, heads specialize in interpretable ways, and many can be pruned after
+training with little loss, suggesting substantial redundancy.
+
+Causal masking is what makes a decoder autoregressive. Setting the attention logits for
+future positions to negative infinity before the softmax ensures each position attends
+only to itself and earlier positions, so the model can be trained on all positions in
+parallel while remaining valid for left-to-right generation. Without the mask the model
+trivially cheats by reading the token it is asked to predict, and the symptom is a
+training loss that collapses toward zero while generation produces nonsense — one of
+the more memorable bugs to encounter.
+
+Attention variants and what they trade:
+  multi-head (MHA)      separate K, V per head; maximum expressiveness, largest
+                        KV cache
+  multi-query (MQA)     one K, V shared across all heads; cache shrinks by the head
+                        count, some quality loss
+  grouped-query (GQA)   K, V shared within groups; the standard compromise, used by
+                        most current large models
+  sliding window        attend only to the last W positions; linear in sequence
+                        length, loses exact long-range access
+  flash attention       exact, IO-aware tiling that never materializes the n-by-n
+                        matrix; a memory and speed win with identical math
+  linear attention      kernel approximation removing the softmax; O(n) but
+                        consistently weaker in practice
+
+The quadratic cost is the architecture's defining constraint. Attention is O(n^2 d) in
+sequence length for both compute and, naively, memory. Flash attention removes the
+memory term by tiling and recomputation, keeping the exact result, which is why it is a
+pure win and universally adopted. The compute term remains, which is why context length
+extension is expensive and why sparse and windowed patterns keep being proposed. At
+inference the picture changes: with a KV cache, each new token attends over the whole
+cache, so per-token cost is linear in context length and the cache size becomes the
+dominant memory consumer for long contexts.
+
+Q: In scaled dot-product attention, removing the 1/sqrt(d_k) factor most directly
+causes:
+A. Incorrect masking
+B. Softmax saturation and vanishing gradients at large d_k
+C. Quadratic memory growth
+D. Loss of permutation invariance
+Reasoning: Dot products over d_k dimensions have variance proportional to d_k, so
+without scaling the logits grow with model width, pushing softmax toward a one-hot
+output where its gradient is nearly zero. The other options are unaffected by the
+scaling factor. Answer: B.
+
+## Positional Information
+
+Attention is permutation-equivariant: shuffle the input positions and the outputs
+shuffle identically. Without positional information a transformer cannot distinguish
+"the dog bit the man" from "the man bit the dog", so position must be injected
+explicitly. How it is injected turns out to matter enormously for how well a model
+extrapolates beyond its training context.
+
+Sinusoidal encodings, from the original paper, add fixed sine and cosine functions of
+varying frequency to the token embeddings. They require no parameters and in principle
+allow extrapolation, since the functions are defined at any position, but in practice
+models trained with them degrade quickly beyond their training length. Learned absolute
+embeddings assign a trainable vector per position, which works well within the trained
+range and cannot extrapolate at all, since positions beyond the table have no
+embedding.
+
+Rotary position embeddings are now the dominant choice. Rather than adding a positional
+vector, RoPE rotates the query and key vectors by an angle proportional to their
+position, applying a rotation in each two-dimensional subspace at a frequency that
+varies across dimensions. Because attention depends on the dot product of a query and a
+key, and the relative rotation between them depends only on their positional
+difference, RoPE encodes relative position while being applied absolutely. That
+property is what makes it both efficient and well-behaved.
+
+Context extension methods build on RoPE's structure. Position interpolation scales
+positions down so that a longer sequence maps into the trained angular range, trading
+resolution for reach, and requires brief fine-tuning to recover quality. NTK-aware
+scaling adjusts the frequency base rather than the positions uniformly, preserving
+high-frequency detail for nearby tokens while extending the low-frequency components
+that carry long-range information. YaRN combines interpolation with an attention
+temperature adjustment. These methods routinely extend a model trained at 4k tokens to
+32k or beyond with modest fine-tuning, which is why context windows grew so quickly
+across the field.
+
+Positional method comparison:
+  sinusoidal absolute   parameter-free, poor extrapolation in practice
+  learned absolute      strong in-range, zero extrapolation
+  relative bias (T5)    learned bias per relative distance bucket; extrapolates
+                        moderately
+  ALiBi                 linear distance penalty added to attention logits; strong
+                        extrapolation, implicit recency bias
+  RoPE                  rotation encoding relative position; the modern default
+  RoPE + interpolation  context extension with brief fine-tuning
+  NoPE                  no explicit encoding; causal masking alone conveys some
+                        positional information in decoder-only models
+
+## Tokenization
+
+Tokenization converts text into the integer sequence the model consumes, and it is the
+most consequential preprocessing decision in the stack. Character-level tokenization
+gives a tiny vocabulary and very long sequences, wasting the quadratic attention budget
+on trivial structure. Word-level gives short sequences and an unbounded vocabulary that
+cannot handle unseen words. Subword tokenization splits the difference: common words
+become single tokens, rare words decompose into meaningful pieces, and the vocabulary
+stays fixed while any string remains representable.
+
+Byte-pair encoding builds the vocabulary greedily. Start from individual bytes, count
+adjacent pairs across a corpus, merge the most frequent pair into a new token, and
+repeat until the target vocabulary size is reached. The learned merge list is then
+applied deterministically at inference. WordPiece, used by BERT, selects merges by
+likelihood improvement rather than raw frequency. Unigram, used by SentencePiece,
+starts from a large candidate vocabulary and prunes, which permits probabilistic
+segmentation and subword regularization during training.
+
+Byte-level BPE, used by the GPT family and most current models, operates on UTF-8 bytes
+rather than Unicode characters. This guarantees that any input is representable with no
+unknown token, at the cost of multi-byte characters consuming multiple tokens — which
+is why non-Latin scripts and emoji have systematically worse token efficiency and
+therefore cost more per unit of text and consume context faster. A page of English might
+be 250 tokens and the same content in a script requiring three bytes per character
+might be 700.
+
+Tokenization consequences worth knowing:
+  character-level tasks   models struggle to count letters or reverse strings
+                          because characters are not individually visible inside a
+                          multi-character token
+  arithmetic              number tokenization determines digit alignment; splitting
+                          numbers into consistent digit groups measurably improves
+                          arithmetic
+  code                    indentation and common keywords benefit from dedicated
+                          tokens; tokenizers trained without code handle it poorly
+  trailing whitespace     a trailing space changes which token follows and can
+                          substantially degrade completion quality
+  vocabulary size         larger vocabulary means shorter sequences and a larger
+                          embedding and output layer; 32k-256k is the current range
+  special tokens          control markers must be parsed as single ids, never as
+                          literal text; mismatches here silently corrupt training
+                          and evaluation
+
+The special-token pitfall deserves emphasis because it is subtle and consequential. A
+chat-formatted corpus contains control markers delimiting turns. If the training or
+evaluation path tokenizes them as ordinary text rather than as the reserved single ids,
+the model sees a completely different sequence than intended — several tokens where one
+belongs — and the resulting distribution shift is invisible in any surface inspection of
+the text. This is the same class of error as evaluating perplexity on a chat corpus with
+a tool that lacks special-token parsing: the comparison between two models on the same
+file remains valid, but the absolute numbers describe a distribution the model was never
+trained on.
+
+Q: A model consistently fails to count the letters in a word. The most fundamental
+cause is:
+A. Insufficient training data
+B. Words are single tokens, so individual characters are not separately represented
+C. The attention window is too small
+D. The vocabulary is too large
+Reasoning: Subword tokenization maps a common word to one token id, and the model
+receives an embedding for that id rather than a sequence of characters. Character
+identity is only recoverable to the extent it was learned indirectly. This is an
+architectural consequence of tokenization, not a data or capacity limitation.
+Answer: B.
+
+## Pretraining and Scaling
+
+Causal language modelling — predicting the next token given all previous ones — is the
+dominant pretraining objective, and its power comes from being simultaneously
+self-supervised (any text is training data), dense (every position provides a
+gradient), and general (accurate next-token prediction requires syntax, semantics,
+world knowledge, and reasoning). Masked language modelling, predicting held-out tokens
+from bidirectional context, produces better representations for classification but does
+not support generation naturally, which is why the decoder-only causal architecture won
+for general-purpose models.
+
+Scaling laws describe how loss falls with model size, data, and compute, and they are
+strikingly regular: loss follows a power law in each factor over many orders of
+magnitude. The practical question is how to split a fixed compute budget between
+parameters and tokens. The Chinchilla analysis concluded that earlier large models were
+substantially undertrained, and that compute-optimal training scales parameters and
+tokens roughly in proportion — approximately 20 tokens per parameter. That finding
+redirected the field from ever-larger models toward better-trained ones.
+
+Compute-optimal is not deployment-optimal, and the distinction drives current practice.
+Chinchilla scaling minimizes training loss for a given training budget, but a model that
+will serve billions of inference requests should be smaller and trained far longer than
+compute-optimal, because inference cost scales with parameters while training cost is
+paid once. This is why recent small models are trained on token counts an order of
+magnitude beyond the Chinchilla ratio and outperform much larger models from earlier
+generations.
+
+Scaling relationships:
+  loss vs parameters    L ∝ N^-a, roughly a ≈ 0.07 in the observed range
+  loss vs data          L ∝ D^-b, similar exponent
+  compute              C ≈ 6ND FLOPs for a dense transformer (forward + backward)
+  Chinchilla optimal    D ≈ 20N tokens for a fixed training budget
+  inference-optimal     far more tokens per parameter; overtrain deliberately
+  emergent behaviour    some capabilities appear abruptly with scale on discrete
+                        metrics; often smooth under continuous metrics, so the
+                        "emergence" is partly a measurement artifact
+  data quality          deduplication, filtering, and curation shift the curve
+                        itself, not just the position along it
+
+Data quality is the least glamorous and most decisive factor. Deduplication matters
+enormously: repeated documents cause memorization and waste budget, and near-duplicate
+detection across a web-scale corpus is a substantial engineering problem in itself.
+Filtering for quality — by classifier, by heuristic, by source — reliably improves
+downstream capability at fixed compute. Contamination, where evaluation data leaks into
+training, inflates benchmark scores without improving capability and is pervasive
+enough that any headline benchmark number from an undisclosed corpus deserves
+skepticism.
+
+Mixture-of-experts architectures decouple parameter count from per-token compute. Each
+feedforward block is replaced by many expert networks with a router selecting a small
+number per token, so a model with a trillion total parameters might activate only tens
+of billions per token. This gives the capacity benefits of scale at a fraction of the
+inference FLOPs, at the cost of high memory requirements (all experts must be resident),
+routing instability during training requiring auxiliary load-balancing losses, and more
+complex distributed serving.
+
+## Fine-tuning and Alignment
+
+A pretrained base model predicts likely continuations and does not follow instructions,
+because nothing in its objective rewarded doing so. Post-training turns it into an
+assistant. Supervised fine-tuning trains on curated instruction-response pairs, which
+teaches format, style, and task-following. This alone produces a usable assistant and is
+by far the largest single quality jump in the pipeline.
+
+Preference optimization goes further by learning from comparisons rather than
+demonstrations, which is important because it is far easier for annotators to say which
+of two responses is better than to write an ideal one. Reinforcement learning from human
+feedback trains a reward model on preference pairs and then optimizes the policy against
+it with PPO, including a KL penalty against the reference model to prevent the policy
+drifting into degenerate text that games the reward. Direct preference optimization
+derives a closed-form objective that optimizes the same preference likelihood without
+training a separate reward model or running RL, which is dramatically simpler and has
+become the common default.
+
+Reward hacking is the characteristic failure. The reward model is a proxy for human
+preference, and optimizing hard against any proxy eventually exploits its errors. The
+observable symptoms are familiar: responses grow longer because length correlates with
+preference in the training data, hedging and caveats proliferate, and the model becomes
+sycophantic because agreement is rated more favourably. The KL penalty limits drift, and
+careful reward model construction helps, but the underlying tension is structural and is
+why alignment is an ongoing engineering effort rather than a solved step.
+
+Parameter-efficient fine-tuning methods:
+  full fine-tuning    updates every parameter; best quality, requires optimizer
+                      state for the whole model (~12-16 bytes per parameter)
+  LoRA                trains low-rank update matrices alongside frozen weights;
+                      typically 0.1-1% of parameters, mergeable at inference
+  QLoRA               LoRA on a 4-bit quantized base model; fits large models on
+                      a single consumer GPU
+  adapters            small trained modules inserted between layers; adds
+                      inference latency unless merged
+  prefix / prompt     trains virtual tokens prepended to the input; very few
+                      parameters, weaker than LoRA on hard tasks
+  choosing rank       r = 8-16 for style and format adaptation; 64+ when teaching
+                      genuinely new capability
+
+LoRA's effectiveness rests on the empirical observation that fine-tuning updates have
+low intrinsic rank — adaptation moves the weights within a low-dimensional subspace, so
+representing the update as a product of two thin matrices loses little. The practical
+consequences are large: a single base model can serve many tasks by swapping small
+adapters, training memory drops by an order of magnitude because optimizer state is
+needed only for the adapter, and the adapter can be merged into the base weights after
+training so inference cost is unchanged.
+
+[user] I want to adapt a 30B model to our internal documentation style on one A100 with
+80GB. Full fine-tuning, LoRA, or QLoRA?
+[assistant] tool_call ft.memory_estimate({"params_b": 30, "gpu_gb": 80,
+"seq_len": 4096, "batch_size": 4, "methods": ["full", "lora", "qlora"]})
+[tool] {"full": {"weights_gb": 60, "optimizer_gb": 240, "activations_gb": 18,
+"total_gb": 318, "fits": false}, "lora_r16": {"weights_gb": 60, "optimizer_gb": 0.4,
+"activations_gb": 18, "total_gb": 78.4, "fits": "marginal"},
+"qlora_r16": {"weights_gb": 17, "optimizer_gb": 0.4, "activations_gb": 18,
+"total_gb": 35.4, "fits": true}}
+[assistant] QLoRA, comfortably. Here is why the other two do not work.
+
+Full fine-tuning needs about 318 GB — 60 GB for bf16 weights plus roughly 240 GB of
+AdamW optimizer state (fp32 master weights plus two moment buffers, about 12-16 bytes
+per parameter) plus activations. That is four A100s minimum even with aggressive
+sharding, and it is not close.
+
+Plain LoRA at 78.4 GB technically fits in 80 GB but leaves no headroom. You would hit
+fragmentation OOMs at unpredictable points, and you could not raise the batch size or
+sequence length. Not worth the fragility.
+
+QLoRA lands at about 35 GB by keeping the base weights in 4-bit NF4 and training only
+the adapter. That leaves you room to raise batch size or context length, and for a
+style-adaptation task the quantized base costs very little quality — you are not
+teaching new knowledge, you are teaching format and tone.
+
+Concrete settings for documentation style: rank 16 is sufficient and rank 32 is a safe
+upper bound; target all linear projections rather than just the attention ones, which
+consistently outperforms the original attention-only recommendation; alpha equal to the
+rank; learning rate around 1e-4 to 2e-4, an order of magnitude higher than full
+fine-tuning tolerates. Use gradient checkpointing and paged optimizers.
+
+The thing most likely to determine your outcome is not the method but the data. A few
+hundred to a few thousand high-quality examples in exactly the target style will beat
+tens of thousands of mixed-quality ones. Hold out a set from the start and read the
+generations yourself — for style adaptation, loss is a poor proxy for whether it worked.
+
+## Inference and Evaluation
+
+Generation is autoregressive: the model produces a distribution over the vocabulary,
+one token is selected, appended, and the process repeats. This makes generation
+sequential and therefore latency-bound in a way training is not. The KV cache stores
+past keys and values so each step attends over history without recomputation, reducing
+per-token cost from quadratic to linear. The cache grows with context and with batch
+size and frequently exceeds the model weights in memory for long contexts, which is
+what motivated grouped-query attention and what PagedAttention addresses by managing the
+cache in non-contiguous blocks to eliminate fragmentation and enable prefix sharing.
+
+Decoding strategy shapes output character. Greedy decoding takes the argmax and is
+deterministic but repetitive and prone to loops. Beam search maintains several
+hypotheses and is appropriate for tasks with a single correct answer such as
+translation, while producing bland text for open-ended generation. Temperature scales
+the logits before softmax, with lower values sharpening the distribution. Top-k
+restricts sampling to the k most likely tokens; top-p (nucleus) restricts to the
+smallest set whose cumulative probability exceeds p, adapting the candidate count to
+the model's confidence. Min-p sets a threshold relative to the top token's probability
+and behaves well across a wide temperature range.
+
+Serving throughput comes from batching, and the arithmetic explains why. Decoding at
+batch size one is memory-bandwidth-bound: every weight is read to produce one token, so
+the arithmetic intensity is terrible. Batching amortizes those reads across many
+sequences, so throughput rises nearly linearly with batch size until the workload
+becomes compute-bound. Continuous batching improves on static batching by admitting new
+requests as others finish rather than waiting for the whole batch, which raises
+utilization substantially under realistic arrival patterns. Speculative decoding attacks
+latency instead: a small draft model proposes several tokens and the large model
+verifies them in one parallel forward pass, accepting the longest correct prefix, which
+yields real speedups with provably identical output distribution.
+
+Inference optimization levers:
+  KV cache            essential; linear per-token cost instead of quadratic
+  GQA / MQA           shrinks the cache by the group factor
+  quantization        weight-only int8/int4 nearly proportionally reduces
+                      bandwidth-bound decode latency
+  continuous batching raises throughput under mixed request lengths
+  paged KV cache      eliminates fragmentation, enables prefix sharing
+  prefix caching      reuse the KV for a shared system prompt across requests
+  speculative decode  draft-and-verify; identical outputs, lower latency
+  multi-token predict a bundled draft head predicting several future tokens
+  chunked prefill     interleaves long prompt processing with decode so one long
+                      request does not stall others
+
+Evaluation is the weakest link in the whole enterprise. Perplexity measures next-token
+prediction on held-out text and correlates with capability across large differences
+while being nearly useless for fine distinctions or for comparing models with different
+tokenizers — perplexity is per token, and different tokenizers mean different tokens.
+Multiple-choice benchmarks are cheap and reproducible and are heavily contaminated,
+scoring capabilities that may not transfer to generation. Human preference rankings
+capture what users actually want and are expensive, slow, and biased toward length and
+confident presentation. LLM-as-judge is the practical compromise and inherits the
+judge's biases, including a well-documented preference for its own outputs and for the
+first option presented.
+
+For quantization specifically, the right evaluation is comparison against the
+full-precision reference rather than an absolute benchmark score. KL divergence between
+the quantized and reference output distributions over a representative corpus is the
+most sensitive available signal, since it measures the whole distribution rather than
+the argmax and detects degradation long before accuracy metrics move. Perplexity delta
+is a reasonable cheap proxy. Task-level evaluation on the actual deployment
+distribution is the ground truth, and the recurring finding is that static metrics and
+agentic performance can diverge sharply at low bit widths — a model whose perplexity
+barely moved may have lost the ability to produce well-formed tool calls, because that
+capability depends on the tail of the distribution rather than on average next-token
+accuracy.

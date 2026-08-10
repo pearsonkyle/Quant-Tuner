@@ -1,0 +1,235 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: Experimentation Platforms and Causal Measurement
+Subtopics: randomization infrastructure, metrics design, variance reduction, sequential
+testing, interference and switchback designs, quasi-experiments, organizational practice.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Randomization Infrastructure
+
+An experimentation platform exists to make causal measurement routine, and most of its value is in
+the infrastructure rather than in the statistics. Assignment must be deterministic given the unit
+and the experiment, so that a user sees a consistent experience across sessions and devices; it must
+be independent across concurrent experiments, so that overlapping tests do not confound each other;
+and it must be logged at the point of assignment, so that analysis uses exactly the population that
+was assigned.
+
+Hashing the unit identifier together with an experiment-specific salt achieves the first two
+properties. Determinism follows from the hash being a pure function; independence follows from
+different salts producing uncorrelated partitions. Reusing a salt across experiments, or bucketing by
+a value correlated with the outcome, produces correlated assignment that is difficult to detect
+after the fact and that invalidates everything downstream.
+
+The randomization unit is a design choice with consequences. Randomizing by user gives clean
+independence and requires stable identification. Randomizing by session is easier and permits the
+same user to see both variants, which contaminates any effect that persists across sessions.
+Randomizing by cluster — an account, a household, a geography — is required when units within the
+cluster influence each other, and it substantially reduces effective sample size, which must be
+accounted for in the power calculation rather than discovered afterward.
+
+Randomization infrastructure:
+  determinism          consistent assignment across sessions and devices
+  independence         concurrent experiments uncorrelated
+  assignment logging   analysis uses exactly the assigned population
+  hashing with a salt  the standard mechanism achieving the first two
+  salt reuse           correlated assignment; hard to detect afterward
+  the randomization unit  user, session, or cluster
+  user-level           clean independence; requires stable identification
+  session-level        easier; contaminates persistent effects
+  cluster-level        required under within-cluster influence; reduces effective
+                       sample size
+  the power implication  clustering must enter the sample size calculation
+  holdout groups       a persistent unexposed population measuring cumulative
+                       effect across many experiments
+  sample ratio mismatch  observed allocation differing from intended; the single
+                       most important automated check, because it indicates a
+                       bug that invalidates the result regardless of how good the
+                       numbers look
+  the mismatch causes  assignment errors, logging loss correlated with variant,
+                       redirect failures, and bot traffic filtered unevenly
+
+Q: An experiment intended to split traffic evenly shows fifty-two percent in treatment. The result
+looks positive and significant. What should be done?
+A. Ship it; the imbalance is small
+B. Investigate the imbalance before interpreting anything — a ratio mismatch indicates a systematic
+   problem in assignment or logging that usually also biases the outcome, so the estimate cannot be
+   trusted
+C. Adjust the analysis for the imbalance
+D. Rerun with more traffic
+Reasoning: Under correct randomization, a two-percent imbalance at any realistic sample size is
+astronomically unlikely. Its presence means something is differentially affecting which units are
+assigned or recorded, and whatever that mechanism is will generally also affect the metric.
+Statistical adjustment does not fix an unknown selection process. Answer: B.
+
+## Metrics Design
+
+Metrics determine what an experiment can conclude, and their design is where most of the thinking
+belongs. A primary metric captures the intended effect and is decided before the experiment runs.
+Guardrail metrics capture harms the change might cause and are monitored regardless of the primary
+result. Diagnostic metrics explain mechanism and support interpretation without themselves being
+decision criteria.
+
+Sensitivity and validity pull in different directions. A metric close to the change — clicks on the
+modified element — moves reliably and may not reflect any real benefit. A metric close to the
+business outcome — retention, revenue, lifetime value — is what matters and is too noisy and too
+slow to detect realistic effects. The standard resolution is a surrogate that is both sensitive and
+validated against the long-term outcome, and validating the surrogate is real work that is often
+skipped, leaving a metric that is trusted because it moves rather than because it predicts.
+
+Metric definition details matter more than they appear to. Whether a ratio is computed per user or
+across all events changes what it measures and how its variance behaves. Whether users with zero
+activity are included changes the denominator and can reverse a result. Whether outliers are capped
+changes both the estimate and its variance substantially for heavy-tailed metrics, and choosing the
+cap after seeing the data is a form of the selection problem the experiment was meant to avoid.
+
+Metrics design:
+  primary metric       the intended effect; decided in advance
+  guardrail metrics    harms monitored regardless of the primary
+  diagnostic metrics   mechanism and interpretation, not decisions
+  the sensitivity-validity tension  proximate metrics move, distal metrics matter
+  surrogate metrics    sensitive and validated against the long-term outcome
+  the validation gap   surrogates trusted because they move rather than because
+                       they predict
+  ratio metrics        per user or across events; genuinely different quantities
+  the delta method     required for variance of a ratio whose denominator is
+                       random
+  zero-activity users  inclusion changes the denominator and can reverse a result
+  outlier capping      changes estimate and variance for heavy tails
+  post-hoc cap selection  a selection problem reintroduced
+  multiple metrics     the more you examine, the more will appear significant by
+                       chance; decide the primary in advance and treat the rest
+                       as exploratory
+  novelty and primacy effects  short-term responses to change that fade; a reason
+                       to run long enough and to check the effect over time rather
+                       than only in aggregate
+
+## Variance Reduction and Power
+
+An experiment's ability to detect an effect depends on the effect size, the metric's variance, and
+the sample size. Sample size is often fixed by traffic and effect size by reality, so variance
+reduction is the available lever, and it can be worth more than a multiple of traffic.
+
+Regression adjustment using pre-experiment data is the standard technique. A user's metric value
+before the experiment predicts their value during it, so subtracting the predicted portion removes
+variance attributable to persistent user differences while leaving the treatment effect intact. The
+reduction is substantial for metrics with high between-user variance and persistent behaviour, which
+describes most engagement metrics, and it commonly reduces required sample size by half or more.
+
+Stratification and blocking achieve related gains by ensuring balance on known predictive
+covariates rather than relying on randomization to produce it. Trigger analysis restricts the
+population to units that could actually be affected — users who reached the modified surface —
+which removes the diluting effect of unaffected units and can multiply sensitivity, at the cost of a
+narrower population to which the estimate applies. The trigger condition must be defined identically
+in both arms, and defining it by an event that only occurs in treatment is a common and invalidating
+mistake.
+
+Variance reduction and power:
+  the three factors    effect size, variance, sample size
+  the available lever  variance, when traffic and effect are fixed
+  pre-experiment adjustment  removing persistent user differences
+  the typical gain     half or more of the required sample size
+  the requirement      pre-period data and a persistent metric
+  stratification       balance on predictive covariates by design
+  trigger analysis     restrict to units that could be affected
+  the dilution removed  unaffected units contributing only noise
+  the population narrowing  the estimate applies to triggered users only
+  the trigger trap     defining it by an event that only occurs in treatment
+  the symmetry requirement  the trigger must be identical in both arms
+  minimum detectable effect  what the design can find; compute it before running
+  the underpowered experiment  the most common design failure, and its result is
+                       uninformative rather than negative
+  the interpretation error  reading a non-significant underpowered result as
+                       evidence of no effect
+
+## Sequential Testing, Interference, and Special Designs
+
+Fixed-horizon tests assume the sample size is set in advance and the result examined once. Repeatedly
+checking and stopping when significance appears inflates the false positive rate dramatically —
+continuous monitoring of a fixed-horizon test can reach a false positive rate several times the
+nominal level. Since experimenters will look at running experiments regardless, the practical answer
+is a method that permits it.
+
+Sequential methods provide validity under continuous monitoring by adjusting the boundary over time.
+Always-valid confidence sequences maintain coverage at every point, group sequential designs specify
+interim analysis points with adjusted thresholds, and both trade some power at the fixed horizon for
+the ability to stop early. The tradeoff is nearly always worth it in practice, because the ability
+to stop a harmful experiment quickly has real value.
+
+Interference violates the assumption that one unit's treatment does not affect another's outcome,
+and it appears whenever units interact — social networks, marketplaces, shared resources, and any
+system with a supply side. A marketplace experiment where treatment users book more inventory leaves
+less for control users, so the measured difference overstates the effect that would occur if
+everyone were treated. Cluster randomization, switchback designs alternating treatment over time
+across the whole system, and explicit two-sided designs are the responses, and each measures
+something subtly different from the naive comparison.
+
+Sequential and special designs:
+  fixed horizon        sample size set in advance, examined once
+  peeking              repeated checking inflating false positives severalfold
+  the practical reality  experimenters look regardless
+  sequential methods   valid under continuous monitoring
+  confidence sequences  coverage maintained at every point
+  group sequential     specified interim analyses with adjusted thresholds
+  the tradeoff         some power at the horizon for the ability to stop early
+  interference         one unit's treatment affecting another's outcome
+  where it appears     networks, marketplaces, shared resources, supply
+                       constraints
+  the bias direction   naive comparison overstates when treatment consumes a
+                       shared resource
+  cluster randomization  treating interacting units together
+  switchback design    alternating the whole system over time
+  the switchback assumption  no carryover between periods; check it with a
+                       washout
+  two-sided designs    randomizing both supply and demand
+  the honest framing   under interference the naive estimate answers a different
+                       question than the one asked, and stating which question is
+                       being answered is more useful than adding corrections to a
+                       design that does not support the interpretation
+
+## Quasi-Experiments and Organizational Practice
+
+Not everything can be randomized. Changes affecting all users simultaneously, decisions already
+made, and interventions at the level of a whole market require methods that approximate randomization
+from observational data. Difference-in-differences compares changes across treated and untreated
+groups and depends on the assumption that they would have moved in parallel absent the treatment,
+which should be checked in the pre-period rather than asserted. Synthetic control constructs a
+weighted combination of untreated units matching the treated one's pre-period trajectory, which is
+more credible for a single treated unit than any single comparison.
+
+Regression discontinuity exploits an arbitrary threshold — a score cutoff, a date, a size boundary —
+where units just above and just below are comparable in everything except treatment. Interrupted
+time series compares before and after with an explicit model of the counterfactual trend. Each of
+these carries assumptions that can fail, and the credible applications are those that argue for the
+assumptions with evidence rather than asserting them in a methods section.
+
+The organizational practice around experimentation determines whether it produces knowledge or
+justification. A culture that runs experiments to validate decisions already made will find the
+results it wants through metric selection, timing, and segment slicing. The practices that prevent
+this are pre-registration of the primary metric and the decision rule, a shared platform that makes
+the analysis path uniform, review of results by someone without a stake, and — most importantly —
+publishing negative results as prominently as positive ones, because a body of evidence in which
+only successes are recorded teaches nothing about the base rate of success.
+
+Quasi-experiments and practice:
+  when randomization is impossible  system-wide changes, past decisions, market
+                       interventions
+  difference-in-differences  changes compared across groups
+  parallel trends      the assumption; check it in the pre-period
+  synthetic control    a weighted combination matching the pre-period trajectory
+  regression discontinuity  comparability near an arbitrary threshold
+  interrupted time series  an explicit counterfactual trend model
+  the standard          argue for the assumptions rather than asserting them
+  pre-registration     primary metric and decision rule fixed in advance
+  a shared platform    uniform analysis paths reducing analyst degrees of freedom
+  independent review   results examined by someone without a stake
+  publishing negatives  as prominently as positives
+  the base rate        most changes have no detectable effect, and a team that
+                       does not know this expects too much and reads noise as
+                       signal
+  the cumulative view  a holdout measuring the combined effect of everything
+                       shipped, which frequently falls well short of the sum of
+                       the individual reported effects and is the most sobering
+                       and most valuable measurement an experimentation programme
+                       can make

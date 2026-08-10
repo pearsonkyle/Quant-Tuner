@@ -1,0 +1,294 @@
+================================================================================
+AREA: Earth and Life Sciences
+SUBJECT: Physiology and Medicine
+Subtopics: homeostasis, cardiovascular, respiratory, renal, endocrine, gastrointestinal,
+musculoskeletal, clinical reasoning and evidence.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Homeostasis and Regulation
+
+Physiology is the study of how living systems maintain function, and homeostasis is its
+organizing principle: the maintenance of internal conditions within narrow ranges despite
+external variation. Body temperature, blood pH, glucose concentration, osmolarity, and
+electrolyte balance are all regulated within limits far tighter than the environment they exist
+in, and the mechanisms are control systems in the engineering sense.
+
+Negative feedback is the dominant mechanism and its structure is always the same: a sensor
+detects a variable, a control centre compares it against a set point, and effectors act to
+reduce the discrepancy. Thermoregulation is the clearest example — thermoreceptors report
+temperature, the hypothalamus compares it against a set point, and shivering, vasoconstriction,
+sweating, and vasodilation adjust heat production and loss. The set point is not fixed: fever
+raises it, which is why a feverish patient feels cold and shivers while their temperature is
+already elevated, since the body is defending a higher target.
+
+Positive feedback amplifies rather than corrects, and it appears only where a rapid
+irreversible transition is needed. Blood clotting, the action potential's upstroke, and the
+uterine contractions of labour are the standard examples, each accelerating until a terminating
+event occurs. Where positive feedback appears without a termination mechanism the result is
+pathological — septic shock and some arrhythmias have this character, which is why they
+deteriorate rapidly rather than stabilizing.
+
+Regulatory concepts:
+  homeostasis          maintenance within narrow ranges despite external variation
+  negative feedback    sensor, comparator, effector; the dominant mechanism
+  set point            the defended value; adjustable, as fever demonstrates
+  positive feedback    amplifies; used where rapid irreversible transition is
+                       needed, pathological where unterminated
+  feedforward          anticipatory adjustment before the disturbance; the
+                       cephalic phase of digestion, anticipatory heart rate rise
+  gain                 how strongly the system corrects; higher gain holds the
+                       variable tighter and risks oscillation
+  reserve capacity     the margin above resting requirement; its loss is what
+                       makes a stressor dangerous in a compromised patient
+  compensation         a system offsetting another's failure; masks the underlying
+                       problem until the compensating reserve is exhausted
+  decompensation       the abrupt deterioration when compensation fails
+  allostasis           adjusting set points to meet anticipated demand
+
+Compensation deserves emphasis because it explains a clinically important pattern: a patient
+can appear stable while a serious problem progresses, then deteriorate abruptly. A failing heart
+is compensated by increased rate, increased contractility, and fluid retention, each of which
+maintains output at the cost of reserve. Blood pressure is among the last things to fall in
+shock, because vasoconstriction maintains it while perfusion is already inadequate. The
+implication is that normal vital signs do not establish that a patient is well, and that markers
+of the compensation — tachycardia, narrowed pulse pressure, rising lactate — are earlier signals
+than the variable being defended.
+
+Q: A patient in early shock has a normal blood pressure. This most likely indicates:
+A. The patient is not in shock
+B. Compensatory vasoconstriction and tachycardia are maintaining pressure while perfusion is
+   already inadequate
+C. The measurement is incorrect
+D. Blood volume is normal
+Reasoning: Blood pressure is a defended variable, maintained by increasing heart rate and
+systemic vascular resistance until those reserves are exhausted. It is therefore a late sign,
+and shock is defined by inadequate tissue perfusion rather than by hypotension. Tachycardia,
+narrowed pulse pressure, delayed capillary refill, and rising lactate precede the fall.
+Answer: B.
+
+## Cardiovascular System
+
+The heart is two pumps in series. The right side receives systemic venous return and pumps to
+the lungs at low pressure; the left receives oxygenated blood and pumps to the body at high
+pressure. Because they are in series, their outputs must be equal over time — any sustained
+mismatch would accumulate blood in one circuit — and the mechanism enforcing this is the
+Frank-Starling relationship, whereby a greater filling volume stretches the myocardium and
+produces a stronger contraction.
+
+Cardiac output is the product of heart rate and stroke volume, and stroke volume depends on
+three factors that are the framework for nearly all cardiovascular reasoning. Preload is the
+filling volume, determined by venous return, and increases output through Frank-Starling.
+Afterload is the pressure the ventricle must overcome to eject, and increases reduce output.
+Contractility is the intrinsic force at a given preload, and is increased by sympathetic
+stimulation and by inotropic drugs.
+
+Blood pressure is the product of cardiac output and systemic vascular resistance, and this
+identity organizes both the physiology and the pharmacology. Every antihypertensive works by
+reducing one term: diuretics reduce volume and therefore output, beta blockers reduce rate and
+contractility, calcium channel blockers and vasodilators reduce resistance, and drugs acting on
+the renin-angiotensin system reduce both.
+
+Cardiovascular relationships:
+  cardiac output       heart rate times stroke volume; ~5 L/min at rest
+  preload              filling volume; Frank-Starling increases output
+  afterload            ejection resistance; increases reduce output
+  contractility        intrinsic force at a given preload
+  ejection fraction    the fraction of ventricular volume ejected; ~55-70% normal
+  blood pressure       cardiac output times systemic vascular resistance
+  mean arterial pressure  approximately diastolic plus a third of the pulse
+                       pressure; the perfusion-relevant figure
+  autoregulation       organs maintain their own blood flow across a pressure
+                       range; the brain and kidney do this strongly
+  baroreceptor reflex  rapid pressure correction via rate and resistance
+  conduction system    SA node, AV node, bundle branches, Purkinje fibres
+  the AV delay         allows atrial contribution to filling before ventricular
+                       contraction
+  coronary perfusion   occurs mainly in diastole, since systolic compression
+                       obstructes flow; this is why tachycardia, which shortens
+                       diastole disproportionately, precipitates ischaemia
+  Starling forces      hydrostatic and oncotic pressure across the capillary;
+                       determine filtration and reabsorption, and their imbalance
+                       causes oedema
+
+Coronary perfusion occurring in diastole is a detail with large clinical consequences. The
+myocardium is compressed during systole so its own blood supply flows mainly when it relaxes,
+and increasing heart rate shortens diastole proportionally more than systole. A patient with
+narrowed coronary arteries therefore develops ischaemia when the heart rate rises, both because
+demand increases and because supply time decreases — which is why rate control is central to
+managing angina and why tachycardia in a patient with coronary disease is treated rather than
+tolerated.
+
+## Respiratory and Renal Systems
+
+Respiration exchanges oxygen and carbon dioxide, and the two gases behave differently in ways
+that determine clinical reasoning. Carbon dioxide is far more soluble and diffuses readily, so
+its elimination depends almost entirely on ventilation — the volume of air moved per minute. It
+is the variable that respiratory drive is tuned to, with central chemoreceptors responding to
+the pH change that carbon dioxide produces in cerebrospinal fluid.
+
+Oxygen uptake depends on ventilation, on diffusion across the alveolar membrane, and on the
+matching of ventilation to perfusion. That last is the usual limiting factor: a region ventilated
+and not perfused contributes dead space, and a region perfused and not ventilated contributes
+shunt. Shunt is the more problematic because blood passing unventilated alveoli is not
+oxygenated at all, and increasing the inspired oxygen concentration does not help — which is why
+hypoxaemia that fails to correct with supplemental oxygen indicates shunt physiology.
+
+The oxygen-haemoglobin dissociation curve is sigmoid, and its shape is functional. The flat
+upper portion means that substantial falls in alveolar oxygen tension produce little change in
+saturation, which provides a reserve at altitude and in mild lung disease. The steep middle
+portion means that at tissue oxygen tensions, small further falls release large amounts of
+oxygen. And the curve shifts: acidosis, hypercapnia, elevated temperature, and elevated
+2,3-DPG shift it rightward, reducing affinity and releasing more oxygen — exactly the conditions
+present in metabolically active tissue.
+
+Respiratory and renal:
+  minute ventilation   rate times tidal volume; determines CO2 elimination
+  dead space           ventilated, not perfused; wasted ventilation
+  shunt                perfused, not ventilated; hypoxaemia unresponsive to
+                       supplemental oxygen
+  V/Q mismatch         the usual cause of hypoxaemia in lung disease
+  dissociation curve   sigmoid; flat above, steep in the tissue range
+  right shift          acidosis, CO2, heat, 2,3-DPG; releases more oxygen where
+                       metabolism is high
+  compliance           lung distensibility; reduced in fibrosis and oedema
+  resistance           airway calibre; increased in asthma and COPD
+  nephron              glomerulus, proximal tubule, loop of Henle, distal tubule,
+                       collecting duct
+  glomerular filtration  ~180 L/day filtered, ~1.5 L excreted; the reabsorption is
+                       the work
+  countercurrent multiplier  the loop of Henle establishes a medullary osmotic
+                       gradient enabling concentrated urine
+  ADH                  increases collecting duct water permeability; the main
+                       osmolarity control
+  aldosterone          sodium retention and potassium excretion; volume control
+  RAAS                 renin, angiotensin, aldosterone; blood pressure and volume
+  acid-base            respiratory adjusts CO2 in minutes, renal adjusts
+                       bicarbonate over days; the two compensate for each other
+
+The acid-base system's two-speed structure is the key to interpreting a blood gas. A primary
+respiratory disturbance changes carbon dioxide immediately and the kidney compensates by
+adjusting bicarbonate over one to three days. A primary metabolic disturbance changes
+bicarbonate and the lungs compensate within minutes by changing ventilation. The pattern of which
+is deranged, which direction the other has moved, and whether the compensation is complete
+identifies the primary problem, its duration, and whether more than one process is present.
+
+## Endocrine, Gastrointestinal, and Musculoskeletal
+
+The endocrine system regulates through hormones travelling in the bloodstream, which makes it
+slower and more sustained than neural control. Most axes have the same architecture: the
+hypothalamus releases a releasing hormone, the pituitary releases a stimulating hormone, the
+target gland releases the effector hormone, and the effector inhibits the two levels above it.
+That negative feedback structure means the level of the stimulating hormone diagnoses where a
+problem lies — a low effector hormone with a high stimulating hormone indicates target gland
+failure, while both being low indicates a pituitary or hypothalamic problem.
+
+Glucose regulation illustrates opposing hormone pairs. Insulin, released when glucose rises,
+promotes uptake and storage and is the only hormone that lowers glucose. Glucagon, cortisol,
+growth hormone, and adrenaline all raise it, which is why hypoglycaemia has redundant defences
+and hyperglycaemia has only one. The consequence is that loss of insulin action produces
+sustained hyperglycaemia with no compensating mechanism, which is the pathophysiology of
+diabetes.
+
+The gastrointestinal tract digests and absorbs, and its regional specialization is functional.
+The stomach's acid denatures protein and kills organisms and begins protein digestion; the
+duodenum receives pancreatic enzymes and bile and is where most digestion occurs; the jejunum
+and ileum absorb the products, with specific sites for specific nutrients — iron and calcium
+proximally, bile salts and vitamin B12 in the terminal ileum. That regional specificity means
+resection or disease of a segment produces predictable deficiencies.
+
+Endocrine, GI, and musculoskeletal:
+  hypothalamic-pituitary  releasing, stimulating, effector, with feedback
+                       inhibition
+  primary failure      low effector, high stimulating hormone
+  secondary failure    low effector, low stimulating hormone
+  insulin              the only glucose-lowering hormone
+  counter-regulatory   glucagon, cortisol, growth hormone, adrenaline; redundant
+                       defence against hypoglycaemia
+  thyroid              sets metabolic rate; the axis is the classic feedback
+                       teaching example
+  cortisol             stress response, gluconeogenesis, immune suppression;
+                       diurnal rhythm
+  calcium regulation   parathyroid hormone, vitamin D, calcitonin; bone, gut, and
+                       kidney
+  gastric acid         denatures protein, kills organisms, begins pepsin
+                       activation
+  terminal ileum       bile salt and vitamin B12 absorption; resection causes
+                       specific deficiencies
+  enteric nervous system  the gut's own extensive neural network; largely
+                       autonomous
+  microbiome           metabolic, immune, and barrier functions; an active area
+                       with more claims than established mechanisms
+  sarcomere            the contractile unit; sliding filament mechanism
+  motor unit           one motor neuron and the fibres it innervates; recruitment
+                       order is smallest first, which grades force smoothly
+  bone remodelling     osteoblasts build, osteoclasts resorb; continuous, and
+                       responsive to mechanical load
+
+## Clinical Reasoning and Evidence
+
+Clinical reasoning combines pattern recognition with analytical inference, and the balance
+depends on the presentation's familiarity. Experienced clinicians recognize common
+presentations rapidly and correctly, and that same pattern recognition produces characteristic
+errors when a presentation resembles a common condition and is not it. The analytical mode —
+generating a differential, weighing each possibility, seeking discriminating evidence — is
+slower and is what catches those cases.
+
+Diagnostic testing is best understood probabilistically. A test does not establish a diagnosis;
+it moves the probability from before the test to after it, and how far it moves depends on the
+test's likelihood ratios and on where the probability started. This is why the same result means
+different things in different patients: a positive result in a low-prevalence population is
+frequently a false positive, and a negative result in a high-probability patient does not
+exclude the diagnosis.
+
+The consequence for practice is that pre-test probability must be estimated before ordering,
+and that tests should be ordered when the result would change management. A test whose positive
+and negative results lead to the same next step provides information without value, and in
+aggregate such testing produces incidental findings that generate further investigation, cost,
+and occasionally harm — the cascade effect that overtesting reliably produces.
+
+Clinical reasoning and evidence:
+  pre-test probability  from prevalence, history, and examination; determines what
+                       the result means
+  sensitivity          proportion of diseased correctly identified; a highly
+                       sensitive test's negative result is good at ruling out
+  specificity          proportion of well correctly identified; a highly specific
+                       test's positive result is good at ruling in
+  predictive values    depend on prevalence; the same test performs differently in
+                       different populations
+  likelihood ratio     how much a result shifts the odds; independent of
+                       prevalence, which is why it is the more portable measure
+  test threshold       order a test when the result would change management
+  incidentalomas       findings unrelated to the question; the cost of imaging
+                       broadly
+  number needed to treat  patients treated for one to benefit; converts relative
+                       effects into interpretable terms
+  absolute vs relative risk  a 50% relative reduction of a 0.2% risk is a 0.1%
+                       absolute reduction; reporting only the relative figure
+                       systematically overstates benefit
+  surrogate endpoints  a biomarker standing in for an outcome; several drugs have
+                       improved a surrogate and worsened mortality
+  evidence hierarchy   systematic review, randomized trial, cohort, case-control,
+                       case series; with the caveat that a well-conducted
+                       observational study can outrank a poor trial
+  clinical significance  distinct from statistical significance; a detectable
+                       effect may be too small to matter
+
+The absolute versus relative risk distinction deserves the strongest emphasis because it is the
+most consequential communication issue in medicine. A treatment halving the risk of an event
+sounds compelling and means something entirely different depending on the baseline: halving a
+40% risk prevents twenty events per hundred treated, and halving a 0.2% risk prevents one per
+thousand. Both are correctly described as a fifty percent reduction. Presenting only the
+relative figure, which is standard in press coverage and common in abstracts, systematically
+overstates benefit and is a substantial contributor to unrealistic expectations of treatment.
+
+Surrogate endpoints deserve a closing caution because the failures have been severe. A
+surrogate is a measurable intermediate assumed to predict the outcome of interest — bone density
+for fracture, blood pressure for stroke, tumour response for survival, arrhythmia suppression
+for cardiac death. Some surrogates are well validated and some are not, and the history includes
+drugs that improved the surrogate impressively and increased mortality: antiarrhythmics that
+suppressed the arrhythmia and raised death rates, and hormone therapies that improved the
+biomarker and worsened the outcome. The lesson is that a mechanism connecting the surrogate to
+the outcome is not sufficient evidence that treating the surrogate improves the outcome, and
+only trials measuring the outcome itself can establish it.

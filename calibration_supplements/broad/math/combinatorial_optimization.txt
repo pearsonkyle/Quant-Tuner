@@ -1,0 +1,235 @@
+================================================================================
+AREA: Mathematics
+SUBJECT: Combinatorial Optimization
+Subtopics: problem classes and complexity, linear and integer programming, network flows,
+approximation algorithms, heuristics and metaheuristics, constraint programming, practice.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Problem Classes and Complexity
+
+Combinatorial optimization seeks the best element of a finite but enormous set — the shortest route,
+the cheapest assignment, the tightest packing, the most valuable selection. The finiteness is what
+distinguishes it from continuous optimization and what makes it hard: there is no gradient to follow
+and no local information reliably indicating the direction of improvement.
+
+Complexity theory organizes these problems by how their difficulty scales. Some admit algorithms
+polynomial in the input size — shortest path, maximum flow, minimum spanning tree, bipartite
+matching, and linear programming are all in this class, and the algorithms are efficient enough for
+very large instances. Others are complete for a class believed to require exponential time in the
+worst case, and for those no polynomial algorithm is known and none is expected.
+
+The practical implication of hardness is frequently misunderstood. It is a worst-case statement about
+the whole problem class, not a claim that every instance is intractable. Real instances have
+structure — sparsity, locality, near-decomposability, bounded parameters — and modern solvers
+routinely solve instances of nominally hard problems with hundreds of thousands of variables. The
+correct reading is that no algorithm works well on all instances, and the engineering task is
+matching a method to the structure the actual instances have.
+
+Problems and complexity:
+  the setting          the best element of a finite enormous set
+  the difficulty       no gradient; local information is unreliable
+  polynomial class     shortest path, flow, spanning tree, matching, linear
+                       programming
+  hard class           no polynomial algorithm known or expected
+  the worst-case reading  a statement about the class, not about every instance
+  structure in practice  sparsity, locality, decomposability, bounded parameters
+  solver capability    hundreds of thousands of variables on nominally hard
+                       problems
+  the engineering task  matching method to instance structure
+  reduction            transforming one problem into another; the tool for both
+                       hardness proofs and practical modelling
+  the modelling insight  recognizing a problem as a known one is usually worth
+                       more than any algorithmic cleverness
+  parameterized complexity  tractable when a specific parameter is small, even if
+                       hard in general
+  phase transitions    hard instances concentrating near a critical constraint
+                       density, with instances on either side much easier
+
+Q: A scheduling problem is proved to belong to a computationally hard class. What follows for a
+practitioner with a specific instance?
+A. The instance cannot be solved
+B. Little directly — hardness is a worst-case statement about the class, and real instances often
+   have structure that solvers exploit; the practical question is whether this instance's structure
+   yields to available methods, which is answered by trying
+C. Only approximate solutions are possible
+D. The problem should be reformulated
+Reasoning: Worst-case complexity bounds the general case. Structured instances of hard problems are
+solved to optimality routinely. Hardness is useful for setting expectations and for justifying
+heuristics when exact methods fail, not for declaring a specific instance unsolvable in advance.
+Answer: B.
+
+## Linear and Integer Programming
+
+Linear programming optimizes a linear objective subject to linear constraints over continuous
+variables, and it is the foundational tractable case. Its feasible region is a convex polyhedron, its
+optimum lies at a vertex, and both the simplex method walking between vertices and interior point
+methods traversing the interior solve realistic instances efficiently.
+
+Duality is the theoretical core and it has direct practical value. Every linear program has a dual
+whose optimal value equals the primal's, and the dual variables are shadow prices — the rate at
+which the objective would improve if a constraint were relaxed. This turns a solved model into a
+sensitivity analysis for free, telling you which constraints bind, what an additional unit of each
+resource is worth, and over what range the current solution structure remains optimal. Reading the
+dual is frequently more informative than reading the primal solution.
+
+Integer programming adds the requirement that variables take integer values, which makes the problem
+hard and enormously expands what can be modelled — selection, sequencing, logical conditions, and
+fixed charges all require integers. Branch and bound is the fundamental method: solve the relaxation
+without integrality, and if the answer is fractional, split on a fractional variable and recurse,
+using the relaxation's value as a bound to prune subtrees that cannot contain a better solution. The
+strength of the relaxation determines how much pruning occurs, which is why formulation quality
+matters more than solver choice.
+
+Linear and integer programming:
+  linear programming   linear objective and constraints, continuous variables
+  the feasible region  a convex polyhedron
+  the optimum          at a vertex
+  simplex              walking between vertices
+  interior point       traversing the interior; better on very large instances
+  duality              equal optimal values; dual variables as shadow prices
+  sensitivity analysis  which constraints bind and what relaxation is worth
+  reading the dual     frequently more informative than the primal solution
+  integer programming  integrality requirement; hard and far more expressive
+  what integers buy    selection, sequencing, logic, fixed charges
+  branch and bound     relax, branch on fractionality, prune by bound
+  the relaxation gap   the difference between relaxed and integer optima
+  formulation strength  a tighter relaxation prunes more; the dominant factor
+  cutting planes       valid inequalities tightening the relaxation
+  branch and cut       the combination; what modern solvers do
+  big-M constants      used to model logical conditions; unnecessarily large
+                       values weaken the relaxation badly and are a common cause
+                       of a model that solves slowly for no apparent reason
+  symmetry             equivalent solutions multiplying the search tree; breaking
+                       it explicitly can change hours into seconds
+
+## Network Flows and Matchings
+
+Network problems are the well-solved core of combinatorial optimization, and recognizing that a
+problem is a network problem is one of the highest-value modelling skills. Shortest path, maximum
+flow, minimum cost flow, assignment, and transportation problems all have specialized polynomial
+algorithms far faster than general-purpose methods, and many problems that do not look like network
+problems can be transformed into them.
+
+The max-flow min-cut theorem is the central result: the maximum flow from source to sink equals the
+minimum capacity of a cut separating them. It is a duality statement, it gives a certificate of
+optimality — the cut proves no more flow is possible — and it underlies applications well beyond
+literal flow, including image segmentation, reliability analysis, and project selection.
+
+The integrality property of network flow problems is what makes them so useful in practice. When
+capacities are integers, the linear programming relaxation of a flow problem has an integer optimal
+solution automatically, so integer requirements come free rather than making the problem hard. This
+is why assignment and matching problems are easy while superficially similar problems with slightly
+different structure are not, and knowing where that boundary lies is worth more than any general
+algorithm.
+
+Networks and matchings:
+  shortest path        the basic case; several algorithms with different
+                       assumptions about negative weights
+  maximum flow         the most flow from source to sink
+  max-flow min-cut     equality; a certificate of optimality
+  applications beyond flow  segmentation, reliability, project selection
+  minimum cost flow    cheapest flow meeting a requirement; generalizes many
+                       problems
+  transportation and assignment  special cases with specialized algorithms
+  bipartite matching   pairing across two sets; polynomial
+  general matching     pairing within one set; harder and still polynomial
+  stable matching      no pair preferring each other; a different objective
+                       entirely and solved by a different mechanism
+  the integrality property  integer capacities give integer optima for free
+  why it matters       integer requirements cost nothing on these problems
+  the boundary         superficially similar problems without the property are
+                       hard, and recognizing which side a problem falls on is the
+                       critical modelling judgement
+  minimum spanning tree  greedy algorithms are optimal; a rare case where the
+                       obvious approach provably works
+
+## Approximation and Heuristics
+
+When exact solution is impractical, two families of methods remain. Approximation algorithms run in
+polynomial time and come with a proven bound on how far from optimal the result can be. Heuristics
+have no such guarantee and frequently perform better in practice, and the choice between them is a
+choice between a bound you can state and performance you can measure.
+
+The approximability landscape is uneven and interesting. Some hard problems admit solutions
+arbitrarily close to optimal in polynomial time at increasing cost. Others admit a fixed constant
+factor and provably no better unless complexity classes collapse. Others cannot be approximated
+within any useful factor at all. This means the practical difficulty of a hard problem is only
+loosely related to its formal hardness, and two problems in the same complexity class can be very
+different in practice.
+
+Local search and metaheuristics dominate practical work on large instances. Local search moves to
+an improving neighbour repeatedly and stops at a local optimum; the neighbourhood definition is the
+critical design choice and a richer neighbourhood gives better optima at higher cost per move.
+Metaheuristics add mechanisms for escaping local optima: accepting worsening moves with a decreasing
+probability, forbidding recent moves to force exploration, maintaining a population and recombining
+solutions, or destroying and repairing part of a solution to make a large coordinated move.
+
+Approximation and heuristics:
+  approximation algorithm  polynomial time with a proven bound
+  heuristic            no guarantee, often better in practice
+  the choice           a stated bound against measured performance
+  arbitrarily close schemes  approximation to any factor at increasing cost
+  constant factor      a fixed bound, sometimes provably the best possible
+  inapproximable       no useful factor achievable
+  the practical decoupling  formal hardness and practical difficulty differ
+  greedy               simple, fast, and optimal for a specific structural class
+  local search         move to an improving neighbour until stuck
+  neighbourhood design  the critical choice; richer means better and slower
+  simulated annealing  accepting worsening moves with decreasing probability
+  tabu search          forbidding recent moves to force exploration
+  population methods   maintaining and recombining a set of solutions
+  large neighbourhood search  destroy and repair part of a solution; the most
+                       effective general approach on many routing and scheduling
+                       problems
+  restarts             diversification when a search stagnates
+  the evaluation discipline  compare against a bound where one is available,
+                       because a heuristic evaluated only against other heuristics
+                       can be uniformly poor without anyone noticing
+
+## Constraint Programming and Practice
+
+Constraint programming approaches the same problems from a different direction: state the
+constraints, and let a solver search while propagating the consequences of each decision to prune
+the domains of remaining variables. Its strength is expressiveness — global constraints capture
+common substructures like all-different, cumulative resource usage, and sequencing directly, with
+specialized propagation algorithms behind each — and it excels on tightly constrained feasibility
+problems where the difficulty is finding any solution rather than optimizing.
+
+The complementarity with integer programming is worth understanding. Integer programming is stronger
+when the objective drives the search and the relaxation gives good bounds; constraint programming is
+stronger when the constraints are complex and combinatorial and the bounds are weak. Hybrid
+approaches use each for what it does well, and the modelling decision is genuinely about which
+structure dominates the instance.
+
+In practice the recurring lesson is that the model matters more than the solver. The same problem
+expressed two ways can differ by orders of magnitude in solution time, and the improvements that
+matter are usually structural: tighter formulations, symmetry breaking, redundant constraints that
+strengthen propagation, decomposition into a master problem and subproblems, and preprocessing that
+eliminates variables and fixes obvious decisions. Choosing a better solver rarely produces the gains
+that reformulating produces.
+
+Constraint programming and practice:
+  the approach         state constraints, propagate consequences, search
+  domain propagation   pruning values that cannot participate in a solution
+  global constraints   common substructures with specialized propagators
+  all-different        the canonical example; far stronger than pairwise
+                       inequalities
+  cumulative           resource usage over time; the scheduling workhorse
+  the strength         tightly constrained feasibility problems
+  the complementarity  integer programming for objective-driven search with good
+                       bounds
+  hybrid methods       each used where it is strong
+  the recurring lesson  the model matters more than the solver
+  the magnitude        orders of magnitude between formulations of one problem
+  symmetry breaking    eliminating equivalent solutions
+  redundant constraints  logically implied and computationally valuable
+  decomposition        a master problem coordinating subproblems
+  preprocessing        variable elimination and fixing before search
+  warm starting        a good initial solution accelerating the search and
+                       providing an immediate bound
+  the practical workflow  build a correct model first, measure where the time
+                       goes, and improve the formulation rather than the search
+                       parameters, because parameter tuning gives small gains on a
+                       model whose structure is the actual constraint

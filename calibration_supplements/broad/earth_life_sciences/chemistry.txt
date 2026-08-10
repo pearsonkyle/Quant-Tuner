@@ -1,0 +1,353 @@
+================================================================================
+AREA: Earth and Life Sciences
+SUBJECT: Chemistry
+Subtopics: atomic structure, bonding, stoichiometry, thermodynamics, kinetics,
+equilibrium, acids and bases, electrochemistry, organic chemistry.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Atomic Structure and Periodicity
+
+Chemistry is the behaviour of electrons. The nucleus supplies charge and mass and is
+otherwise a spectator in ordinary chemical processes; everything about how an element
+reacts is determined by its outermost electrons. This is why the periodic table works at
+all — arranging elements by atomic number produces recurring valence configurations, and
+elements in the same column share chemical behaviour because they share the arrangement
+of their outer electrons.
+
+Quantum mechanics determines those arrangements. Electrons occupy orbitals characterized
+by four quantum numbers: n for the principal shell and energy, l for the subshell shape
+(s, p, d, f), m_l for orientation, and m_s for spin. The Pauli exclusion principle
+permits no two electrons in an atom to share all four, which caps each orbital at two
+electrons of opposite spin and is ultimately why matter occupies volume at all. The
+Aufbau principle fills orbitals from lowest energy upward, and Hund's rule fills
+degenerate orbitals singly before pairing, because electrons repel and prefer separate
+orbitals when energetically equivalent.
+
+Periodic trends follow from two competing quantities: effective nuclear charge, the net
+positive pull an outer electron experiences after accounting for shielding by inner
+electrons, and the principal quantum number, which sets how far out the electron sits.
+Across a period, protons are added while shielding barely changes, so effective nuclear
+charge rises and electrons are pulled in tighter. Down a group, a new shell is added and
+the outer electrons are both farther out and better shielded.
+
+Periodic trends, and the direction each runs:
+  atomic radius          decreases left to right, increases down a group
+  ionization energy      increases left to right, decreases down a group
+  electron affinity      generally increases left to right (more negative)
+  electronegativity      increases toward fluorine, the most electronegative element
+  metallic character     decreases left to right, increases down
+  cation vs neutral      cations are smaller (lost a shell or reduced repulsion)
+  anion vs neutral       anions are larger (added repulsion, same nuclear charge)
+  isoelectronic series   same electron count; radius decreases as nuclear charge
+                         rises, so N3- > O2- > F- > Na+ > Mg2+ > Al3+
+
+Irregularities in these trends are informative rather than exceptions to be memorized.
+Ionization energy dips from nitrogen to oxygen because oxygen's fourth p electron must
+pair in an already-occupied orbital, paying a repulsion cost. It dips from beryllium to
+boron because boron's outermost electron is in a higher-energy p orbital rather than the
+filled s. Both cases show the same principle: filled and half-filled subshells are
+especially stable, which also explains chromium and copper adopting unexpected
+configurations to achieve them.
+
+Q: Which has the smallest atomic radius: Na, Mg, Al, or Si?
+A. Na   B. Mg   C. Al   D. Si
+Reasoning: All four are in period 3, so they have the same number of shells. Moving left
+to right adds protons while shielding stays essentially constant, so effective nuclear
+charge increases and the electron cloud contracts. Silicon, furthest right of the four,
+is smallest. Answer: D.
+
+## Bonding and Molecular Structure
+
+Chemical bonds are the redistribution of electrons toward lower-energy configurations.
+Ionic bonding transfers electrons from a low-ionization-energy metal to a
+high-electron-affinity nonmetal, producing ions held by electrostatic attraction in an
+extended lattice — which is why ionic compounds are hard, brittle, high-melting, and
+conductive only when molten or dissolved, since the ions must be free to move. Covalent
+bonding shares electron pairs between atoms of similar electronegativity, producing
+discrete molecules with weaker intermolecular forces and correspondingly lower melting
+points. Metallic bonding delocalizes valence electrons across a lattice of cations,
+giving conductivity, malleability, and lustre.
+
+The ionic-covalent distinction is a continuum rather than a dichotomy, indexed by
+electronegativity difference. A difference above roughly 1.7 is conventionally called
+ionic, below 0.4 nonpolar covalent, and between them polar covalent, where electrons are
+shared unequally and the bond carries a dipole. Molecular polarity then depends on both
+bond polarity and geometry: carbon dioxide has two polar bonds whose dipoles cancel by
+symmetry, so the molecule is nonpolar, while water's bent geometry leaves a net dipole,
+which is the origin of nearly all of water's anomalous properties.
+
+VSEPR theory predicts geometry from the principle that electron domains — bonding pairs
+and lone pairs alike — arrange to minimize repulsion. Count the domains around the
+central atom, place them in the arrangement that maximizes separation, then describe the
+shape by the positions of the atoms only. Lone pairs occupy more angular space than
+bonding pairs because they are held by only one nucleus, which is why water's H-O-H
+angle is 104.5 degrees rather than the ideal tetrahedral 109.5.
+
+VSEPR geometries:
+  2 domains, 0 lone      linear, 180 deg              CO2, BeCl2
+  3 domains, 0 lone      trigonal planar, 120 deg     BF3, CO3^2-
+  3 domains, 1 lone      bent, ~118 deg               SO2, O3
+  4 domains, 0 lone      tetrahedral, 109.5 deg       CH4, NH4+
+  4 domains, 1 lone      trigonal pyramidal, ~107     NH3
+  4 domains, 2 lone      bent, ~104.5                 H2O
+  5 domains, 0 lone      trigonal bipyramidal         PCl5
+  6 domains, 0 lone      octahedral, 90 deg           SF6
+  6 domains, 2 lone      square planar                XeF4
+
+Intermolecular forces determine physical properties and are far weaker than the bonds
+within molecules. London dispersion forces arise from instantaneous fluctuating dipoles
+and exist in everything, strengthening with molecular size and polarizability — which is
+why the halogens go from gas to liquid to solid down the group with no change in bonding
+type. Dipole-dipole forces act between permanent dipoles. Hydrogen bonding, a
+particularly strong dipole interaction where hydrogen bonded to nitrogen, oxygen, or
+fluorine interacts with a lone pair on another such atom, is responsible for water's high
+boiling point, ice's lower density than liquid water, DNA's base pairing, and protein
+secondary structure.
+
+## Stoichiometry and Reaction Types
+
+The mole connects the atomic scale to the laboratory scale: one mole is Avogadro's
+number, 6.022e23, of particles, and the molar mass in grams per mole is numerically equal
+to the atomic or molecular mass in atomic mass units. Every quantitative calculation in
+chemistry passes through moles, because balanced equations express fixed ratios in
+particles and laboratory measurements are in grams or litres.
+
+A balanced equation encodes conservation of mass and of atoms. The coefficients give the
+molar ratios in which species react, so a reaction requiring two moles of hydrogen per
+mole of oxygen will consume exactly that ratio regardless of how much of each is
+supplied. The limiting reactant — the one that runs out first — determines the maximum
+product, and identifying it requires converting each reactant to moles and dividing by
+its coefficient, then comparing. The reactant giving the smallest quotient is limiting;
+comparing raw masses or raw moles without dividing by coefficients is the standard error.
+
+Percent yield compares actual to theoretical product and is always below 100% in
+practice for reasons that are chemical rather than sloppy: side reactions consume
+reactants, equilibria do not go to completion, and product is lost in transfer and
+purification. A yield above 100% indicates impure or wet product, not exceptional
+chemistry.
+
+Stoichiometric relations:
+  moles from mass        n = m / M
+  moles from volume, gas n = PV / RT;  22.4 L/mol at STP
+  moles from solution    n = c V
+  molarity               c = n / V (litres of solution)
+  molality               b = n / kg of solvent; used for colligative properties
+  limiting reactant      smallest (moles / coefficient)
+  percent yield          100 * actual / theoretical
+  empirical formula      simplest whole-number ratio from percent composition
+  molecular formula      empirical formula times (molar mass / empirical mass)
+  ideal gas law          PV = nRT;  R = 8.314 J/(mol K) = 0.0821 L atm/(mol K)
+
+Reaction types organize what would otherwise be an unbounded catalogue. Synthesis
+combines simpler substances into a complex one; decomposition reverses it. Single
+displacement has an element displacing another from a compound, governed by the activity
+series. Double displacement exchanges partners between two compounds, driven by the
+formation of a precipitate, a gas, or water. Combustion reacts a fuel with oxygen,
+producing carbon dioxide and water for a hydrocarbon. Acid-base reactions transfer
+protons. Redox reactions transfer electrons — and this last category cuts across the
+others, since combustion and single displacement are both redox processes.
+
+Q: 4.0 g of H2 reacts with 4.0 g of O2 to form water. The limiting reactant and the mass
+of water formed are:
+A. H2 limiting, 36 g   B. O2 limiting, 4.5 g   C. O2 limiting, 9.0 g   D. Neither, 8.0 g
+Reasoning: 4.0 g H2 is 2.0 mol; 4.0 g O2 is 0.125 mol. The reaction 2H2 + O2 -> 2H2O
+needs 2 mol H2 per 1 mol O2, so dividing by coefficients gives 1.0 for H2 and 0.125 for
+O2 — oxygen is limiting by a wide margin. It produces 0.25 mol water, which is 4.5 g.
+Answer: B.
+
+## Thermodynamics and Kinetics
+
+Thermodynamics determines whether a reaction can occur; kinetics determines whether it
+will occur at an observable rate. The two are independent, and conflating them is the
+most common conceptual error in the subject. Diamond converting to graphite is
+thermodynamically favourable at room temperature and kinetically forbidden on any human
+timescale; a mixture of hydrogen and oxygen is enormously favourable and sits stable
+indefinitely until a spark provides the activation energy.
+
+The first law states that energy is conserved: the internal energy change equals heat
+added minus work done. Enthalpy, defined as internal energy plus pressure times volume,
+is the convenient bookkeeping quantity at constant pressure, where the enthalpy change
+equals the heat absorbed or released. Exothermic reactions have negative enthalpy change
+and release heat; endothermic reactions absorb it. Hess's law states that enthalpy change
+is path-independent, so an overall reaction's enthalpy is the sum of any sequence of
+steps summing to it — which is how enthalpies of reactions that cannot be measured
+directly are determined from tabulated formation enthalpies.
+
+The second law introduces entropy, a measure of the number of accessible microstates,
+and states that the entropy of the universe increases in any spontaneous process. The
+crucial subtlety is that a system's entropy may decrease — a crystal forming, a cell
+organizing — provided the surroundings' entropy increases more. Gibbs free energy
+packages this into a system-only criterion: at constant temperature and pressure, a
+process is spontaneous when the change in G = H - TS is negative. The temperature
+dependence is what makes reactions switch direction: an endothermic reaction with a
+positive entropy change is non-spontaneous at low temperature and spontaneous above a
+crossover, which is why ice melts above zero degrees and freezes below.
+
+Thermodynamic and kinetic quantities:
+  first law              dU = q - w
+  enthalpy               dH = q at constant pressure
+  Hess's law             dH is path-independent; sum any route
+  standard formation     dH_rxn = sum(products) - sum(reactants) of dH_f
+  entropy direction      gas > liquid > solid; more particles > fewer
+  Gibbs free energy      dG = dH - T dS;  negative means spontaneous
+  equilibrium relation   dG = -RT ln K
+  rate law               rate = k [A]^m [B]^n;  orders are experimental, not from
+                         the balanced equation
+  Arrhenius              k = A exp(-Ea / RT);  rate roughly doubles per 10 K
+  half-life, first order  t_half = ln 2 / k, independent of concentration
+  catalyst               lowers Ea, speeds both directions equally, does not shift
+                         the equilibrium position
+
+That last point is worth emphasizing because it is frequently misstated. A catalyst
+provides an alternative pathway with lower activation energy, accelerating the forward
+and reverse reactions by the same factor. It therefore shortens the time to reach
+equilibrium and leaves the equilibrium constant entirely unchanged, because the
+equilibrium constant is thermodynamic and the catalyst changes only the kinetics.
+
+Reaction orders must be determined experimentally and cannot be read from the balanced
+equation, because the balanced equation describes overall stoichiometry while the rate law
+reflects the slowest elementary step. A reaction that is second order overall may proceed
+through a mechanism whose rate-determining step involves only one molecule, and observing
+that mismatch is precisely how mechanisms are deduced. The method of initial rates —
+varying one concentration at a time and observing the rate change — is the standard
+experimental approach.
+
+[user] My reaction is at 78% conversion after 4 hours at 60 C and I need 95%. Raise the
+temperature or extend the time?
+[assistant] tool_call chem.kinetics({"conversion": 0.78, "time_h": 4, "temp_c": 60,
+"target_conversion": 0.95, "order": 1, "ea_kj_mol": 85, "equilibrium_limited": false})
+[tool] {"k_60c": 0.3785, "time_to_95_at_60c_h": 7.92, "k_80c": 1.412,
+"time_to_95_at_80c_h": 2.12, "rate_ratio_80_60": 3.73,
+"note": "verify_thermal_stability_and_selectivity_at_higher_T"}
+[assistant] Either works; the choice depends on what else is temperature-sensitive.
+
+At 60 C your rate constant is 0.379 per hour, and first-order kinetics put 95%
+conversion at 7.9 hours — so roughly four more hours than you have already run. Nothing
+is wrong; you are simply on the flat part of an exponential approach, where each
+additional increment of conversion costs disproportionately more time. Getting from 78%
+to 95% takes as long as getting from 0% to 78% did.
+
+Raising to 80 C multiplies the rate constant by 3.7 (from the Arrhenius equation with
+your 85 kJ/mol activation energy), bringing 95% conversion to about 2.1 hours total —
+so from where you are now, under half an hour.
+
+Two things to check before raising the temperature, because they are what usually make
+this the wrong choice. First, selectivity: side reactions generally have different
+activation energies, and if a competing pathway has a higher one it accelerates faster
+than your desired reaction, so yield can fall even as conversion rises. Run a small trial
+and check purity, not just conversion. Second, thermal stability of the product and of
+any sensitive reagent — a 20 degree rise is substantial for anything labile.
+
+If both check out, raise the temperature; it is the better answer since it also improves
+throughput. If selectivity degrades, extend the time instead, and consider whether a
+catalyst is available — that lowers activation energy and speeds the reaction without
+the selectivity penalty that comes from thermal acceleration of every pathway at once.
+
+## Equilibrium, Acids, and Electrochemistry
+
+Chemical equilibrium is dynamic: forward and reverse reactions continue at equal rates,
+so concentrations are constant while molecules continue to interconvert. The equilibrium
+constant K is the ratio of product to reactant activities at equilibrium, each raised to
+its stoichiometric coefficient, and it depends only on temperature. A large K means the
+equilibrium lies toward products; a small one toward reactants. Comparing the reaction
+quotient Q, computed from current concentrations, against K tells which direction the
+system will move.
+
+Le Chatelier's principle states that a system at equilibrium responds to a disturbance by
+shifting to partially counteract it. Adding a reactant shifts toward products. Removing a
+product shifts toward products, which is why driving a reaction to completion often means
+continuously removing something. Increasing pressure shifts toward the side with fewer
+moles of gas. Raising temperature shifts in the endothermic direction, since heat behaves
+as a reactant or product — and this is the one disturbance that actually changes K rather
+than merely shifting position along it.
+
+Acid-base chemistry is proton transfer in the Bronsted-Lowry framework: an acid donates a
+proton, a base accepts one, and every acid has a conjugate base differing by that proton.
+Strong acids dissociate completely; weak acids establish an equilibrium characterized by
+Ka. The pH scale is logarithmic, pH = -log[H+], so each unit is a tenfold change in
+concentration, and at 25 degrees the neutral point is 7 because the ion product of water
+is 1e-14.
+
+Acid-base and electrochemical relations:
+  pH                     -log[H+];  pOH = -log[OH-];  pH + pOH = 14 at 25 C
+  weak acid              Ka = [H+][A-]/[HA];  pKa = -log Ka
+  Henderson-Hasselbalch  pH = pKa + log([A-]/[HA])
+  buffer capacity        maximal when pH = pKa;  effective within about +/- 1 unit
+  titration equivalence  strong-strong at pH 7; weak acid-strong base above 7
+  half-equivalence       pH = pKa;  the practical way to measure pKa
+  oxidation              loss of electrons, increase in oxidation number
+  reduction              gain of electrons, decrease in oxidation number
+  cell potential         E_cell = E_cathode - E_anode;  positive means spontaneous
+  Nernst equation        E = E0 - (RT/nF) ln Q
+  Faraday relation       moles of electrons = It / F;  F = 96485 C/mol
+  free energy link       dG = -nFE
+
+Buffers resist pH change and are the reason biological systems function, since enzymes
+operate over narrow pH ranges. A buffer is a weak acid with its conjugate base in
+comparable amounts; added acid is consumed by the base component and added base by the
+acid component. The Henderson-Hasselbalch equation shows that pH depends on the ratio
+rather than the absolute concentrations, which is why dilution barely changes buffer pH
+while it does reduce capacity. Blood is buffered principally by the bicarbonate system,
+coupled to respiration — which allows the body to adjust pH by changing breathing rate,
+an unusually direct link between a physiological control and a chemical equilibrium.
+
+Electrochemistry connects chemical and electrical energy. In a galvanic cell a
+spontaneous redox reaction drives current, with oxidation at the anode and reduction at
+the cathode. In electrolysis an applied potential drives a non-spontaneous reaction. The
+standard reduction potential table ranks species by their tendency to be reduced, and the
+cell potential is the difference between the two half-reactions. Because potentials are
+intensive, they are not multiplied by stoichiometric coefficients when combining half
+reactions — a frequent error — though the free energy, being extensive, does scale with
+the electron count through dG = -nFE.
+
+## Organic Chemistry
+
+Organic chemistry is the chemistry of carbon, and carbon's dominance follows from its
+four valence electrons, its ability to form stable bonds to itself in chains and rings of
+unlimited length, and the comparable strength of its bonds to hydrogen, oxygen, nitrogen,
+and the halogens. Silicon, directly below carbon, forms far weaker bonds to itself and
+cannot support the same structural diversity, which is the chemical basis for expecting
+carbon-based rather than silicon-based life.
+
+Functional groups organize the field. A functional group is a specific arrangement of
+atoms conferring characteristic reactivity, and the value of the concept is that a given
+group behaves similarly regardless of the rest of the molecule. Learning perhaps a dozen
+groups and their characteristic transformations covers most of introductory organic
+chemistry, and the systematic naming conventions follow from identifying the parent
+chain, the principal functional group, and the substituents.
+
+Functional groups by increasing oxidation state of carbon:
+  alkane        C-C, C-H only; unreactive, combustion and radical halogenation
+  alkene        C=C; addition reactions, Markovnikov orientation
+  alkyne        C-C triple bond; addition, acidic terminal hydrogen
+  alcohol       C-OH; hydrogen bonding, oxidation to carbonyl
+  ether         C-O-C; unreactive, common solvent
+  amine         C-N; basic, nucleophilic
+  aldehyde      CHO at chain end; readily oxidized
+  ketone        C=O within chain; resistant to further oxidation
+  carboxylic acid  COOH; acidic, pKa ~4-5
+  ester         COOR; from acid plus alcohol, hydrolyzable
+  amide         CONR2; the peptide bond, unusually stable
+  aromatic      delocalized ring; substitution rather than addition
+
+Isomerism is where organic structure becomes subtle. Constitutional isomers differ in
+connectivity. Stereoisomers share connectivity and differ in spatial arrangement:
+geometric isomers (cis and trans across a double bond or ring) and optical isomers
+(enantiomers, non-superimposable mirror images arising from a carbon with four different
+substituents). Enantiomers have identical physical properties except for the direction
+they rotate polarized light, and identical chemical properties except toward other chiral
+molecules — which is the entire issue in pharmacology, since biological receptors are
+chiral and typically bind one enantiomer while the other is inactive or harmful.
+
+Reaction mechanisms explain transformations in terms of electron movement, conventionally
+drawn with curved arrows from electron source to electron sink. The major mechanistic
+families are nucleophilic substitution (SN1 through a carbocation intermediate with
+racemization, SN2 in one concerted step with inversion of configuration), elimination
+(E1 and E2, competing with substitution and favoured by heat and strong bulky bases),
+addition to multiple bonds, and radical chains. Predicting which pathway dominates
+requires weighing substrate structure, nucleophile strength, leaving group ability, and
+solvent — tertiary substrates with weak nucleophiles in polar protic solvents favour SN1,
+primary substrates with strong nucleophiles in polar aprotic solvents favour SN2, and
+recognizing that pattern converts a great deal of apparent memorization into reasoning.

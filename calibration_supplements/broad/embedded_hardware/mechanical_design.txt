@@ -1,0 +1,253 @@
+================================================================================
+AREA: Embedded and Hardware Engineering
+SUBJECT: Mechanical Design for Electronics
+Subtopics: materials and properties, stress and deflection, fasteners and joints,
+tolerances and fits, manufacturing processes, enclosures and sealing, vibration.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Materials and Their Properties
+
+Mechanical design selects materials and geometry to carry loads, maintain dimensions, resist the
+environment, and be manufacturable at the required cost. The properties that drive selection are few
+and it is worth being precise about what each one means, because they are routinely confused in
+casual discussion.
+
+Stiffness and strength are independent properties. Stiffness — the elastic modulus — governs how much
+a part deflects under load and is essentially fixed for a given material family, so heat-treating
+steel does not make it stiffer. Strength governs when it yields or breaks and varies enormously with
+alloy and treatment. A part that flexes too much needs more material or better geometry, not a
+stronger alloy, and this distinction resolves a large fraction of the design mistakes made by people
+approaching mechanics from other fields.
+
+Toughness is a third independent property: the energy absorbed before fracture. A material can be
+strong and brittle, failing suddenly at high load with no warning, or weaker and tough, deforming
+substantially first. For anything that might be dropped, impacted, or overloaded, toughness usually
+matters more than peak strength, because the failure mode determines whether the product degrades or
+shatters.
+
+Material properties:
+  elastic modulus      stiffness; nearly fixed within a material family
+  the common error     treating a stronger alloy as a stiffer one
+  yield strength       where permanent deformation begins
+  ultimate strength    where it breaks
+  toughness            energy absorbed before fracture; independent of strength
+  ductile failure      deformation before fracture; gives warning
+  brittle failure      sudden, at high load, no warning
+  fatigue strength     the stress survivable for many cycles; far below the
+                       static strength
+  the fatigue reality  most mechanical failures in service are fatigue, not
+                       overload
+  creep                slow deformation under sustained load; significant for
+                       plastics at room temperature
+  thermal expansion    dimensional change with temperature; mismatch between
+                       joined materials generates stress
+  aluminium            light, stiff for its weight, easily machined, conducts heat
+  steel                stiff and strong, heavy, and inexpensive
+  stainless            corrosion resistance at higher cost and lower machinability
+  engineering plastics  cheap in volume, insulating, dimensionally less stable,
+                       and each has a distinct chemical and temperature tolerance
+  the selection method  identify the governing requirement first, since a
+                       material chosen for the wrong property is a common and
+                       expensive mistake
+
+Q: A bracket deflects more than acceptable under load, though it is nowhere near yielding. The
+correct response is:
+A. Use a higher-strength alloy
+B. Change the geometry or the material family — deflection is governed by stiffness, which is
+   essentially fixed for a material family, so a stronger alloy of the same metal will deflect
+   identically
+C. Reduce the load
+D. Add a safety factor
+Reasoning: Elastic deflection depends on the elastic modulus and the section geometry. Heat treating
+or alloying steel changes its strength by large factors and its modulus barely at all. Increasing
+the section's moment of inertia, shortening the span, or adding a support are the effective
+remedies. Answer: B.
+
+## Stress, Deflection, and Section Geometry
+
+Simple loading cases cover most practical design and are worth knowing quantitatively. Axial
+loading distributes stress over the cross-sectional area. Bending produces stress varying linearly
+across the section, maximum at the outer fibres and zero at the neutral axis. Torsion produces shear
+stress increasing with radius. Each has a corresponding section property that geometry can be
+optimized against.
+
+Bending is where geometry matters most and the leverage is large. The relevant property is the
+second moment of area, which scales with the cube of the depth in the loading direction. Doubling a
+beam's depth increases its bending stiffness eightfold while doubling its mass, which is why
+structural sections put material far from the neutral axis — the I-beam, the box section, the ribbed
+plate. A flat plate stiffened with a few ribs is dramatically stiffer than the same mass distributed
+uniformly.
+
+Stress concentration is the most consequential effect for durability. Any abrupt change in section —
+a sharp internal corner, a hole, a notch, a thread root — locally multiplies the stress, often by a
+factor of two or three, and fatigue cracks start there. Generous fillet radii at internal corners are
+nearly free and are among the highest-value details in a mechanical drawing, and a sharp internal
+corner in a part that sees cyclic load is a defect regardless of what the nominal stress calculation
+says.
+
+Stress and geometry:
+  axial loading        stress over the cross-sectional area
+  bending              stress linear across the section, maximum at the outer
+                       fibres
+  neutral axis         zero stress; material there contributes little to bending
+                       resistance
+  second moment of area  the bending section property; scales with depth cubed
+  the practical implication  depth is worth far more than width or thickness
+  structural sections  material placed far from the neutral axis
+  ribbing              stiffening a plate at small mass cost
+  torsion              shear increasing with radius; closed sections vastly
+                       outperform open ones
+  buckling             instability of slender members under compression;
+                       independent of strength and governed by geometry and end
+                       conditions
+  the buckling surprise  a column can fail far below its material's compressive
+                       strength
+  stress concentration  abrupt section changes multiplying local stress
+  fillet radii         generous internal radii; nearly free and highly effective
+  the fatigue connection  cracks start at stress concentrations
+  safety factor        the ratio of capacity to expected load; chosen by
+                       consequence of failure and by confidence in the load
+                       estimate, and stating both is more useful than quoting a
+                       number
+
+## Fasteners, Joints, and Tolerances
+
+A bolted joint works by clamping, not by shear on the bolt. Tightening stretches the bolt elastically
+and the resulting tension clamps the parts, so the joint carries load through friction between the
+clamped faces while the bolt sees a nearly constant tension. This is why preload matters so much: a
+properly preloaded joint sees very little cyclic stress in the bolt and survives indefinitely, and
+an under-preloaded one lets the parts separate slightly under load, cycling the bolt and failing by
+fatigue.
+
+Thread engagement should be at least one diameter in steel and more in softer materials, because
+insufficient engagement strips the female thread rather than breaking the bolt. Threading directly
+into aluminium or plastic in a joint that will be disassembled repeatedly is a common design
+mistake; threaded inserts solve it cheaply. And locking features exist because vibration loosens
+fasteners through transverse micro-motion, not through rotation from vibration directly — which is
+why locking compounds and prevailing-torque features work while lock washers largely do not.
+
+Tolerances specify how much dimensions may vary, and they drive cost steeply. Every tolerance should
+be as loose as the function permits, because tight tolerances require better processes, more
+inspection, and higher scrap rates. Tolerance stackup — the accumulation of individual variations
+across a chain of parts — is what determines whether an assembly fits, and analysing it before
+manufacture rather than discovering it afterward is standard practice that is nonetheless skipped
+regularly.
+
+Fasteners and tolerances:
+  bolted joints clamp  load carried by friction, not by shear on the bolt
+  preload              the bolt tension from tightening
+  the fatigue mechanism  insufficient preload allows separation and cycles the
+                       bolt
+  torque as a proxy    torque relates to preload through friction, which varies
+                       widely; it is an imprecise control and the usual one
+  thread engagement    at least one diameter in steel, more in soft materials
+  threaded inserts     for repeated assembly into soft materials
+  loosening mechanism  transverse micro-motion, not rotational vibration
+  effective locking    prevailing-torque features, adhesives, and adequate preload
+  tolerance            permitted dimensional variation
+  the cost relationship  tightening tolerances raises cost steeply
+  the design rule      as loose as function permits
+  tolerance stackup    accumulated variation across a chain
+  worst case versus statistical  worst-case stackup is conservative and
+                       statistical is realistic for high volume
+  fits                 clearance, transition, and interference; specified by the
+                       function of the mating pair
+  datum scheme         which surfaces the dimensions reference; an unclear datum
+                       scheme makes a drawing ambiguous even when every number is
+                       correct
+
+## Manufacturing Processes and Design for Them
+
+Every process imposes constraints, and designing without knowing them produces parts that are
+expensive or impossible to make. Machining removes material and can produce almost any external
+geometry, with the constraints being tool access, internal corner radii limited by tool diameter, and
+cost proportional to material removed and to setup count. Reducing the number of setups — the
+reorientations needed to reach every feature — often saves more than optimizing any individual
+operation.
+
+Injection moulding is the volume process for plastics and its constraints are strict. Wall thickness
+must be uniform, because thick sections cool more slowly and shrink, producing sink marks and
+warping. Draft angles are required so the part releases from the mould. Undercuts require moving
+mould components at substantial cost. Ribs stiffen without thickening walls and must themselves be
+thinner than the wall they attach to. These rules are not preferences; violating them produces parts
+with visible defects.
+
+Sheet metal is inexpensive and highly capable within its constraints. Bends require a minimum radius
+related to thickness, features must stand clear of bend zones by a minimum distance, and the flat
+pattern must account for material stretching at bends. Additive processes remove most geometric
+constraints and introduce their own — anisotropic strength along the build direction, surface finish
+determined by layer height and orientation, and support requirements on overhangs — and their
+economics favour low volume and high complexity, which is the reverse of the traditional processes.
+
+Manufacturing:
+  machining            subtractive; almost any external geometry
+  tool access          the primary geometric constraint
+  internal corner radii  limited by tool diameter; a sharp internal corner cannot
+                       be milled
+  setup count          reorientations; often the dominant cost driver
+  injection moulding   volume plastics; strict geometric rules
+  uniform wall thickness  the first rule; violations cause sink and warp
+  draft angle          required for release
+  undercuts            moving mould components; expensive
+  ribs                 thinner than the wall they stiffen
+  sheet metal          inexpensive within its constraints
+  bend radius          minimum related to thickness
+  bend relief          features must clear the bend zone
+  bend allowance       material stretch accounted for in the flat pattern
+  casting              complex shapes at volume; draft, uniform sections, and
+                       machined datum surfaces where precision is needed
+  additive             geometric freedom, anisotropic properties, support
+                       requirements
+  the economics inversion  additive favours low volume and high complexity
+  design for assembly  fewer parts, self-locating features, one direction of
+                       assembly, no fixturing required; consistently a larger
+                       cost lever than optimizing individual part manufacture
+
+## Enclosures, Sealing, and Vibration
+
+An enclosure protects the electronics from the environment and often provides the thermal path,
+structural support, and user interface simultaneously. Its material and construction follow from
+which of those functions dominates, and the conflicts between them — sealing against airflow, thermal
+conduction against electrical isolation, access for service against ingress protection — are decided
+early and are expensive to revisit.
+
+Sealing requires a designed gland. A gasket needs a defined compression, achieved by a groove of
+controlled depth and a fastener pattern close enough that the flange does not bow between fasteners,
+which is the usual cause of leaks in an otherwise correct design. Ingress protection ratings specify
+tested resistance to dust and water, and they are tested conditions rather than general guarantees —
+a rating for temporary immersion says nothing about sustained pressure or about chemical exposure.
+
+Vibration and shock are where mechanical and electronic design meet most directly. A circuit board
+has a natural frequency determined by its dimensions, thickness, and mounting points, and excitation
+near it produces amplified deflection that fatigues solder joints and cracks components. The remedies
+are raising the natural frequency by adding mounting points near the centre and supporting heavy
+components, or isolating the assembly on mounts tuned well below the excitation. Heavy components on
+long leads are the classic failure — the mass at the end of a flexible support is a resonator, and
+staking it to the board is the standard and effective fix.
+
+Enclosures and vibration:
+  competing functions  protection, thermal path, structure, interface
+  the early decisions  conflicts between them are expensive to revisit
+  gasket compression   a groove of controlled depth, not a squeezed pad
+  flange bowing        fasteners too far apart; the usual leak cause
+  ingress ratings      tested conditions, not general guarantees
+  pressure equalization  a vent membrane preventing a sealed enclosure from
+                       pumping moisture in as it thermally cycles
+  the sealed enclosure surprise  a perfectly sealed box breathes through any
+                       imperfection and accumulates condensation
+  natural frequency    determined by dimensions, thickness, and mounting
+  resonance            excitation near the natural frequency; amplified
+                       deflection
+  the failure          fatigued solder joints and cracked components
+  raising the frequency  mounting points near the centre, supporting heavy parts
+  isolation            mounts tuned well below the excitation frequency
+  heavy components on leads  a mass on a flexible support; stake them
+  connector strain relief  cable movement transmitted to the joint is a leading
+                       field failure and is prevented by a fixing point on the
+                       cable rather than on the connector
+  drop and shock       specified as a pulse; the design question is the peak
+                       acceleration transmitted to the most fragile component,
+                       which is a chain calculation from the impact through
+                       every compliant element between it and that component

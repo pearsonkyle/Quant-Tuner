@@ -1,0 +1,241 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: Model Inference Optimization
+Subtopics: the inference workload, quantization, pruning and distillation, attention and
+caching, batching and scheduling, speculative decoding, deployment measurement.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## The Inference Workload
+
+Serving a trained model is a different engineering problem from training it, and the difference
+starts with what the hardware is limited by. Training is compute-bound: large batches keep the
+arithmetic units busy and the memory traffic per operation is amortized. Autoregressive generation
+is memory-bandwidth-bound: producing one token requires reading every weight in the model and
+performing very little arithmetic per weight read, so the time is set by how fast weights can be
+moved from memory rather than by how fast they can be multiplied.
+
+This single fact explains most of what works in inference optimization. Reducing the bytes per weight
+directly reduces the time, which is why quantization gives near-proportional speedups on the decode
+path. Increasing the arithmetic performed per weight read amortizes the transfer, which is why
+batching helps enormously and why processing several tokens at once through speculative methods
+helps too. Techniques that reduce arithmetic without reducing memory traffic help far less than their
+operation counts suggest.
+
+The two phases of generation have opposite characteristics and should be measured and optimized
+separately. Prefill processes the entire prompt at once, which is a large matrix operation that is
+compute-bound and efficient. Decode produces one token at a time and is bandwidth-bound and
+inefficient. Time to first token is dominated by prefill and scales with prompt length; time between
+tokens is dominated by decode and is nearly independent of it. Reporting a single throughput number
+for a system with both phases conceals which one is the problem.
+
+The inference workload:
+  training              compute-bound; memory traffic amortized over large batches
+  autoregressive decode  memory-bandwidth-bound
+  the mechanism        every weight read to produce one token
+  arithmetic intensity  operations per byte moved; very low during decode
+  the implication      bytes per weight is the primary lever
+  quantization speedup  near-proportional on the decode path
+  batching             amortizes the weight read across sequences
+  reducing arithmetic alone  helps less than operation counts suggest
+  prefill              the whole prompt at once; compute-bound and efficient
+  decode               one token at a time; bandwidth-bound
+  time to first token  dominated by prefill, scales with prompt length
+  time between tokens  dominated by decode, nearly independent of prompt length
+  the reporting problem  a single throughput figure conceals which phase binds
+  the metrics that matter  first-token latency, inter-token latency, and
+                       throughput at a fixed latency target, all reported as
+                       distributions rather than means
+
+Q: A model is quantized from sixteen-bit to eight-bit weights and generation speed roughly doubles,
+while a separate optimization halving the arithmetic operations produces almost no speedup. Why?
+A. The second optimization was implemented incorrectly
+B. Decoding is memory-bandwidth-bound, so halving bytes per weight halves the dominant cost while
+   halving arithmetic reduces a cost that was not the constraint
+C. Quantization improves the algorithm
+D. The measurement is unreliable
+Reasoning: The bottleneck determines which reductions matter. In the bandwidth-bound regime, time
+scales with bytes moved. Arithmetic reductions only help once the workload is compute-bound, which
+happens at large batch sizes or during prefill. Answer: B.
+
+## Quantization
+
+Quantization represents weights and sometimes activations with fewer bits. The essential mechanism
+is mapping a range of floating-point values onto a smaller set of levels with a scale factor, and
+the design space is in how the range is chosen, how finely the grouping is done, and which tensors
+receive which treatment.
+
+Granularity is the primary quality lever. A single scale for a whole tensor is cheapest and worst,
+because one outlier stretches the range and wastes levels on values that do not occur. Per-channel
+scales fit each output row separately. Per-group scales divide each row into blocks of a few dozen
+weights with a scale each, which is what most low-bit formats use, and the group size trades storage
+overhead against fidelity. Below about four bits, the format's structure — whether it uses a lattice
+codebook, mixed levels, or a second-order scale — starts to matter more than the nominal bit count.
+
+Calibration decides which weights receive precision, and the choice of calibration data matters
+because it determines what the quantized model is optimized to preserve. Activation-aware methods
+weight the reconstruction error by how much each input channel actually varies in practice, which
+means a channel that is large in the calibration data is preserved more carefully. The consequence
+is that a model calibrated on one distribution and deployed on another may be worse than a naively
+quantized one, so the calibration corpus should reflect deployment usage rather than being a
+convenient generic text.
+
+Quantization:
+  the mechanism        a value range mapped to fewer levels with a scale
+  per-tensor scales    cheapest and worst; outliers waste the range
+  per-channel scales   each output row separately
+  per-group scales     blocks of a few dozen weights; the common choice
+  group size           storage overhead against fidelity
+  format structure     matters more than nominal bit count below four bits
+  outliers             a few large activation values dominating the range; the
+                       central practical difficulty
+  mixed precision      sensitive tensors kept wider; a small fraction of
+                       parameters carrying much of the quality
+  weight-only          the common case; activations stay wider
+  activation quantization  needed for compute-bound gains and much harder
+  calibration          data determining what is preserved
+  activation-aware weighting  reconstruction error weighted by observed channel
+                       magnitudes
+  the distribution warning  calibration on the wrong distribution can be worse
+                       than none
+  evaluation           perplexity and divergence from the full-precision model
+                       plus task metrics, because a small divergence can still
+                       correspond to a large task regression on specific
+                       capabilities
+
+## Pruning, Distillation, and Architecture
+
+Pruning removes parameters judged unimportant. Unstructured pruning zeroes individual weights and
+achieves high sparsity with little quality loss, and it delivers no speedup on hardware without
+sparse kernel support because the dense matrix is still read. Structured pruning removes whole
+units — attention heads, channels, layers — producing a genuinely smaller dense model that is faster
+everywhere, at a higher quality cost for the same parameter reduction.
+
+The practical guidance follows from that asymmetry: structured pruning is what delivers deployment
+gains on ordinary hardware, and unstructured sparsity is worth pursuing only with hardware and
+kernels that exploit it. Semi-structured patterns, where a fixed fraction of weights in each small
+block is zero, are the compromise that some hardware supports directly.
+
+Distillation trains a smaller model to reproduce a larger one's behaviour, using the teacher's full
+output distribution rather than only its top choice. The soft distribution carries substantially more
+information per example than a hard label — it encodes which alternatives were plausible — which is
+why distillation is more data-efficient than training the small model directly. It requires teacher
+inference over the training data, which is a real cost, and precomputing the teacher's top-k outputs
+once amortizes it across every subsequent training run.
+
+Pruning and distillation:
+  unstructured pruning  individual weights zeroed; high sparsity, no dense speedup
+  the hardware dependence  sparse kernels required for any gain
+  structured pruning   heads, channels, and layers removed; genuinely faster
+  the quality tradeoff  structured costs more quality per parameter removed
+  semi-structured      a fixed fraction zero within small blocks; hardware
+                       supported on some accelerators
+  importance criteria  magnitude, gradient sensitivity, and second-order
+                       estimates
+  iterative pruning    remove, fine-tune, repeat; better than one large removal
+  layer dropping       removing whole blocks; surprisingly tolerable in deep
+                       models and easily measured
+  distillation         a small model trained on the teacher's distribution
+  soft targets         more information per example than hard labels
+  data efficiency      the reason distillation beats direct training at the same
+                       scale
+  the teacher cost     inference over the training data
+  precomputed top-k    the teacher's outputs stored once and reused across runs
+  the storage tradeoff  top-k tables are large and cheaper than repeated teacher
+                       inference for any multi-run training programme
+  architecture choices  attention variants sharing key and value projections
+                       across heads reduce the cache substantially at little
+                       quality cost, and this is a design-time decision rather
+                       than a post-hoc optimization
+
+## Caching, Batching, and Scheduling
+
+The attention cache stores the key and value tensors for previously processed tokens so they need
+not be recomputed, and it is what makes autoregressive generation tractable. It is also the dominant
+memory consumer at scale: its size grows with sequence length, batch size, layer count, and head
+dimension, and for long contexts it can exceed the model weights themselves.
+
+Managing that memory is the central systems problem in serving. Allocating a contiguous block per
+sequence sized for the maximum length wastes most of it, since most sequences are shorter. Paged
+allocation in fixed-size blocks, with a table mapping logical positions to physical blocks, removes
+that waste and additionally allows blocks to be shared between sequences with a common prefix —
+which is a large saving when many requests share a system prompt.
+
+Batching amortizes weight reads across sequences and is the highest-leverage throughput optimization.
+Static batching, where a batch runs until every sequence finishes, wastes capacity because sequences
+finish at different times and the slots stay idle. Continuous batching returns a finished sequence's
+slot immediately and admits a waiting request, which raises utilization substantially. Scheduling
+policy then determines the latency distribution: admitting new requests aggressively raises
+throughput and lengthens the time between tokens for sequences already generating, and the balance
+should be set by the latency target rather than left to a default.
+
+Caching and batching:
+  the attention cache  keys and values for previous tokens
+  the growth factors   sequence length, batch size, layers, head dimension
+  the memory dominance  frequently exceeding the model weights at long context
+  contiguous allocation  sized for the maximum; mostly wasted
+  paged allocation     fixed blocks with a mapping table
+  prefix sharing       common prefixes stored once across requests
+  the system prompt case  a large saving when requests share a preamble
+  static batching      slots idle until every sequence finishes
+  continuous batching  slots returned and refilled immediately
+  the utilization gain  substantial, and it is the standard approach
+  scheduling policy    determines the latency distribution
+  the admission tradeoff  aggressive admission raises throughput and inter-token
+                       latency
+  prefill and decode interference  a long prefill stalls every decoding sequence;
+                       chunking the prefill bounds the disruption
+  preemption           evicting a sequence's cache under pressure and recomputing
+                       later; the pressure valve that prevents outright failure
+  the capacity planning quantity  concurrent sequences at the target latency,
+                       which is what determines how much hardware is needed and
+                       is not derivable from throughput alone
+
+## Speculative Decoding and Measurement
+
+Speculative decoding attacks the bandwidth bottleneck directly by proposing several tokens cheaply
+and verifying them in one pass of the large model. Since verifying several tokens costs nearly the
+same as generating one — the weights are read once either way — accepting several proposals per
+verification multiplies throughput without changing the output distribution, provided the acceptance
+procedure is the correct one.
+
+The proposal source varies. A separate small draft model is the general approach and requires a model
+aligned enough with the target that its proposals are frequently accepted. Additional prediction
+heads on the target model itself avoid the second model's memory and are trained jointly. Retrieval
+from the prompt works remarkably well for tasks with substantial copying, such as editing or
+summarization, because the correct continuation is often present verbatim.
+
+The acceptance rate determines the benefit and it depends on the task, the sampling temperature, and
+the draft's alignment. It falls with proposal depth, since each additional speculated token must
+also be accepted, so the optimal depth is usually small and should be measured rather than assumed —
+a longer speculation can be slower than a shorter one when acceptance drops faster than the
+verification saves.
+
+Measurement discipline is what separates real optimization from apparent optimization. Benchmarks
+should use realistic prompt and output length distributions, since a benchmark with short prompts
+measures decode almost exclusively and one with long prompts measures prefill. They should report
+latency percentiles rather than means. They should include the full serving path rather than the
+model in isolation, since tokenization, request handling, and streaming overhead are real. And
+quality must be measured alongside speed on the same configuration, because every optimization here
+has a quality dimension and reporting the speedup alone is reporting half the result.
+
+Speculation and measurement:
+  the mechanism        propose cheaply, verify several in one pass
+  the economics        verification of several costs nearly the same as one
+  distribution preservation  the correct acceptance procedure leaves the output
+                       distribution unchanged
+  draft model          a separate small model; alignment determines acceptance
+  additional heads     predictors on the target model; no second model to hold
+  retrieval proposals  from the prompt; strong for copy-heavy tasks
+  acceptance rate      task, temperature, and alignment dependent
+  proposal depth       optimal depth is usually small and must be measured
+  the depth failure    longer speculation slower when acceptance falls faster
+  realistic benchmarks  prompt and output length distributions matching
+                       deployment
+  percentiles          reported rather than means
+  the full path        tokenization, request handling, and streaming included
+  quality alongside speed  measured on the same configuration
+  the half-result problem  a speedup reported without its quality cost is not a
+                       result, and the comparison that matters is quality at a
+                       fixed latency budget rather than either dimension alone

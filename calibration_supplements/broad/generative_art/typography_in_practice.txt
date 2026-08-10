@@ -1,0 +1,227 @@
+================================================================================
+AREA: Generative and Creative Technology
+SUBJECT: Type Design and Text Rendering
+Subtopics: letterform anatomy, font technology, rendering and hinting, text layout,
+internationalization, variable fonts, practical selection.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Letterforms and Type Anatomy
+
+A typeface is a designed system of letterforms, and its consistency comes from shared proportions
+and shared construction rather than from letters resembling each other. The relevant measurements
+are the x-height, the height of lowercase letters without ascenders; the cap height; the ascender and
+descender extents; and the relationship among them, which determines how large a typeface appears at
+a given nominal size far more than the nominal size does.
+
+This is why two typefaces set at the same point size can look very different in scale. Point size
+measures the em, an abstract box, not any visible feature, so a typeface with a large x-height
+relative to its em appears larger and generally reads better at small sizes. Comparing typefaces
+requires setting them to matching x-heights rather than to matching point sizes, which is a
+practical adjustment that most software does not make automatically.
+
+Stroke construction distinguishes the broad categories. Serif faces have terminating strokes whose
+form and contrast reflect their historical origins in written and engraved letterforms. Sans serif
+faces omit them and vary in whether their skeleton is geometric, humanist, or neutral. Contrast —
+the difference between thick and thin strokes — is the single most consequential characteristic for
+legibility at small sizes and for behaviour at large ones, since high contrast is elegant in display
+and disappears in body text at low resolution.
+
+Type anatomy:
+  x-height             lowercase height without ascenders; the perceived size
+                       driver
+  cap height           uppercase height
+  ascender and descender  the extents above and below
+  the em               an abstract box; what point size measures
+  the comparison consequence  matching point sizes does not match apparent size
+  the practical adjustment  set to matching x-heights when comparing
+  serif                terminating strokes; historical origins in writing and
+                       engraving
+  sans serif           without them; geometric, humanist, or neutral skeletons
+  stroke contrast      thick to thin difference
+  the contrast tradeoff  elegant in display, fragile at small sizes
+  counters             the enclosed spaces; open counters read better small
+  aperture             how open the terminals are; strongly affects legibility
+  weight and width     the two primary axes of a family
+  optical sizes        separate designs for small and large use; the historical
+                       norm, lost in early digital type, and returning with
+                       variable fonts
+
+Q: Two typefaces are set at the same point size and one appears noticeably larger. Why?
+A. One file is scaled incorrectly
+B. Point size measures the em box rather than any drawn feature, so a typeface whose x-height is a
+   larger fraction of its em appears larger; matching apparent size requires matching x-heights, not
+   point sizes
+C. The rendering differs
+D. One has a larger cap height
+Reasoning: The em is an abstract unit that the designer fills as they choose. X-height relative to
+em varies widely across typefaces, and since most of the text a reader sees is lowercase, x-height
+dominates perceived size. This is why substituting one typeface for another at the same size
+frequently requires a size adjustment. Answer: B.
+
+## Font Technology and Rendering
+
+A font file contains outlines, metrics, and tables describing behaviour. The outlines are described
+by curves — quadratic or cubic depending on the format — that a rasterizer fills. Metrics give each
+glyph's advance width and the spacing adjustments between specific pairs. Feature tables describe
+substitutions and positioning that the layout engine applies, which is what makes ligatures,
+contextual alternates, and complex script shaping possible.
+
+Rendering converts outlines to pixels, and at typical text sizes the stem widths are on the order of
+one or two pixels, so the fit between the outline and the pixel grid dominates the result. Hinting
+is instruction embedded in the font that adjusts the outline at small sizes to align features with
+the grid, producing crisp consistent stems at the cost of distorting the design. Modern
+high-resolution displays reduce the need for it substantially, and rendering stacks have moved
+toward respecting the outline and relying on antialiasing.
+
+Antialiasing uses intermediate grey values to represent partial coverage, which the eye integrates
+into a smoother shape. Subpixel rendering goes further by addressing the individual colour elements
+of an LCD, tripling the effective horizontal resolution at the cost of colour fringing and
+dependence on the display's subpixel arrangement, which is why it is applied less than it once was.
+Gamma handling determines whether antialiased text appears the correct weight, and incorrect gamma
+is why the same text can look too thin on one system and too heavy on another.
+
+Font technology and rendering:
+  outlines             curves filled by a rasterizer
+  metrics              advance widths and pair adjustments
+  kerning              adjustment between specific pairs
+  feature tables       substitutions and positioning applied by the layout engine
+  ligatures            glyph substitutions for specific sequences
+  contextual alternates  glyphs chosen by surrounding context
+  the pixel grid problem  stems one or two pixels wide at text sizes
+  hinting              instructions aligning features to the grid
+  the hinting tradeoff  crisp stems, distorted design
+  high resolution      reduces the need substantially
+  antialiasing         grey values representing partial coverage
+  subpixel rendering   addressing an LCD's colour elements
+  the subpixel costs   colour fringing and display dependence
+  gamma handling       determines the apparent weight of antialiased text
+  the cross-platform difference  identical text appearing thin on one system and
+                       heavy on another, almost always a gamma or stem-darkening
+                       difference rather than a font difference
+
+## Text Layout and Typesetting
+
+Layout arranges glyphs into lines and lines into blocks, and a small number of parameters carry most
+of the readability. Line length is the most important: too short and the eye jumps back constantly,
+too long and it loses the return position, with the comfortable range being roughly a alphabet and a
+half to two and a half alphabets of characters. Line spacing must increase with line length, since a
+longer line needs more vertical separation for the eye to find the next one reliably.
+
+Justification distributes extra space to make lines flush at both edges, and doing it well requires
+more than adding space between words. A greedy line-breaking algorithm that fills each line as much
+as possible produces uneven spacing and rivers of white running down the block. A paragraph-level
+algorithm that minimizes total badness across all lines produces markedly better results by
+accepting a worse line here to enable a better one there, and it is available in typesetting systems
+and generally not in web browsers.
+
+Hyphenation reduces the spacing variation that justification requires, and it needs language-specific
+rules or dictionaries since hyphenation points depend on morphology. Without it, justified text in a
+narrow column has spacing so uneven that ragged-right setting is usually better. The practical
+guidance is that justification without good hyphenation and good line breaking is worse than not
+justifying at all.
+
+Text layout:
+  line length          the primary readability parameter
+  the comfortable range  roughly one and a half to two and a half alphabets
+  line spacing         must increase with line length
+  the relationship     longer lines need more separation to find the next
+  paragraph indication  indent or space, not both
+  greedy line breaking  fills each line; uneven spacing and rivers
+  paragraph optimization  minimizes total badness across lines
+  the improvement      accepting a worse line to enable a better one
+  availability         typesetting systems yes, browsers generally not
+  hyphenation          reduces spacing variation
+  language dependence  hyphenation points follow morphology
+  the practical guidance  justification without hyphenation is worse than ragged
+                       right
+  widows and orphans   isolated lines at column boundaries; controlled by
+                       adjusting the break, not by editing the text
+  optical margin alignment  hanging punctuation slightly outside the margin so
+                       the edge reads as straight; a small refinement with a
+                       disproportionate effect on the perceived quality of a
+                       block of text
+
+## Internationalization and Complex Scripts
+
+Text rendering beyond simple left-to-right alphabetic scripts requires capability that many systems
+lack. Bidirectional text mixes right-to-left and left-to-right runs in one paragraph, and resolving
+the display order requires an algorithm operating on character properties and embedding levels
+rather than on simple reversal. Getting it wrong produces text that is not merely ugly but reordered
+into a different meaning.
+
+Complex scripts require shaping: the glyph drawn depends on context. Arabic letters have different
+forms initially, medially, finally, and in isolation. Indic scripts form conjunct consonants and
+reposition vowel marks around a cluster in ways that do not correspond to the storage order.
+Handling these correctly requires a shaping engine and a font with the relevant feature tables, and
+substituting a font without them produces text that is readable to nobody.
+
+The unit distinctions matter for any text processing. A code point is one entry in the character
+encoding. A grapheme cluster is what a user perceives as a character, which may be several code
+points combined. A glyph is what is drawn, which may be one for several code points or several for
+one. Cursor movement, selection, and character counting must operate on grapheme clusters, and code
+that operates on code points or on encoded units produces cursors that land inside a character and
+counts that surprise users.
+
+Internationalization:
+  bidirectional text   mixed direction runs in one paragraph
+  the resolution algorithm  character properties and embedding levels
+  the failure mode     reordering that changes meaning
+  shaping              the glyph depends on context
+  Arabic forms         initial, medial, final, isolated
+  Indic clusters       conjuncts and repositioned marks
+  the storage mismatch  display order differing from storage order
+  shaping engines      required, along with fonts carrying the feature tables
+  code point           one entry in the encoding
+  grapheme cluster     what a user perceives as a character
+  glyph                what is drawn
+  the many-to-many relationship  none of the three correspond one to one
+  cursor and selection  must operate on grapheme clusters
+  string length        an ambiguous question; specify which unit
+  font fallback        substituting another font for missing glyphs; the chain
+                       and its ordering determine whether mixed-script text looks
+                       coherent or assembled from unrelated designs
+  vertical writing     supported by some scripts and requiring rotated and
+                       substituted forms for others
+
+## Variable Fonts and Practical Selection
+
+A variable font contains a design space rather than a fixed set of instances, with axes along which
+the outlines interpolate continuously. Weight and width are standard axes; optical size adjusts the
+design for the intended rendering size, which restores a practice that predates digital type; and
+custom axes can control anything the designer parameterizes. A single file replaces a family of
+static instances, and any point in the space is available rather than only the named ones.
+
+The practical benefits are file size for a full family, fine-grained control, and the ability to
+animate between states. The costs are that some rendering paths handle variation poorly, that the
+design space's corners may not be places the designer intended anyone to use, and that arbitrary
+interpolated instances lack the individual attention that named weights receive. The optical size
+axis is the one with the clearest quality benefit and it is the least used.
+
+Selecting type for a project comes down to a few practical questions rather than to aesthetic
+preference alone. What sizes and what rendering environment — a face designed for print at large
+sizes fails as small screen text. What character coverage is needed — a beautiful face lacking the
+scripts, diacritics, or numerals a project requires is unusable. What weights and widths are needed,
+and does the family actually have them. And what the licensing permits, since font licences vary
+widely in whether they cover web embedding, application bundling, and the volume of use anticipated.
+
+Variable fonts and selection:
+  design space         axes along which outlines interpolate
+  standard axes        weight, width, optical size, slant, italic
+  optical size         design adjusted to the rendering size; a restored practice
+  custom axes          anything the designer parameterizes
+  file size            one file for a full family
+  fine-grained control  any point rather than named instances
+  animation            interpolation between states
+  the rendering caveat  some paths handle variation poorly
+  the design space corners  not necessarily intended for use
+  named instances      the points that received individual attention
+  the underused axis   optical size, with the clearest quality benefit
+  selection question one  what sizes and what rendering environment
+  selection question two  what character and script coverage is required
+  selection question three  what weights and widths, and does the family have them
+  selection question four  what the licence permits for the intended use
+  the pairing principle  typefaces combine well when they share proportions and
+                       differ clearly in category, and a pairing that differs
+                       slightly reads as a mistake rather than as a contrast

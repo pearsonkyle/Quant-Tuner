@@ -1,0 +1,298 @@
+================================================================================
+AREA: Humanities, Business, and Social Science
+SUBJECT: Linguistics
+Subtopics: phonetics and phonology, morphology, syntax, semantics, pragmatics,
+language change and variation, acquisition, writing systems and typology.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Phonetics and Phonology
+
+Linguistics studies language as a natural phenomenon, describing what speakers actually do rather
+than prescribing what they should. This descriptive commitment is the field's foundational stance
+and it distinguishes linguistics from the tradition of usage guides: a construction that native
+speakers produce systematically is part of the language by definition, whatever its social
+standing.
+
+Phonetics studies speech sounds as physical events. Articulatory phonetics describes how sounds
+are produced — where in the vocal tract the constriction occurs, how the airstream is obstructed,
+and whether the vocal folds vibrate. These three parameters classify consonants completely, so a
+sound is identified as, for instance, a voiced alveolar stop, and the classification is
+cross-linguistic rather than tied to any writing system.
+
+Phonology studies how sounds function within a particular language's system, and the central
+concept is the distinction between a phoneme and its realizations. A phoneme is a sound category
+that distinguishes meaning; an allophone is a variant occurring in a specific context without
+distinguishing meaning. The aspirated and unaspirated realizations of a stop are separate phonemes
+in some languages, so substituting one for the other changes the word, and are allophones of one
+phoneme in others, so the substitution produces an accent rather than a different word.
+
+Phonetics and phonology:
+  articulatory description  place, manner, and voicing classify consonants
+  vowel description    height, backness, and rounding
+  the IPA              one symbol per sound; independent of any writing system
+  phoneme              a category distinguishing meaning
+  allophone            a contextual variant not distinguishing meaning
+  minimal pair         two words differing in one sound; the test for phonemic
+                       status
+  the same sounds differ  aspiration is phonemic in some languages and allophonic
+                       in others; which pairs contrast is language-specific
+  complementary distribution  allophones occur in non-overlapping contexts
+  phonotactics         which sound sequences are permitted; why some borrowed
+                       words are restructured
+  syllable structure   onset, nucleus, coda; languages differ in what each permits
+  stress               which syllable is prominent; contrastive in some languages
+                       and predictable in others
+  tone                 pitch distinguishing words; the majority of the world's
+                       languages are tonal
+  intonation           pitch over an utterance; conveys structure and attitude
+                       rather than lexical identity
+  coarticulation       sounds influence their neighbours; there are no discrete
+                       boundaries in the acoustic signal
+
+Q: A language learner substitutes one sound for another and native speakers hear an accent rather
+than a different word. This indicates that the two sounds are:
+A. Separate phonemes in that language
+B. Allophones of a single phoneme, so the substitution does not cross a meaning-distinguishing
+   boundary
+C. Not present in the language
+D. Difficult to produce
+Reasoning: A phonemic distinction changes the word; an allophonic difference does not. Hearing an
+accent rather than a different word means the substitution stayed within one phoneme category.
+This is why learners find some distinctions in a new language nearly inaudible — their native
+phonology assigns both to one category, so the contrast was never attended to. Answer: B.
+
+## Morphology and Syntax
+
+Morphology studies word structure. A morpheme is the smallest unit carrying meaning or grammatical
+function, and words decompose into them: a stem carrying the core meaning plus affixes modifying
+it. Inflectional morphology marks grammatical categories — tense, number, case, agreement — without
+changing the word's class. Derivational morphology creates new words, frequently changing the
+class.
+
+Languages differ enormously in how much they use morphology, and the variation is a major
+typological axis. Isolating languages have close to one morpheme per word and express grammatical
+relations by word order and separate particles. Agglutinative languages stack many morphemes, each
+with one clear function, producing words that translate as whole English clauses. Fusional
+languages combine several functions into a single affix that cannot be decomposed. Polysynthetic
+languages incorporate what other languages express as separate words into a single verb.
+
+Syntax studies how words combine into phrases and sentences, and the central observation is that
+sentences have hierarchical structure rather than being flat sequences. Evidence for the hierarchy
+comes from constituency tests: units that can be moved as a whole, replaced by a single word, or
+serve as a fragment answer are constituents, and the groupings those tests reveal are the same ones
+that ambiguity and agreement patterns require.
+
+Structural ambiguity is the clearest evidence. A sentence with one word sequence and two meanings
+has two possible structures, and the meanings correspond to the structures — a modifier attaching
+at one point or another. This establishes that the structure is real rather than an analytical
+convenience, since the meaning difference has no other source.
+
+Morphology and syntax:
+  morpheme             the smallest meaningful unit
+  inflection           grammatical marking without changing word class
+  derivation           creating new words, frequently changing class
+  isolating            near one morpheme per word; word order carries the
+                       relations
+  agglutinative        many morphemes, each with one function
+  fusional             one affix carrying several functions, not decomposable
+  polysynthetic        whole clauses incorporated into a single verb
+  constituency         hierarchical grouping; tested by movement, substitution,
+                       and fragment answers
+  structural ambiguity  one sequence, two structures, two meanings; the evidence
+                       that structure is real
+  head                 the element determining the phrase's category
+  dependency           head-dependent relations; frequently more portable across
+                       languages than constituency
+  word order           SOV and SVO cover most languages; the order correlates with
+                       other properties such as adposition type
+  agreement            features shared between related elements
+  case                 marking grammatical role; extensive where word order is
+                       free
+  recursion            structures embedded within structures of the same type; the
+                       source of unbounded expressive capacity from finite means
+
+Recursion deserves emphasis because it explains how a finite system produces unlimited sentences. A
+noun phrase can contain a clause which contains a noun phrase, and there is no principled limit to
+the nesting, so the set of possible sentences is infinite while the grammar is finite. This is why
+a language cannot be a list and must be a generative system, and it is the property that any
+account of linguistic knowledge must explain.
+
+## Semantics and Pragmatics
+
+Semantics studies meaning as encoded in linguistic form, independent of context. Lexical semantics
+concerns word meaning and the relations among words — synonymy, antonymy, hyponymy, and the
+polysemy by which one word carries related senses. Compositional semantics concerns how the
+meanings of parts combine into the meaning of the whole, which is what permits understanding a
+sentence never encountered before.
+
+The principle of compositionality states that a complex expression's meaning is determined by its
+parts and the way they are combined. It is what makes language learnable and productive, and its
+apparent counterexamples are informative: idioms have meanings not derivable from their parts,
+which is exactly why they must be learned as units.
+
+Pragmatics studies meaning in context, and the central observation is that speakers routinely
+convey more than they say. Grice's cooperative principle holds that participants assume a
+conversation is a cooperative activity governed by expectations — that contributions are
+appropriately informative, truthful, relevant, and clear. Implicature arises when a speaker
+apparently violates one of these while remaining cooperative, so the hearer infers additional
+meaning to restore the assumption.
+
+The mechanism is worth stating concretely. Saying that some of the students passed implicates that
+not all did, because a cooperative speaker who knew all had passed would have said so — the
+stronger statement was available and was not made. This is an inference from the speaker's choice
+rather than from the sentence's meaning, which is why it can be cancelled: adding that in fact all
+of them did is not a contradiction.
+
+Semantics and pragmatics:
+  compositionality     the meaning of the whole from the parts and their
+                       combination
+  idioms               the counterexample; learned as units
+  sense and reference  what an expression means versus what it picks out
+  entailment           the truth of one guarantees the truth of another
+  presupposition       taken for granted rather than asserted; survives negation,
+                       which is the test
+  polysemy             related senses; distinguished from homonymy, which is
+                       unrelated senses sharing a form
+  ambiguity            lexical, structural, and scope
+  quantifier scope     "every student read a book" has two readings depending on
+                       which quantifier takes wider scope
+  deixis               expressions whose reference depends on context; here,
+                       now, I, you
+  cooperative principle  the assumption that makes implicature possible
+  implicature          conveyed but not said; cancellable, which distinguishes it
+                       from entailment
+  scalar implicature   saying "some" implicates "not all"
+  speech acts          utterances performing actions; promising, requesting,
+                       naming
+  politeness           strategies managing face; why requests are so frequently
+                       indirect
+
+Presupposition deserves attention because it makes content difficult to challenge. Asserted
+content invites agreement or disagreement; presupposed content is taken for granted and slips past
+without evaluation. The negation test distinguishes them — a presupposition survives negation,
+since both a sentence and its denial presuppose the same background — and the practical
+consequence is that a question or statement embedding a presupposition smuggles it in. This is why
+loaded questions work and why the rhetorically effective move is to reject the presupposition
+explicitly rather than to answer the question.
+
+## Language Change, Variation, and Acquisition
+
+Language change is continuous, systematic, and inevitable. It occurs at every level: sounds shift,
+words change meaning, grammatical constructions arise and disappear, and the changes are regular
+enough that they can be traced backward to reconstruct unattested ancestor languages. The
+comparative method compares related languages, identifies systematic correspondences, and infers
+the forms from which they descend — and its predictions have been confirmed when previously unknown
+languages were discovered.
+
+Sound change is the most regular. A change applies to a sound in a specified environment across the
+whole vocabulary rather than word by word, which is why the correspondences between related
+languages are systematic rather than sporadic. This regularity is what makes reconstruction
+possible and what made historical linguistics the first branch of the field to achieve
+methodological rigour.
+
+Variation within a language is patterned rather than random, and sociolinguistics studies its
+correlation with social factors — region, class, age, gender, ethnicity, and the formality of the
+situation. The finding that matters most for how language is discussed is that non-standard
+varieties are rule-governed systems rather than degraded versions of a standard. A variety with
+different agreement patterns, different negation, or different tense marking has its own consistent
+grammar, and speakers of it make errors in it just as speakers of any variety do.
+
+Language acquisition is remarkable for its speed and uniformity. Children acquire a complete
+grammar within a few years, from input that is finite and contains no explicit instruction about
+grammar, and they converge on the same system as their community. The stages are consistent across
+languages and cultures, and children produce forms they have never heard — regularizing irregular
+verbs, for instance — which demonstrates that they are inferring rules rather than imitating.
+
+Change, variation, and acquisition:
+  regularity of sound change  applies across the vocabulary in a specified
+                       environment
+  comparative method   systematic correspondences reconstruct ancestor forms
+  language family      descent from a common ancestor; established by systematic
+                       correspondence rather than by resemblance
+  borrowing            words move between languages; distinguished from
+                       inheritance by irregular correspondence
+  semantic change      broadening, narrowing, amelioration, pejoration
+  grammaticalization   content words becoming grammatical markers; a
+                       unidirectional process
+  variation is patterned  correlated with social factors
+  non-standard varieties  rule-governed systems, not degraded standards
+  standard language    a variety with institutional backing; a social fact rather
+                       than a linguistic one
+  register             variation by situation rather than by speaker
+  code-switching       alternating between varieties; rule-governed and
+                       systematic rather than random
+  acquisition stages   consistent across languages; babbling, one word, two word,
+                       telegraphic, complex
+  overregularization   producing forms never heard; evidence of rule inference
+  critical period      acquisition is far easier before puberty; the mechanism
+                       and the sharpness of the boundary remain debated
+  poverty of the stimulus  the argument that input underdetermines the acquired
+                       grammar; the strength of the argument is contested and it
+                       frames a central debate in the field
+
+Grammaticalization deserves mention because it explains where grammatical machinery comes from. A
+content word with lexical meaning gradually becomes a grammatical marker: a verb meaning to go
+becomes a future tense marker, a noun meaning back becomes a preposition meaning behind, a
+demonstrative becomes a definite article. The process is unidirectional — grammatical markers do
+not become content words — and it is observable across unrelated languages, which is why languages
+that have never been in contact develop similar grammatical categories by similar routes.
+
+## Typology and Writing Systems
+
+Linguistic typology classifies languages by their structural properties rather than by their
+descent, and its finding is that the variation is bounded. Languages differ enormously and not
+arbitrarily: certain properties cluster, and certain logically possible systems do not occur.
+Implicational universals capture this — if a language has a given property it also has another —
+and they constrain what a possible human language is.
+
+Word order correlations are the clearest instance. A language placing the verb before the object
+tends to place prepositions before their nouns, auxiliaries before verbs, and nouns before relative
+clauses; a language placing the object before the verb tends toward the mirror image. This is
+consistent across unrelated languages and families, which suggests a processing or cognitive
+explanation rather than a historical one.
+
+Writing systems are technologies for representing language and are independent of the languages
+themselves — a language can be written in several systems and a system can serve several languages.
+They differ in what unit they represent. Alphabets represent consonants and vowels. Abjads
+represent consonants with vowels optional or absent. Abugidas represent consonant-vowel syllables
+with the vowel marked as a modification. Syllabaries represent syllables as units. And logographic
+systems represent morphemes.
+
+Writing and typology:
+  implicational universal  if a language has X it also has Y; bounds the variation
+  word order correlations  head-initial and head-final patterns cluster
+                       consistently
+  markedness           some categories are more basic; the unmarked form is
+                       shorter, more frequent, and acquired earlier
+  frequency and length  frequent words are shorter across languages; an efficiency
+                       pressure
+  alphabet             consonants and vowels; roughly one symbol per phoneme
+  abjad                consonants; vowels optional, and it works because the
+                       morphology makes them recoverable
+  abugida              consonant-vowel units with the vowel as a modification
+  syllabary            one symbol per syllable; suits languages with simple
+                       syllable structure and is impractical for complex ones
+  logographic          symbols for morphemes; a large inventory and independence
+                       from pronunciation, which is why the same characters serve
+                       mutually unintelligible varieties
+  orthographic depth   how directly spelling maps to sound; shallow orthographies
+                       are learned faster
+  writing is not language  it is a technology representing it; languages existed
+                       for most of human history without it and most still lack a
+                       standardized written form
+  linguistic diversity  roughly seven thousand languages; a substantial fraction
+                       will have no speakers within a century
+  documentation        recording and describing endangered languages; each
+                       encodes distinctions and structures that no other does
+
+The distinction between writing and language deserves the closing emphasis because conflating them
+distorts most popular reasoning about language. Writing is a comparatively recent technology
+representing language imperfectly, spoken language is acquired without instruction while writing
+requires years of teaching, and the properties of a writing system tell you little about the
+language it encodes. Arguments about correct usage frequently appeal to spelling or to written
+convention, which is appealing to the properties of the technology rather than to the language, and
+the mismatch between English spelling and English pronunciation is a fact about a writing system
+that was standardized before several sound changes completed rather than a fact about the language
+at all.

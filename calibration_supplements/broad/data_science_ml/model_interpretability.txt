@@ -1,0 +1,330 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: Model Interpretability and Explainability
+Subtopics: why interpretability, intrinsically interpretable models, post-hoc methods,
+feature attribution, counterfactuals, model debugging, fairness, limits.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Why Interpretability
+
+Interpretability is not one goal but several, and the appropriate method depends on which is
+intended. Asking what the goal is before choosing a technique is the discipline that most
+improves outcomes, because methods that serve one purpose serve others poorly.
+
+Debugging asks why a model produced a particular output so that an error can be located, and it
+requires methods faithful to the model's actual computation. Trust asks whether a model can be
+relied upon, which is better addressed by rigorous evaluation on the deployment distribution
+than by any explanation. Compliance asks whether a decision can be justified to a regulator or
+contested by the person affected, which imposes requirements on the form of the explanation.
+Scientific insight asks what the model has learned about the domain, which requires the
+explanation to reflect the data's structure rather than the model's idiosyncrasies. And fairness
+asks whether the model treats groups equitably, which requires group-level analysis rather than
+individual explanations.
+
+The distinction between interpretability and explainability is used inconsistently and a useful
+convention is that an interpretable model is one whose mechanism can be inspected directly, while
+an explainable model is opaque with a separate method producing an account of its behaviour. The
+distinction matters because the second is an approximation whose fidelity must itself be
+questioned.
+
+Goals and their appropriate methods:
+  debugging            locate errors; requires faithfulness to the actual
+                       computation
+  trust                reliability; better served by evaluation than explanation
+  compliance           justify a decision; constrains the explanation's form
+  scientific insight   what the model learned about the domain; requires the
+                       explanation to reflect the data rather than the model's
+                       artifacts
+  fairness             group-level treatment; individual explanations do not
+                       answer it
+  recourse             what the affected person could change; requires actionable
+                       and feasible counterfactuals
+  interpretable        the mechanism is directly inspectable
+  explainable          opaque model plus a separate approximating account
+  fidelity             how well an explanation reflects the model; the property
+                       most often unmeasured
+  plausibility         how convincing the explanation appears; independent of
+                       fidelity, and dangerously so
+  stakeholder          who the explanation is for; a developer, a regulator, and
+                       an affected individual need different things
+
+The gap between fidelity and plausibility is the field's central hazard. An explanation can be
+convincing and wrong, and a convincing wrong explanation is worse than none, because it produces
+confidence that is unwarranted and forecloses further investigation. Methods should be evaluated
+on whether they identify what the model actually used — testable by ablation, by
+perturbation, and by synthetic data with known ground truth — rather than on whether their output
+looks reasonable.
+
+Q: A post-hoc explanation method produces feature attributions that domain experts find
+plausible. This establishes:
+A. That the model is using those features
+B. Nothing about the model; plausibility and fidelity are independent, and the explanation may
+   be a convincing approximation of something the model does not do
+C. That the model is correct
+D. That the model is fair
+Reasoning: Explanation methods approximate model behaviour, and their approximations can be
+systematically wrong while appearing reasonable — particularly where features are correlated,
+since attribution among correlated features is underdetermined. Fidelity must be tested
+directly by perturbing the identified features and confirming the prediction changes as the
+attribution implies. Answer: B.
+
+## Intrinsically Interpretable Models
+
+The most reliable route to interpretability is a model whose mechanism is directly inspectable,
+and the assumption that this necessarily costs accuracy is frequently untested. On tabular data
+with well-engineered features, a regularized linear model, a small decision tree, or a
+generalized additive model is often within a small margin of a gradient-boosted ensemble, and the
+margin should be measured before being paid for with opacity.
+
+Linear models expose a coefficient per feature, which is directly interpretable as the expected
+change per unit under the stated conditions. The interpretation requires care: coefficients
+depend on the scale, correlated features split their effect arbitrarily, and the ceteris paribus
+reading is only meaningful if the data contains cases where one feature varies with the others
+held fixed. A coefficient on a feature that never varies independently in the data is an
+extrapolation.
+
+Generalized additive models extend this to nonlinear effects while retaining interpretability.
+Each feature contributes a learned shape function, and those functions are plotted and inspected
+directly, so nonlinearity and thresholds are visible without any approximation. The restriction
+is additivity — no interactions unless explicitly included — which is a genuine limitation and is
+also what makes the model inspectable, since the effect of each feature can be read
+independently.
+
+Interpretable model families:
+  linear and logistic  coefficients; scale-dependent, and unstable under
+                       correlation
+  regularized linear   sparse; the selected set is unstable across resamples when
+                       features are correlated
+  decision tree        readable if small; instability across resamples is severe,
+                       so a single tree's structure should not be
+                       over-interpreted
+  rule list            a sequence of conditions; highly readable
+  scorecard            points per feature; the credit industry standard, designed
+                       for interpretability and regulatory defensibility
+  generalized additive  a shape function per feature; nonlinearity visible,
+                       additivity assumed
+  GA2M                 adds pairwise interactions while remaining inspectable
+  k-nearest neighbours  explained by exemplars; intuitive and does not summarize
+  naive Bayes          contribution per feature; the independence assumption is
+                       usually false and often harmless for classification
+  the accuracy question  measure the gap before assuming it exists; on tabular
+                       data with good features it is frequently small
+
+Decision tree instability is worth stating because a single tree's readability invites
+over-interpretation. Small changes in the training data produce entirely different trees with
+similar accuracy, since an early split changes everything below it. The structure is therefore
+one of many equally supported structures, and reading a specific path as the model's reasoning
+about the domain attributes more meaning to it than the data supports. Fitting several trees on
+bootstrap resamples and observing how much the structure varies is the check.
+
+## Post-Hoc Attribution Methods
+
+Feature attribution assigns each input feature a contribution to a specific prediction, and
+several methods with different foundations produce different answers to what appears to be one
+question — which is a signal that the question is underspecified rather than that some methods
+are wrong.
+
+Permutation importance measures the performance drop when a feature is randomly shuffled,
+breaking its relationship with the target. It is a global measure, is model-agnostic, and is
+straightforward, and it has two known distortions: correlated features share credit so each
+appears less important than it is, and permutation creates feature combinations that never occur
+in the data, evaluating the model far outside its training distribution.
+
+SHAP values apply the Shapley value from cooperative game theory, attributing to each feature
+its average marginal contribution across all orderings. This gives desirable properties — the
+attributions sum to the prediction, identical features receive identical attributions, and a
+feature with no effect receives zero — and it is the only method with those guarantees. The costs
+are computation, which is exponential in the feature count without approximations, and the
+handling of correlated features, where the standard approach again evaluates the model on
+combinations that do not occur.
+
+LIME fits a simple interpretable model locally around the instance of interest and reports its
+coefficients. It is intuitive and model-agnostic, and it is unstable — running it twice on the
+same instance produces different explanations, because the local sample is random — and the
+definition of the local neighbourhood substantially determines the result.
+
+Attribution methods:
+  permutation importance  performance drop when shuffled; global, distorted by
+                       correlation and by off-distribution evaluation
+  drop-column          retrain without the feature; the most faithful and the most
+                       expensive
+  SHAP                 Shapley values; unique method with the additivity,
+                       symmetry, and null-feature properties
+  TreeSHAP             exact and fast for tree ensembles; the reason SHAP is
+                       practical on tabular data
+  LIME                 local surrogate; intuitive, unstable, neighbourhood-
+                       dependent
+  gradient methods     saliency, integrated gradients; cheap for differentiable
+                       models
+  integrated gradients  satisfies completeness by integrating along a path from a
+                       baseline; the baseline choice materially affects the result
+                       and is frequently unexamined
+  attention weights    not an explanation; attention indicates where information
+                       was gathered and not what determined the output, and
+                       different attention patterns produce identical predictions
+  correlated features  attribution among them is underdetermined; no method
+                       resolves this, and methods differ in how they fail
+  off-distribution     perturbation-based methods evaluate the model on inputs
+                       that never occur; the resulting attribution describes
+                       behaviour that is never exercised
+
+Attention weights deserve explicit treatment because their use as explanations is widespread
+and is not supported. Attention indicates which positions a layer aggregated from, which is
+information flow rather than causal importance, and it has been demonstrated that substantially
+different attention distributions can produce identical outputs. Using attention as an
+explanation is reading a mechanism's intermediate state as if it were an attribution, and
+verifying that the attended tokens actually determine the output requires an intervention rather
+than an inspection.
+
+[user] Our credit model uses SHAP for adverse action notices. Legal is asking whether the
+explanations are defensible.
+[assistant] tool_call interp.audit({"model": "gradient_boosted_trees", "method": "shap",
+"features": 84, "correlated_pairs_r_above_0.7": 19, "background_dataset": "training_mean",
+"use_case": "adverse_action_notice", "stability_checked": false})
+[tool] {"concerns": ["correlated_feature_attribution_ambiguous",
+"background_choice_affects_attributions", "no_stability_check",
+"actionability_not_assessed"], "regulatory_note": "notice_must_state_principal_reasons",
+"recommendation": "verify_stability_and_actionability_document_choices"}
+[assistant] SHAP is a defensible choice and there are three specifics that need addressing
+before the explanations will hold up.
+
+Correlated features are the substantive problem. You have nineteen feature pairs correlated
+above 0.7, and Shapley attribution among correlated features is genuinely ambiguous — the credit
+can be distributed among them in several ways, all consistent with the model's behaviour, and the
+method picks one. If two correlated features are income and account balance, the notice may cite
+one when the other is equally implicated, and an applicant contesting it has a reasonable
+argument. The mitigations are grouping correlated features and attributing to the group, or
+using a variant that handles dependence explicitly and documenting the choice.
+
+Your background dataset is the training mean, and SHAP attributions are relative to that
+baseline — they explain why this applicant differs from that reference. That is a defensible
+choice and it must be stated, because a different reference produces different attributions and
+an unexplained baseline looks arbitrary. Using the population of declined applicants, or of
+approved ones, answers a different question, and which question the notice is answering should
+be explicit.
+
+Stability has not been checked and should be. Run the explanation repeatedly with different
+background samples and confirm that the top reasons are consistent. If the ranked reasons change
+between runs, the notice content is partly arbitrary and that is not defensible.
+
+The regulatory requirement is that the notice state the principal reasons for the decision, and
+one further consideration follows from it: the reasons should be actionable where possible. A
+notice citing a feature the applicant cannot change conveys less than one citing something they
+can, and some frameworks additionally expect that the applicant can understand what would have
+produced a different outcome. Pairing the attribution with a counterfactual — what values would
+have led to approval — addresses this directly and is worth evaluating.
+
+Document all of these choices in a model card or a governance record. The defensibility comes
+substantially from having made the choices deliberately and being able to say why.
+
+## Counterfactuals, Concepts, and Debugging
+
+Counterfactual explanations state what would have to change for the outcome to differ, and they
+have a strong claim to being the most useful form for an affected individual. Rather than
+attributing credit among features, a counterfactual answers the question people actually ask: what
+would I have to do differently. It also avoids revealing the model's internals, which is a
+practical advantage where the model is proprietary.
+
+The requirements on a useful counterfactual go beyond changing the outcome. It must be
+actionable, changing features the person can influence rather than immutable characteristics. It
+must be plausible, remaining within the data distribution rather than proposing a combination
+that never occurs. It should be sparse, changing few features so the recommendation is
+comprehensible. And ideally it should be robust, remaining valid under small model updates.
+
+Concept-based explanation operates at a level above features. Rather than attributing to input
+dimensions, it tests whether a human-defined concept is represented in the model's internal
+activations and whether it influences the output. This is far more meaningful for images and text
+where individual pixels and tokens are not the units people reason in, and it requires the
+concepts to be specified in advance with example sets.
+
+Model debugging is where interpretability delivers its most concrete value, and the recurring
+finding is spurious correlation. Models learn whatever predicts the target in the training data,
+including artifacts of collection: a pathology detector keying on the imaging device rather than
+the pathology because devices differ between hospitals with different case mixes, a text
+classifier keying on formatting conventions that correlate with the source, an object detector
+keying on background context. Attribution methods identify these directly by showing the model
+attending to regions unrelated to the intended signal.
+
+Counterfactuals and debugging:
+  counterfactual       what change flips the outcome; answers the question people
+                       ask
+  actionable           changes features the person can influence
+  plausible            stays within the data distribution
+  sparse               few changes; comprehensible
+  robust               remains valid under model updates
+  recourse             the guaranteed availability of an actionable path; a policy
+                       property rather than a technical one
+  concept activation   test whether a defined concept influences the output
+  probing              train a classifier on internal representations to test what
+                       information is present; presence does not establish use
+  spurious correlation  the dominant real finding from interpretability work in
+                       practice
+  shortcut learning    the model solves the benchmark by a cue that will not
+                       generalize
+  slice analysis       performance broken down by subgroup; frequently more
+                       informative than any explanation method
+  error analysis       inspect the actual mistakes; unglamorous and consistently
+                       the highest-value debugging activity
+
+Slice analysis and error analysis deserve emphasis because they are the least sophisticated and
+most productive techniques available. Breaking performance down by subgroup — by data source, by
+time period, by demographic group, by input length, by any dimension along which the data varies
+— frequently reveals that aggregate performance masks a subgroup on which the model fails
+entirely. And reading a sample of the actual errors, categorizing them, and counting the
+categories directs effort at the largest problem rather than at the most interesting one.
+Neither requires any method, and both are skipped in favour of attribution methods more often
+than they should be.
+
+## Fairness and Limits
+
+Fairness analysis requires group-level examination rather than individual explanations, and it
+begins with a definition — of which there are several that are mathematically incompatible.
+Demographic parity requires equal positive rates across groups. Equalized odds requires equal
+true and false positive rates. Calibration requires that a predicted probability means the same
+thing in each group. It is provable that these cannot generally hold simultaneously when base
+rates differ between groups, so a choice must be made, and it is a policy judgment about which
+kind of error matters rather than a technical optimization.
+
+The choice depends on the setting in a way that can be reasoned about. Where the goal is
+equalizing access to an opportunity, demographic parity may be appropriate. Where the goal is
+that errors do not fall disproportionately on one group, equalized odds is the relevant measure.
+Where the score is used by downstream decision-makers who need it to mean the same thing,
+calibration matters. Stating which was chosen and why is what makes the analysis defensible.
+
+The field's limits are worth stating plainly. Explanation methods approximate, and their
+fidelity is frequently unmeasured. Correlated features make attribution fundamentally ambiguous
+rather than merely difficult. Post-hoc explanations of a model that is wrong explain a wrong
+model faithfully, which is not useful. Regulatory requirements are frequently satisfied
+nominally by explanations that do not inform anyone. And the strongest interpretability result
+available in most settings is a model simple enough not to need explaining.
+
+Fairness and limits:
+  demographic parity   equal positive rates
+  equalized odds       equal true and false positive rates
+  calibration          predicted probability means the same in each group
+  impossibility        these cannot generally hold together when base rates differ
+  the choice is policy  which errors matter is a value judgment, not an
+                       optimization
+  proxy variables      removing a protected attribute does not remove its
+                       influence, since correlated features encode it
+  fairness through unawareness  ineffective for exactly that reason
+  intersectionality    group-level metrics computed on single attributes miss
+                       disparities at intersections
+  measurement          the protected attribute is frequently unavailable, so
+                       disparity cannot be measured directly; inference from
+                       proxies is itself contested
+  fidelity unmeasured  the field's most common methodological gap
+  explaining a wrong model  faithful explanation of a bad model is not useful
+  the strongest result  a model simple enough that explanation is unnecessary
+
+Fairness through unawareness deserves specific rebuttal because it is the intuitive approach and
+it does not work. Removing a protected attribute from the feature set does not remove its
+influence, because other features correlate with it — postal code with ethnicity, purchase
+patterns with gender, employment history with age — so the model reconstructs the attribute from
+proxies and its effect persists while becoming invisible. Worse, removing the attribute removes
+the ability to measure the disparity, so the effect continues and cannot be detected. The
+approaches that work require the attribute to be available for measurement and often for
+adjustment, which sits uncomfortably with regulations restricting its collection — a genuine
+tension between anti-discrimination and privacy frameworks rather than a technical problem.

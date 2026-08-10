@@ -1,0 +1,311 @@
+================================================================================
+AREA: Astronomy and Space
+SUBJECT: Astrophysics and Stellar Evolution
+Subtopics: radiation and spectra, stellar structure, nuclear burning, the HR
+diagram, stellar death, compact objects, galaxies, cosmology.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Radiation, Spectra, and Stellar Atmospheres
+
+Nearly everything known about the universe beyond the solar system arrived as
+electromagnetic radiation, so interpreting that radiation is the foundational skill of
+astrophysics. A blackbody is an idealized perfect absorber and emitter whose spectrum
+depends only on temperature, and stars approximate one well enough that the approximation
+carries enormous weight.
+
+Two laws govern blackbody emission. Wien's displacement law states that the wavelength of
+peak emission is inversely proportional to temperature, so hot objects are blue and cool
+ones red — this is why a star's colour measures its surface temperature and why infrared
+astronomy studies cool objects. The Stefan-Boltzmann law states that the total radiated
+power per unit area is proportional to the fourth power of temperature, so a star twice
+as hot radiates sixteen times as much per square metre. Combining them with the surface
+area gives the fundamental relation L = 4 pi R^2 sigma T^4: luminosity is determined by
+radius and temperature, which is why the Hertzsprung-Russell diagram, plotting luminosity
+against temperature, implicitly encodes radius as diagonal lines.
+
+Spectral lines carry more information than the continuum. Kirchhoff's laws describe when
+each type appears: a hot dense source produces a continuous spectrum, a hot diffuse gas
+produces emission lines, and a cool diffuse gas in front of a continuum source produces
+absorption lines. A stellar spectrum shows absorption lines because the photosphere's
+outer, cooler layers absorb at their characteristic wavelengths from the continuum
+emerging below.
+
+Radiation quantities:
+  Wien's law             lambda_peak = 2.898e-3 m K / T
+  Stefan-Boltzmann       F = sigma T^4;  sigma = 5.67e-8 W/(m^2 K^4)
+  luminosity             L = 4 pi R^2 sigma T^4
+  inverse square         F = L / (4 pi d^2)
+  Doppler shift          delta_lambda / lambda = v / c  (non-relativistic)
+  cosmological redshift  1 + z = lambda_obs / lambda_emit
+  photon energy          E = h nu = h c / lambda
+  Planck function        the full spectral shape; Wien and Rayleigh-Jeans are its
+                         short- and long-wavelength limits
+  optical depth          tau; e^-tau attenuation, tau = 1 is where the photosphere
+                         effectively lies
+
+Stellar spectral classification, the sequence O B A F G K M, orders stars by surface
+temperature from about 40,000 K down to under 3,000 K, extended by L, T, and Y for brown
+dwarfs. The classification is historical — originally alphabetical by hydrogen line
+strength before temperature was understood — which is why the order appears arbitrary.
+Hydrogen lines peak in A stars not because they contain the most hydrogen but because
+that temperature best populates the energy level the visible Balmer lines originate from;
+hotter stars ionize hydrogen and cooler ones leave it in the ground state. Recognizing
+that line strength reflects excitation conditions rather than abundance is a
+prerequisite for reading any astronomical spectrum.
+
+Q: Star A has twice the surface temperature of star B and half the radius. The ratio of
+their luminosities L_A/L_B is:
+A. 1   B. 4   C. 8   D. 16
+Reasoning: L is proportional to R^2 T^4. The radius factor contributes (1/2)^2 = 1/4 and
+the temperature factor 2^4 = 16, giving 16/4 = 4. Answer: B.
+
+## Stellar Structure and Energy Generation
+
+A star is a self-gravitating ball of plasma in hydrostatic equilibrium: at every radius,
+the outward pressure gradient balances the inward weight of the material above. This
+single condition, combined with an energy source, an energy transport mechanism, and an
+equation of state, determines the entire structure. The remarkable consequence is that a
+star's properties are almost entirely fixed by its mass and composition — the
+Vogt-Russell theorem — which is why stellar astrophysics is tractable at all.
+
+The energy source is nuclear fusion in the core, where temperature and density are high
+enough to overcome the Coulomb barrier between nuclei. Even at fifteen million kelvin,
+the core of the Sun, thermal energies are far below the barrier height, and fusion
+proceeds only through quantum tunnelling — the reaction rate is dominated by the
+exponentially small tunnelling probability multiplied by the exponentially small number
+of particles in the high-energy tail of the Maxwell-Boltzmann distribution, whose product
+peaks in the Gamow window. This extreme sensitivity is why fusion acts as a thermostat:
+a small temperature rise dramatically increases the rate, expanding and cooling the core.
+
+Hydrogen burning proceeds by two channels whose relative importance depends on
+temperature. The proton-proton chain dominates below about 18 million kelvin and powers
+the Sun; its rate scales roughly as T^4. The CNO cycle uses carbon, nitrogen, and oxygen
+as catalysts, dominates above that temperature in more massive stars, and has an
+extraordinary temperature sensitivity of roughly T^17 — which makes the cores of massive
+stars convective, because such a concentrated energy source cannot be transported by
+radiation alone.
+
+Stellar structure essentials:
+  hydrostatic equilibrium   dP/dr = -G M(r) rho(r) / r^2
+  energy transport          radiation where the opacity permits, convection where
+                            the temperature gradient becomes too steep
+  mass-luminosity           L proportional to M^3.5 on the main sequence
+  main-sequence lifetime    t proportional to M/L, so t ~ M^-2.5
+  proton-proton chain       4 H -> He + 2 e+ + 2 nu + energy;  T^4 sensitivity
+  CNO cycle                 same net result, C/N/O catalytic;  T^17 sensitivity
+  mass defect               0.7% of hydrogen mass becomes energy via E = mc^2
+  hydrogen burning minimum  about 0.08 solar masses; below this, a brown dwarf
+  Eddington limit           the luminosity at which radiation pressure overcomes
+                            gravity; caps stellar masses near 150 solar masses
+
+The mass-luminosity relation combined with fuel supply produces the most consequential
+result in stellar astrophysics. Luminosity scales as roughly the 3.5 power of mass, while
+available fuel scales linearly with mass, so lifetime scales as M divided by M^3.5, or
+M^-2.5. A star ten times the Sun's mass has about three thousand times its luminosity and
+lives only about thirty million years, while a star a tenth the Sun's mass lives far
+longer than the current age of the universe. Every red dwarf ever formed is still on the
+main sequence, and massive stars are necessarily young wherever they are found — which is
+why regions containing O and B stars are known to be sites of recent star formation
+without any further evidence.
+
+## The Hertzsprung-Russell Diagram
+
+Plotting luminosity against surface temperature for a population of stars does not produce
+a scatter; it produces well-defined sequences, and understanding why is understanding
+stellar evolution. About ninety percent of stars lie along the main sequence running from
+hot and luminous at the upper left to cool and faint at the lower right. The main sequence
+is not an evolutionary track but a mass sequence: a star sits on it while burning
+hydrogen in its core, and where it sits is determined by its mass.
+
+Above and to the right lie the giants and supergiants — cool but enormously luminous,
+which by L = 4 pi R^2 sigma T^4 requires very large radii. Below and to the left lie the
+white dwarfs, hot but very faint, hence very small. These regions are sparsely populated
+not because such stars are rare in an absolute sense but because the evolutionary phases
+they represent are brief, and a snapshot of a population contains stars in proportion to
+how long each phase lasts.
+
+The diagram's greatest practical use is dating star clusters. Every star in a cluster
+formed at approximately the same time from the same material, so they differ only in mass.
+Massive stars exhaust their core hydrogen first and leave the main sequence, so as a
+cluster ages, the main sequence burns down from the top. The turn-off point — the highest
+mass still on the main sequence — directly gives the cluster's age. Young open clusters
+have turn-offs among the O and B stars; ancient globular clusters have turn-offs near one
+solar mass, giving ages around 12-13 billion years, which provided an early independent
+lower bound on the age of the universe.
+
+HR diagram regions:
+  main sequence      core hydrogen burning; 90% of stars; mass sequence
+  subgiant branch    hydrogen exhausted in core, shell burning begins
+  red giant branch   inert helium core contracts, envelope expands enormously
+  horizontal branch  core helium burning; the red giant's stable successor
+  asymptotic giant   double shell burning, thermal pulses, heavy mass loss
+  supergiants        evolved massive stars; the most luminous
+  white dwarfs       degenerate remnants cooling at constant radius
+  instability strip  where pulsation occurs; Cepheids and RR Lyrae live here
+  luminosity class   I supergiant, III giant, V main sequence; from line widths,
+                     which reflect surface gravity and hence radius
+
+The instability strip is where variable stars pulsate, and its most important
+inhabitants are the Cepheids. A Cepheid's pulsation period is tightly correlated with its
+luminosity, so measuring the period gives the absolute magnitude, and comparing with the
+apparent magnitude gives the distance. This period-luminosity relation, discovered by
+Henrietta Leavitt, is the rung of the distance ladder that reaches other galaxies, and it
+is what Hubble used to establish that the spiral nebulae lie far outside the Milky Way —
+the observation that expanded the known universe by orders of magnitude.
+
+## Stellar Death and Compact Objects
+
+How a star dies is determined almost entirely by its mass, and the thresholds are sharp
+because they correspond to physical limits rather than to gradual transitions.
+
+Stars below about eight solar masses end as white dwarfs. After exhausting core hydrogen
+and then helium, they lack the mass to compress the carbon-oxygen core to carbon-ignition
+temperature. The outer envelope is expelled as a planetary nebula — a misleading name
+from the era when their small discs resembled planets — leaving the exposed core to cool
+indefinitely. A white dwarf is supported not by thermal pressure but by electron
+degeneracy pressure, a quantum effect arising from the Pauli exclusion principle, which
+does not depend on temperature. It therefore does not contract as it cools, and simply
+fades over billions of years.
+
+The Chandrasekhar limit, about 1.4 solar masses, is the maximum mass electron degeneracy
+pressure can support. It is derived rather than measured: as mass increases, the electrons
+become relativistic, and the pressure they supply grows too slowly with density to
+resist further compression. A white dwarf pushed past this limit by accretion collapses,
+igniting runaway carbon fusion that unbinds the star entirely — a Type Ia supernova.
+Because the explosion always occurs at essentially the same mass, these supernovae have a
+consistent peak luminosity, making them standardizable candles visible across billions of
+light-years. They are the tool that revealed the accelerating expansion of the universe.
+
+Stars above about eight solar masses proceed through successive burning stages — carbon,
+neon, oxygen, silicon — each faster than the last, building an onion-shell structure with
+an iron core at the centre. Iron is where fusion stops, because it has the highest binding
+energy per nucleon, so fusing it consumes rather than releases energy. When the iron core
+exceeds its own degeneracy limit it collapses in under a second, electrons and protons
+combine into neutrons, the collapse halts abruptly at nuclear density, and the rebound
+plus an enormous neutrino flux drives the envelope off as a core-collapse supernova.
+
+Stellar endpoints by initial mass:
+  < 0.08 M_sun     brown dwarf; never ignites hydrogen
+  0.08 - 0.5       red dwarf; fully convective, lifetimes exceeding a trillion years
+  0.5 - 8          red giant, planetary nebula, white dwarf (C-O core)
+  8 - 20           core-collapse supernova, neutron star
+  20 - 40          core-collapse supernova, black hole
+  > 40             direct collapse to black hole, or pair-instability supernova
+                   in a specific mass window leaving nothing at all
+  Chandrasekhar    1.4 M_sun; maximum white dwarf mass
+  Tolman-Oppenheimer-Volkoff  ~2.2 M_sun; maximum neutron star mass
+
+Neutron stars are the densest observable matter, packing more than a solar mass into a
+radius of about ten kilometres, so a teaspoon of neutron star material would weigh as
+much as a mountain. They conserve the angular momentum and magnetic flux of their
+progenitor cores, which is why they rotate hundreds of times per second and carry fields
+up to 10^15 gauss. Pulsars are neutron stars whose beamed emission sweeps across our line
+of sight, producing pulses so regular that the earliest were briefly considered as
+possible artificial signals, and millisecond pulsars now rival atomic clocks in
+long-term stability.
+
+Black holes form when even neutron degeneracy fails. The event horizon at the
+Schwarzschild radius, 2GM/c^2, is not a surface but a boundary beyond which no path leads
+outward — three kilometres for a solar mass, and about ten million kilometres for the
+supermassive black hole at the centre of a large galaxy. Black holes have only three
+properties: mass, charge, and angular momentum, the no-hair theorem. Their existence is
+now directly established by gravitational wave detections of merging pairs and by
+horizon-scale imaging of the shadows of nearby supermassive examples.
+
+[user] How do we actually know the mass of a black hole we can't see?
+[assistant] tool_call astro.mass_methods({"object_class": "black_hole"})
+[tool] {"methods": [{"name": "orbital_dynamics", "applies": "companion or stellar
+orbits", "precision": "high"}, {"name": "gravitational_waves", "applies": "mergers",
+"precision": "high"}, {"name": "M_sigma_relation", "applies": "galaxy bulges",
+"precision": "scatter_0.3_dex"}, {"name": "reverberation_mapping", "applies": "active
+nuclei", "precision": "factor_of_2_3"}, {"name": "shadow_imaging", "applies": "nearest
+supermassive", "precision": "moderate"}]}
+[assistant] Every method measures gravity's effect on something we can see, which is the
+only handle available.
+
+Orbital dynamics is the most direct and the most trustworthy. If anything orbits the
+black hole — a companion star in an X-ray binary, or the stars circling the galactic
+centre — then Kepler's third law gives the enclosed mass from the orbital period and
+semi-major axis. The stars near the Milky Way's centre have been tracked through complete
+orbits over decades, and one passes within about 120 astronomical units of a mass of 4.3
+million suns confined within that radius. Nothing but a black hole fits.
+
+Gravitational waves give a remarkably clean measurement for merging pairs. The waveform's
+frequency evolution during inspiral depends on a specific combination of the two masses
+called the chirp mass, and the full waveform through merger and ringdown constrains the
+individual masses and spins. This is measuring the masses from the shape of spacetime's
+own oscillation.
+
+For distant supermassive black holes, indirect methods take over. Reverberation mapping
+measures the light-travel-time delay between variations in the central continuum and the
+response of surrounding gas, giving the radius of that gas; combined with its orbital
+velocity from line widths, that gives the mass — good to a factor of a few. The
+M-sigma relation is empirical: black hole mass correlates tightly with the velocity
+dispersion of the host galaxy's bulge, so measuring the easily observed stellar motions
+estimates the mass of something entirely unresolved. That such a relation exists at all
+is itself a major finding, implying that black hole and galaxy growth are coupled.
+
+And for the two nearest supermassive examples, direct horizon-scale imaging now resolves
+the shadow, whose angular size scales with mass and provides an independent check
+consistent with the dynamical measurements.
+
+## Galaxies and Cosmology
+
+Galaxies are gravitationally bound systems of stars, gas, dust, and dark matter. Hubble's
+morphological classification divides them into ellipticals, spirals, and irregulars, and
+the scheme is descriptive rather than evolutionary despite the "early" and "late" type
+terminology it inherited. Ellipticals are dominated by old red stars with little gas and
+little ongoing star formation, and are common in dense cluster environments. Spirals have
+a rotating disc with ongoing star formation in the arms, plus an older central bulge.
+Irregulars lack organized structure and are often gas-rich and actively forming stars.
+
+The rotation curves of spiral galaxies provided the first strong evidence for dark
+matter. Orbital velocity should decline with radius outside the visible mass, following
+Kepler's laws as it does in the solar system. Instead, measured rotation curves stay flat
+far beyond the visible disc, implying that mass continues to increase with radius in a
+halo that emits no light. Independent lines — gravitational lensing, the velocity
+dispersions of galaxy clusters, the acoustic peaks in the cosmic microwave background,
+and the growth of structure — all require the same additional mass, and they agree on the
+amount, which is the strongest argument that dark matter is a real substance rather than
+a failure of gravitational theory.
+
+Modern cosmology rests on the observation that the universe is expanding. Hubble's law
+relates recession velocity to distance, and running the expansion backward gives a hot
+dense beginning about 13.8 billion years ago. The cosmic microwave background is the relic
+radiation released when the universe cooled enough for atoms to form and photons to
+travel freely, about 380,000 years after the beginning; it is a near-perfect blackbody at
+2.7 K with tiny temperature fluctuations whose statistical pattern encodes the
+composition, geometry, and initial conditions of the universe.
+
+Cosmological quantities:
+  Hubble's law           v = H_0 d;  H_0 ≈ 67-73 km/s/Mpc, and the disagreement
+                         between measurement methods is an unresolved tension
+  age of universe        ~13.8 Gyr
+  CMB temperature        2.725 K, blackbody to extraordinary precision
+  composition            ~5% ordinary matter, ~27% dark matter, ~68% dark energy
+  geometry               flat to within measurement error
+  critical density       ~9e-27 kg/m^3;  about six hydrogen atoms per cubic metre
+  recombination          z ≈ 1100;  when the CMB was released
+  reionization           z ≈ 6-10;  when the first stars ionized the medium
+  observable radius      ~46 Gly comoving, larger than c times the age because
+                         space itself expanded during the light's travel
+
+Dark energy is the name for whatever drives the observed acceleration of the expansion,
+discovered in 1998 through Type Ia supernovae appearing fainter — and therefore more
+distant — than a decelerating universe would place them. It behaves like a constant energy
+density of empty space with negative pressure, which in general relativity produces
+repulsive gravity. The simplest explanation is a cosmological constant, and the difficulty
+is that the value predicted by naive quantum field theory calculations of vacuum energy
+exceeds the observed one by many tens of orders of magnitude — a discrepancy sometimes
+called the worst prediction in physics and an open problem of the first rank.
+
+The recurring lesson of the last century of cosmology is that the constituents we
+understand are the minority. Ordinary matter — everything made of atoms, including every
+star, planet, and person — is about five percent of the energy content of the universe.
+The rest is inferred entirely from its gravitational effects, measured with increasing
+precision, and understood not at all in terms of underlying physics. That the observations
+are nonetheless mutually consistent across completely independent methods is what
+distinguishes this from mere ignorance: the concordance model is tightly constrained and
+repeatedly tested, and it says clearly that most of the universe remains unidentified.

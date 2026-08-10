@@ -1,0 +1,309 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: Feature Engineering and Data Preparation
+Subtopics: exploratory analysis, missing data, encoding, scaling and transformation,
+feature construction, selection, leakage, pipeline discipline.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Exploratory Analysis and Data Understanding
+
+Feature engineering begins with understanding what the data actually contains, and the effort
+spent here has a higher return than nearly anything downstream. The recurring experience is
+that datasets contain surprises — encoded missing values, duplicated records, units that
+changed partway through the collection period, categories that were merged or split, columns
+whose meaning differs from their name — and that a model trained without discovering them
+learns the artifacts.
+
+Univariate examination establishes the basic properties of each column: its type,
+distribution, range, missing rate, and cardinality. The specific things to look for are
+distributions with implausible values such as negative ages or future dates, spikes at
+particular values that indicate defaults or sentinels, and heavy tails that will dominate any
+scale-sensitive method. Categorical columns need their cardinality checked, since a column with
+thousands of levels needs different handling from one with five, and their frequency
+distribution examined, since rare levels behave differently from common ones.
+
+Bivariate examination looks at relationships, both between features and between each feature
+and the target. Correlation matrices identify redundancy, and the caution is that correlation
+captures only linear association, so mutual information or a scatter plot may reveal
+relationships that correlation misses entirely. The relationship with the target is what
+guides construction, and examining it before modelling frequently suggests transformations that
+a model would need substantial capacity to learn.
+
+Exploratory checklist:
+  types and semantics    what each column means and how it was produced
+  missing patterns       rate, and whether missingness correlates with anything
+  sentinel values        -1, -999, 0, empty string, "unknown"; often encode missing
+  duplicates             exact and near; check whether they are legitimate
+  cardinality            categorical levels; high cardinality needs special handling
+  distributions          skew, multimodality, heavy tails, spikes at round numbers
+  outliers               distinguish errors from genuine extremes; the response
+                         differs completely
+  units and scale        verify consistency, especially across time and source
+  temporal drift         plot each feature's distribution over time; changes
+                         indicate upstream changes
+  target relationship    plot the target against each feature; suggests
+                         transformations
+  target distribution    imbalance, skew, and whether a transform is warranted
+  data dictionary        write one if it does not exist; the act of writing it
+                         surfaces ambiguities
+
+Temporal drift plots deserve specific mention because they catch a class of problem nothing
+else does. Plotting each feature's mean and missing rate by month reveals when an upstream
+system changed, when a data source was added or removed, when a definition changed, and when a
+collection outage occurred. A model trained across such a boundary learns from two different
+data-generating processes, and its behaviour on new data depends on which one the new data
+resembles. Discovering the boundary allows a decision — train on the recent period only, add an
+indicator, or correct the older data — that cannot be made if the boundary is invisible.
+
+Q: A numeric column has a large spike of values at exactly -999 and is otherwise distributed
+between 0 and 100. The correct interpretation is most likely:
+A. Genuine negative measurements
+B. A sentinel encoding missing data, which must be converted to null before any statistic is
+   computed
+C. An outlier to be winsorized
+D. A scaling error
+Reasoning: A concentrated spike at an implausible round negative value is the signature of a
+missing-data sentinel from a legacy system. Treating it as a real value corrupts every
+statistic, and models learn a spurious relationship at that value. Converting to null and
+adding a missingness indicator is the correct handling. Answer: B.
+
+## Missing Data
+
+Missingness is not one problem but three, and the mechanism determines what handling is
+valid. Data missing completely at random has missingness independent of everything, so
+complete-case analysis is unbiased and merely loses power. Data missing at random has
+missingness depending on observed variables, so it can be corrected by conditioning on them.
+Data missing not at random has missingness depending on the unobserved value itself, which
+cannot be corrected from the data alone and requires either external information or explicit
+sensitivity analysis.
+
+The third case is common and consequential. Income is missing more often for high earners,
+symptom severity is missing more often for the sickest patients who were too ill to complete
+the survey, and a sensor reading is missing exactly when the condition it measures exceeded the
+sensor's range. In each case the missingness carries information about the missing value, and
+imputing with a mean systematically distorts the distribution in a known direction.
+
+The practically important consequence is that the fact of missingness is itself a feature. A
+binary indicator recording whether each value was missing preserves that information, and it
+frequently turns out to be among the most predictive features in the model — which is a signal
+that the missingness is informative and that imputation alone would have discarded real signal.
+
+Missing data handling:
+  MCAR                   independent of everything; complete-case is unbiased
+  MAR                    depends on observed variables; correctable by conditioning
+  MNAR                   depends on the missing value itself; not correctable from
+                         the data alone
+  missingness indicator  add a binary flag; preserves informative missingness and
+                         is often highly predictive
+  drop rows              only when the missing fraction is small and MCAR is
+                         plausible
+  drop columns           when the missing rate is very high and the column is not
+                         critical
+  mean or median         simple, distorts the distribution, understates variance
+  forward fill           for time series where the last value persists; wrong when
+                         it does not
+  model-based            regression or k-nearest-neighbour imputation; better and
+                         requires care to avoid leakage
+  multiple imputation    generate several completed datasets and pool the results;
+                         propagates imputation uncertainty into the estimates
+  native handling        gradient-boosted tree implementations learn a default
+                         direction per split; frequently better than any imputation
+  fit inside the fold    imputation parameters must be learned from training data
+                         only
+
+Native missing-value handling in tree ensembles deserves emphasis because it removes a whole
+category of decision. LightGBM, XGBoost, and CatBoost all learn, for each split, which
+direction missing values should go, based on which reduces the loss more. This uses the
+missingness informatively without requiring the analyst to choose an imputation strategy, and
+it is frequently better than any imputation because it adapts per split rather than applying
+one global rule. Where a tree ensemble is the model, imputing first is often actively harmful.
+
+## Encoding and Transformation
+
+Categorical variables must be converted to numbers, and the encoding choice interacts
+strongly with the model type. One-hot encoding creates a binary column per level, which is
+correct for linear models and neural networks and explodes the dimensionality for
+high-cardinality features. Ordinal encoding assigns integers, which imposes a false ordering on
+nominal categories for models that interpret magnitude, and is entirely fine for tree ensembles
+which only split on thresholds and can isolate any subset through repeated splits.
+
+Target encoding replaces each level with a statistic of the target within that level, which
+compresses high-cardinality features into a single informative column. It is powerful and is
+the single most leakage-prone technique in common use, because the encoding is computed from
+the target. Computed naively on the full training set, each row's encoding includes its own
+target value, so the model can partially read the answer from the feature. The remedies are
+cross-fold encoding, where each fold's encoding is computed from the other folds, and smoothing
+toward the global mean proportional to how few observations a level has.
+
+Numeric transformation addresses distributional problems. Standardization centres and scales
+to unit variance and is required for any method using distances or penalties — k-nearest
+neighbours, support vector machines, principal components, and regularized regression are all
+scale-sensitive, while tree ensembles are entirely scale-invariant. Skewed distributions
+benefit from a log or power transform, since many methods assume roughly symmetric errors and
+heavy tails otherwise dominate.
+
+Encoding and transformation:
+  one-hot               binary per level; correct for linear and neural models
+  ordinal               integers; fine for trees, imposes false order elsewhere
+  target encoding       target statistic per level; powerful, leakage-prone;
+                        requires cross-fold computation and smoothing
+  frequency encoding    replace with the level's count; simple and often effective
+  hashing               fixed dimensionality for very high cardinality; collisions
+                        are tolerable
+  embeddings            learned dense representations; suit neural models and
+                        very high cardinality
+  rare level grouping   collapse infrequent levels into "other"; prevents
+                        overfitting to levels with few observations
+  standardization       zero mean, unit variance; required for distance and
+                        penalty based methods
+  min-max scaling       to a fixed range; sensitive to outliers
+  robust scaling        median and interquartile range; resists outliers
+  log transform         for right-skewed positive data; log1p handles zeros
+  Box-Cox / Yeo-Johnson  fitted power transforms toward normality
+  quantile transform    maps to a uniform or normal distribution; very robust,
+                        loses the original scale's meaning
+  binning               discretizes; loses information and can capture
+                        nonlinearity for linear models
+
+The scale sensitivity table is worth committing to memory because applying the wrong
+preparation is a common and silent error. Linear and logistic regression with regularization
+require scaling because the penalty is applied to coefficients whose magnitude depends on the
+feature scale. Neural networks require it for optimization stability. Distance-based methods
+require it because an unscaled feature with a large range dominates the distance. Tree
+ensembles require none of it and are unaffected, so scaling them is harmless and pointless.
+
+## Feature Construction
+
+Constructing features is where domain knowledge enters, and it remains the highest-leverage
+activity in applied machine learning on tabular data. The goal is to express in the feature
+space what the model would otherwise need substantial capacity and data to discover.
+
+Temporal features are the most consistently valuable. A raw timestamp is nearly useless to a
+model; the derived hour of day, day of week, month, and holiday indicator are highly
+informative, and the cyclical nature must be encoded properly — hour 23 and hour 0 are
+adjacent, which an integer encoding does not express, so sine and cosine of the angle is the
+standard representation. Time since a previous event, counts within recent windows, and
+rolling aggregates all capture behaviour that a single snapshot does not.
+
+Aggregation features summarize related records and are what turn a relational structure into
+a flat feature vector. For a customer, the count, sum, mean, maximum, and recency of their
+transactions each carry different information, and ratios between them — this month's spend
+relative to their twelve-month average — normalize for individual scale and are frequently more
+predictive than the raw values.
+
+Feature construction patterns:
+  datetime decomposition  hour, day of week, month, quarter, holiday, business day
+  cyclical encoding       sine and cosine so that wraparound is continuous
+  time since event        recency; often the single strongest behavioural feature
+  rolling aggregates      mean, max, count, standard deviation over windows;
+                          multiple window lengths capture different timescales
+  lag features            prior values; essential in time series
+  entity aggregates       count, sum, mean, distribution statistics per group
+  ratios and differences  normalize for scale; frequently more predictive than
+                          the components
+  interactions            products or explicit combinations; trees find these
+                          automatically, linear models cannot
+  domain formulas         body mass index, debt-to-income, utilization rate;
+                          encode established knowledge directly
+  text                    length, token counts, sentiment, embeddings
+  geospatial              distance to points of interest, density within a radius,
+                          region aggregates
+  count-based             frequency of a value in the dataset; captures typicality
+
+The cyclical encoding point deserves illustration because it is frequently gotten wrong.
+Encoding the month as an integer from one to twelve tells a linear model that December is
+eleven units from January, when they are adjacent. Encoding it as the sine and cosine of the
+corresponding angle places every month on a circle, so December and January are close in the
+feature space. The same applies to hour of day, day of week, day of year, and wind direction —
+any quantity whose maximum wraps around to its minimum.
+
+[user] My model uses a "days_since_last_purchase" feature and performs great in validation but
+poorly in production.
+[assistant] tool_call ml.leakage_check({"feature": "days_since_last_purchase",
+"target": "will_churn_next_30d", "computed_at": "dataset_build_time",
+"prediction_time": "scoring_time", "validation_auc": 0.94, "production_auc": 0.68})
+[tool] {"leakage_type": "temporal", "issue": "feature_computed_after_label_period",
+"detail": "days_since_last_purchase_at_build_time_reflects_post_label_behavior",
+"fix": "compute_as_of_prediction_timestamp"}
+[assistant] Temporal leakage. Your feature was computed at dataset build time rather than as
+of the prediction time, so for historical training rows it reflects behaviour that occurred
+during and after the label window.
+
+Concretely: for a customer whose churn label covers a 30-day window ending last March, the
+days-since-last-purchase value in your training data was computed when you built the dataset —
+which might be months later. If they purchased in April, that value is small. If they churned
+and never purchased again, it is large. The feature is therefore partly a function of the
+outcome, which is why validation looks excellent and production does not, since at scoring time
+you only have information up to the present.
+
+The fix is to compute every feature as of the prediction timestamp for that row. For a
+training example whose label window begins on a given date, every feature must use only data
+available strictly before that date. This is a point-in-time correct join, and it is the single
+most important correctness property in any feature pipeline built over historical data.
+
+Practically this means storing the history with timestamps and computing features by an
+as-of join rather than by aggregating the current state. It is more work than the naive
+approach and it is the difference between a model that works and one that does not.
+
+Two things worth checking while you are in there. Any other feature derived from behavioural
+history — transaction counts, average order value, session frequency — has the same defect if
+computed the same way, so audit all of them rather than fixing this one. And once corrected,
+expect the validation number to fall substantially toward the production number; that drop is
+the leakage being removed, not a regression, and the corrected validation figure is the one to
+use for decisions.
+
+## Selection, Leakage, and Pipeline Discipline
+
+Feature selection reduces dimensionality to improve generalization, reduce computation, and
+aid interpretation. Filter methods score features independently of any model — by correlation,
+mutual information, or a univariate test — and are fast and blind to interactions. Wrapper
+methods evaluate subsets by training a model, which is accurate and expensive and prone to
+overfitting the selection to the validation set. Embedded methods perform selection as part of
+training, as L1 regularization and tree-based importance do.
+
+The caution that applies to all of them is that selection performed using the target on the
+full dataset leaks, and the leak can be spectacular. Selecting the thousand features most
+correlated with the target from a hundred thousand random features, then cross-validating the
+model alone, produces impressively high accuracy on pure noise, because the selection saw every
+fold's labels. Selection must occur inside the cross-validation loop, on each training fold
+independently, for the resulting estimate to be honest.
+
+Leakage more broadly is any information in the training features that would not be available
+at prediction time, and it is the defect most likely to produce a model that validates
+brilliantly and fails in production. Its forms are worth enumerating because each is easy to
+introduce inadvertently.
+
+Leakage sources:
+  target leakage        a feature computed from or determined by the target
+  temporal leakage      features using information from after the prediction time
+  train-test contamination  preprocessing fitted on the full dataset; scaling,
+                        imputation, encoding, and selection all leak this way
+  duplicate records     the same entity in both train and test
+  group leakage         multiple rows per entity split across train and test, so
+                        the model memorizes the entity
+  proxy features        an identifier or a downstream artifact that encodes the
+                        outcome; a case number assigned only to confirmed cases
+  future aggregates     a group statistic computed over the whole dataset
+                        including test rows
+  detection             suspiciously high performance, a single dominant feature,
+                        or a large validation-to-production gap
+  the fix               every data-dependent step fitted inside the training fold;
+                        point-in-time correct feature computation; group-aware
+                        splitting
+
+Pipeline discipline is what enforces all of this structurally rather than by vigilance. A
+pipeline object encapsulating imputation, encoding, scaling, selection, and the model, fitted
+as a unit inside each cross-validation fold, makes contamination impossible by construction —
+every transformation learns its parameters from training data only, because that is the only
+data the pipeline sees when fitting. Doing preprocessing in separate steps outside the
+validation loop is the practice that produces most leakage, and it is convenient enough that it
+persists despite being known to be wrong.
+
+The same pipeline must then serve inference, which is what eliminates training-serving skew.
+If the transformations applied at scoring time are a separate implementation of the same logic,
+they will eventually diverge — a rounding difference, a different null handling, a category
+seen at serving that was not seen in training. Serializing the fitted pipeline and applying it
+at inference means there is one implementation and one set of learned parameters, and the class
+of bug where the model receives inputs unlike its training distribution disappears.

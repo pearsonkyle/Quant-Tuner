@@ -1,0 +1,241 @@
+================================================================================
+AREA: Physics
+SUBJECT: Soft Matter and Complex Fluids
+Subtopics: the soft matter regime, polymers, colloids, surfactants and interfaces,
+liquid crystals, granular materials, rheology and measurement.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## The Soft Matter Regime
+
+Soft matter comprises materials whose characteristic energy scales are comparable to thermal energy
+at room temperature, which is what makes them soft: a modest force produces a large deformation
+because the structures resisting it are held together by interactions only a few times stronger than
+the random thermal jostling constantly disturbing them. Polymers, colloids, surfactants, liquid
+crystals, gels, foams, and biological materials all fall in this class.
+
+The comparability to thermal energy has two consequences that define the field. First, entropy
+frequently dominates over energy in determining structure, so these materials organize themselves in
+ways that maximize configurational freedom rather than minimize interaction energy. Second, the
+relevant length scales are large — nanometres to micrometres rather than atomic — and the relevant
+timescales are slow, from microseconds to hours, which means the dynamics are directly observable by
+microscopy and scattering in ways that atomic-scale dynamics are not.
+
+Self-assembly is the characteristic behaviour. Components with appropriate interactions spontaneously
+organize into ordered structures without external direction, driven by the competition between
+entropy and weak interactions. This is how membranes form from lipids, how block copolymers organize
+into periodic nanostructures, and how colloidal particles crystallize, and it is the principal
+reason the field connects so directly to biology and to nanotechnology.
+
+The soft matter regime:
+  the defining property  energy scales comparable to thermal energy
+  the softness           large deformation from modest force
+  entropy dominance      structure maximizing configurational freedom
+  length scales          nanometres to micrometres
+  time scales            microseconds to hours; directly observable
+  Brownian motion        thermal agitation as a constant presence
+  self-assembly          spontaneous organization from weak interactions
+  the biological connection  membranes, cytoskeleton, and the cell interior are
+                       all soft matter
+  universality           behaviour depending on general features rather than
+                       chemical detail, so very different materials obey the same
+                       relations
+  scaling laws           the theoretical style of the field; exponents rather than
+                       exact coefficients
+  the practical consequence  a result derived for one polymer applies broadly,
+                       which is what makes the general theory useful
+
+Q: A material deforms substantially under its own weight but recovers its shape when unloaded. Why
+is this typical of soft matter?
+A. It is a liquid
+B. Its structural interactions are only a few times thermal energy, so modest stresses produce large
+   elastic deformation, while entropic restoring forces recover the original configuration when the
+   stress is removed
+C. It is defective
+D. The material is warm
+Reasoning: Soft materials have low elastic moduli because the structures resisting deformation are
+weakly bound. Recovery is often entropic — the deformed state has fewer accessible configurations,
+so removing the stress lets thermal motion restore the more probable state. Rubber elasticity is the
+standard example and its restoring force is almost entirely entropic. Answer: B.
+
+## Polymers
+
+A polymer is a long chain of repeated units, and nearly all of its physics follows from that
+connectivity plus the enormous number of configurations a long flexible chain can adopt. The
+simplest model treats the chain as a random walk, which gives the characteristic result that the
+chain's typical size grows as the square root of its length rather than linearly — a chain of ten
+thousand units is only a hundred units' length across.
+
+Excluded volume corrects this: real chain segments cannot occupy the same space, which swells the
+chain relative to the ideal random walk in a good solvent. In a poor solvent the segments prefer each
+other to the solvent and the chain collapses. Between them lies a condition where the two effects
+cancel and the chain behaves ideally, which is a specific temperature for a given polymer and
+solvent and is a useful reference state.
+
+Concentration changes the physics qualitatively. Dilute chains are isolated coils. Above a
+concentration where the coils begin to overlap, chains interpenetrate and the solution's properties
+change character. In melts and concentrated solutions, entanglement dominates: chains cannot pass
+through each other, so their motion is confined to a tube defined by their neighbours and proceeds
+by sliding along their own contour. This reptation picture predicts that relaxation time grows very
+steeply with chain length, which is why long-chain polymers are so viscous and why processing them
+is difficult.
+
+Polymers:
+  the chain             repeated units connected in sequence
+  random walk model     size growing as the square root of length
+  excluded volume       segments cannot overlap; swells the chain
+  good and poor solvent  swollen coil against collapsed globule
+  the theta condition   where the effects cancel and the chain is ideal
+  overlap concentration  where coils begin to interpenetrate
+  entanglement          chains unable to pass through each other
+  reptation             motion confined to a tube, sliding along the contour
+  the relaxation scaling  time growing very steeply with chain length
+  the processing consequence  long chains are viscous and hard to process
+  glass transition      the temperature where segmental motion freezes; not a
+                       phase transition and it depends on cooling rate
+  crystallinity         partial in polymers; lamellae with amorphous regions
+                       between
+  rubber elasticity     entropic restoring force from crosslinked chains
+  the counterintuitive result  a stretched rubber band heats up and contracts on
+                       heating, both consequences of the entropic origin
+  block copolymers      chemically distinct blocks that microphase separate into
+                       periodic structures at the scale of the block size
+
+## Colloids and Interfaces
+
+A colloidal dispersion is particles from nanometres to micrometres suspended in a fluid, large enough
+to be treated as objects and small enough that thermal motion keeps them suspended. Milk, paint,
+ink, blood, and fog are all colloids, and the central question for all of them is stability: whether
+the particles remain dispersed or aggregate.
+
+Aggregation is driven by attractive van der Waals forces between particles, which are always present
+and become strong at short range. Stability requires a repulsive force to counteract them.
+Electrostatic stabilization gives particles like charges so they repel, and it works until the
+surrounding electrolyte concentration screens the charge — which is why adding salt to a
+charge-stabilized colloid causes it to flocculate, and why estuaries deposit sediment where fresh
+water meets salt. Steric stabilization attaches polymer chains to the surfaces, so approaching
+particles compress each other's chains and pay an entropic penalty, and it is insensitive to
+electrolyte.
+
+Interfaces are where much of soft matter physics occurs, and surface tension is the governing
+quantity: the energy cost per unit area of an interface, which drives systems to minimize interfacial
+area and explains drop shapes, capillary rise, and the pressure difference across a curved
+interface. Surfactants are molecules with a water-loving and a water-avoiding part, which
+preferentially sit at interfaces and lower the tension, and this single property underlies detergency,
+emulsification, foaming, and the formation of cell membranes.
+
+Colloids and interfaces:
+  colloid              particles suspended, thermally agitated
+  the central question  stability against aggregation
+  van der Waals attraction  always present, strong at short range
+  electrostatic stabilization  like charges repelling
+  screening            electrolyte reducing the range of the repulsion
+  the salt effect      adding electrolyte flocculates a charge-stabilized colloid
+  steric stabilization  attached polymer chains; insensitive to electrolyte
+  depletion attraction  free polymer excluded between close particles creating an
+                       effective attraction; a purely entropic force
+  colloidal crystals   ordered arrays forming by entropy alone at high volume
+                       fraction
+  surface tension      energy per unit interfacial area
+  the pressure difference  across a curved interface, inversely with radius
+  capillarity          rise and wetting from the balance of surface energies
+  contact angle        the wetting measure; determined by three interfacial
+                       tensions
+  surfactants          amphiphilic molecules sitting at interfaces
+  micelles             surfactant aggregates above a critical concentration
+  emulsions            one liquid dispersed in another; stabilized by surfactants
+                       and thermodynamically unstable regardless, so the question
+                       is always how long they last rather than whether they
+                       separate
+
+## Liquid Crystals and Granular Materials
+
+Liquid crystals occupy states between crystalline solids and isotropic liquids, with orientational
+order and partial or absent positional order. The nematic phase has molecules aligned on average
+along a common direction while their positions remain liquid-like, and this combination — fluid but
+anisotropic — is what makes the phase technologically useful, since the orientation responds to
+electric fields while the material still flows.
+
+The optical consequence is birefringence: light polarized along the alignment direction travels at a
+different speed than light polarized across it. Combined with the ability to reorient the alignment
+with a modest voltage and with surface treatments that anchor the orientation at the boundaries,
+this is the entire physical basis of liquid crystal displays. Defects in the alignment field —
+regions where the orientation cannot be continuously defined — are both a technological nuisance and
+a rich subject in their own right, since their allowed types are determined by topology.
+
+Granular materials are collections of macroscopic particles, and they are unusual because thermal
+energy is entirely negligible compared with the gravitational energy of a single grain. This means
+they do not explore configurations spontaneously and are always in a metastable state determined by
+their history. They flow like liquids in some circumstances, support load like solids in others, and
+exhibit behaviours with no fluid analogue — including size segregation on shaking, where large
+particles rise despite being denser, and force chains that carry load along sparse networks of
+contacts while neighbouring grains bear almost nothing.
+
+Liquid crystals and granular matter:
+  the intermediate states  orientational order without full positional order
+  nematic              aligned direction, liquid positions
+  smectic              layered, with order within layers varying by type
+  cholesteric          a helical twist of the alignment direction
+  birefringence        different speeds for different polarizations
+  field reorientation  alignment responding to modest voltages
+  surface anchoring    boundary treatment setting the orientation
+  the display basis    these three properties combined
+  topological defects  regions where orientation cannot be continuously defined
+  granular materials   macroscopic particles; thermal energy negligible
+  history dependence   always metastable, determined by preparation
+  the solid-liquid ambiguity  flowing in some circumstances, load-bearing in
+                       others
+  angle of repose      the maximum stable slope of a heap
+  size segregation     large particles rising on shaking, regardless of density
+  force chains         load carried along sparse contact networks
+  jamming              a transition from flowing to rigid at a critical density,
+                       with parallels to the glass transition despite the absence
+                       of temperature as a variable
+
+## Rheology and Measurement
+
+Rheology studies how materials flow and deform, and soft materials require it because they are
+neither simple elastic solids nor simple viscous liquids. A Newtonian liquid has a viscosity
+independent of the applied stress; nearly every soft material does not. Shear thinning — viscosity
+falling as shear rate rises — is the most common behaviour and results from structures aligning or
+breaking down under flow, which is why paint spreads easily under a brush and does not run
+afterward.
+
+Viscoelasticity means the response has both a solid-like and a liquid-like component, with the
+balance depending on the timescale of the deformation. Fast deformations find the material elastic
+because its structures have no time to rearrange; slow ones find it viscous because they do. The
+relevant comparison is between the deformation timescale and the material's characteristic
+relaxation time, and their ratio determines which behaviour dominates — which explains why the same
+material can bounce when struck and flow when left alone.
+
+Oscillatory measurement is the standard characterization. Applying a small sinusoidal deformation and
+measuring the stress response gives two moduli: one in phase with the deformation, representing
+stored elastic energy, and one out of phase, representing dissipated viscous energy. Sweeping the
+frequency maps the material's behaviour across timescales, and the crossover frequency where the two
+moduli are equal marks the relaxation time. This single measurement characterizes a material more
+completely than any number of single-point viscosity readings.
+
+Rheology:
+  Newtonian            viscosity independent of stress
+  shear thinning       viscosity falling with shear rate; the most common
+                       behaviour
+  the mechanism        structures aligning or breaking under flow
+  shear thickening     viscosity rising; dramatic in dense suspensions
+  yield stress         a threshold below which the material does not flow at all
+  the yield stress consequence  toothpaste holding its shape and extruding under
+                       pressure
+  thixotropy           time-dependent recovery after shear
+  viscoelasticity      both solid-like and liquid-like response
+  the timescale comparison  deformation time against relaxation time
+  the everyday demonstration  a material that bounces when struck and flows when
+                       left
+  oscillatory measurement  small sinusoidal deformation, stress response measured
+  storage modulus      in phase; stored elastic energy
+  loss modulus         out of phase; dissipated viscous energy
+  frequency sweep      behaviour mapped across timescales
+  the crossover        where the moduli are equal; marks the relaxation time
+  the linear regime    measurements valid only at small deformation; exceeding it
+                       measures the broken material rather than the material, and
+                       verifying that the measurement is in the linear regime is
+                       the step most often skipped

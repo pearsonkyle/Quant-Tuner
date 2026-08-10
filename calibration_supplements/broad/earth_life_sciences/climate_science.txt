@@ -1,0 +1,354 @@
+================================================================================
+AREA: Earth and Life Sciences
+SUBJECT: Climate Science
+Subtopics: the energy balance, greenhouse physics, carbon cycle, feedbacks,
+observations and paleoclimate, models and projections, impacts, mitigation.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## The Planetary Energy Balance
+
+Earth's climate is fundamentally an energy balance problem. Solar radiation arrives,
+some is reflected, the rest is absorbed and eventually re-emitted as infrared. When
+incoming and outgoing energy balance, temperature is steady; when they do not, the system
+gains or loses heat until a new balance is reached.
+
+The arithmetic is straightforward. The solar constant at Earth's distance is about 1361
+watts per square metre, intercepted over a disc of the planet's cross-sectional area and
+distributed over the whole sphere, giving 340 watts per square metre averaged globally.
+About 30 percent is reflected by clouds, aerosols, ice, and the surface — the planetary
+albedo — leaving roughly 240 watts per square metre absorbed. Setting that equal to
+blackbody emission gives an effective temperature of about 255 kelvin, or minus 18 degrees
+Celsius.
+
+The observed global mean surface temperature is about 15 degrees Celsius, some 33 degrees
+warmer. That difference is the greenhouse effect, and its existence is not in dispute by
+anyone: without it the planet would be frozen. The scientific questions concern its
+magnitude under changed composition, the feedbacks that amplify or damp the response, and
+the regional and temporal distribution of the consequences.
+
+Energy balance quantities:
+  solar constant           ~1361 W/m^2 at the top of the atmosphere
+  global mean insolation   ~340 W/m^2 (divided by 4 for sphere vs disc)
+  planetary albedo         ~0.30
+  absorbed shortwave       ~240 W/m^2
+  effective temperature    255 K from Stefan-Boltzmann
+  observed surface mean    ~288 K
+  greenhouse warming       ~33 K
+  current imbalance        ~+0.9 W/m^2 measured; energy accumulating
+  ocean heat uptake        >90% of the excess energy goes into the ocean
+  CO2 doubling forcing     ~3.7 W/m^2
+
+The measured top-of-atmosphere energy imbalance is the single most direct evidence that
+the system is out of equilibrium. Satellite radiometry combined with ocean heat content
+measurements from autonomous floats shows the planet absorbing roughly 0.9 watts per square
+metre more than it emits. That is a small number relative to 340, and integrated over the
+Earth's surface and over years it is an enormous amount of energy — the equivalent of
+several Hiroshima-scale detonations per second, more than 90 percent of which is going into
+the ocean rather than the atmosphere. This is why ocean heat content is a better metric of
+the energy imbalance than surface air temperature, which is noisy and reflects a small
+fraction of the total.
+
+Q: Earth's effective radiating temperature is 255 K while its surface averages 288 K.
+This difference is because:
+A. The Sun's output has increased
+B. Greenhouse gases absorb outgoing infrared and re-emit, raising the altitude of effective
+   emission to space and warming everything below
+C. The atmosphere generates heat
+D. Albedo has decreased
+Reasoning: The effective temperature is the temperature at which the planet radiates to
+space. Greenhouse gases are largely transparent to incoming visible light and opaque to
+outgoing infrared, so radiation to space occurs from high, cold layers rather than the
+surface. Since the atmosphere cools with altitude and the emission level must be at 255 K to
+balance, the surface below is correspondingly warmer. Answer: B.
+
+## Greenhouse Physics and Radiative Forcing
+
+A greenhouse gas is one that absorbs and emits infrared radiation, which requires a
+molecule with a dipole moment that changes during vibration. Diatomic molecules of
+identical atoms — nitrogen and oxygen, which together are 99 percent of the atmosphere —
+have no such mode and are therefore transparent to infrared. Water vapour, carbon dioxide,
+methane, nitrous oxide, and ozone all do absorb, which is why trace gases can dominate the
+planet's radiative properties.
+
+The mechanism is often described loosely as heat being trapped, and the more accurate
+framing is about emission altitude. Adding greenhouse gas makes the atmosphere more opaque
+in the relevant infrared bands, so photons escaping to space are emitted from higher in the
+atmosphere. Because temperature decreases with altitude in the troposphere, that higher
+emission level is colder and radiates less, creating an imbalance. The surface and
+troposphere then warm until the emission level, still at higher altitude, has warmed enough
+to restore balance.
+
+Radiative forcing quantifies the imbalance a perturbation causes before the climate
+responds, measured in watts per square metre. Doubling carbon dioxide produces about 3.7
+watts per square metre. The relationship is logarithmic rather than linear — each doubling
+adds roughly the same forcing — because the strongest absorption bands become saturated at
+the centre and additional absorption occurs in the band wings. This logarithmic dependence
+means the forcing does not run away with concentration, and it also means that reducing
+concentration from a high level buys back less than adding it cost.
+
+Greenhouse gases and their properties:
+  water vapour     the strongest greenhouse gas; a feedback, not a forcing, since
+                   its concentration is set by temperature and its residence time
+                   is days
+  carbon dioxide   the dominant anthropogenic forcing; extremely long-lived, with
+                   a substantial fraction persisting for millennia
+  methane          ~80x CO2 potency over 20 years, ~28x over 100; ~12 year
+                   lifetime, so cuts act fast
+  nitrous oxide    ~270x CO2 over 100 years; ~115 year lifetime; mainly
+                   agricultural
+  halocarbons      thousands of times more potent per molecule; regulated under
+                   the Montreal Protocol, which also proved a large climate benefit
+  ozone            tropospheric ozone warms; stratospheric ozone loss cools
+  aerosols         mostly cooling, by scattering sunlight and seeding clouds;
+                   short-lived, regionally concentrated, and the largest source of
+                   uncertainty in the total forcing
+  forcing of 2xCO2 ~3.7 W/m^2
+  logarithmic law  forcing ≈ 5.35 ln(C/C0) W/m^2
+
+The distinction between a forcing and a feedback is essential and is where a common
+argument goes wrong. Water vapour is indeed the largest contributor to the natural
+greenhouse effect, and it is not a driver of change, because its atmospheric concentration
+is controlled by temperature through the Clausius-Clapeyron relation and its residence time
+is about nine days. Adding water vapour to the atmosphere does nothing lasting; it rains
+out. Adding carbon dioxide raises temperature, which raises the equilibrium water vapour
+content, which amplifies the warming — water vapour acts as a feedback multiplying whatever
+forcing is applied rather than as an independent cause.
+
+## The Carbon Cycle
+
+Carbon moves between reservoirs — atmosphere, ocean, land biosphere, soils, rocks — on
+timescales spanning years to millions of years. The fast cycle exchanges enormous fluxes:
+photosynthesis and respiration each move roughly 120 gigatonnes of carbon per year, and
+ocean-atmosphere exchange moves about 80, against an atmospheric stock of around 875
+gigatonnes. Human emissions of roughly 10 gigatonnes per year are small against those
+gross fluxes and are not balanced by an offsetting return flux, which is why they
+accumulate.
+
+About half of anthropogenic emissions remain in the atmosphere; the ocean absorbs roughly a
+quarter and the land biosphere roughly a quarter. These sinks are services performed at a
+cost: ocean uptake acidifies seawater, with surface pH having fallen about 0.1 units since
+preindustrial times, a 30 percent increase in hydrogen ion concentration, with direct
+consequences for organisms building calcium carbonate structures. Land uptake depends on
+ecosystems whose future behaviour under warming and drought is uncertain, and there is
+evidence that sink efficiency is declining.
+
+Carbon dioxide's atmospheric lifetime is frequently misstated because it is not a simple
+exponential. An individual molecule exchanges out of the atmosphere within a few years, but
+the perturbation to atmospheric concentration decays much more slowly, because the removed
+carbon largely enters the ocean surface which then re-equilibrates. Roughly half of an
+emission pulse is gone within a few decades, a quarter persists for centuries, and something
+like ten to twenty percent remains for tens of thousands of years until silicate weathering
+removes it. This long tail is why cumulative emissions rather than emission rate determine
+peak warming.
+
+Carbon cycle numbers:
+  preindustrial CO2      ~278 ppm
+  current CO2            >420 ppm and rising ~2.5 ppm/yr
+  atmospheric stock      ~875 GtC (2.13 GtC per ppm)
+  annual emissions       ~10 GtC (~37 Gt CO2) from fossil fuels and land use
+  airborne fraction      ~45%
+  ocean sink             ~25%; causes acidification
+  land sink              ~30%; uncertain and possibly weakening
+  ocean pH change        -0.1 units since preindustrial (~30% more H+)
+  permafrost carbon      ~1400 GtC, roughly twice the atmospheric stock
+  transient response     ~1.65 C per 1000 GtC cumulative emissions
+
+The near-linear relationship between cumulative emissions and warming is one of the more
+useful results in the field. Because carbon dioxide's long residence time and the ocean's
+thermal inertia happen to offset each other, peak warming is approximately proportional to
+total carbon emitted regardless of the emission pathway. This produces the carbon budget
+framing: a given temperature target corresponds to a total quantity of carbon that can be
+emitted, and once it is spent, the target requires net zero emissions. It also means that
+stabilizing temperature requires net zero rather than merely reduced emissions, which is a
+frequently misunderstood point — cutting emissions in half slows the accumulation without
+stopping the warming.
+
+## Feedbacks and Climate Sensitivity
+
+Climate sensitivity is the equilibrium warming resulting from a doubling of carbon
+dioxide, and it is the single most consequential number in the field. The direct radiative
+effect alone would produce about 1.2 degrees; feedbacks amplify this substantially. Current
+assessment places the likely range at 2.5 to 4 degrees with a best estimate around 3, a
+range that has narrowed only modestly over decades because the dominant uncertainty is
+clouds.
+
+The feedbacks are individually well characterized in sign if not in magnitude. Water vapour
+is strongly positive: warmer air holds more moisture at about 7 percent per degree, and
+water vapour is a greenhouse gas. The lapse rate feedback is negative, because warming aloft
+exceeds surface warming in the tropics, increasing emission to space. Surface albedo is
+positive: melting ice and snow expose darker ocean and land, absorbing more sunlight, and
+this is amplified at high latitudes, producing Arctic warming at roughly three times the
+global rate. Clouds are the problem: they both reflect sunlight (cooling) and trap infrared
+(warming), and which dominates depends on altitude, thickness, and phase, so the net cloud
+feedback has been the largest uncertainty since the beginning.
+
+Feedback inventory:
+  water vapour       strongly positive; roughly doubles the direct forcing
+  lapse rate         negative; partially offsets the water vapour feedback
+  combined WV+LR     positive, and better constrained together than separately
+  surface albedo     positive; ice-albedo, strongest in the Arctic
+  cloud              net positive by current assessment, largest uncertainty;
+                     low clouds cool, high thin clouds warm
+  Planck response    the fundamental negative feedback; a warmer planet radiates
+                     more, which is what makes the system stable at all
+  carbon cycle       positive; warming reduces sink efficiency
+  permafrost         positive; thaw releases CO2 and methane
+  ocean circulation  uncertain sign; changes to overturning redistribute heat
+
+Tipping elements are components of the system that may pass thresholds beyond which change
+becomes self-sustaining and effectively irreversible on human timescales. The candidates
+include the Greenland and West Antarctic ice sheets, whose loss would raise sea level by
+metres over centuries; Atlantic overturning circulation, whose slowdown would substantially
+alter European and tropical climate; Amazon forest dieback converting a sink into a source;
+and widespread permafrost thaw. Confidence in specific thresholds is low, and their
+existence is well established in paleoclimate records — the system has undergone abrupt
+reorganizations before, which is the principal reason for concern about them.
+
+## Observations, Paleoclimate, and Models
+
+The observational record rests on multiple independent lines that agree. Surface
+thermometers extend back to the mid-nineteenth century, with careful treatment of station
+moves, instrument changes, and urban heat effects; several groups process the raw data
+independently with different methods and obtain closely matching results. Satellite
+measurements provide global coverage since 1979. Ocean heat content from floats gives the
+best measure of the energy imbalance. Sea level rise is measured by tide gauges and
+altimetry. Ice sheet mass loss is measured by satellite gravimetry. Glacier retreat, sea
+ice decline, and shifts in the timing of biological events all corroborate.
+
+Paleoclimate reconstruction extends the record using proxies. Ice cores from Antarctica and
+Greenland trap air bubbles giving direct measurements of past atmospheric composition back
+800,000 years, alongside isotopic temperature proxies. Ocean sediment cores give
+temperature and ice volume over millions of years. Tree rings, corals, speleothems, and
+pollen assemblages fill in regional detail. These records establish that the current carbon
+dioxide concentration is higher than at any point in at least the last 800,000 years and
+probably several million, and that the current rate of increase is roughly a hundred times
+faster than the fastest natural change in the ice core record.
+
+Attribution — determining what caused observed change — uses fingerprinting. Different
+forcings produce distinct spatial and temporal patterns, and the observed pattern matches
+greenhouse forcing rather than the alternatives. Greenhouse warming warms the troposphere
+while cooling the stratosphere; increased solar output would warm both. Greenhouse warming
+produces more warming at night than during the day, and more in winter than summer. Solar
+output has been flat or slightly declining since the 1980s while temperature has risen.
+Each of these is an independent discriminating test.
+
+Model types and their roles:
+  energy balance models      simple, transparent, useful for understanding the
+                             basic physics
+  general circulation models fluid dynamics on a rotating sphere with radiation,
+                             convection, and surface processes
+  Earth system models        GCMs plus interactive carbon cycle, chemistry,
+                             vegetation, ice sheets
+  parameterization           sub-grid processes — clouds, convection, turbulence —
+                             represented statistically; the main source of
+                             inter-model spread
+  ensembles                  many models and many initial conditions; the spread
+                             is an uncertainty estimate, not a range of opinion
+  hindcast validation        models are tested against past climate they were not
+                             tuned on, including volcanic eruption responses
+  emergent constraints       observable present-day quantities that correlate with
+                             model sensitivity, used to narrow projections
+
+Model evaluation deserves comment because model skill is often questioned in general terms
+rather than assessed. Projections made in the 1970s through 1990s can now be compared
+against what happened, and when adjusted for the actual emissions that occurred rather than
+the scenarios assumed, most were skillful. Models reproduce the observed response to
+volcanic eruptions, which are natural experiments applying a known forcing over a known
+period. They reproduce the vertical structure of warming, the seasonal cycle, and
+paleoclimate states with different configurations. They remain weak at regional detail,
+precipitation extremes, and clouds — which is precisely where their published uncertainty is
+largest, indicating that the uncertainties are being reported honestly rather than
+concealed.
+
+[user] How much of recent warming is human-caused versus natural? What's the actual
+evidence?
+[assistant] tool_call climate.attribution({"period": "1850-2020",
+"observed_warming_c": 1.1, "forcings": ["ghg", "aerosol", "solar", "volcanic",
+"internal_variability"]})
+[tool] {"ghg_contribution_c": [1.0, 2.0], "aerosol_contribution_c": [-0.8, 0.0],
+"solar_contribution_c": [-0.1, 0.1], "volcanic_contribution_c": [-0.1, 0.1],
+"internal_variability_c": [-0.2, 0.2], "net_anthropogenic_c": [0.8, 1.3],
+"observed_c": 1.1, "best_estimate_human_share": 1.0}
+[assistant] The best estimate is that essentially all of it is human-caused — the central
+estimate for the human contribution equals the observed 1.1 degrees, and natural factors
+net to approximately zero.
+
+The reason that sounds surprising is that the greenhouse contribution alone is assessed at
+1.0 to 2.0 degrees, more than the observed warming. Aerosols, mostly from the same fossil
+fuel combustion, have masked part of it by reflecting sunlight, contributing between minus
+0.8 and zero. The net anthropogenic effect is 0.8 to 1.3 degrees, and the observed 1.1 sits
+squarely in that range. This is also why air quality improvements produce a warming
+commitment that was previously being offset.
+
+Natural factors cannot account for it. Solar output has been flat to slightly declining
+since the 1980s while temperature rose sharply, so the sign is wrong. Volcanic activity
+produces brief cooling episodes, not sustained warming. Internal variability — ocean
+oscillations such as ENSO — redistributes heat between ocean and atmosphere and does not
+add energy to the system, so it produces year-to-year noise around a trend rather than a
+trend, and its contribution over 170 years is bounded at a couple of tenths.
+
+The discriminating evidence that makes this more than a process of elimination is the
+pattern. Greenhouse warming makes a specific prediction: the troposphere warms while the
+stratosphere cools, because more infrared is absorbed below and less reaches the layers
+above. Increased solar input would warm both. The stratosphere has cooled, measured by
+satellite since 1979. Additional independent fingerprints all match: nights warm faster than
+days, winters faster than summers, the Arctic faster than the tropics, and the isotopic
+signature of atmospheric carbon shows the added carbon is depleted in carbon-13 and
+carbon-14 exactly as fossil carbon is.
+
+Each of those is a test that could have come out otherwise and did not.
+
+## Impacts and Response
+
+Warming is not the impact; it is the driver of impacts, which are distributed unevenly and
+are largely nonlinear. Heat extremes increase disproportionately with mean temperature
+because they occur in the tail of a distribution — a modest shift in the mean produces a
+large multiplication in the frequency of what were rare extremes. A warmer atmosphere holds
+more moisture, intensifying heavy precipitation while also increasing evaporative demand and
+therefore drought severity in dry periods. Sea level rises from thermal expansion and ice
+loss, with the commitment extending centuries beyond stabilization because ice sheets
+respond slowly.
+
+Ecosystem impacts include range shifts toward poles and higher elevations, mismatches
+between interdependent species whose seasonal timing responds differently, coral bleaching
+from marine heatwaves compounded by acidification, and elevated extinction risk for species
+unable to move or adapt fast enough. Agricultural effects are regionally mixed but net
+negative at higher warming levels, with carbon dioxide fertilization providing some benefit
+offset by heat stress, water limitation, and reduced nutritional content.
+
+Response divides into mitigation, reducing emissions, and adaptation, reducing vulnerability
+to what occurs. Both are necessary: some warming is already committed by past emissions and
+requires adaptation, and unmitigated warming would eventually exceed any plausible adaptive
+capacity.
+
+Mitigation approaches by sector and maturity:
+  electricity        the most advanced; solar and wind are now the cheapest new
+                     generation in most markets, with storage and grid flexibility
+                     the remaining challenge
+  transport          electrification is proven for light vehicles; aviation and
+                     shipping need fuels rather than batteries
+  buildings          heat pumps, efficiency, electrification; a large near-term
+                     opportunity with a favourable cost profile
+  industry           the hardest sector; cement and steel emit chemically, not just
+                     from energy, requiring process change or capture
+  agriculture        methane from livestock and rice, nitrous oxide from
+                     fertilizer; diffuse and hard to regulate
+  land use           halting deforestation and restoring ecosystems; large,
+                     cheap, and difficult to make permanent and verifiable
+  carbon removal     necessary for residual emissions and overshoot; currently
+                     expensive and at negligible scale
+  geoengineering     solar radiation management is fast and cheap and addresses
+                     none of the causes, carries poorly understood risks, and
+                     raises acute governance problems
+
+The economics have shifted substantially and unevenly. Solar photovoltaic costs fell by
+roughly ninety percent over a decade and batteries similarly, making decarbonized
+electricity the low-cost option rather than a premium one across most of the world. That
+does not extend to the harder sectors, and the remaining difficulty is concentrated in
+industrial heat, chemical process emissions, aviation, shipping, and agriculture. The
+framing that the problem is either solved or hopeless misrepresents a situation in which
+some parts have become straightforward and others have not, and where the binding
+constraints are increasingly institutional — permitting, transmission, capital allocation,
+and coordination — rather than technological.

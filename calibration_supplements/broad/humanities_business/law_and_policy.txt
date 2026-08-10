@@ -1,0 +1,293 @@
+================================================================================
+AREA: Humanities, Business, and Social Science
+SUBJECT: Law and Policy
+Subtopics: legal systems and reasoning, constitutional structure, contract and tort,
+intellectual property, regulation, data protection, policy analysis.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Legal Systems and Reasoning
+
+Legal systems divide broadly into common law and civil law traditions, and the difference
+shapes how law is found and argued. Common law systems, originating in England, develop law
+substantially through judicial decisions that bind later courts under the doctrine of
+precedent, so the law on a question is assembled from a line of cases. Civil law systems,
+descended from Roman law and codified in the Napoleonic and German traditions, place primary
+authority in comprehensive statutory codes, with judicial decisions carrying persuasive rather
+than binding force.
+
+The distinction is real and often overstated. Common law jurisdictions are heavily statutory
+in most practical areas, and civil law jurisdictions accumulate consistent lines of decisions
+that function much as precedent does. The practical difference is one of emphasis in reasoning:
+a common law argument reasons by analogy from decided cases, and a civil law argument reasons
+by deduction from code provisions, and lawyers trained in one find the other's style
+unfamiliar.
+
+Precedent operates through the distinction between the holding and everything else. The ratio
+decidendi is the legal principle necessary to the decision and is what binds; obiter dicta are
+observations not necessary to the outcome and are merely persuasive. Distinguishing a case —
+arguing that a factual difference makes the precedent inapplicable — is the standard technique
+for arguing against binding authority, and the art of common law advocacy is largely the art of
+characterizing facts so that favourable precedents apply and unfavourable ones do not.
+
+Legal reasoning concepts:
+  common law            precedent-driven; law develops through decided cases
+  civil law             code-driven; comprehensive statutes as primary authority
+  stare decisis         courts follow their own and higher courts' prior decisions
+  ratio decidendi       the binding principle; what was necessary to the decision
+  obiter dicta          observations not necessary; persuasive only
+  distinguishing        arguing a precedent does not apply on the facts
+  binding vs persuasive  hierarchy determines which decisions must be followed
+  burden of proof       who must prove what; determines outcome when evidence is
+                        balanced
+  standards of proof    beyond reasonable doubt (criminal), balance of
+                        probabilities (civil), clear and convincing (intermediate)
+  statutory interpretation  text, structure, purpose, and legislative history;
+                        their relative weight is itself contested
+  jurisdiction          which court and which law applies; frequently the first
+                        and most consequential question
+  procedural vs substantive  how a case proceeds versus what the law requires
+
+The standards of proof deserve emphasis because they are frequently conflated in public
+discussion. A criminal conviction requires proof beyond reasonable doubt, which is deliberately
+demanding because the state is depriving a person of liberty and the system accepts that some
+guilty people will be acquitted rather than convict the innocent. A civil claim requires only
+that the claim be more likely than not. The same conduct can therefore produce an acquittal and
+a civil judgment without any inconsistency, since different questions were asked at different
+thresholds.
+
+Q: A defendant is acquitted in a criminal trial and later found liable for the same conduct in
+a civil suit. This is:
+A. A contradiction requiring one verdict to be overturned
+B. Consistent, because the standards of proof differ
+C. Double jeopardy
+D. Only possible in civil law systems
+Reasoning: Criminal liability requires proof beyond reasonable doubt; civil liability requires
+only a balance of probabilities. Evidence insufficient for the first can be sufficient for the
+second, and the two proceedings ask different questions with different consequences. Double
+jeopardy bars repeated criminal prosecution, not a subsequent civil claim. Answer: B.
+
+## Constitutional Structure and Public Law
+
+A constitution establishes the structure of government and, in most modern systems, limits on
+its power. Separation of powers divides authority among legislative, executive, and judicial
+branches so that each checks the others, on the theory that concentrated power is dangerous
+regardless of who holds it. Federalism divides authority between national and subnational
+governments, creating a second axis of division and a persistent set of questions about which
+level may act.
+
+Judicial review — the power of courts to invalidate legislation inconsistent with the
+constitution — is not universal and its scope varies enormously. Some systems vest it in a
+specialized constitutional court, some in the ordinary judiciary, and some jurisdictions retain
+parliamentary sovereignty in which courts may interpret and not invalidate primary legislation.
+The design tradeoff is between protecting entrenched rights against transient majorities and
+subjecting fundamental questions to an unelected body, and reasonable systems land in different
+places.
+
+Rights protections operate through a common structure across systems even where the specific
+rights differ. A right is identified, an interference is established, and the question becomes
+whether the interference is justified — typically requiring that it pursue a legitimate aim, be
+prescribed by law, be necessary, and be proportionate to the aim. Proportionality analysis is
+now the dominant framework internationally, and it makes explicit that most rights are not
+absolute but are weighed against competing interests.
+
+Constitutional concepts:
+  separation of powers   legislative, executive, judicial; mutual checks
+  federalism             divided authority between levels of government
+  judicial review        courts invalidating unconstitutional acts; scope varies
+  parliamentary sovereignty  the legislature is supreme; courts interpret only
+  entrenched rights      protected against ordinary legislative change
+  proportionality        legitimate aim, prescribed by law, necessary, and
+                         proportionate; the dominant rights framework
+  derogation             permitted suspension in emergencies; typically with
+                         non-derogable core rights
+  due process            fair procedure before deprivation of life, liberty, or
+                         property
+  equality               formal equality treats alike cases alike; substantive
+                         equality attends to unequal starting positions
+  rule of law            law is public, prospective, general, stable, and applied
+                         to the governing as well as the governed
+  administrative law     controls how agencies exercise delegated power; reasons,
+                         fair process, and reviewable decisions
+
+Administrative law has grown in importance as legislatures delegate increasing detail to
+agencies, and its core requirements are procedural rather than substantive. An agency acting
+under delegated authority must generally stay within the scope of the delegation, follow the
+prescribed procedure, consider relevant factors and disregard irrelevant ones, give reasons,
+and reach a decision a reasonable body could reach. Courts reviewing such decisions typically
+examine the process rather than substituting their own judgment on the merits, which is what
+distinguishes review from appeal.
+
+## Contract, Tort, and Private Law
+
+Contract law enforces voluntary agreements, and the elements required for enforceability are
+consistent across systems even where the terminology differs. There must be agreement,
+typically analysed as offer and acceptance; an intention to create legal relations, which is
+presumed in commercial contexts and not in social ones; and in common law systems,
+consideration — something of value exchanged — which civil law systems generally do not
+require, relying instead on the seriousness of the intention.
+
+The remedies for breach reveal the law's underlying theory. The default remedy is damages
+calculated to place the injured party in the position they would have occupied had the contract
+been performed — expectation damages. Specific performance, compelling actual performance, is
+exceptional and available mainly where damages are inadequate because the subject matter is
+unique. This ordering reflects a view that contract law protects the economic value of the
+bargain rather than enforcing promises as such.
+
+Tort law addresses civil wrongs outside contract, and negligence is its dominant form. A
+negligence claim requires a duty of care owed to the claimant, a breach of that duty measured
+against the standard of a reasonable person, causation both factual and legal, and damage. Each
+element does real work: duty limits to whom obligations are owed, breach sets the standard,
+factual causation asks whether the harm would have occurred anyway, and legal causation asks
+whether the harm was too remote a consequence to be fairly attributed.
+
+Private law essentials:
+  offer and acceptance   the mechanics of agreement
+  consideration          value exchanged; a common law requirement
+  capacity               minors and those lacking mental capacity
+  vitiating factors      misrepresentation, mistake, duress, undue influence;
+                         each can void or make voidable
+  terms                  express and implied; implied by statute, custom, or
+                         necessity
+  breach and remedies    expectation damages by default; specific performance
+                         exceptionally
+  mitigation             the injured party must take reasonable steps to limit loss
+  limitation of liability  enforceable within limits; consumer protection
+                         legislation restricts what may be excluded
+  negligence elements    duty, breach, causation, damage
+  reasonable person      an objective standard, not the defendant's own judgment
+  but-for causation      would the harm have occurred anyway
+  remoteness             whether the harm was a foreseeable consequence
+  strict liability       liability without fault; product defects, hazardous
+                         activities
+  vicarious liability    an employer's liability for employee acts in the course
+                         of employment
+
+Vicarious liability is worth understanding for anyone in an organization because it means the
+organization bears responsibility for employee conduct within the scope of employment,
+regardless of whether the organization was itself at fault. The rationale is that the
+enterprise creates the risk and profits from the activity, and is better placed to insure and
+to control conduct. Its scope — what counts as within the course of employment — is where
+litigation concentrates, and it has generally expanded over time.
+
+## Intellectual Property
+
+Intellectual property grants time-limited exclusive rights over intangible creations, and the
+justification is instrumental: creation is costly and copying is cheap, so without exclusivity
+the incentive to create is undersupplied. The framing matters because it makes the scope and
+duration of rights an empirical question about incentives rather than a matter of natural
+entitlement, and because it implies that rights broader than necessary to induce creation are a
+net social cost.
+
+The four principal forms protect different things and are frequently confused. Copyright
+protects original expression fixed in a tangible form, arising automatically without
+registration, and lasting for the author's life plus several decades. Patents protect
+inventions that are novel, non-obvious, and useful, requiring examination and disclosure, and
+lasting around twenty years. Trademarks protect indicators of commercial origin, last
+indefinitely while used and defended, and exist to prevent consumer confusion rather than to
+reward creation. Trade secrets protect information kept confidential and last as long as
+secrecy does, with no protection against independent discovery or reverse engineering.
+
+The idea-expression distinction is the most important limiting principle in copyright.
+Copyright protects the particular expression and not the underlying idea, method, or fact,
+which is why a recipe's list of ingredients is unprotected while the accompanying prose is,
+and why an independently written program implementing the same algorithm does not infringe.
+Without this distinction copyright would function as a patent of unlimited duration and
+without examination.
+
+Intellectual property comparison:
+  copyright         original expression; automatic; life plus 50-70 years;
+                    protects expression, not ideas or facts
+  patent            novel, non-obvious, useful inventions; ~20 years; requires
+                    examination and public disclosure
+  trademark         source indicators; indefinite while used; prevents confusion
+  trade secret      confidential information; indefinite; no protection against
+                    independent discovery
+  fair use / dealing  limited unlicensed use; criticism, comment, news, teaching,
+                    research, parody; a multi-factor and fact-specific test
+  first sale        the right to resell a lawfully acquired copy
+  moral rights      attribution and integrity; stronger in civil law systems
+  open source       copyright used to impose sharing conditions rather than to
+                    restrict; permissive licences ask only attribution, copyleft
+                    licences require derivatives to carry the same terms
+  licence compliance  obligations attach to distribution; the most common failure
+                    is shipping copyleft code without the corresponding source
+  employee inventions  ownership usually vests in the employer for work-related
+                    creation, subject to statutory limits in some jurisdictions
+
+Open source licensing deserves attention because it is a use of copyright that inverts its
+usual function. The licence grants permissions that copyright would otherwise withhold, in
+exchange for conditions. Permissive licences impose little beyond attribution. Copyleft licences
+require that derivative works be distributed under the same terms, which propagates the sharing
+obligation. The practical compliance question is what triggers the obligations — typically
+distribution rather than internal use, with network-use provisions in some licences extending
+this to software provided as a service — and organizations regularly fail here not through
+deliberate infringement but through not tracking what is in their dependency tree.
+
+## Regulation, Data Protection, and Policy Analysis
+
+Regulation intervenes in markets where they fail, and the categories of failure map onto
+regulatory instruments. Externalities call for taxes, tradable permits, or direct standards.
+Information asymmetries call for disclosure requirements, licensing, and warranties. Natural
+monopolies call for price regulation or structural separation. Systemic risk calls for
+prudential requirements. Identifying which failure a regulation addresses is the first step in
+assessing whether it is well designed.
+
+The instrument choice within a category matters as much as the decision to regulate.
+Prescriptive rules specify conduct precisely, which gives certainty and adapts poorly to
+circumstances the drafter did not anticipate. Principles-based regulation states outcomes and
+leaves the method to the regulated party, which adapts well and creates uncertainty about
+compliance. Performance standards specify a result rather than a technology, which permits
+innovation in how the result is achieved. Most regimes combine these.
+
+Data protection has become the most operationally significant regulatory area for technology
+work. The dominant framework rests on a set of principles: processing must have a lawful basis,
+must be for specified purposes, must be limited to what is necessary, must be accurate, must be
+retained no longer than needed, and must be secure. Individuals hold rights of access,
+rectification, erasure, portability, and objection. Transfers to jurisdictions without adequate
+protection require additional safeguards.
+
+Regulation and data protection:
+  lawful basis          consent, contract, legal obligation, vital interests,
+                        public task, or legitimate interests; consent is not the
+                        default and is often the weakest option
+  purpose limitation    collected for specified purposes; further processing must
+                        be compatible
+  data minimization     collect only what is necessary
+  storage limitation    retain no longer than needed; requires a retention schedule
+  accuracy              keep it correct and up to date
+  security              appropriate technical and organizational measures
+  accountability        demonstrate compliance, not merely achieve it
+  subject rights        access, rectification, erasure, portability, objection
+  automated decisions   rights regarding solely automated decisions with
+                        significant effects
+  DPIA                  assessment required for high-risk processing
+  breach notification   within specified time limits
+  privacy by design     build protection in rather than adding it afterward
+  cross-border transfer adequacy decisions or contractual safeguards
+
+The architectural consequence for engineering work is that data protection requirements are
+design constraints rather than a compliance layer added afterward. The right to erasure
+conflicts with append-only immutable storage, so either a table format supporting row-level
+deletion or crypto-shredding must be chosen before the first request arrives. Purpose
+limitation conflicts with collecting data for unspecified future use. Data minimization
+conflicts with logging everything by default. Each of these is far cheaper to accommodate at
+design time than to retrofit, which is the substance of the privacy-by-design principle.
+
+Policy analysis assesses whether an intervention achieves its aims at acceptable cost, and its
+standard tools have known limitations worth stating. Cost-benefit analysis quantifies effects
+in monetary terms, which forces explicit valuation and requires assigning values to things —
+health, mortality risk, ecosystems — where the valuation is contested. Discounting future
+effects to present value is necessary and the choice of discount rate dominates conclusions
+about long-horizon problems, which is why climate policy analyses reach different conclusions
+primarily through that parameter. Distributional analysis asks who bears the costs and receives
+the benefits, and its omission is how policies that improve aggregate welfare while harming
+identifiable groups are adopted without anticipating the resulting political resistance.
+
+Unintended consequences arise reliably enough to warrant systematic anticipation. A rule
+changes the payoffs facing regulated parties, and they adjust on margins the drafter did not
+consider — substituting an unregulated alternative, relocating the activity, restructuring to
+fall outside the definition, or complying formally while defeating the purpose. Anticipating
+this requires asking not whether the rule prohibits the conduct but what the cheapest available
+response to the rule is, which is a different and more useful question.

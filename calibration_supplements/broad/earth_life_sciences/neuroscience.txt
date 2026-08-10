@@ -1,0 +1,294 @@
+================================================================================
+AREA: Earth and Life Sciences
+SUBJECT: Neuroscience
+Subtopics: neurons and signalling, synapses and neurotransmitters, neural circuits,
+sensory systems, motor control, learning and memory, higher function, methods.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Neurons and Electrical Signalling
+
+The neuron is the signalling unit of the nervous system, and its structure reflects its
+function: dendrites receive inputs, the soma integrates them, the axon conducts the output, and
+terminals transmit to targets. The human brain contains on the order of eighty-six billion
+neurons and a comparable number of glial cells, with each neuron making thousands of synaptic
+connections, giving a connection count in the hundreds of trillions.
+
+The resting membrane potential, around minus seventy millivolts inside relative to outside, is
+established by two mechanisms working together. The sodium-potassium pump moves three sodium
+ions out for every two potassium ions in, consuming ATP and establishing concentration
+gradients. The membrane is then far more permeable to potassium than to sodium at rest, so
+potassium's tendency to flow down its concentration gradient dominates and pulls the potential
+toward potassium's equilibrium value. The Nernst equation gives that equilibrium for a single
+ion, and the Goldman equation combines several weighted by their permeabilities.
+
+The action potential is a regenerative all-or-none event. Depolarization past a threshold
+opens voltage-gated sodium channels, sodium enters and depolarizes further, opening more
+channels — a positive feedback that drives the potential rapidly toward sodium's equilibrium.
+Sodium channels then inactivate and voltage-gated potassium channels open, repolarizing the
+membrane and often overshooting into a brief hyperpolarization. The refractory period during
+which sodium channels remain inactivated is what makes propagation unidirectional, since the
+region just traversed cannot fire again immediately.
+
+Electrical signalling:
+  resting potential      ~-70 mV; established by the pump plus selective
+                         permeability
+  Nernst equation        equilibrium potential for one ion from its concentration
+                         ratio
+  Goldman equation       combines ions weighted by permeability
+  threshold              ~-55 mV; where the sodium feedback becomes regenerative
+  action potential       all-or-none; amplitude carries no information, frequency
+                         does
+  depolarization         sodium influx
+  repolarization         sodium inactivation plus potassium efflux
+  refractory period      absolute then relative; enforces one-way propagation and
+                         caps firing rate
+  saltatory conduction   in myelinated axons, the signal jumps between nodes of
+                         Ranvier; far faster and more energy-efficient
+  conduction velocity    ~0.5-2 m/s unmyelinated, up to ~120 m/s myelinated
+  demyelination          slows or blocks conduction; the mechanism of multiple
+                         sclerosis
+  graded potentials      dendritic and synaptic potentials; decay with distance
+                         and sum, unlike action potentials
+
+The all-or-none property has an important consequence for how information is encoded. Since
+every action potential is essentially identical, the amplitude carries no information, and the
+signal must be encoded in timing — firing rate, precise spike times, or the pattern across a
+population. Rate coding is the classical picture and is demonstrably used, and precise timing
+carries information in auditory localization and elsewhere, and population codes distribute
+information across many neurons in a way that is robust to individual variability. Which coding
+scheme predominates is area-dependent and remains an active question.
+
+Q: Myelination increases conduction velocity primarily because:
+A. It increases the membrane's ion channel density uniformly
+B. It insulates the axon so that the signal regenerates only at the nodes, jumping between
+   them rather than propagating continuously
+C. It raises the resting potential
+D. It increases axon diameter
+Reasoning: Myelin is an insulating wrapping that reduces membrane capacitance and increases
+resistance, so the depolarization spreads passively and rapidly along the internode and
+regenerates only at the nodes of Ranvier where channels are concentrated. This saltatory
+conduction is both much faster and much more metabolically efficient than continuous
+propagation. Answer: B.
+
+## Synapses and Neurotransmission
+
+Chemical synapses transmit signals across a gap by releasing neurotransmitter. An arriving
+action potential opens voltage-gated calcium channels, calcium influx triggers vesicle fusion,
+transmitter diffuses across the cleft and binds receptors on the postsynaptic membrane, and the
+resulting conductance change produces a postsynaptic potential. Transmitter is then cleared by
+reuptake, enzymatic degradation, or diffusion, which terminates the signal and permits the
+synapse to respond again.
+
+Receptor type determines the character of the response. Ionotropic receptors are themselves
+ion channels, so binding opens them directly, giving fast responses on a millisecond timescale.
+Metabotropic receptors are coupled to intracellular signalling cascades, giving slower
+responses over hundreds of milliseconds to seconds, with amplification through the cascade and
+the capacity to produce lasting changes including altered gene expression. The same transmitter
+frequently acts on both types, so its effect depends on the receptor present rather than on the
+transmitter alone — which is why a single neurotransmitter can be excitatory at one synapse and
+inhibitory at another.
+
+Synaptic integration is where computation happens. A neuron receives thousands of inputs, each
+producing a small graded potential, and these sum both spatially across the dendritic tree and
+temporally within a time window. Excitatory potentials depolarize toward threshold, inhibitory
+ones hyperpolarize away from it, and whether the neuron fires depends on the net result at the
+axon hillock. Inhibition positioned close to the soma can veto a large amount of distal
+excitation, so the location of a synapse on the dendritic tree matters as much as its strength.
+
+Synaptic transmission:
+  chemical synapse       transmitter release, diffusion, receptor binding; slower
+                         and highly modifiable
+  electrical synapse     gap junctions; very fast, bidirectional, used where
+                         synchrony matters
+  ionotropic             the receptor is a channel; fast, milliseconds
+  metabotropic           second messenger cascade; slow, amplifying, lasting
+  glutamate              the principal excitatory transmitter
+  GABA                   the principal inhibitory transmitter in the adult brain
+  acetylcholine          neuromuscular junction, autonomic, and modulatory
+  dopamine               reward prediction error, motor control, motivation
+  serotonin              mood, sleep, appetite; widely modulatory
+  norepinephrine         arousal, attention, the stress response
+  neuropeptides          slow, diffuse, long-lasting modulation
+  spatial summation      inputs at different locations combine
+  temporal summation     inputs at different times combine within a window
+  shunting inhibition    increases conductance, reducing the effect of excitation
+                         without much hyperpolarization
+  neuromodulation        changes the properties of a circuit rather than driving it
+                         directly; how brain states are set
+
+The distinction between transmission and modulation is worth keeping clear. Fast glutamate
+and GABA transmission carries the moment-to-moment signal. Modulatory systems — dopamine,
+serotonin, norepinephrine, acetylcholine — project diffusely from small nuclei and change how
+the receiving circuits behave, adjusting gain, plasticity thresholds, and excitability. This is
+why drugs acting on modulatory systems have such broad effects, and why understanding a
+modulator's function in terms of a single behaviour is usually an oversimplification. Dopamine
+is not the pleasure chemical; the best-supported account is that phasic dopamine encodes reward
+prediction error, the difference between expected and received reward, which is the same
+quantity that reinforcement learning algorithms use.
+
+## Circuits, Sensory Systems, and Motor Control
+
+Neural circuits combine neurons into functional units, and a few motifs recur across systems.
+Feedforward excitation propagates signals. Feedforward inhibition, where an input excites both
+a target and an interneuron that inhibits it, sharpens timing by limiting the window during
+which the target can integrate. Recurrent excitation sustains activity after the input stops,
+which is one mechanism of working memory. Recurrent inhibition implements competition, so that
+the most strongly driven unit suppresses its neighbours — winner-take-all dynamics. Lateral
+inhibition enhances contrast at boundaries.
+
+Sensory systems share an organizational logic despite processing entirely different physical
+signals. Receptors transduce the stimulus into electrical activity. Signals pass through
+subcortical relays, in most modalities including the thalamus, to primary sensory cortex.
+Processing proceeds hierarchically, with early stages responding to simple features and later
+stages to progressively more complex and invariant ones. Topographic maps preserve the spatial
+or featural organization of the receptor surface — retinotopic in vision, tonotopic in hearing,
+somatotopic in touch — with cortical area allocated in proportion to receptor density rather
+than to physical size, which is why the hands and lips occupy so much somatosensory cortex.
+
+Motor control runs the hierarchy in the opposite direction. Cortical motor areas specify
+intentions and movement parameters, the basal ganglia participate in action selection and the
+initiation of movement, the cerebellum refines timing and coordination and adapts to errors,
+and spinal circuits execute patterns and handle reflexes. The system is heavily predictive
+rather than purely reactive: a forward model predicts the sensory consequences of a movement,
+and comparing prediction to outcome both permits rapid correction faster than feedback allows
+and cancels self-generated sensation, which is why self-tickling does not work.
+
+Circuits and systems:
+  feedforward inhibition  sharpens timing by limiting the integration window
+  recurrent excitation    sustains activity; one basis of working memory
+  lateral inhibition      enhances contrast at edges
+  winner-take-all         competition through recurrent inhibition
+  receptive field         the stimulus region and pattern driving a neuron
+  hierarchical processing simple features to complex invariant representations
+  topographic maps        retinotopic, tonotopic, somatotopic
+  cortical magnification  area proportional to receptor density, not body size
+  dorsal and ventral      where and how versus what; the two visual streams
+  efference copy          a copy of the motor command used to predict consequences
+  forward model           predicts sensory outcome; enables fast correction and
+                          cancellation of self-generated sensation
+  central pattern generator  spinal circuits producing rhythmic output without
+                          descending command; walking, breathing, swimming
+  reflex arc              the shortest loop; monosynaptic in the stretch reflex
+
+The predictive framing has become central across neuroscience rather than being confined to
+motor control. Perception is increasingly understood as inference — the brain maintaining
+predictions about incoming sensation and processing primarily the discrepancy, which is
+efficient because predicted input carries no new information. This accounts for a range of
+phenomena including the strength of perceptual illusions, the effects of expectation on
+detection, and the observation that much of the input to primary sensory cortex comes from
+higher areas rather than from the sensory periphery.
+
+## Learning, Memory, and Plasticity
+
+Synaptic plasticity is the leading candidate mechanism for learning, and Hebb's principle
+states its core idea: a synapse strengthens when presynaptic activity reliably contributes to
+postsynaptic firing. The slogan that cells that fire together wire together captures it, with
+the important qualification that the temporal order matters — spike-timing-dependent plasticity
+shows strengthening when the presynaptic spike precedes the postsynaptic one by a few
+milliseconds and weakening when the order reverses, which makes the rule causal rather than
+merely correlational.
+
+Long-term potentiation is the best-characterized cellular model. At glutamatergic synapses,
+the NMDA receptor acts as a coincidence detector: it requires both glutamate binding, signalling
+presynaptic activity, and postsynaptic depolarization to expel a magnesium block, so it opens
+only when both are present. Calcium entering through it triggers cascades that insert additional
+AMPA receptors, strengthening the synapse. Long-term depression weakens synapses under
+different activity patterns, and both are necessary, since a system that only strengthens
+saturates.
+
+Memory systems are multiple and dissociable, which is established most clearly by patients
+with selective damage. Declarative memory for facts and events depends on the hippocampus and
+medial temporal lobe, and its impairment leaves procedural learning intact — a patient unable
+to form new episodic memories can nonetheless improve at a motor skill across sessions while
+denying having practised. Procedural memory depends on the basal ganglia and cerebellum.
+Working memory depends on prefrontal circuits and is limited in capacity to a handful of items.
+
+Learning and memory:
+  Hebbian plasticity     coincident activity strengthens connections
+  spike-timing dependent  order matters; pre-before-post strengthens
+  long-term potentiation  NMDA receptor as coincidence detector; AMPA insertion
+  long-term depression    weakening; necessary to prevent saturation
+  homeostatic plasticity  scales all synapses to keep firing rates in range
+  structural plasticity   new synapses and dendritic spines
+  declarative memory      facts and events; hippocampus and medial temporal lobe
+  procedural memory       skills; basal ganglia and cerebellum
+  working memory          active maintenance; prefrontal; capacity ~4 items
+  consolidation           stabilization over hours to years; sleep-dependent
+  systems consolidation   gradual transfer from hippocampal to cortical dependence
+  reconsolidation         retrieved memories become labile and are re-stored,
+                          which means recall can alter the memory
+  critical periods        windows of heightened plasticity during development
+  adult neurogenesis      limited; the hippocampal dentate gyrus, with the extent
+                          in humans genuinely contested
+
+Reconsolidation deserves emphasis because it changes the intuitive model of memory as
+storage. Retrieving a memory returns it to a labile state from which it must be re-stabilized,
+and during that window it can be modified or disrupted. This explains why memories change with
+repeated recall, why eyewitness testimony degrades through the very act of being rehearsed and
+questioned, and why post-event information becomes incorporated into the recollection. It also
+opens a therapeutic possibility, since disrupting reconsolidation of a traumatic memory during
+the labile window may reduce its emotional force.
+
+## Higher Function and Methods
+
+Attention selects among competing inputs, and its neural signature is a modulation of
+sensory responses: attended stimuli produce enhanced activity and suppressed responses to
+unattended ones, effectively adjusting gain. It divides into a bottom-up component driven by
+stimulus salience and a top-down component driven by goals, implemented by largely distinct
+networks whose interaction determines what reaches awareness.
+
+Executive function encompasses working memory, inhibitory control, and cognitive flexibility,
+and depends heavily on prefrontal cortex. Its late maturation — prefrontal development
+continues into the mid-twenties — is the neurobiological correlate of the behavioural
+observation that impulse control and long-horizon planning develop later than other cognitive
+capacities.
+
+Consciousness remains the hardest problem in the field, and the honest position is that no
+theory commands consensus. Global workspace theory proposes that content becomes conscious when
+it is broadcast widely across the brain, making it available to multiple systems. Integrated
+information theory proposes a quantitative measure of the integration of information in a system
+and identifies consciousness with it. Higher-order theories propose that a state is conscious
+when it is the object of a suitable representation. Each has advocates, each faces objections,
+and the empirical work has concentrated on identifying neural correlates of conscious access
+rather than on adjudicating between them.
+
+Methods and their tradeoffs:
+  electrophysiology      single units; millisecond timing, single-cell resolution,
+                         invasive, samples few cells
+  multi-electrode arrays  hundreds to thousands of cells simultaneously
+  EEG                    millisecond timing, poor spatial resolution, non-invasive,
+                         cheap
+  MEG                    similar timing, better spatial localization, expensive
+  fMRI                   millimetre spatial resolution, seconds temporal, measures
+                         blood oxygenation as an indirect proxy for activity
+  PET                    metabolic and receptor imaging; radioactive tracers
+  two-photon imaging     cellular resolution in living animals; calcium indicators
+                         report activity indirectly and slowly
+  optogenetics           light-gated channels permit causal manipulation of defined
+                         cell types with millisecond precision
+  chemogenetics          engineered receptors activated by an inert compound;
+                         slower, less invasive
+  lesion studies         classical causal evidence; confounded by reorganization
+                         and by damage extending beyond the intended region
+  connectomics           complete wiring diagrams; achieved for small organisms,
+                         and being extended by volume electron microscopy
+
+The distinction between correlation and causation is as pressing here as anywhere and is what
+made optogenetics transformative. Imaging and recording establish that a population is active
+during a behaviour, which is consistent with that population causing the behaviour, being
+caused by it, or sharing a common cause. Optogenetic manipulation activates or silences defined
+cell types on a millisecond timescale in behaving animals, so the causal contribution can be
+tested directly. The caution that remains is that a manipulation sufficient to disrupt a
+behaviour does not establish that the population's natural function is the one disrupted, since
+perturbing any component of a tightly coupled system produces effects throughout it.
+
+The interpretive caution that applies most broadly concerns functional imaging. A blood-flow
+signal is an indirect and slow proxy for neural activity, spatial resolution encompasses
+hundreds of thousands of neurons, and the statistical challenge of many voxels tested
+simultaneously requires correction that is sometimes applied inadequately. Reverse inference —
+concluding that a cognitive process occurred because an area associated with it was active — is
+invalid unless that area is selective for that process, and most areas are not. The technique
+is genuinely informative about where and when processing occurs and it does not license the
+mind-reading claims that popular accounts frequently attach to it.

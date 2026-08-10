@@ -1,0 +1,243 @@
+================================================================================
+AREA: Earth and Life Sciences
+SUBJECT: Environmental Science
+Subtopics: biogeochemical cycles, pollution and toxicology, water and air quality,
+land use and biodiversity, waste and materials, assessment methods, policy interfaces.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Biogeochemical Cycles and System Framing
+
+Environmental science studies the interaction between human activity and natural systems, and its
+characteristic analytical move is to follow a substance through its reservoirs and fluxes. Carbon,
+nitrogen, phosphorus, sulfur, and water each cycle between the atmosphere, oceans, land, and
+biosphere at rates that human activity has altered substantially, and the alteration is quantifiable
+by comparing anthropogenic fluxes against natural ones.
+
+The nitrogen cycle is the clearest case of human dominance. Industrial fixation of atmospheric
+nitrogen into fertilizer now rivals or exceeds all natural fixation combined, which has roughly
+doubled the reactive nitrogen circulating through the biosphere. The consequences follow the
+nitrogen downstream: it leaches into groundwater, runs off into rivers, drives algal blooms whose
+decay depletes oxygen and creates hypoxic zones, and volatilizes as a potent greenhouse gas. A
+single intervention at one point in the cycle propagates through all of them.
+
+Phosphorus differs in an important way: it has no significant atmospheric phase and comes from
+mined rock, so it is genuinely finite on a human timescale and it does not disperse the way nitrogen
+does. The same runoff that carries nitrogen carries phosphorus, and in freshwater systems phosphorus
+is usually the limiting nutrient, which means that controlling it is the more effective lever for
+freshwater eutrophication while nitrogen matters more in coastal waters.
+
+Cycles and framing:
+  reservoirs and fluxes  the basic accounting; where a substance sits and how
+                       fast it moves
+  residence time       reservoir size divided by flux; determines response
+                       timescale
+  carbon cycle         atmosphere, ocean, land, and geological reservoirs
+  the ocean sink       absorbs a large share of emitted carbon, at the cost of
+                       acidification
+  nitrogen fixation    industrial production rivalling all natural fixation
+  reactive nitrogen    roughly doubled in circulation
+  the cascade          one nitrogen atom causing effects in sequence across
+                       multiple systems
+  eutrophication       nutrient enrichment driving blooms and oxygen depletion
+  hypoxic zones        oxygen-depleted water; seasonal and expanding
+  phosphorus           mined, finite, no atmospheric phase
+  the limiting nutrient  phosphorus in freshwater, nitrogen in coastal water
+  the intervention implication  control the limiting nutrient for the system you
+                       care about
+  planetary boundaries  a framework identifying which system-level changes are
+                       furthest outside their historical range; nitrogen and
+                       biodiversity score worse than climate on this accounting
+
+Q: A lake suffers algal blooms despite reduced nitrogen inputs. The most likely explanation is:
+A. The measurements are wrong
+B. Phosphorus is the limiting nutrient in most freshwater systems, so reducing nitrogen alone does
+   not constrain growth; phosphorus loading must be addressed
+C. Algae do not need nutrients
+D. The lake is too warm
+Reasoning: In freshwater, phosphorus typically limits primary production, partly because some
+cyanobacteria fix atmospheric nitrogen and are therefore not nitrogen-limited at all. Reducing
+nitrogen can even shift community composition toward those species. Answer: B.
+
+## Pollution, Exposure, and Toxicology
+
+Toxicology's foundational principle is that the dose makes the poison, and its practical corollary
+is that a hazard statement without an exposure estimate carries no information about risk. Risk is
+the product of hazard — the substance's intrinsic capacity to cause harm — and exposure, the amount
+actually reaching the organism by a route that matters. A highly toxic substance sealed in a
+container poses less risk than a mildly toxic one being inhaled daily.
+
+Dose-response relationships are characterized experimentally and extrapolated, and the extrapolation
+is where most of the uncertainty lives. Effects are measured at high doses in animals and
+extrapolated to low doses in humans, across a species difference and a dose range of several orders
+of magnitude. Threshold models assume a level below which no effect occurs, which is defensible for
+many mechanisms; non-threshold models assume proportional risk to zero, which is the conservative
+default for genotoxic carcinogens.
+
+Persistence and bioaccumulation determine whether a small release becomes a large problem.
+Substances that resist degradation stay in the environment; those that partition into fat
+accumulate in organisms; those with both properties concentrate up the food chain, so a
+concentration that is negligible in water becomes substantial in a predator. This combination is
+what made the organochlorine pesticides and several industrial compounds so consequential, and it is
+why persistence and bioaccumulation potential are screened for directly in modern chemical
+assessment.
+
+Pollution and toxicology:
+  the dose makes the poison  the founding principle
+  risk equals hazard times exposure  a hazard statement alone says nothing about
+                       risk
+  route of exposure    inhalation, ingestion, dermal; the same substance differs
+                       greatly by route
+  dose-response        characterized at high doses, extrapolated to low
+  the extrapolation gap  species and dose range; where the uncertainty is
+  threshold model      a level below which no effect occurs
+  non-threshold model  proportional to zero; conservative for genotoxic
+                       carcinogens
+  acute versus chronic  different mechanisms and different relevant doses
+  persistence          resistance to degradation
+  bioaccumulation      partitioning into organisms, usually into fat
+  biomagnification     concentration increasing up the food chain
+  the combination      persistent plus bioaccumulative is what makes trace
+                       releases matter
+  endocrine disruption  effects at low doses through hormonal pathways;
+                       non-monotonic responses complicate standard testing
+  mixtures             substances assessed individually and encountered together;
+                       a recognized gap in most regulatory frameworks
+  body burden          what is actually measured in people; the most direct
+                       exposure evidence and it lags emissions by years
+
+## Water, Air, and Environmental Quality
+
+Water quality is characterized by a set of measurements that each indicate something specific.
+Dissolved oxygen indicates whether aquatic life can survive and is depleted by decomposition of
+organic matter. Biological and chemical oxygen demand quantify how much oxygen the water's
+contaminants will consume. Turbidity indicates suspended solids and interferes with disinfection.
+Nutrient concentrations predict eutrophication. Bacterial indicators signal faecal contamination and
+therefore the possible presence of pathogens that are impractical to test for individually.
+
+Water treatment applies barriers in sequence, and the multiple barrier principle is the design
+philosophy: no single step is relied upon, since each has failure modes the others cover.
+Coagulation and flocculation aggregate fine particles; sedimentation removes them; filtration
+removes what remains; disinfection inactivates pathogens. Wastewater treatment reverses the emphasis,
+with biological treatment consuming organic matter and increasingly with nutrient removal steps
+added because discharge standards now target eutrophication.
+
+Air quality is dominated by a handful of pollutants with well-characterized health effects. Fine
+particulate matter is the most consequential globally, penetrating deep into the lungs and
+associated with cardiovascular as well as respiratory outcomes. Ground-level ozone forms
+photochemically from precursors rather than being emitted directly, which is why its control
+requires reducing those precursors and why its concentrations peak on hot sunny afternoons downwind
+of sources rather than at the sources themselves.
+
+Water and air:
+  dissolved oxygen     whether aquatic life survives
+  oxygen demand        how much the contaminants will consume
+  turbidity            suspended solids; interferes with disinfection
+  indicator bacteria   a proxy for faecal contamination and pathogen risk
+  multiple barriers    no single step relied upon
+  coagulation and flocculation  aggregating fine particles
+  filtration           physical removal
+  disinfection         chemical or ultraviolet inactivation
+  disinfection byproducts  formed from organic matter and disinfectant; a
+                       tradeoff against pathogen risk that favours disinfection
+  wastewater treatment  organic matter first, nutrients increasingly
+  non-point source     diffuse runoff; harder to control than any pipe and the
+                       dominant remaining problem in many watersheds
+  fine particulate matter  the most consequential air pollutant globally
+  ground-level ozone   formed photochemically from precursors, not emitted
+  the downwind pattern  ozone peaks away from its sources
+  nitrogen oxides and sulfur dioxide  combustion products; acid deposition and
+                       particulate precursors
+  indoor air           where people spend most of their time and where
+                       measurement is sparsest; combustion for cooking and
+                       heating is a major global health burden
+
+## Land Use, Biodiversity, and Materials
+
+Land use change is the largest driver of biodiversity loss, exceeding climate change in current
+impact though not in projected future impact. Habitat conversion removes species directly;
+fragmentation of what remains has effects beyond the area lost, because small isolated patches
+support fewer species than the same total area connected, and edge conditions differ from interior
+conditions in microclimate, predation, and invasion.
+
+The species-area relationship gives this quantitative form: species richness scales with area raised
+to a fractional power, so reducing habitat area by ninety percent typically loses roughly half the
+species. It is a robust empirical regularity and it underlies reserve design, which favours larger
+and connected areas over the same area divided into fragments, with corridors where connection
+cannot be maintained directly.
+
+Materials and waste close the loop back to extraction. Linear material flows — extract, manufacture,
+use, discard — impose costs at both ends, and the alternative framings emphasize keeping materials
+in use. Recycling recovers material at some quality loss and energy cost; reuse avoids the
+reprocessing entirely; reduction avoids the flow. The hierarchy is ordered by effectiveness and
+inverted in practice, since recycling receives the most attention while reduction delivers the most
+benefit.
+
+Land, biodiversity, and materials:
+  land use change      the largest current driver of biodiversity loss
+  habitat fragmentation  effects beyond the area lost
+  edge effects         microclimate, predation, and invasion at boundaries
+  species-area relationship  richness scaling with a fractional power of area
+  the practical figure  ninety percent area loss costs roughly half the species
+  reserve design       larger and connected over fragmented
+  corridors            connection where contiguity is impossible
+  invasive species     a major driver, and the introduction rate tracks trade
+                       volume
+  ecosystem services   provisioning, regulating, supporting, cultural; a framing
+                       that makes some values visible in decisions and that
+                       cannot capture all of them
+  extraction impacts   mining, water use, land disturbance at the source end
+  linear flows         extract, manufacture, use, discard
+  the waste hierarchy  reduce, reuse, recycle, recover, dispose
+  the inversion in practice  recycling gets the attention, reduction delivers the
+                       benefit
+  material recovery    quality loss on each cycle for most materials
+  extended producer responsibility  the manufacturer bearing end-of-life cost;
+                       aligns design incentives with recoverability
+
+## Assessment, Measurement, and the Policy Interface
+
+Life cycle assessment quantifies environmental impacts across a product's full chain from extraction
+to disposal, and its value is in exposing burden shifting — an improvement at one stage that creates
+a larger cost at another. Its results depend heavily on the system boundary, the functional unit,
+and the allocation of shared burdens among co-products, which means two studies of the same product
+can reach opposite conclusions legitimately. Reading the methodology section is not optional.
+
+Environmental monitoring faces the general problem that natural systems are variable and effects
+are often small relative to that variability. Detecting a trend requires a baseline, adequate
+statistical power, and control for confounding drivers, and monitoring programmes that were not
+designed with a specific detectable effect in mind frequently cannot answer the question they were
+established for. Before-after-control-impact designs and long time series are the approaches that
+work.
+
+The interface with policy introduces considerations that are not scientific. Environmental problems
+are typically externalities — costs imposed on parties who did not consent and are not compensated —
+and the instruments for addressing them each have distinct properties. Regulation specifies
+behaviour and is predictable and inflexible. Pricing sets a cost and lets actors find the cheapest
+reduction. Information disclosure changes behaviour through reputation and consumer choice. The
+choice among them is a political decision informed by, and not determined by, the science.
+
+Assessment and policy:
+  life cycle assessment  impacts across the full chain
+  burden shifting      an improvement at one stage costing more at another
+  system boundary      what is included; determines the answer
+  functional unit      the basis of comparison; must be equivalent service
+  allocation           dividing shared burdens among co-products; a methodological
+                       choice with large consequences
+  the reading discipline  two legitimate studies can disagree; the methodology
+                       explains why
+  monitoring design    a baseline, power, and confounder control
+  before-after-control-impact  the design that supports causal attribution
+  long time series     often the only way to detect slow change against high
+                       variability
+  detection limits     a non-detect is not an absence; it is a bound
+  externality          costs imposed without consent or compensation
+  regulation           specifies behaviour; predictable, inflexible
+  pricing instruments  set a cost, let actors find cheap reductions
+  information disclosure  changes behaviour through reputation and choice
+  precautionary principle  acting under uncertainty when consequences are severe
+                       and irreversible; its application is contested precisely
+                       because it shifts the burden of proof, and being explicit
+                       about which direction the burden should fall is more
+                       productive than arguing about the principle in the abstract

@@ -1,0 +1,379 @@
+================================================================================
+AREA: Physics
+SUBJECT: Classical Mechanics
+Subtopics: kinematics, Newtonian dynamics, conservation laws, rotational motion,
+oscillations, Lagrangian and Hamiltonian formulations, chaos, continuum mechanics.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Kinematics and Newtonian Dynamics
+
+Newton's three laws organize all of classical dynamics. The first defines the inertial
+frame: a body with no net force maintains constant velocity, so any frame in which
+this holds is inertial, and the law is best read as a statement about which frames the
+second law applies in rather than as a special case of it. The second, F = dp/dt,
+relates net force to the rate of change of momentum, reducing to F = ma only when mass
+is constant — a caveat that matters for rockets, conveyor belts, and any system
+shedding or accumulating mass. The third states that forces come in equal and opposite
+pairs acting on *different* bodies, and the emphasis on "different" is what prevents the
+common error of concluding that all forces cancel and nothing ever accelerates.
+
+Free-body diagrams are the practical core of problem-solving, and most errors are
+bookkeeping rather than conceptual. Draw one body at a time, include every force acting
+*on* it and none of the forces it exerts on others, choose axes that align with the
+expected acceleration, and resolve into components. On an inclined plane, tilting the
+axes to lie along and perpendicular to the surface reduces the problem to two scalar
+equations with the acceleration entirely in one of them. Normal force is a constraint
+force whose magnitude adjusts to whatever prevents interpenetration, so it is never
+simply "mg" except in the special case of a horizontal surface with no vertical
+acceleration.
+
+Friction has two regimes governed by different rules. Static friction is a constraint
+force taking whatever value up to mu_s N is needed to prevent relative sliding;
+writing f = mu_s N when the object is not on the verge of slipping is a standard and
+consequential error. Kinetic friction, once sliding begins, has the definite magnitude
+mu_k N opposing relative motion, with mu_k typically somewhat less than mu_s, which is
+why an object breaks loose and then accelerates. Neither depends on contact area to
+first order, a genuinely counterintuitive result explained by real contact occurring at
+microscopic asperities whose total area scales with load rather than with apparent
+area.
+
+Kinematic relations for constant acceleration:
+  v      = v0 + a t
+  x      = x0 + v0 t + (1/2) a t^2
+  v^2    = v0^2 + 2 a (x - x0)              time-independent; use when t is unwanted
+  x      = x0 + (1/2)(v0 + v) t             average-velocity form
+
+Projectile motion is the canonical application: horizontal and vertical motions
+decouple because gravity acts only vertically, so the horizontal velocity is constant
+and the vertical follows the constant-acceleration relations with a = -g. Range on
+level ground is v0^2 sin(2 theta)/g, maximized at 45 degrees, and complementary angles
+give equal range with different flight times. Air resistance breaks the decoupling
+entirely, since drag depends on total speed and couples the components; for a
+quadratic drag law there is no closed-form trajectory and the optimal launch angle
+drops well below 45 degrees.
+
+Q: A block sits on an incline without sliding, at an angle below the critical angle.
+The friction force on it is:
+A. mu_s * N
+B. mg sin(theta), directed up the slope
+C. mu_k * N
+D. Zero
+Reasoning: The block is in equilibrium, so friction must exactly balance the component
+of gravity along the slope, which is mg sin(theta). Static friction is a constraint
+force taking whatever value is required up to its maximum of mu_s N; it equals that
+maximum only at the verge of slipping. Answer: B.
+
+Q: A rocket in deep space ejects mass. Its acceleration is correctly obtained from:
+A. F = ma with m constant
+B. F = dp/dt, accounting for the changing mass and exhaust momentum
+C. Conservation of kinetic energy
+D. The impulse-momentum theorem with constant mass
+Reasoning: Mass is not constant, so F = ma does not apply. The correct treatment tracks
+total momentum of rocket plus exhaust, yielding the Tsiolkovsky equation delta_v = v_e
+ln(m_initial/m_final). Kinetic energy is not conserved because the chemical energy of
+the propellant is converted. Answer: B.
+
+## Conservation Laws
+
+Conservation laws are the most powerful tools in mechanics because they relate initial
+and final states without requiring the trajectory between them. Energy is conserved
+when all forces are conservative — derivable from a potential — which excludes
+friction and other dissipative forces. Momentum is conserved for any system with no net
+external force, regardless of the internal forces' nature, which is why it survives
+collisions where energy does not. Angular momentum is conserved when there is no net
+external torque.
+
+Noether's theorem explains why these three and not others: each continuous symmetry of
+the action yields a conserved quantity. Time-translation symmetry gives energy
+conservation, space-translation symmetry gives momentum, rotational symmetry gives
+angular momentum. This is not a reformulation but an explanation, and it tells you
+immediately when a conservation law fails — a time-dependent potential breaks
+time-translation symmetry and energy is not conserved, which is exactly the case of a
+driven oscillator.
+
+Collisions are classified by what happens to kinetic energy. Momentum is conserved in
+all of them. Elastic collisions conserve kinetic energy as well, and in one dimension
+the relative velocity of approach equals the relative velocity of separation — a
+relation often faster to apply than the quadratic energy equation. Perfectly inelastic
+collisions have the bodies moving together afterward, which is the maximum kinetic
+energy loss consistent with momentum conservation. The coefficient of restitution
+interpolates between the two, being the ratio of separation to approach speed.
+
+Energy bookkeeping reference:
+  kinetic, translational   K = (1/2) m v^2
+  kinetic, rotational      K = (1/2) I omega^2
+  gravitational, local     U = m g h
+  gravitational, general   U = -G M m / r          zero at infinity, hence negative
+  elastic (spring)         U = (1/2) k x^2
+  work by a force          W = integral F . dr     path-independent iff conservative
+  power                    P = F . v = dE/dt
+  work-energy theorem      W_net = delta K         always, conservative or not
+
+The distinction between the local and general gravitational potentials repays
+attention. U = mgh is the first-order expansion of -GMm/r near the surface, valid only
+while the height change is small compared with the planet's radius. The general form
+being negative and approaching zero at infinity is a choice of reference point, and it
+makes the escape condition transparent: a bound orbit has negative total energy, a
+parabolic escape trajectory has exactly zero, and a hyperbolic one has positive energy
+with speed remaining at infinity.
+
+The virial theorem relates time-averaged kinetic and potential energies for a bound
+system with a power-law potential: 2 average(K) = -n average(U) for U proportional to
+r^n. For gravity, n = -1, giving 2K = -U, so the total energy is E = K + U = -K. This
+has a startling consequence used constantly in astrophysics: a self-gravitating system
+that loses energy — by radiating — gets *hotter*, since K = -E increases as E becomes
+more negative. Stars contract and heat as they radiate, and gravitationally bound
+systems therefore have an effective negative heat capacity.
+
+## Rotational Motion
+
+Rotational dynamics parallels translational dynamics with each quantity replaced by its
+angular analogue: mass by moment of inertia, force by torque, momentum by angular
+momentum, velocity by angular velocity. The parallel is exact, so every translational
+result has a rotational counterpart, and the equation tau = I alpha is the rotational
+second law.
+
+Moment of inertia depends on the axis, not just on the body, and this is the main
+practical difference from mass. It is the integral of r^2 dm with r measured
+perpendicular to the axis, so mass far from the axis counts quadratically more. The
+parallel axis theorem, I = I_cm + M d^2, gives the moment about any axis parallel to
+one through the centre of mass, and it shows that the centre-of-mass axis always
+minimizes the moment of inertia among parallel axes.
+
+Moments of inertia about the centre of mass:
+  point mass at radius r          m r^2
+  thin ring / hoop, axis normal   M R^2
+  solid disc / cylinder           (1/2) M R^2
+  solid sphere                    (2/5) M R^2
+  thin spherical shell            (2/3) M R^2
+  rod, axis through centre        (1/12) M L^2
+  rod, axis through end           (1/3) M L^2
+  parallel axis theorem           I = I_cm + M d^2
+
+The classic demonstration is a race down an incline. Objects rolling without slipping
+share their energy between translation and rotation, and the split depends only on the
+shape through the dimensionless factor c in I = c M R^2 — not on mass or radius at all.
+The acceleration is g sin(theta)/(1 + c), so a solid sphere with c = 2/5 accelerates
+at 5/7 g sin(theta), a disc with c = 1/2 at 2/3, a hoop with c = 1 at only half. A
+sphere beats a disc beats a hoop, always, regardless of their masses or sizes, and any
+of them loses to a frictionless sliding block that need not spin up at all.
+
+Angular momentum conservation produces the most visible effects in mechanics. A skater
+pulling in their arms reduces I and therefore increases omega, with kinetic energy
+increasing because the skater does work pulling mass inward against the centripetal
+requirement. A gyroscope precesses rather than falling because the torque from gravity
+is perpendicular to the angular momentum and therefore rotates its direction rather
+than changing its magnitude, with precession rate Omega = tau / L — faster spin means
+slower precession, which is why a rapidly spinning top stands nearly upright and a
+slowing one begins to wobble and fall.
+
+[user] I'm sizing a flywheel to store 500 kJ at 6000 rpm in a 400 mm diameter package.
+What mass do I need and what's the hoop stress?
+[assistant] tool_call mechanics.flywheel({"energy_j": 500000, "rpm": 6000,
+"outer_radius_m": 0.2, "geometry": "solid_disc", "material": "4340_steel"})
+[tool] {"omega_rad_s": 628.3, "required_I": 2.533, "mass_kg": 126.7,
+"thickness_m": 0.128, "rim_speed_m_s": 125.7, "hoop_stress_mpa": 296,
+"material_yield_mpa": 710, "safety_factor": 2.4}
+[assistant] A solid steel disc of 400 mm diameter needs about 127 kg and would be
+roughly 128 mm thick. That comes from E = (1/2) I omega^2 with omega = 628 rad/s,
+requiring I = 2.53 kg m^2, and I = (1/2) M R^2 for a solid disc.
+
+The stress number is the one that should drive your design. Rim speed is 126 m/s, and
+the peak hoop stress in a spinning disc scales as rho times rim speed squared — it is
+296 MPa here against a 710 MPa yield for 4340, so a safety factor of 2.4. That is
+acceptable but not generous for a rotating part where failure is energetic.
+
+The key scaling to internalize: stress depends on rim *speed*, not on radius or rpm
+separately, so you cannot make the flywheel safer by scaling it up at the same tip
+speed. Specific energy per unit mass is likewise set by the material's strength-to-
+density ratio, not by geometry. If you need more margin, the levers are a
+higher-strength alloy, a composite rim where carbon fibre's strength-to-density ratio
+is several times steel's, or accepting a lower rpm and a heavier wheel.
+
+Two practical points beyond the sizing. A solid disc is not the most mass-efficient
+geometry — a thick-rim design puts mass where the r^2 weighting pays, giving more
+inertia per kilogram, though it raises the stress concentration at the hub. And at 127
+kg spinning at 6000 rpm you are storing the energy equivalent of roughly 120 grams of
+TNT, so containment design and a burst shield are not optional.
+
+## Oscillations
+
+Simple harmonic motion arises whenever a restoring force is proportional to
+displacement, F = -kx. The equation of motion m x'' + k x = 0 has solution x = A
+cos(omega t + phi) with omega = sqrt(k/m). The defining property is that the period is
+independent of amplitude, which is why pendulum clocks work and why the harmonic
+approximation is so useful: any smooth potential near a minimum is locally quadratic,
+so small oscillations about any stable equilibrium are harmonic with omega =
+sqrt(U''(x0)/m).
+
+Damping adds a velocity-dependent force, giving m x'' + b x' + k x = 0. The behaviour
+depends on the damping ratio zeta = b/(2 sqrt(mk)). Underdamped (zeta < 1) oscillates
+with exponentially decaying amplitude at a frequency slightly below the natural one.
+Critically damped (zeta = 1) returns to equilibrium in the shortest time without
+overshoot, which is the design target for door closers, vehicle suspensions, and
+control loops. Overdamped (zeta > 1) returns without oscillating but more slowly,
+because the large damping force itself impedes the approach — a fact that surprises
+people who assume more damping is always faster.
+
+Driven oscillators exhibit resonance. Forcing at frequency omega_d produces a
+steady-state response whose amplitude peaks near the natural frequency, with the peak
+height set by the quality factor Q = 1/(2 zeta). High Q gives a tall narrow resonance
+and long ringing; low Q gives a broad shallow one that settles quickly. The response
+also shifts phase, lagging the drive by 90 degrees exactly at resonance and
+approaching 180 degrees well above it. Resonance is either the mechanism or the enemy
+depending on the application: it is how radios select a station, how NMR works, and
+how a wine glass shatters, and it is why bridges, buildings, and rotating machinery are
+designed with their natural frequencies deliberately placed away from expected
+excitation.
+
+Oscillator quantities:
+  natural frequency        omega_0 = sqrt(k/m)
+  period                   T = 2 pi / omega_0
+  damping ratio            zeta = b / (2 sqrt(mk))
+  damped frequency         omega_d = omega_0 sqrt(1 - zeta^2)
+  quality factor           Q = 1/(2 zeta) = omega_0 m / b
+  energy decay             E(t) = E_0 exp(-omega_0 t / Q)
+  resonant amplification   A_peak / A_static ~ Q for lightly damped systems
+  simple pendulum          omega = sqrt(g/L), small angles only
+  physical pendulum        omega = sqrt(m g d / I)
+  torsional                omega = sqrt(kappa / I)
+
+Coupled oscillators introduce normal modes: special patterns of motion in which every
+part oscillates at a common frequency with fixed relative amplitudes. Any motion of the
+system decomposes into a superposition of normal modes, which is an eigenvalue problem
+in disguise — the mode shapes are eigenvectors of the stiffness matrix relative to the
+mass matrix, and the squared frequencies are the eigenvalues. This is the bridge from
+mechanics to linear algebra and, in the continuum limit, to Fourier analysis and the
+wave equation.
+
+Q: A damped oscillator has Q = 50. After how many oscillation periods does its energy
+fall to about 1/e of its initial value?
+A. 50   B. 8   C. 25   D. 314
+Reasoning: Energy decays as exp(-omega_0 t / Q), so it falls to 1/e when omega_0 t = Q,
+that is t = Q/omega_0. One period is T = 2 pi / omega_0, so the number of periods is
+t/T = Q/(2 pi) = 50/6.28 ≈ 8. The useful rule is that Q is roughly 2 pi times the
+number of oscillations in an energy decay time. Answer: B.
+
+Q: A vehicle suspension is designed to be critically damped rather than overdamped
+because:
+A. It uses less energy
+B. It returns to equilibrium fastest without overshoot
+C. It has a higher resonant frequency
+D. It is cheaper to manufacture
+Reasoning: Critical damping is precisely the boundary case minimizing settling time
+subject to no overshoot. Overdamped systems do not overshoot either but return more
+slowly, since the damping force resists the return. Underdamped systems return quickly
+but oscillate. Answer: B.
+
+## Lagrangian and Hamiltonian Mechanics
+
+The Lagrangian formulation replaces forces with energies. Define L = T - V, the kinetic
+minus potential energy expressed in any convenient generalized coordinates, and the
+equations of motion follow from the Euler-Lagrange equation, d/dt(dL/dq') - dL/dq = 0,
+one for each coordinate. The advantages are substantial: constraint forces drop out
+automatically because the coordinates are chosen to satisfy the constraints, the
+formulation is coordinate-independent so polar or spherical coordinates require no
+special treatment, and energies are scalars while forces are vectors that must be
+resolved.
+
+This comes from Hamilton's principle: the physical trajectory is the one that makes the
+action, the time integral of L, stationary among all paths with fixed endpoints. That a
+variational principle underlies mechanics is one of the deepest facts in physics, and
+the same structure recurs in optics as Fermat's principle, in general relativity
+through the Einstein-Hilbert action, and in quantum mechanics where Feynman's path
+integral sums exp(iS/hbar) over all paths and the classical trajectory emerges as the
+stationary-phase contribution.
+
+Cyclic coordinates make conservation laws automatic. If L does not depend explicitly on
+a coordinate q, then the corresponding conjugate momentum p = dL/dq' is conserved. A
+central potential's Lagrangian has no explicit dependence on the azimuthal angle, so
+angular momentum is conserved without further argument. If L has no explicit time
+dependence, the Hamiltonian is conserved, and when the kinetic energy is quadratic in
+the velocities and the constraints are time-independent, that Hamiltonian is the total
+energy. This is Noether's theorem in its most usable form.
+
+The Hamiltonian formulation performs a Legendre transform to generalized momenta,
+giving H(q, p) = sum p q' - L and the symmetric pair of first-order equations q' =
+dH/dp and p' = -dH/dq. Trading n second-order equations for 2n first-order ones is not
+obviously progress, but it opens phase space as the natural arena. Liouville's theorem
+states that phase-space volume is conserved under Hamiltonian flow, which is the
+foundation of statistical mechanics. Canonical transformations preserve the structure
+and lead to Hamilton-Jacobi theory and action-angle variables. And the Poisson bracket
+{f, g} obeys algebraic relations that map directly onto the quantum commutator, making
+the Hamiltonian formalism the natural bridge to quantum mechanics.
+
+Worked comparison — bead on a rotating hoop, radius R, angular velocity Omega:
+  Newtonian:   resolve gravity, normal force, and the rotating-frame pseudo-forces
+               along the hoop; requires care with centrifugal and Coriolis terms
+  Lagrangian:  T = (1/2) m R^2 (theta'^2 + Omega^2 sin^2 theta)
+               V = -m g R cos theta
+               L = T - V, then Euler-Lagrange in theta alone
+  result:      R theta'' = R Omega^2 sin theta cos theta - g sin theta
+  equilibria:  theta = 0 always; additionally cos theta = g/(R Omega^2) when
+               Omega^2 > g/R — a pitchfork bifurcation at the critical rotation rate
+
+That bifurcation is the physical content: below a critical spin rate the bead sits at
+the bottom, and above it the bottom becomes unstable and two new stable equilibria
+appear off-axis. The Lagrangian route delivers this in a few lines with no vector
+resolution and no explicit treatment of the constraint force holding the bead on the
+hoop, which is exactly the kind of problem where the formalism earns its abstraction.
+
+## Chaos and Continuum Mechanics
+
+Deterministic systems can be unpredictable. A chaotic system has sensitive dependence
+on initial conditions: nearby trajectories diverge exponentially at a rate given by the
+largest Lyapunov exponent, so an uncertainty of epsilon in the initial state grows to
+order one after a time proportional to ln(1/epsilon). Because that dependence is
+logarithmic, improving initial measurements by a factor of a thousand buys only a
+constant additive increase in the prediction horizon. This is why weather forecasting
+has a hard practical limit of a couple of weeks regardless of instrumentation, and it
+is a statement about the dynamics rather than about the model's quality.
+
+Chaos requires nonlinearity and at least three dimensions in a continuous autonomous
+system, since the Poincare-Bendixson theorem confines two-dimensional flows to fixed
+points and limit cycles. Discrete maps can be chaotic in one dimension, the logistic
+map x -> r x(1 - x) being the canonical example, which undergoes a period-doubling
+cascade to chaos as r increases, with the ratio of successive bifurcation intervals
+approaching Feigenbaum's constant 4.669. That this constant is universal across
+entirely different systems with a quadratic maximum was the discovery that made chaos a
+subject rather than a collection of curiosities.
+
+The double pendulum is the standard mechanical example: two coupled rigid pendulums,
+four-dimensional phase space, fully deterministic, and chaotic for all but small
+amplitudes. Its equations follow in a few lines from the Lagrangian and are hopeless to
+derive by force balance. Strange attractors — the Lorenz attractor from a truncated
+convection model being the famous case — are the geometric signature: trajectories are
+bounded and never repeat, converging onto a fractal set of non-integer dimension.
+
+Continuum mechanics treats matter as a continuous field rather than as particles, valid
+when the length scales of interest greatly exceed the molecular mean free path. Stress
+is a rank-two tensor mapping a surface normal to the traction vector across it, with
+the diagonal entries normal stresses and the off-diagonal ones shear. Strain is the
+symmetric gradient of the displacement field. For a linear elastic isotropic material
+they are related by two constants, conventionally Young's modulus and Poisson's ratio,
+which reduce to bulk and shear moduli for volumetric and shape changes respectively.
+
+Continuum reference:
+  Cauchy stress tensor        sigma_ij; symmetric by angular momentum balance
+  small strain                eps_ij = (1/2)(du_i/dx_j + du_j/dx_i)
+  Hooke's law, 1D             sigma = E eps
+  Poisson's ratio             nu = -transverse strain / axial strain, ~0.3 metals
+  shear modulus               G = E / (2(1 + nu))
+  bulk modulus                K = E / (3(1 - 2 nu))
+  wave speeds                 c_longitudinal = sqrt(E/rho), c_shear = sqrt(G/rho)
+  Navier-Stokes               rho(dv/dt + v.grad v) = -grad p + mu lap v + f
+  Reynolds number             Re = rho v L / mu; inertial over viscous forces
+
+The Reynolds number is the single most important dimensionless group in fluid
+mechanics because it determines the character of the flow rather than merely its
+magnitude. Below roughly 2,000 in a pipe the flow is laminar, with smooth layers and a
+parabolic velocity profile, and the pressure drop is linear in flow rate. Above roughly
+4,000 it is turbulent, with chaotic eddies, a flatter profile, far greater mixing, and
+a pressure drop closer to quadratic in flow rate. Between the two lies a transitional
+regime sensitive to disturbances. Dynamic similarity means two flows with the same
+Reynolds number behave alike regardless of scale, which is what makes wind-tunnel and
+towing-tank testing of scale models meaningful, and what forces model tests to
+compensate with altered fluid density, viscosity, or velocity to match the full-scale
+number.

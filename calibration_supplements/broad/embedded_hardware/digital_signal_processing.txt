@@ -1,0 +1,328 @@
+================================================================================
+AREA: Embedded Systems and Hardware
+SUBJECT: Digital Signal Processing
+Subtopics: sampling, the Fourier transform, filters, windowing, fixed-point
+arithmetic, adaptive filtering, modulation, practical embedded DSP.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Sampling and Quantization
+
+The Nyquist-Shannon sampling theorem states that a signal band-limited to B hertz is
+perfectly reconstructible from samples taken at any rate above 2B. The theorem is exact
+and its conditions are the part that matters in practice: the signal must be genuinely
+band-limited, which no real signal is, and reconstruction requires an ideal sinc
+interpolation of infinite extent, which no real system implements.
+
+Aliasing is what happens when the condition fails. Frequency components above half the
+sampling rate fold back into the band as lower frequencies, indistinguishable from
+genuine content once sampled. A 3 kHz tone sampled at 5 kHz appears as a 2 kHz tone, and
+no amount of subsequent processing can separate them, because the information
+distinguishing them was destroyed at the moment of sampling. This is why an analog
+anti-aliasing filter before the converter is mandatory rather than optional: it is the
+only place the fold-back can be prevented.
+
+Practical anti-alias filtering forces oversampling. A real analog filter has a finite
+transition band, so a filter that passes 20 kHz and must reject 20 kHz-plus content
+before folding cannot be built with a sharp enough skirt at a 44.1 kHz sample rate
+without extreme order and terrible phase behaviour. The standard solution is to sample
+well above Nyquist, use a gentle analog filter, and perform the sharp band-limiting
+digitally where filters can be made arbitrarily steep with linear phase, then decimate.
+This is why audio converters run at megahertz rates internally and output at 48 kHz.
+
+Sampling and quantization reference:
+  Nyquist rate            f_s > 2B for a signal band-limited to B
+  aliased frequency       |f - round(f/f_s) * f_s|
+  quantization SNR        SNR_dB ≈ 6.02 N + 1.76 for N bits, full-scale sine
+  effective bits          ENOB = (SNR_dB - 1.76) / 6.02;  what you actually get
+  dynamic range           ratio of largest to smallest representable signal
+  oversampling gain       2x oversampling then decimation gains 3 dB (0.5 bit)
+  dither                  adds ~1 LSB of noise before quantization; decorrelates
+                          quantization error from the signal, trading distortion
+                          for benign noise
+  noise shaping           pushes quantization noise out of the band of interest;
+                          the basis of sigma-delta conversion
+
+The 6 dB per bit rule is the most useful number in the subject. Each additional bit
+doubles the number of quantization levels, halving the error, which is a 6 dB
+improvement in signal-to-noise ratio. A 12-bit converter has a theoretical 74 dB SNR, a
+16-bit one 98 dB, a 24-bit one 146 dB — though the last is fictional, since no analog
+front end has a noise floor that low, and real 24-bit converters deliver perhaps 20
+effective bits. Always ask for ENOB rather than nominal resolution.
+
+Dither is counterintuitive and correct: deliberately adding noise improves the result.
+Without it, quantization error is deterministically related to the signal, producing
+harmonic distortion — a quiet sine wave quantized coarsely becomes a stepped waveform
+with audible harmonics. Adding about one LSB of random noise before quantization
+decorrelates the error, converting structured distortion into a flat noise floor that is
+far less objectionable and, crucially, allows signals below the quantization step to
+remain audible through the noise.
+
+Q: A signal containing energy at 7 kHz is sampled at 10 kHz with no anti-alias filter.
+The 7 kHz component appears in the sampled data at:
+A. 7 kHz   B. 3 kHz   C. 5 kHz   D. It is removed
+Reasoning: Nyquist is 5 kHz. The component folds to |7 - 10| = 3 kHz. It is now
+indistinguishable from genuine 3 kHz content and cannot be removed afterward, which is
+precisely why the anti-alias filter must precede the sampler. Answer: B.
+
+## The Fourier Transform and Spectral Analysis
+
+The Fourier transform decomposes a signal into sinusoidal components, and the discrete
+Fourier transform does so for a finite sampled sequence. The fast Fourier transform is
+an algorithm computing the DFT in O(N log N) rather than O(N^2) by recursively
+exploiting symmetry — a change that turned spectral analysis from a research computation
+into a real-time operation and is one of the most consequential algorithms ever devised.
+
+Interpreting a DFT requires knowing what its bins mean. An N-point DFT of a signal
+sampled at f_s produces N bins spaced f_s/N apart, spanning zero to f_s. Bins above
+N/2 correspond to negative frequencies and, for real input, are the complex conjugate
+mirror of the lower half, carrying no additional information. Frequency resolution is
+f_s/N and therefore depends only on the total observation duration, not on the sample
+rate — observing for one second gives 1 Hz resolution whether sampled at 8 kHz or 8 MHz.
+This is the fundamental time-frequency tradeoff, and it is why distinguishing two closely
+spaced tones requires a long observation regardless of how fast you sample.
+
+Spectral leakage arises because the DFT implicitly assumes the finite record repeats
+periodically. If the signal does not complete an integer number of cycles within the
+window, the assumed periodic extension has a discontinuity at the boundary, and that
+discontinuity spreads energy across all bins. A pure sine wave at a bin-centre frequency
+produces one nonzero bin; the same sine offset by half a bin spreads across the whole
+spectrum with a slowly decaying skirt that can bury weaker nearby components entirely.
+
+Windowing controls leakage by tapering the record to zero at both ends, removing the
+discontinuity at the cost of widening the main lobe. Every window trades main-lobe width
+against sidelobe level, and the choice depends on what the analysis must distinguish.
+
+Window functions:
+  rectangular (none)   narrowest main lobe (2 bins), worst sidelobes (-13 dB);
+                       correct only when the signal is exactly periodic in the window
+  Hann                 4-bin main lobe, -31 dB sidelobes, fast -18 dB/octave rolloff;
+                       the sensible general-purpose default
+  Hamming              4-bin, -43 dB first sidelobe, slower rolloff
+  Blackman             6-bin, -58 dB; use when a weak tone sits near a strong one
+  Blackman-Harris      8-bin, -92 dB; extreme dynamic range applications
+  flat-top             very wide main lobe, near-exact amplitude accuracy; use for
+                       calibration where amplitude matters more than resolution
+  Kaiser               parameterized family trading the two continuously
+
+Coherent gain and noise bandwidth corrections matter when the DFT is used for
+measurement rather than display. A window attenuates the signal, so amplitude readings
+must be scaled by the reciprocal of its coherent gain, and noise power estimates must
+account for the window's equivalent noise bandwidth, which exceeds one bin. Omitting
+these gives readings that are systematically low by several decibels, a common error in
+homemade spectrum analyzers.
+
+The spectrogram extends spectral analysis to non-stationary signals by computing DFTs
+over successive overlapping windows. Its resolution is governed by the same uncertainty
+tradeoff: a short window localizes events in time and blurs them in frequency, a long
+window does the reverse, and no choice does both. Overlapping windows by 50% or 75%
+recovers information lost to the window taper and is standard. Wavelet transforms address
+the same problem with a basis whose time-frequency tiling varies with scale, giving fine
+time resolution at high frequency and fine frequency resolution at low — a better match
+to how most natural signals are structured.
+
+## Digital Filters
+
+A filter modifies a signal's frequency content. Digital filters divide into two families
+with entirely different characteristics, and the choice between them is the first design
+decision.
+
+Finite impulse response filters compute each output as a weighted sum of a finite number
+of past inputs. They are unconditionally stable, since there is no feedback, and they can
+be made exactly linear phase by choosing symmetric coefficients — meaning all frequencies
+are delayed equally so the waveform shape is preserved, which matters enormously for
+data communications, for medical waveforms, and for any application where the shape
+rather than the spectrum carries the information. The cost is order: achieving a sharp
+transition requires many taps, and the computational load and latency scale with that
+count.
+
+Infinite impulse response filters include feedback, so the impulse response never fully
+decays. They achieve a given frequency response with far fewer coefficients — often an
+order of magnitude fewer than an equivalent FIR — which makes them attractive on
+constrained hardware. The costs are that they can be unstable if poles move outside the
+unit circle, that they have nonlinear phase which distorts waveform shape, and that they
+are sensitive to coefficient quantization, especially at high order where a small
+coefficient error can move a pole across the stability boundary.
+
+Filter design and structure:
+  FIR design methods    windowed sinc (simple, suboptimal), Parks-McClellan
+                        (equiripple, optimal for a given order), least squares,
+                        frequency sampling
+  IIR design methods    analog prototype plus bilinear transform; Butterworth
+                        (maximally flat), Chebyshev I (passband ripple, sharper),
+                        Chebyshev II (stopband ripple), elliptic (both, sharpest),
+                        Bessel (maximally flat group delay)
+  FIR order estimate    N ≈ (attenuation_dB - 8) / (2.285 * transition_width_rad)
+  IIR implementation    cascade of second-order sections, never direct-form high
+                        order — coefficient sensitivity makes high-order direct
+                        forms unusable in fixed point
+  group delay           FIR linear phase gives constant (N-1)/2 samples;
+                        IIR varies with frequency
+  minimum phase         non-symmetric FIR with lower delay for the same magnitude
+                        response, when linear phase is not required
+
+The second-order-section rule is not a stylistic preference. A tenth-order IIR filter
+implemented as a single direct-form structure has coefficients whose relationship to the
+pole locations is extremely ill-conditioned; quantizing them to 16 bits can move poles
+enough to destabilize the filter entirely. Factoring into five cascaded biquads makes
+each section's coefficients directly related to a conjugate pole pair, so quantization
+error moves each pole slightly rather than catastrophically. Every serious filter library
+outputs second-order sections for this reason.
+
+Multirate processing changes the sample rate within a system and is often the largest
+available efficiency gain. Decimation reduces the rate, requiring a low-pass filter first
+to prevent aliasing; interpolation raises it by inserting zeros and filtering to remove
+the resulting spectral images. Polyphase decomposition exploits the fact that in
+decimation most filter outputs are discarded and in interpolation most inputs are zero,
+restructuring the computation to avoid the wasted multiplies — a saving equal to the rate
+change factor. A cascaded integrator-comb filter performs large rate changes with no
+multipliers at all, using only adders and delays, which is why it is ubiquitous in the
+front end of sigma-delta converters and software radios.
+
+[user] I need a 60 Hz notch on an ECG signal sampled at 500 Hz, but a simple notch is
+distorting the QRS complexes.
+[assistant] tool_call dsp.filter_design({"type": "notch", "f0": 60, "fs": 500,
+"application": "ecg", "current": {"design": "iir_biquad", "q": 35},
+"signal_bandwidth": [0.5, 40]})
+[tool] {"current_group_delay_ms_at_qrs": 18.4, "group_delay_variation_ms": 14.2,
+"ringing_duration_ms": 62, "qrs_duration_ms": 90, "recommendation":
+"linear_phase_fir_or_notch_outside_band", "note": "60hz_above_diagnostic_band"}
+[assistant] The distortion is phase, not magnitude — your IIR notch has 14 ms of group
+delay variation across the QRS band, so different frequency components of the complex
+arrive at different times and the shape smears. A high-Q IIR notch also rings for about
+62 ms after a sharp transient, which is comparable to the 90 ms QRS duration itself.
+
+Two good options, and I would take the first.
+
+Your diagnostic band is 0.5 to 40 Hz and the interference is at 60 Hz — they do not
+overlap. So you do not need a notch at all; you need a low-pass at 40 Hz. A linear-phase
+FIR low-pass removes the 60 Hz entirely along with everything else above the diagnostic
+band, and being linear phase it delays every component equally, preserving morphology
+exactly. At 500 Hz sampling with a 40 Hz passband and 60 Hz stopband, an order of about
+100 taps gives you 40 dB of rejection, which is 100 ms of constant delay — fine for
+offline analysis, and correctable by compensating the known constant offset for
+real-time display.
+
+If you must keep content above 40 Hz, use a linear-phase FIR notch instead of the
+biquad. Higher order, but constant group delay so the QRS shape survives.
+
+A third technique worth knowing for mains interference specifically: adaptive
+cancellation. Since 60 Hz is a known, nearly stationary frequency, you can estimate its
+amplitude and phase over a window and subtract a synthesized sinusoid. This removes the
+interference with essentially no effect on the signal band at all, and it tracks slow
+drift in the mains frequency. It is more code than a filter but it is the cleanest
+result.
+
+One thing to check regardless: if the 60 Hz is large enough to need aggressive removal,
+look at the source. Better electrode preparation, shorter leads, driven-right-leg
+circuitry, and proper shielding usually reduce mains pickup by 20-40 dB, which is more
+than any filter buys you and costs no signal fidelity.
+
+## Fixed-Point Arithmetic
+
+Embedded DSP frequently runs without a floating-point unit, so arithmetic uses integers
+with an implied binary point. Q notation specifies the format: Q15 means one sign bit and
+15 fractional bits in a 16-bit word, representing values in [-1, 1). Q31 is the 32-bit
+equivalent. The representable range and the resolution are traded directly — every bit
+moved from the fractional side to the integer side doubles the range and halves the
+precision.
+
+Multiplication in Q format requires a shift. Multiplying two Q15 numbers yields a Q30
+result in a 32-bit accumulator, which must be shifted left by one and taken from the high
+half to return to Q15. Getting this wrong by one bit is a factor-of-two error that is
+easy to introduce and easy to miss when the algorithm still roughly works. Many DSP
+cores provide a fractional multiply mode performing the shift in hardware, which is worth
+using precisely because it removes this error class.
+
+Overflow is the central hazard. Fixed-point addition of two full-scale values overflows,
+and the behaviour on overflow determines whether the result is merely wrong or
+catastrophic. Wraparound turns a large positive into a large negative, producing a
+full-scale discontinuity — in audio, a loud click; in control, a violent transient.
+Saturating arithmetic clamps to the maximum instead, which is a graceful degradation and
+is why DSP instruction sets provide saturating add and multiply-accumulate instructions.
+Use them.
+
+Fixed-point practice:
+  Q15 range           [-1, 0.999969];  resolution 2^-15 ≈ 3.05e-5
+  Q31 range           [-1, ~1);  resolution 2^-31 ≈ 4.66e-10
+  multiply Q15 x Q15  32-bit product in Q30; shift left 1, take high 16 for Q15
+  accumulate          use a wide accumulator (40-bit on many DSPs) with guard bits
+                      so intermediate sums cannot overflow
+  headroom            scale inputs down by the filter's gain so the output cannot
+                      exceed full scale; the sum of |coefficients| bounds it
+  saturation          prefer saturating instructions over wraparound
+  rounding            round-to-nearest rather than truncation; truncation biases
+                      results toward zero and that bias accumulates in feedback
+  coefficient scaling normalize filter coefficients and track the scale separately
+
+Limit cycles are a fixed-point-specific pathology in IIR filters. Quantization inside the
+feedback loop can sustain a small oscillation that never decays, so a filter given zero
+input produces a persistent low-level output — audible as a tone in audio applications.
+Increasing the internal word length, using round-to-nearest instead of truncation, and
+adding a small dither to the feedback path all suppress it. It is a good example of a
+problem that does not exist in the floating-point design and appears only in
+implementation, which is why fixed-point implementations must be verified against the
+reference rather than assumed equivalent.
+
+## Adaptive Filtering and Applications
+
+An adaptive filter adjusts its own coefficients to minimize an error signal, learning the
+correct response rather than having it designed in. The least mean squares algorithm is
+the workhorse: it updates each coefficient by a step size times the error times the
+corresponding input sample, which is stochastic gradient descent on the mean squared
+error. Its appeal is extreme simplicity — one multiply-accumulate per coefficient per
+sample — and robustness.
+
+Step size governs the fundamental tradeoff. Large steps adapt quickly and settle to a
+noisier solution; small steps converge slowly to a more accurate one. Stability requires
+the step size to be below a bound inversely proportional to the input power, which is why
+normalized LMS divides by the current input energy — it makes the effective step size
+independent of signal level, so a filter tuned on quiet input does not diverge when the
+input gets loud. Recursive least squares converges far faster by maintaining an estimate
+of the input correlation matrix inverse, at O(N^2) cost per sample instead of O(N) and
+with numerical stability concerns that require care in fixed point.
+
+The four canonical adaptive configurations differ only in what is connected where, and
+recognizing which one a problem is helps enormously. System identification places the
+adaptive filter in parallel with an unknown system and drives both with the same input,
+so the filter converges to a model of the system. Inverse modelling places it in series
+and drives it toward reproducing a delayed input, so it converges to the system's
+inverse — this is channel equalization. Noise cancellation subtracts a filtered version
+of a reference noise input from a corrupted signal, requiring only that the reference
+correlate with the noise and not with the signal. Linear prediction drives the filter to
+predict the next sample from previous ones, and the prediction error is the innovation —
+the basis of speech coding and of many compression schemes.
+
+Adaptive filter applications:
+  echo cancellation      model the acoustic or hybrid echo path and subtract it;
+                         the path changes when anyone moves, so adaptation must be
+                         continuous
+  active noise control   generate an anti-phase signal; limited by the acoustic
+                         delay budget, which is why it works well for low-frequency
+                         steady noise and poorly for transients
+  channel equalization   invert the distortion of a communications channel
+  adaptive beamforming   steer a null toward an interferer using a sensor array
+  line enhancement       extract a narrowband signal from broadband noise
+  biomedical             remove maternal ECG from fetal recordings, remove EOG
+                         artifacts from EEG
+
+The practical constraint that governs adaptive systems is the correlation requirement. A
+noise canceller needs a reference input containing the noise and none of the desired
+signal; if the reference picks up any of the signal, the adaptation cancels part of the
+signal too, and the result is a filter that quietly removes what you wanted to keep.
+This is the most common failure in deployed adaptive cancellation, and the diagnostic is
+to check whether the output degrades when the desired signal is present but the
+interference is not.
+
+Embedded implementation brings its own constraints that shape algorithm choice. Memory
+bandwidth often dominates over arithmetic, so a filter structure touching fewer
+coefficients wins even at equal multiply count. Circular buffers avoid the cost of
+shifting a delay line, and DSP cores provide modulo addressing to index them without
+branches. Single-instruction multiple-data extensions on ARM Cortex-M4 and above process
+several 16-bit samples per instruction, typically giving a two-to-fourfold speedup on
+filter inner loops, and the CMSIS-DSP library provides tuned implementations that should
+be preferred over hand-written loops. And the deepest optimization is usually algorithmic:
+running the filter at a lower sample rate through decimation, or moving a convolution to
+the frequency domain via FFT when the filter is long enough that N log N beats N^2 —
+which for FIR filters happens somewhere around 64 taps, depending on the platform.

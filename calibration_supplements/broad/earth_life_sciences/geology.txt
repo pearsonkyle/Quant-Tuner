@@ -1,0 +1,271 @@
+================================================================================
+AREA: Earth and Life Sciences
+SUBJECT: Geology and Earth Science
+Subtopics: Earth structure, plate tectonics, minerals and rocks, the rock cycle,
+deformation and earthquakes, surface processes, stratigraphy and deep time, resources.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Earth Structure and Interior
+
+Earth's internal structure is known almost entirely from seismology, because no borehole has
+penetrated even the full thickness of the crust. Earthquake waves refract and reflect at
+boundaries where physical properties change, and mapping those boundaries from arrival times
+at stations worldwide produced the layered model.
+
+Two classification schemes describe the same planet and are often confused. The compositional
+division — crust, mantle, core — is based on chemistry. The mechanical division —
+lithosphere, asthenosphere, mesosphere, outer core, inner core — is based on how the material
+behaves. The lithosphere comprises the crust plus the uppermost rigid mantle and is what
+breaks into tectonic plates; the asthenosphere beneath it is mantle rock close enough to
+melting to flow slowly. The distinction matters because plate tectonics operates on the
+mechanical layering, not the compositional one.
+
+Seismic waves come in two types with different diagnostic value. Primary waves are
+compressional, travel fastest, and pass through both solids and liquids. Secondary waves are
+shear, travel slower, and cannot propagate through liquid because a fluid has no shear
+strength. The existence of a shadow zone where secondary waves do not arrive is the direct
+evidence that the outer core is liquid, and the refraction pattern of primary waves revealed
+the solid inner core within it. This is a good example of a global structural conclusion drawn
+from a simple physical property of wave propagation.
+
+Earth's layers:
+  crust               oceanic 5-10 km, basaltic, dense, young (< 200 Myr);
+                      continental 30-70 km, granitic, less dense, up to 4 Gyr old
+  Moho                the crust-mantle boundary, marked by a velocity jump
+  upper mantle        peridotite; the asthenosphere lies within it
+  transition zone     410 and 660 km discontinuities from mineral phase changes
+  lower mantle        to 2890 km; high pressure phases
+  outer core          liquid iron-nickel; generates the magnetic field by dynamo
+  inner core          solid iron despite higher temperature, because pressure
+                      raises the melting point
+  geothermal gradient ~25 C/km in the crust, far lower in the mantle
+  heat sources        radioactive decay of U, Th, K plus primordial heat
+  magnetic field      requires a liquid conducting layer in convective motion
+
+The geodynamo deserves note because it links the deep interior to the surface environment.
+Convection in the liquid outer core, organized by Earth's rotation, sustains a self-exciting
+magnetic field that deflects the solar wind and protects the atmosphere from stripping. The
+field reverses polarity at irregular intervals averaging a few hundred thousand years, and the
+record of those reversals frozen into cooling oceanic crust produced the symmetric magnetic
+stripes on either side of mid-ocean ridges — which was the decisive evidence for seafloor
+spreading and hence for plate tectonics.
+
+Q: Secondary seismic waves do not arrive in a shadow zone on the far side of Earth from an
+earthquake. This establishes that:
+A. The core is denser than the mantle
+B. Some layer is liquid, since shear waves cannot propagate through fluid
+C. The Earth is layered
+D. The inner core is solid
+Reasoning: Shear waves require a medium with shear strength, which liquids lack. Their
+complete absence beyond a certain angular distance indicates a liquid layer blocking them —
+the outer core. The solidity of the inner core was inferred separately from refracted primary
+wave arrivals. Answer: B.
+
+## Plate Tectonics
+
+Plate tectonics is the unifying theory of geology, explaining the distribution of
+earthquakes, volcanoes, mountain ranges, and the shapes and geological correspondences of
+continents. The lithosphere is divided into rigid plates that move relative to one another at
+rates of centimetres per year, driven primarily by the negative buoyancy of cold subducting
+slabs pulling the trailing plate — slab pull — with ridge push from the elevated
+mid-ocean ridge contributing less, and mantle convection providing the underlying circulation.
+
+Continental drift was proposed by Wegener in 1912 on the basis of fitting coastlines, matching
+fossil assemblages across oceans, and correlated rock formations, and it was rejected for
+decades because no plausible mechanism existed for moving continents through oceanic crust.
+The resolution came from seafloor spreading: the continents do not plough through the ocean
+floor, they ride on plates that include it, and new oceanic crust is created at ridges and
+destroyed at trenches. The history of the idea is a useful case of correct observation with an
+unacceptable mechanism, resolved only when the mechanism was found.
+
+Boundary types determine the geology:
+  divergent           plates separate; mid-ocean ridges and continental rifts;
+                      shallow earthquakes, basaltic volcanism, new crust created
+  convergent, ocean-continent  oceanic subducts beneath continental; deep trench,
+                      volcanic arc, deep earthquakes along the Benioff zone
+  convergent, ocean-ocean      island arc; the older, denser plate subducts
+  convergent, continent-continent  neither subducts easily; crustal thickening
+                      and mountain building, as in the Himalaya
+  transform           plates slide past; shallow earthquakes, little volcanism,
+                      as along the San Andreas
+  hotspot             a mantle plume independent of plate boundaries; produces
+                      island chains as the plate moves over it
+  triple junction     where three plates meet; complex and often unstable
+
+Subduction zones are where the most consequential geology happens. The descending slab
+carries water in hydrated minerals; as it heats, that water is released into the overlying
+mantle wedge, lowering the melting point and generating magma that rises to form volcanic
+arcs. The magma interacts with continental crust on its way up, differentiating toward more
+silica-rich compositions, which is why arc volcanoes erupt explosively — silica-rich magma is
+viscous and traps gas — while ridge and hotspot basalts flow effusively. The largest
+earthquakes on record are all subduction megathrust events, because the fault plane is
+shallow-dipping, enormous in area, and locked over long intervals.
+
+## Minerals, Rocks, and the Rock Cycle
+
+A mineral is a naturally occurring inorganic solid with a definite chemical composition and
+an ordered internal crystal structure. Rocks are aggregates of minerals. The silicate minerals
+dominate the crust because silicon and oxygen are the most abundant elements available, and
+their structural family is organized by how the silica tetrahedra link — isolated,
+in chains, in sheets, or in three-dimensional frameworks — which determines cleavage,
+hardness, and weathering behaviour.
+
+Igneous rocks crystallize from melt. Their texture records cooling rate: slow cooling at
+depth allows large crystals to grow, giving coarse-grained intrusive rocks such as granite,
+while rapid cooling at the surface gives fine-grained extrusive rocks such as basalt, and
+quenching gives volcanic glass. Their composition records the source and the degree of
+differentiation, running from mafic, iron and magnesium rich and silica poor, to felsic,
+silica and alkali rich. Bowen's reaction series describes the order in which minerals
+crystallize from a cooling melt and explains why fractional crystallization drives residual
+melts toward felsic compositions.
+
+Sedimentary rocks form from accumulated particles or precipitates and are the ones that
+record surface history. Clastic rocks are made of fragments, classified by grain size from
+conglomerate through sandstone to shale, with the grain size and sorting recording the
+transport energy and distance. Chemical and biochemical rocks precipitate from solution or
+accumulate from organisms, limestone being by far the most important. Sedimentary rocks cover
+most of the continental surface, contain nearly all fossils, and host most fossil fuel and
+groundwater resources.
+
+Metamorphic rocks form when existing rock is altered by heat, pressure, or chemically active
+fluids without melting. Regional metamorphism at convergent boundaries produces foliated
+rocks whose platy minerals align perpendicular to the maximum stress, giving the sequence
+slate, phyllite, schist, gneiss with increasing grade. Contact metamorphism near an intrusion
+produces non-foliated rocks because the stress is not directional. Metamorphic mineral
+assemblages are used as geothermobarometers, recording the pressure and temperature the rock
+experienced, which is how the burial and exhumation history of a mountain belt is
+reconstructed.
+
+Rock classification essentials:
+  igneous, intrusive     granite, diorite, gabbro; coarse grained, slow cooling
+  igneous, extrusive     rhyolite, andesite, basalt; fine grained, fast cooling
+  composition series     felsic (granite/rhyolite) to mafic (gabbro/basalt)
+  Bowen's series         olivine crystallizes first, quartz last
+  clastic sedimentary    conglomerate, sandstone, siltstone, shale by grain size
+  chemical sedimentary   limestone, rock salt, chert
+  foliated metamorphic   slate, phyllite, schist, gneiss with increasing grade
+  non-foliated           marble from limestone, quartzite from sandstone
+  index minerals         indicate metamorphic grade
+  rock cycle             any rock type can become any other through the
+                         appropriate process; there is no fixed sequence
+
+## Deformation, Earthquakes, and Volcanoes
+
+Rock deforms elastically under small stress and permanently under larger stress, and whether
+that permanent deformation is brittle or ductile depends on temperature, pressure, strain
+rate, and rock type. Cold, shallow, rapidly stressed rock fractures; hot, deep, slowly
+stressed rock flows. This is why folds and faults often occur in the same rock unit — the
+folding happened at depth and the faulting after uplift, or the strain rate differed.
+
+Faults are classified by relative motion, and each type corresponds to a stress regime and a
+tectonic setting. Normal faults accommodate extension, with the hanging wall moving down, and
+characterize rifts and mid-ocean ridges. Reverse and thrust faults accommodate compression
+and characterize convergent margins. Strike-slip faults accommodate horizontal shear and
+characterize transform boundaries. Reading the fault type from field evidence directly
+constrains the stress field that produced it.
+
+Earthquakes result from the sudden release of accumulated elastic strain when friction on a
+fault is overcome. Elastic rebound theory describes the cycle: stress accumulates as plates
+move while the fault remains locked, the rock deforms elastically, and when the shear stress
+exceeds the frictional strength, slip occurs and the rock springs back. This explains why
+large earthquakes recur at intervals on a given fault segment and why the accumulated slip
+deficit is a meaningful measure of hazard.
+
+Magnitude and intensity are distinct and routinely conflated. Magnitude is a single number
+describing the energy released, computed from seismogram amplitudes, and it is logarithmic —
+each unit corresponds to about 32 times more energy and ten times more ground motion
+amplitude. Intensity describes shaking and damage at a particular location and varies across
+the affected area with distance, depth, and local ground conditions. A moderate earthquake on
+soft sediment can produce more damage than a larger one on bedrock, which is why site
+response matters so much for building codes.
+
+Earthquake and volcano quantities:
+  moment magnitude      based on fault area, slip, and rock rigidity; the modern
+                        standard, valid for the largest events where the older
+                        Richter scale saturates
+  energy scaling        ~32x per magnitude unit; ~1000x per two units
+  intensity             Modified Mercalli; location-specific shaking and damage
+  focus / epicentre     the rupture point at depth / the point above it
+  P, S, surface waves   P arrives first, S second, surface waves cause most damage
+  liquefaction          saturated loose sediment loses strength during shaking
+  site amplification    soft sediment amplifies ground motion substantially
+  volcanic explosivity  VEI, logarithmic in erupted volume
+  magma viscosity       rises with silica content; controls eruption style
+  effusive vs explosive basaltic flows versus silicic explosive eruptions
+  pyroclastic flow      the deadliest volcanic hazard; fast, hot, unsurvivable
+  lahar                 volcanic mudflow; often the most damaging distal hazard
+
+Earthquake prediction — specifying time, place, and magnitude in advance — has not been
+achieved and there is reasonable doubt it is possible, since the process appears to be
+critically sensitive to conditions that cannot be measured. Forecasting, in the sense of
+probabilistic hazard over years to decades, is well established and is what building codes
+rest on. Early warning systems occupy a different niche entirely: they detect the fast P wave
+at stations near the epicentre and transmit an alert electronically, which outruns the
+slower and more damaging S and surface waves, providing seconds to tens of seconds — enough
+to stop trains, close valves, and take cover.
+
+## Surface Processes, Stratigraphy, and Deep Time
+
+Weathering breaks rock down in place, and erosion transports the products. Mechanical
+weathering — frost wedging, thermal expansion, root growth, abrasion — increases surface area
+without changing composition. Chemical weathering — dissolution, hydrolysis, oxidation —
+changes composition and is greatly accelerated by the increased surface area, which is why the
+two processes reinforce each other and why weathering is fastest in warm humid climates.
+
+The silicate weathering reaction is worth knowing outside geology because it is Earth's
+long-term climate thermostat. Weathering of silicate rock consumes atmospheric carbon
+dioxide, producing dissolved bicarbonate that is eventually deposited as carbonate in the
+ocean. The reaction rate increases with temperature and rainfall, so a warmer world weathers
+faster and draws down more carbon dioxide, cooling it; a colder world weathers slower and
+allows volcanic carbon to accumulate, warming it. This negative feedback has kept Earth's
+climate within habitable bounds for billions of years, and it operates over hundreds of
+thousands of years — far too slowly to counteract the current rate of emission.
+
+Stratigraphy reads Earth history from layered rock, and its principles are simple and
+powerful. Original horizontality holds that sediments deposit in near-horizontal layers, so
+tilted strata have been deformed. Superposition holds that in an undisturbed sequence, lower
+layers are older. Cross-cutting relationships hold that a feature cutting across another is
+younger. Faunal succession holds that fossil assemblages change through time in a consistent
+order, which allows correlation between distant sequences and is the basis of the geological
+timescale. Unconformities are surfaces representing missing time — erosion or non-deposition
+— and reading them is how gaps in the record are identified rather than overlooked.
+
+Deep time and dating:
+  relative dating        superposition, cross-cutting, faunal succession,
+                         unconformities
+  radiometric dating     decay of unstable isotopes at a constant rate
+  carbon-14              half-life 5,730 yr; organic material to ~50,000 yr
+  potassium-argon        half-life 1.25 Gyr; volcanic rocks
+  uranium-lead           half-life 4.47 Gyr; zircon; the most precise deep-time
+                         method, and zircon resists alteration
+  Earth's age            4.54 Gyr, from meteorites and the oldest terrestrial
+                         minerals
+  oldest rocks           ~4.0 Gyr;  oldest minerals (zircon) ~4.4 Gyr
+  Precambrian            ~88% of Earth history
+  Great Oxidation        ~2.4 Gyr; photosynthetic oxygen transforms the atmosphere
+  Cambrian explosion     ~540 Myr; rapid diversification of animal body plans
+  mass extinctions       five major events; the end-Permian removed ~80% of marine
+                         species, the end-Cretaceous ended non-avian dinosaurs
+
+Radiometric dating works because radioactive decay proceeds at a rate independent of
+temperature, pressure, and chemistry, so the ratio of parent to daughter isotope in a closed
+system measures elapsed time. The assumptions that must be checked are that the system
+remained closed, that the initial daughter abundance is known or can be determined, and that
+the appropriate isotope system is used for the timescale — carbon-14 is useless beyond about
+ten half-lives, and uranium-lead is useless for anything recent. Isochron methods determine
+the initial daughter abundance from the data itself rather than assuming it, which is why they
+are preferred where applicable.
+
+Economic geology connects all of this to resources. Ore deposits form where geological
+processes concentrate an element far above its crustal abundance — hydrothermal circulation
+depositing metals from solution, magmatic segregation concentrating dense sulfides, placer
+deposits sorting heavy minerals by flowing water, and supergene enrichment concentrating
+metals by weathering. Fossil fuels require organic matter accumulating under anoxic
+conditions, burial to appropriate temperature, a porous reservoir rock, and an impermeable
+seal, and the conjunction of all four is what makes petroleum systems localized. Groundwater
+occupies pore space in aquifers, and its sustainable yield is set by recharge rate rather
+than by stored volume — which is why aquifers that took millennia to fill can be depleted in
+decades and why extraction exceeding recharge causes land subsidence that permanently
+destroys the aquifer's storage capacity.

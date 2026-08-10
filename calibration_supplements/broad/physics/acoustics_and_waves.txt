@@ -1,0 +1,320 @@
+================================================================================
+AREA: Physics
+SUBJECT: Acoustics and Wave Physics
+Subtopics: wave fundamentals, sound propagation, interference and resonance, room
+acoustics, transducers, ultrasound, noise control, vibration.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Wave Fundamentals
+
+A wave is a disturbance propagating through a medium or field, transporting energy and
+momentum without net transport of matter. The distinction between the motion of the disturbance
+and the motion of the medium is the first thing to establish: in a water wave the water moves in
+small circles while the wave travels for kilometres, and in a sound wave air molecules oscillate
+by micrometres while the sound crosses a room.
+
+Waves are classified by the direction of the medium's motion relative to propagation.
+Transverse waves oscillate perpendicular to the direction of travel — light, waves on a string,
+seismic S waves. Longitudinal waves oscillate along it, producing compressions and rarefactions
+— sound in fluids, seismic P waves. The distinction has consequences: transverse waves can be
+polarized because there are two independent perpendicular directions, while longitudinal waves
+cannot, and shear waves cannot propagate in a fluid because a fluid has no shear strength, which
+is exactly how the Earth's liquid outer core was discovered.
+
+The wave equation relates the second time derivative to the second spatial derivative through
+the square of the propagation speed, and that speed follows from the medium's properties: a
+restoring force divided by an inertia. For a string it is tension over linear density; for sound
+in a gas it is the bulk modulus over density, which via the ideal gas law makes it proportional
+to the square root of absolute temperature and independent of pressure. The temperature
+dependence is why sound travels faster on a hot day and why atmospheric temperature gradients
+refract sound, bending it toward the cooler region.
+
+Wave fundamentals:
+  transverse           medium oscillates perpendicular to travel; can be polarized
+  longitudinal         oscillates along travel; sound in fluids
+  wave speed           sqrt(restoring force property / inertia property)
+  string               sqrt(tension / linear density)
+  sound in gas         sqrt(gamma R T / M); ~343 m/s in air at 20 C
+  sound in water       ~1480 m/s;  in steel ~5000 m/s
+  frequency and period  reciprocals; frequency is set by the source
+  wavelength           speed divided by frequency; changes with the medium while
+                       frequency does not
+  amplitude            displacement, pressure, or velocity; intensity goes as its
+                       square
+  intensity            power per unit area; falls as inverse square from a point
+                       source in free space
+  impedance            the ratio of pressure to particle velocity; determines
+                       reflection at a boundary
+  dispersion           speed depending on frequency; a pulse spreads as it travels
+
+Acoustic impedance is the concept doing the most work in applications, because it determines
+what happens at a boundary. When a wave meets an interface between media of different
+impedance, part reflects and part transmits, with the proportion set by the impedance ratio. A
+large mismatch reflects nearly everything, which is why sound from air barely enters water — the
+impedance ratio is about 3600 to one and over 99.9 percent reflects — and why an ultrasound probe
+requires coupling gel to displace the air between it and the skin.
+
+Q: An ultrasound examination performed without coupling gel produces no usable image. The
+reason is:
+A. The gel amplifies the signal
+B. The air gap creates an enormous impedance mismatch, so nearly all the ultrasound reflects
+   at the probe-air interface and never enters the body
+C. The gel conducts electricity
+D. The gel reduces friction
+Reasoning: Acoustic impedance differs between the transducer and air by several orders of
+magnitude, and the reflection coefficient at such a mismatch approaches unity. Gel with
+impedance close to tissue displaces the air and provides a matched path. This is impedance
+matching, the same principle as an anti-reflection coating in optics. Answer: B.
+
+## Sound Propagation and Perception
+
+Sound intensity spans an enormous range — the threshold of hearing to the threshold of pain is
+about twelve orders of magnitude in intensity — which is why the decibel scale is logarithmic.
+Sound pressure level references twenty micropascals, chosen as the approximate threshold of
+hearing at one kilohertz, and doubling the pressure adds six decibels while doubling the
+intensity adds three.
+
+Propagation losses come from several mechanisms with different distance dependence. Geometric
+spreading dominates: a point source in free space spreads its power over a sphere, so intensity
+falls as the inverse square and level falls six decibels per doubling of distance. A line source
+spreads over a cylinder and falls three decibels per doubling, which is why traffic noise from a
+busy road decays more slowly than intuition suggests. Atmospheric absorption adds a
+frequency-dependent loss that is negligible at low frequency and substantial at high, which is
+why distant sounds are dull — thunder from nearby cracks and from far away rumbles.
+
+Refraction bends sound where the speed varies, and because sound speed depends on temperature
+and on wind, atmospheric structure shapes propagation over distance. A temperature inversion,
+with warm air above cold, bends sound downward and can carry it far beyond the normal range,
+which is why distant sounds are audible on still cold nights. The normal daytime gradient bends
+sound upward, creating a shadow zone. Wind gradients do the same asymmetrically, which is why
+sound carries downwind and not upwind.
+
+Sound propagation and perception:
+  sound pressure level  20 log10 (p / 20 uPa) dB
+  doubling pressure     +6 dB;  doubling intensity +3 dB
+  point source          -6 dB per doubling of distance
+  line source           -3 dB per doubling
+  atmospheric absorption  frequency dependent; distant sound is dull
+  refraction            temperature and wind gradients bend sound
+  temperature inversion  bends downward; extends the audible range
+  diffraction           bending around obstacles; strong at low frequency where
+                        the wavelength exceeds the obstacle
+  barrier effectiveness  limited by diffraction over the top; effective for high
+                        frequency, poor for low
+  Doppler shift         moving source or observer; the pitch change on passing
+  equal loudness        perception is frequency-dependent; least sensitive at low
+                        frequency, most sensitive around 2-5 kHz
+  masking               a loud sound conceals a quieter nearby one; the basis of
+                        perceptual audio coding
+  critical bands        the ear's effective filters; masking acts within them
+  binaural cues         time difference below ~1.5 kHz, level difference above;
+                        spectral cues from the pinna resolve elevation
+
+Diffraction explains why noise barriers work poorly for low frequencies and it follows from a
+general property of waves: bending around an obstacle is significant when the wavelength is
+comparable to or larger than the obstacle. A one-hundred-hertz tone has a wavelength of about
+3.4 metres and diffracts freely over a three-metre barrier, while a four-kilohertz tone with an
+eight-centimetre wavelength is effectively blocked. This is why traffic noise heard behind a
+barrier is a low rumble with the higher frequencies removed, and why barriers must be tall
+relative to the wavelengths they are intended to attenuate.
+
+## Interference, Resonance, and Room Acoustics
+
+Superposition means waves add, and where they overlap coherently the result depends on their
+relative phase. Constructive interference occurs where they are in phase and destructive where
+opposed, producing spatial patterns of loud and quiet. Standing waves form when a wave reflects
+and interferes with itself, producing fixed nodes and antinodes rather than a travelling
+pattern.
+
+Resonance occurs when a system is driven at a frequency matching one of its natural modes, and
+the response is amplified by a factor related to the quality factor. Every bounded system has
+natural modes determined by its geometry and boundary conditions: a string fixed at both ends
+supports modes at integer multiples of its fundamental, an open pipe supports the same series,
+and a pipe closed at one end supports only odd harmonics — which is why a clarinet sounds
+different from a flute of the same length and plays an octave lower.
+
+Room acoustics is the behaviour of sound in an enclosed space, and it separates into distinct
+regimes by frequency. At low frequencies where the wavelength is comparable to the room
+dimensions, discrete modal resonances dominate and produce large position-dependent variations —
+which is why bass response in a small room changes drastically with listener position and why
+room modes are the hardest acoustic problem to fix. At high frequencies where many modes overlap,
+statistical treatment applies and the room is characterized by reverberation time.
+
+Interference, resonance, and rooms:
+  superposition        waves add; phase determines the result
+  standing wave        reflection interfering with itself; nodes and antinodes
+  beats                two close frequencies; the amplitude modulates at the
+                       difference frequency
+  natural modes        determined by geometry and boundary conditions
+  string and open pipe  all harmonics of the fundamental
+  closed pipe          odd harmonics only; sounds an octave lower for the same
+                       length
+  Helmholtz resonator   a cavity with a neck; a single low resonance, used as a
+                       bass absorber and as the mechanism of a blown bottle
+  quality factor       sharpness of resonance; high Q rings longer
+  room modes           axial, tangential, oblique; dominate below the Schroeder
+                       frequency
+  Schroeder frequency  the transition from modal to statistical behaviour;
+                       depends on volume and reverberation time
+  reverberation time   time for a 60 dB decay; Sabine's formula relates it to
+                       volume and total absorption
+  absorption           porous materials absorb high frequency; low frequency
+                       requires depth or resonant absorbers
+  diffusion            scatters reflections; preserves energy while removing
+                       specular reflections
+  flutter echo         repeated reflections between parallel hard surfaces;
+                       fixed by absorption, diffusion, or non-parallel geometry
+
+The frequency dependence of absorption is the practical difficulty in acoustic treatment.
+Porous absorbers work by viscous loss as air moves through them, which requires the material to
+sit where the particle velocity is high — a quarter wavelength from a reflecting surface. For a
+one-hundred-hertz wave that is 85 centimetres, so a thin panel on the wall absorbs high
+frequencies effectively and low frequencies barely at all. Treating a room with thin absorptive
+panels therefore removes the highs and leaves the lows, producing a space that is
+simultaneously dead and boomy — the characteristic result of acoustic treatment applied without
+attention to frequency.
+
+[user] My small home studio sounds boomy and the bass response changes completely when I move
+my chair a foot.
+[assistant] tool_call acoustics.room_analysis({"dimensions_m": [4.2, 3.4, 2.5],
+"treatment": "thin_foam_panels_5cm", "symptom": ["boomy", "position_dependent_bass"]})
+[tool] {"volume_m3": 35.7, "axial_modes_hz": [40.9, 50.5, 68.6, 81.8, 100.9, 101.0],
+"mode_pileup": [100.9, 101.0], "schroeder_hz": 138,
+"foam_effective_above_hz": 1000, "verdict": "untreated_modal_region",
+"recommendation": "thick_porous_or_membrane_bass_traps_in_corners"}
+[assistant] Both symptoms come from room modes, and your treatment does not affect them at all.
+
+Below about 138 Hz your room behaves modally rather than statistically: sound at those
+frequencies forms standing waves with fixed nodes and antinodes, so the level at a given
+frequency depends strongly on where you sit. Moving a foot moves you relative to those patterns,
+which is exactly what you observe. Your lowest axial modes are at 40.9, 50.5, and 68.6 Hz, and
+you have two modes nearly coincident at 101 Hz, which will produce a pronounced peak there — the
+boominess.
+
+Your 5 cm foam is effective above roughly 1 kHz and does essentially nothing below 500 Hz. A
+porous absorber works by viscous loss where air particle velocity is high, which is a quarter
+wavelength from the boundary — 85 cm at 100 Hz. Thin panels sit in the pressure maximum and
+velocity minimum at low frequency and absorb almost nothing there. The result is a room with
+the highs removed and the lows untouched, which sounds both dead and boomy at once.
+
+Three interventions, in order of effect per effort.
+
+Corner bass traps. Room corners are pressure maxima for every axial mode simultaneously, so
+absorption there is the most efficient placement available. Use thick porous absorbers — 30 cm
+of mineral wool or equivalent, straddling the corner with an air gap behind — or purpose-built
+membrane or Helmholtz absorbers tuned near your problem frequencies. Treat all four vertical
+corners first, then the wall-ceiling edges.
+
+Move the listening position. Modal nulls and peaks are at predictable locations, and the worst
+position is usually the room centre for one axis and against a wall for another. Positioning
+yourself at roughly 38% of the room length from the front wall is a common starting rule, and
+measuring with a sweep and a microphone will do better than any rule.
+
+Then reconsider the foam. Once the low end is under control, the mid and high absorption you
+already have may be excessive for a small room, and some of it is probably better replaced with
+diffusion to keep the space from sounding dead.
+
+Measure before and after with a free measurement tool and a calibrated microphone. Room
+acoustics is the area where subjective impression is least reliable and measurement is most
+informative, because the problems are frequency- and position-specific in ways that listening
+does not localize.
+
+## Transducers, Ultrasound, and Applications
+
+A transducer converts between acoustic and electrical energy. Microphones convert pressure to
+voltage, and the two main principles have complementary characteristics: dynamic microphones use
+a coil moving in a magnetic field, which is robust, needs no power, and has limited
+high-frequency response; condenser microphones use a charged diaphragm forming a capacitor,
+which is more sensitive and extended in response and requires polarizing voltage.
+
+Directional response is determined by how the microphone senses pressure. A sealed capsule
+responds to pressure alone, which is a scalar, so it is omnidirectional. A capsule open at both
+sides responds to the pressure difference across it, which depends on the direction of arrival,
+giving a figure-of-eight pattern. Combining the two in different proportions produces the
+intermediate patterns, and the cardioid — sensitive in front and null behind — is the sum of
+equal parts of each.
+
+Ultrasound uses frequencies above human hearing, and its applications exploit the short
+wavelength. Medical imaging transmits pulses and forms an image from the echo timing and
+amplitude, with resolution set by the wavelength and penetration limited by frequency-dependent
+attenuation — which is the fundamental tradeoff, since higher frequency gives better resolution
+and less depth. Non-destructive testing finds internal flaws in materials by the same principle.
+Therapeutic ultrasound uses focused high intensity to heat or ablate tissue without incision.
+
+Transducers and applications:
+  dynamic microphone   moving coil; robust, unpowered, limited high frequency
+  condenser            charged diaphragm; sensitive, extended response, needs power
+  omnidirectional      responds to pressure; a sealed capsule
+  figure of eight      responds to pressure gradient; open at both sides
+  cardioid             the sum of the two; front sensitive, rear null
+  proximity effect     gradient microphones boost bass close up; a consequence of
+                       the near-field pressure gradient
+  loudspeaker          the reverse transduction; a coil in a field driving a cone
+  ultrasound imaging   echo timing and amplitude; resolution versus penetration
+  attenuation          rises with frequency; the depth-resolution tradeoff
+  Doppler ultrasound   flow velocity from the frequency shift
+  sonar                underwater ranging; sound is the only long-range option
+                       since electromagnetic waves attenuate rapidly in water
+  non-destructive test  internal flaws from reflections
+  acoustic levitation  standing wave nodes trap small objects
+  cavitation           bubble formation and violent collapse under intense sound;
+                       the mechanism of ultrasonic cleaning and of a damage mode
+                       in pumps and propellers
+
+## Noise Control and Vibration
+
+Noise control follows a hierarchy from source to receiver, and interventions closer to the
+source are more effective and usually cheaper. Reducing the source is best — a quieter machine,
+a lower speed, a resilient mounting. Interrupting the path is next — enclosure, barrier,
+absorption. Protecting the receiver is last — hearing protection, which is effective and
+depends on consistent correct use.
+
+Transmission through a partition is governed by mass at most frequencies: the transmission loss
+rises about six decibels per doubling of surface mass, which is the mass law. This is why a
+lightweight wall transmits sound regardless of how absorptive its surface is, and why the
+effective strategies are mass, decoupling the two faces so vibration does not bridge them, and
+damping. The weakest element dominates the whole partition, so a well-built wall with an
+unsealed gap around a door performs at the level of the gap.
+
+Vibration isolation reduces transmission between a machine and its support, and the mechanism
+is a mass-spring system whose natural frequency must be well below the excitation frequency.
+Isolation begins only above the square root of two times the natural frequency, and below that
+the mount amplifies rather than isolates — which is why a poorly chosen mount makes the problem
+worse, and why isolating low-frequency excitation requires very soft mounts with correspondingly
+large static deflection.
+
+Noise and vibration control:
+  source, path, receiver  intervene as close to the source as possible
+  mass law             transmission loss rises ~6 dB per doubling of surface mass
+  decoupling           separate the two faces; avoids structural bridging
+  damping              converts vibration to heat; constrained layer damping is
+                       effective on panels
+  flanking             sound bypassing the partition through structure or gaps;
+                       the usual reason a good wall underperforms
+  the weakest element  a gap or a duct penetration dominates the whole partition
+  absorption vs isolation  absorption reduces reverberant level in a space;
+                       isolation reduces transmission between spaces; they are
+                       different problems with different materials
+  active noise control  generate an anti-phase signal; effective for
+                       low-frequency periodic noise in a confined space,
+                       impractical for broadband or open environments
+  vibration isolation  isolate above sqrt(2) times the mount's natural frequency;
+                       below that it amplifies
+  static deflection    a soft mount deflects more; low-frequency isolation
+                       requires large deflection
+  resonance avoidance  keep structural natural frequencies away from excitation
+                       frequencies; the primary vibration design rule
+  hearing damage       cumulative and irreversible; risk rises with both level and
+                       duration, and the exchange rate means halving exposure time
+                       permits a 3 dB higher level
+
+The confusion between absorption and isolation is the most common practical error in acoustic
+work and is worth stating plainly. Absorptive material placed on a wall reduces the reverberant
+sound level within the room by converting reflected energy to heat. It does almost nothing to
+reduce sound passing through the wall to the next room, because transmission depends on the
+partition's mass, stiffness, and damping rather than on its surface absorption. Someone
+attempting to soundproof a room by lining it with foam has treated the wrong problem, and the
+correct interventions — mass, decoupled construction, sealing every penetration — are
+structural and expensive rather than surface treatments.

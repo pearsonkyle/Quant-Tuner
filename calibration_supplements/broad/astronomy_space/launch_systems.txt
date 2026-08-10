@@ -1,0 +1,322 @@
+================================================================================
+AREA: Astronomy and Space
+SUBJECT: Launch Systems and Propulsion
+Subtopics: the rocket equation, staging, propellants, engine cycles, structures and
+loads, ascent trajectory, reusability, launch operations.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## The Rocket Equation and Its Consequences
+
+Reaching orbit is difficult for a reason that is arithmetic rather than technological. The
+Tsiolkovsky rocket equation states that the achievable velocity change equals the exhaust velocity
+times the natural logarithm of the ratio of initial to final mass, so the required propellant mass
+grows exponentially with the required velocity change divided by the exhaust velocity. This single
+relation determines the shape of every launch vehicle.
+
+Reaching low Earth orbit requires about 9.4 kilometres per second of delta-v — roughly 7.8 for
+orbital velocity plus 1.5 to 2 for gravity and drag losses. A chemical rocket's exhaust velocity is
+at best around 4.5 kilometres per second, so the mass ratio required is the exponential of about
+two, which is above seven. Over eighty-five percent of the vehicle's initial mass must be
+propellant before any structure, engines, or payload is accounted for, which is why launch vehicles
+are thin-walled tanks with engines attached rather than substantial structures.
+
+Specific impulse is the conventional measure of propellant efficiency, equal to the exhaust
+velocity divided by standard gravity and expressed in seconds. Its importance follows directly
+from the rocket equation's exponential form: a modest improvement in specific impulse produces a
+large reduction in propellant mass, which is why enormous effort goes into a few percent
+improvement and why the propellant choice is the vehicle's most consequential decision.
+
+The rocket equation and its consequences:
+  Tsiolkovsky equation  delta-v equals exhaust velocity times ln of the mass ratio
+  low Earth orbit       ~9.4 km/s including losses
+  orbital velocity      ~7.8 km/s at low altitude
+  gravity losses        thrusting against gravity while not yet horizontal;
+                       ~1-1.5 km/s
+  drag losses           ~0.1-0.2 km/s; smaller than intuition suggests
+  steering losses       thrust not aligned with velocity
+  specific impulse      exhaust velocity over standard gravity, in seconds
+  mass ratio            exponential in delta-v over exhaust velocity
+  propellant fraction   over 85% for a single stage to low orbit
+  payload fraction      a few percent of liftoff mass for an expendable vehicle
+  thrust to weight      must exceed one at liftoff; the excess determines the
+                       gravity loss
+  the tyranny           exponential mass growth is why launch is expensive and why
+                       every kilogram of dry mass costs many kilograms of
+                       propellant
+
+Q: A launch vehicle's specific impulse improves by 5%. The effect on payload mass for a fixed
+delta-v is:
+A. About 5%
+B. Substantially more than 5%, because the mass ratio requirement falls exponentially and the
+   saving accrues entirely to payload rather than to propellant
+C. About 2.5%
+D. No effect
+Reasoning: The required mass ratio is the exponential of delta-v divided by exhaust velocity, so
+raising the exhaust velocity reduces the required ratio nonlinearly. Since structure and propellant
+mass are largely fixed by the design, the reduced requirement translates into payload, and the
+payload fraction is small — so a small absolute saving is a large relative gain in payload.
+Improvements of a few percent in specific impulse routinely produce double-digit payload gains.
+Answer: B.
+
+## Staging
+
+Staging discards mass that is no longer useful, and it is what makes orbit reachable at all with
+chemical propulsion. Once a tank is empty, carrying its structure costs propellant to accelerate
+without contributing anything, so dropping it improves the mass ratio of the remaining vehicle.
+The rocket equation applies to each stage separately and the velocity changes add.
+
+Single stage to orbit is marginally possible with the best available propellants and structures
+and leaves essentially no payload, which is why no operational vehicle has done it. The
+requirement is a mass ratio above seven for the whole vehicle, meaning the structure, engines,
+tanks, avionics, and payload together must be under fifteen percent of the liftoff mass — and the
+tanks alone approach that for a dense propellant. Staging relaxes the requirement by applying it
+to progressively smaller vehicles.
+
+The optimum number of stages balances the mass saved against the complexity and reliability cost
+of each separation event. Two or three stages is the practical range for orbital vehicles, with
+diminishing returns beyond and a reliability penalty for each additional separation — staging
+events are among the highest-risk moments in a flight because they involve pyrotechnics, structural
+separation, and engine ignition in sequence with no opportunity for correction.
+
+Staging:
+  the principle        discard mass that no longer contributes
+  velocity addition    each stage's delta-v adds
+  serial staging       stages fire in sequence
+  parallel staging     boosters fire alongside the core; the core continues after
+                       separation
+  asparagus staging    cross-feeding propellant so that dropped tanks are empty;
+                       theoretically superior and mechanically difficult
+  optimum count        two or three; diminishing returns and reliability cost
+                       beyond
+  staging events       among the highest-risk moments; pyrotechnics, separation,
+                       and ignition in sequence
+  hot staging          ignite the upper stage before separation; avoids ullage
+                       settling problems at the cost of thermal protection
+  first stage          optimized for thrust and for sea level performance
+  upper stage          optimized for specific impulse; vacuum nozzles with large
+                       expansion ratios
+  nozzle expansion     a large ratio is efficient in vacuum and produces flow
+                       separation at sea level; this is why sea level and vacuum
+                       engines differ
+  altitude compensation  aerospike and dual-bell nozzles; adapt to ambient
+                       pressure, and have not been operationally adopted
+
+Nozzle design deserves explanation because it is why first and upper stage engines look
+different. A nozzle expands the exhaust to convert thermal energy into velocity, and the optimum
+expansion matches the exit pressure to the ambient. A nozzle expanded for vacuum has a large area
+ratio and, operated at sea level, the exhaust over-expands and the flow separates from the walls,
+which is inefficient and can destroy the nozzle. A nozzle designed for sea level under-expands in
+vacuum and wastes energy. Since a first stage traverses the whole range, its nozzle is a compromise,
+and the upper stage — operating only in vacuum — uses the large ratio that would be impossible
+lower down.
+
+## Propellants and Engine Cycles
+
+Propellant selection determines specific impulse, density, storability, handling, and cost, and
+the tradeoffs are sharp enough that different combinations dominate different roles.
+
+Liquid hydrogen and oxygen gives the highest specific impulse of any practical chemical
+combination, around 450 seconds in vacuum, because the exhaust's low molecular mass gives high
+velocity for a given temperature. Its cost is density: liquid hydrogen is extraordinarily light, so
+tanks are enormous, and it boils at twenty kelvin, requiring heavy insulation and producing
+continuous boil-off. The large tanks mean high dry mass and high drag, which partially offsets the
+efficiency, which is why hydrogen suits upper stages and is less advantageous for first stages.
+
+Kerosene and oxygen gives around 350 seconds with far higher density, so tanks are compact and the
+structure is light. The propellant is storable at ordinary temperatures on one side and cryogenic
+on the other, and it is inexpensive. Its drawback is coking — kerosene deposits carbon when heated,
+which fouls cooling passages and complicates reuse.
+
+Methane and oxygen sits between them at around 380 seconds with moderate density, and it has
+properties that have driven recent adoption: it does not coke, so engines are more readily
+reusable; its boiling point is close to oxygen's, which simplifies tank design and insulation; and
+it can in principle be manufactured from carbon dioxide and water, which matters for Mars return
+missions.
+
+Propellants and cycles:
+  hydrogen and oxygen  ~450 s vacuum; lowest density, deep cryogenic, boil-off
+  kerosene and oxygen  ~350 s; dense, cheap, cokes when heated
+  methane and oxygen   ~380 s; no coking, similar boiling point to oxygen,
+                       manufacturable in situ
+  hypergolic           ignite on contact; storable indefinitely, highly toxic,
+                       used where reliable restart matters more than performance
+  solid propellant     simple, storable, high thrust; cannot be throttled or shut
+                       down once ignited
+  hybrid               solid fuel with liquid oxidizer; throttleable and
+                       shutdownable, with combustion efficiency challenges
+  pressure fed         tank pressure feeds the chamber; simple and requires heavy
+                       tanks, so it suits small stages
+  gas generator        a small portion burned to drive turbopumps and dumped
+                       overboard; simple, and the dumped flow costs performance
+  staged combustion    the turbine exhaust is fed into the main chamber; higher
+                       efficiency, much higher turbine pressures and temperatures
+  full flow staged combustion  both propellants pass through preburners; highest
+                       efficiency, most complex, and gentler on the turbines
+  expander cycle       the fuel is heated by the chamber walls and drives the
+                       turbine; elegant, and limited in size by the available
+                       heating area
+  regenerative cooling  propellant flows through the chamber walls before burning;
+                       cools the chamber and preheats the propellant
+
+The engine cycle determines efficiency and complexity, and the tradeoff is where much of
+propulsion engineering lives. A gas generator cycle burns a fraction of the propellant to drive the
+pumps and dumps that exhaust overboard, which wastes it. Staged combustion routes the turbine
+exhaust into the main chamber so nothing is wasted, at the cost of requiring the turbine to operate
+at pressures above the chamber's and at temperatures that push materials to their limits. Full
+flow staged combustion passes both propellants through preburners, which allows each turbine to run
+on a mixture far from stoichiometric and therefore cooler, improving life and reusability.
+
+## Structures, Loads, and Ascent
+
+A launch vehicle's structure must be as light as possible while surviving loads that are severe
+and varied. The propellant tanks constitute most of the structure and are pressurized, which is
+what provides much of their stiffness — some vehicles cannot support their own weight unpressurized
+and would collapse if the pressure were lost while standing.
+
+The loads vary through flight and the design case differs by component. Maximum acceleration
+occurs near the end of a stage's burn, when the propellant is nearly gone and the thrust is
+accelerating a much lighter vehicle. Maximum dynamic pressure occurs partway through ascent, where
+the product of air density and velocity squared peaks, and it is where aerodynamic loads are
+greatest. Maximum bending occurs when aerodynamic angle of attack combines with dynamic pressure,
+which is why vehicles throttle down through that region and why wind conditions aloft can scrub a
+launch.
+
+The ascent trajectory is shaped by competing losses. Rising vertically minimizes drag by
+traversing the dense atmosphere quickly and maximizes gravity loss because the thrust opposes
+gravity entirely. Turning horizontally immediately minimizes gravity loss and maximizes drag and
+structural load. The gravity turn resolves this: the vehicle pitches slightly after clearing the
+pad and then allows gravity to curve the trajectory naturally, so the vehicle remains aligned with
+its velocity and experiences no aerodynamic angle of attack.
+
+Structures, loads, and ascent:
+  pressure stabilization  tank pressure provides stiffness; some vehicles collapse
+                       unpressurized
+  maximum acceleration  near burnout, when the vehicle is lightest
+  max Q                the peak of density times velocity squared; peak
+                       aerodynamic load
+  throttle down        through max Q, to limit the load
+  aerodynamic bending  angle of attack times dynamic pressure; the critical
+                       structural case
+  wind aloft           can produce angle of attack; a common cause of scrubs
+  acoustic loads       at liftoff and transonic; water deluge suppresses them
+  pogo oscillation     coupling between the structure and the propulsion system;
+                       damped by accumulators
+  gravity turn         pitch slightly, let gravity curve the trajectory; zero angle
+                       of attack
+  gravity loss         thrusting against gravity; minimized by turning horizontal
+                       sooner
+  drag loss            minimized by ascending vertically; the opposite preference
+  the compromise       the gravity turn balances them
+  launch azimuth       determines the orbital inclination; the site's latitude sets
+                       the minimum
+  rotational assist    launching eastward captures Earth's rotation; 465 m/s at
+                       the equator, less at higher latitude
+
+The launch site's latitude constrains the orbits reachable, which is why sites are located as they
+are. A vehicle cannot reach an inclination lower than the launch site's latitude without a plane
+change, which is expensive, so an equatorial site can reach every inclination while a high-latitude
+site cannot reach low ones efficiently. The eastward rotational velocity assist also decreases with
+latitude, so an equatorial launch gains 465 metres per second free and a high-latitude one gains
+substantially less. These together are why equatorial and low-latitude coastal sites are valuable
+and why the range safety requirement to launch over water constrains the available locations
+further.
+
+[user] Why is reusability so difficult when aircraft are reused routinely?
+[assistant] tool_call launch.reuse_analysis({"vehicle_class": "orbital_first_stage",
+"structural_margin": 1.25, "aircraft_margin": 1.5, "propellant_fraction": 0.85,
+"reentry_velocity_km_s": 2.0, "thermal_load": "significant", "engine_cycles_designed": 1})
+[tool] {"key_difficulty": "mass_margin_is_exponentially_expensive",
+"factors": ["low_structural_margins", "thermal_environment", "recovery_propellant_cost",
+"engine_life_and_inspection"], "recovery_propellant_penalty_pct": [10, 40]}
+[assistant] The core difficulty is that every kilogram added for reuse costs several kilograms of
+propellant, and the vehicle has almost no margin to give.
+
+An aircraft carries fuel that is a modest fraction of its mass and can afford structural margins
+of 1.5 or more, so it is built robustly and inspected between flights. A launch vehicle is 85%
+propellant and runs structural margins around 1.25, because a heavier structure directly reduces
+the payload through the rocket equation's exponential. There is simply less material there, and
+what exists is loaded closer to its limit.
+
+Four specific costs of recovery compound.
+
+Propellant for the return. Landing propulsively requires a boostback burn, an entry burn, and a
+landing burn, and that propellant must be carried the whole way up. The penalty is typically ten
+to forty percent of payload depending on whether the stage returns to the launch site or lands
+downrange.
+
+Thermal environment. A first stage returns at around two kilometres per second, which is far below
+orbital entry and still enough to require thermal protection on the exposed surfaces, adding mass.
+
+Landing hardware. Legs, grid fins, and their actuators are mass carried to staging and back with no
+contribution to performance.
+
+Engine life. Engines are designed for a single flight duration at the limits of materials, and
+extending them to many flights requires lower operating margins — which reduces performance — plus
+inspection and refurbishment. Propellant choice matters here: kerosene cokes and leaves deposits
+requiring cleaning, which is part of why methane has been adopted for reusable designs.
+
+The economics work when the flight rate is high enough to amortize the development of all this and
+the refurbishment is cheap and fast. That is the actual variable — a reusable vehicle refurbished
+slowly and expensively is not cheaper than an expendable one, and the demonstration that matters
+is turnaround time and cost rather than the recovery itself.
+
+Upper stage reuse remains substantially harder, because it returns from orbital velocity with
+roughly sixteen times the kinetic energy per unit mass and requires full thermal protection, on a
+stage where mass penalties are most expensive.
+
+## Reusability, Operations, and the Broader Picture
+
+Recovery methods differ in their mass and complexity costs. Propulsive landing carries return
+propellant and landing hardware and permits precise recovery of an intact stage. Parachute recovery
+is lighter and produces a stage that has been through saltwater immersion if recovered at sea,
+which is corrosive and complicates refurbishment. Winged recovery adds substantial dry mass and
+gives aircraft-like landing. Mid-air capture avoids water immersion at the cost of operational
+complexity.
+
+Launch operations involve substantially more than the vehicle. Range safety must ensure that a
+failure does not endanger populated areas, which historically required a destruct system commanded
+from the ground and increasingly uses autonomous systems that decide onboard from the trajectory.
+Weather constrains launch through wind aloft, lightning risk, and conditions at abort landing
+sites. And the launch window is determined by the target orbit — a rendezvous mission has a window
+of moments per day, while a general orbit insertion may have hours.
+
+The economics of launch have shifted substantially and the drivers are worth identifying. Cost per
+kilogram fell by roughly an order of magnitude over two decades, driven by reusability, by
+vertical integration reducing supplier margins, by manufacturing methods borrowed from other
+industries, and by flight rates high enough to amortize fixed costs. The remaining cost is
+dominated by fixed and operational elements rather than by materials, which is why flight rate
+matters so much — the same infrastructure and workforce amortized over many flights rather than few
+is where much of the reduction came from.
+
+Reusability and operations:
+  propulsive landing   return propellant plus legs; precise, intact recovery
+  parachute recovery   lighter; saltwater immersion complicates refurbishment
+  winged               aircraft-like landing; substantial dry mass
+  mid-air capture      avoids immersion; operationally complex
+  fairing recovery     the fairings are a meaningful cost and are recoverable
+  refurbishment        the actual economic variable; turnaround time and cost
+                       rather than recovery itself
+  upper stage reuse    substantially harder; orbital entry energy and the most
+                       expensive mass penalties
+  range safety         autonomous flight termination increasingly replaces ground
+                       command
+  launch window        determined by the target orbit; moments per day for
+                       rendezvous
+  weather constraints  wind aloft, lightning, abort site conditions
+  pad turnaround       how quickly the pad can be reused; a constraint at high
+                       flight rates
+  cost drivers         fixed costs and operations dominate over materials, which
+                       is why flight rate is the lever
+  small launchers      dedicated launch for small payloads; competing against
+                       rideshare on large vehicles, which is far cheaper per
+                       kilogram and less flexible in timing and orbit
+
+The rideshare comparison deserves the closing note because it shapes the small satellite market.
+A dedicated small launcher offers control over the orbit, the schedule, and the deployment
+sequence, at a cost per kilogram many times that of a rideshare slot on a large vehicle. A
+rideshare offers dramatically lower cost and no control over any of those — the orbit is whatever
+the primary payload required, the schedule follows the primary, and a delay affects everyone
+aboard. Which is preferable depends entirely on whether the mission requires a specific orbit or
+timing, and the market has divided accordingly rather than one displacing the other.

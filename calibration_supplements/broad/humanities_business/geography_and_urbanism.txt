@@ -1,0 +1,244 @@
+================================================================================
+AREA: Humanities and Business
+SUBJECT: Geography and Urbanism
+Subtopics: spatial thinking, maps and projections, spatial analysis, urban form,
+transport and land use, population and migration, regional economies.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Spatial Thinking and the First Law
+
+Geography studies the spatial organization of phenomena and the processes producing it, and its
+distinctive contribution is the insistence that where something happens is part of what happens.
+Two identical policies in different places produce different outcomes; two identical firms in
+different locations face different costs; two identical populations in different environments
+develop differently. Location is not a label attached to an observation but a variable interacting
+with everything else.
+
+The field's most quoted generalization is that everything is related to everything else, but near
+things are more related than distant things. This spatial autocorrelation is nearly universal in
+geographic data and it has a direct statistical consequence: observations at nearby locations are
+not independent, so standard methods assuming independence understate uncertainty and overstate
+significance. Any analysis of spatial data that has not addressed this is producing confidence
+intervals that are too narrow, sometimes dramatically.
+
+Scale is the other foundational concern, and it is not merely a matter of zoom level. Relationships
+observed at one scale need not hold at another, and aggregating the same underlying data using
+different boundaries produces different results — a phenomenon general enough to have a name and
+consequential enough to have decided elections. Any statistic computed over administrative units
+depends on those units, and the choice of unit is rarely neutral.
+
+Spatial thinking:
+  location as a variable  where is part of what
+  spatial autocorrelation  near things are more related than distant things
+  the statistical consequence  observations are not independent
+  the practical error  standard methods understating uncertainty on spatial data
+  measuring it         indices of global and local spatial association
+  scale                relationships at one scale need not hold at another
+  the modifiable areal unit problem  results depending on the aggregation
+                       boundaries
+  the ecological fallacy  inferring individual relationships from aggregate data
+  the atomistic fallacy  the reverse; inferring aggregate patterns from
+                       individuals
+  spatial heterogeneity  relationships varying across space rather than being
+                       constant
+  geographically weighted regression  fitting local rather than global
+                       coefficients
+  distance decay       interaction falling with separation; the underlying
+                       regularity behind most spatial patterns
+  accessibility        what can be reached within a cost budget; usually more
+                       explanatory than raw distance
+
+Q: A study finds a strong relationship between two variables using data aggregated by county, and
+the relationship disappears when the same data is aggregated by census tract. This demonstrates:
+A. One of the analyses is incorrect
+B. The modifiable areal unit problem — results computed over aggregated spatial units depend on
+   the boundaries chosen, so a relationship at one aggregation level may not exist at another
+C. The data is unreliable
+D. Counties are the correct unit
+Reasoning: Aggregation averages within units and compares across them, so different boundaries
+produce different variances and covariances. Both analyses can be computed correctly and disagree.
+The remedy is to state the unit explicitly and, where possible, test sensitivity across several.
+Answer: B.
+
+## Maps, Projections, and Representation
+
+A map is a model, and every map involves generalization, selection, symbolization, and projection —
+each of which is a decision that shapes what the reader concludes. The claim that a map is
+objective while a written account is interpretive does not survive examination, because the choices
+embedded in a map are simply less visible.
+
+Projection is the unavoidable distortion introduced by representing a curved surface on a flat one.
+No projection preserves area, shape, distance, and direction simultaneously; each preserves some
+properties and distorts others, and the appropriate choice depends entirely on what the map is for.
+A conformal projection preserving local shape is right for navigation and wrong for comparing the
+sizes of countries, which is the source of the most familiar complaint about world maps and of a
+great deal of confused argument about it.
+
+Thematic mapping introduces further decisions with strong effects. A choropleth map shading areas by
+value is the most common form and is systematically misleading when the areas differ greatly in
+population, because it gives visual weight proportional to land area rather than to the people the
+data describes. Classification method — how continuous values are binned into classes — changes the
+apparent pattern substantially, and presenting a single classification without noting that others
+would look different is a common omission.
+
+Maps and representation:
+  a map is a model     generalization, selection, symbolization, projection
+  the objectivity claim  does not survive examination; the choices are just less
+                       visible
+  projection           the unavoidable distortion of a curved surface on a plane
+  the impossibility    no projection preserves all properties
+  conformal            preserves local shape; distorts area
+  equal-area           preserves area; distorts shape
+  equidistant          preserves distance from specific points only
+  the selection rule   choose by purpose, not by convention
+  choropleth           areas shaded by value; the most common thematic form
+  the population weighting problem  visual weight follows land area, not people
+  cartogram            areas resized by the variable; corrects that at the cost
+                       of recognizability
+  dot density and proportional symbols  alternatives that avoid the area problem
+  classification       binning continuous values; the method changes the apparent
+                       pattern
+  normalization        rates rather than counts, or the map shows population
+                       distribution
+  colour choice        sequential, diverging, and categorical schemes for
+                       different data types; and the perceptual uniformity of the
+                       scheme determines whether differences read proportionally
+
+## Spatial Data and Analysis
+
+Geographic information systems store, analyse, and display spatial data, and the field's technical
+core is a small number of data models and operations. The vector model represents features as
+points, lines, and polygons with attributes, which suits discrete objects — parcels, roads,
+administrative units. The raster model represents space as a grid of cells with values, which suits
+continuous surfaces — elevation, temperature, satellite imagery. Most real analyses use both and
+convert between them, and each conversion loses something.
+
+Coordinate reference systems are the most common source of errors, and the errors are frequently
+silent. Data in different reference systems will overlay incorrectly, often by hundreds of metres,
+and unless something visibly does not line up the mistake goes unnoticed. Distance and area
+calculations in a geographic coordinate system, where the units are degrees, are simply wrong, and
+the correct procedure is to project into an appropriate system for the region before measuring.
+
+The analytical operations are combinable primitives. Overlay intersects layers to find where
+conditions coincide. Buffering creates zones at a specified distance. Network analysis computes
+routes and service areas along a connected graph, which gives travel-time accessibility rather than
+straight-line distance. Interpolation estimates values between sample points, and the method chosen —
+inverse distance weighting, spline, or a geostatistical approach modelling the spatial covariance —
+embeds assumptions about the underlying surface that should be stated.
+
+Spatial data and analysis:
+  vector model         points, lines, polygons with attributes; discrete objects
+  raster model         a grid of cells; continuous surfaces
+  conversion loss      each direction discards information
+  coordinate reference system  the most common source of silent errors
+  the overlay symptom  layers misaligned by hundreds of metres
+  degrees are not distances  measurement in a geographic system is wrong
+  projected systems    required before measuring distance or area
+  overlay              where conditions coincide
+  buffering            zones at a specified distance
+  network analysis     routes and service areas along a graph
+  travel time versus straight line  usually the more meaningful accessibility
+                       measure
+  interpolation        estimating between sample points
+  kriging              geostatistical interpolation modelling spatial covariance;
+                       provides uncertainty estimates as well as values
+  remote sensing       imagery as a data source; spectral bands carrying
+                       information beyond the visible
+  spatial resolution versus revisit frequency  a satellite tradeoff that
+                       determines which questions an instrument can answer
+  topology             the connectivity and adjacency relationships; validating
+                       it catches data errors that visual inspection misses
+
+## Urban Form, Transport, and Land Use
+
+Cities exist because proximity has value. Agglomeration economies — the productivity benefits of
+firms and workers being close together — arise from labour market pooling, input sharing, and
+knowledge spillovers, and they are why economic activity concentrates despite the resulting land
+costs and congestion. The countervailing forces are those costs, and a city's size and structure
+reflect the balance.
+
+Urban form and transport determine each other in a feedback loop that is the central dynamic of
+urban development. Transport technology sets the distance reachable within a tolerable commute,
+which sets the extent of the developable area, which sets density, which determines what transport
+modes are viable. Cities built before mechanized transport are compact and mixed; cities built
+around automobiles are dispersed and separated by use, and each pattern makes the corresponding
+transport mode efficient and the alternatives inefficient.
+
+Induced demand is the finding most consistently ignored in transport policy. Adding road capacity
+reduces travel cost, which increases travel, which restores congestion — an effect large enough that
+the elasticity of vehicle travel to road capacity is close to one in the medium term. This does not
+mean capacity is never worth adding; it means that congestion relief is not what it delivers, and
+projects justified on that basis are justified on a prediction the evidence does not support.
+
+Urban form and transport:
+  agglomeration economies  the productivity benefit of proximity
+  the mechanisms       labour pooling, input sharing, knowledge spillovers
+  countervailing costs  land prices, congestion, and other negative externalities
+  the feedback loop    transport sets reachable distance, which sets density,
+                       which sets viable modes
+  pre-automobile form  compact, mixed use, walkable by necessity
+  automobile-oriented form  dispersed, separated uses, high parking requirements
+  the mode lock-in     each form makes its own mode efficient and alternatives
+                       not
+  induced demand       added capacity increasing travel and restoring congestion
+  the elasticity       close to one in the medium term
+  the policy implication  capacity expansion does not deliver congestion relief
+  zoning               regulation of use, density, and form; the dominant lever
+                       on urban development and frequently the binding constraint
+                       on housing supply
+  land value           set by accessibility and by permitted use; the two
+                       together
+  gentrification       reinvestment with displacement; the distributional
+                       question is which effects fall on whom
+  transit viability    requires density and mixed use at both ends of the trip
+  the last mile        the segment determining whether a transit trip is chosen
+  parking requirements  minimum standards that mandate low density and are
+                       increasingly being removed for that reason
+
+## Population, Migration, and Regional Economies
+
+Population geography studies distribution, composition, and change, and the fundamental
+demographic accounting is simple: population change equals births minus deaths plus in-migration
+minus out-migration. What makes it interesting is that these components have different geographies
+and different time constants, and a region can be growing through migration while its natural
+increase is negative.
+
+The demographic transition describes the historical shift from high birth and death rates to low
+ones, with a period of rapid growth in between as death rates fall before birth rates do. It has
+occurred in every region that has developed economically, with varying speed, and its late stages
+produce ageing populations and eventually decline. The regional consequence is that some places face
+growth pressure and others face the very different problems of shrinkage — infrastructure sized for
+a larger population, fiscal bases eroding, and services that lose viability below a threshold.
+
+Migration responds to differences in opportunity, moderated by distance, by cost, and by existing
+networks. Network effects are the most predictive single factor for where migrants go: previous
+migrants lower the cost and risk for those following, so flows concentrate along established
+corridors far more than opportunity differences alone would predict. This is why migration patterns
+are persistent and why policy interventions aimed at redirecting them frequently fail.
+
+Population and regions:
+  the accounting       births, deaths, in-migration, out-migration
+  different time constants  natural change is slow, migration is fast
+  demographic transition  high rates to low, with rapid growth between
+  ageing                the late-stage consequence
+  shrinking regions    a different problem set from growing ones
+  the fixed cost problem  infrastructure and services sized for a past population
+  migration drivers    opportunity differences moderated by cost and distance
+  network effects      previous migrants lowering cost for those following
+  the persistence      flows concentrate along established corridors
+  urbanization         the long global shift toward cities; nearly universal
+  primate cities       one city dominating a national urban system
+  rank-size regularity  city sizes following a consistent distribution in many
+                       countries; a robust empirical pattern without an agreed
+                       explanation
+  regional divergence  economic activity concentrating in leading regions; the
+                       dominant recent pattern in many countries
+  the policy tension   agglomeration makes concentration efficient and leaves
+                       lagging regions behind, and the two considerations point
+                       in opposite directions
+  place-based policy   interventions targeting regions rather than people; the
+                       evidence on effectiveness is mixed and the honest position
+                       is that the question of whether to help places or the
+                       people in them is a value choice, not an empirical one

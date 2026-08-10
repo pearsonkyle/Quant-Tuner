@@ -1,0 +1,246 @@
+================================================================================
+AREA: Mathematics
+SUBJECT: Real and Functional Analysis
+Subtopics: metric and topological foundations, sequences and convergence, measure and
+integration, Banach and Hilbert spaces, operators, spectral theory, applications.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Metric Foundations and Convergence
+
+Analysis is the rigorous study of limits, and the machinery exists because intuitive reasoning
+about infinite processes fails in ways that are not visible from the outside. A metric space
+abstracts distance to its essential properties — non-negativity with equality only for identical
+points, symmetry, and the triangle inequality — and everything about convergence, continuity, and
+compactness can be phrased in that language.
+
+Completeness is the property that separates the rationals from the reals and it is the reason
+analysis works on the latter. A space is complete when every Cauchy sequence converges within it —
+when sequences whose terms become arbitrarily close to each other actually have a limit present. The
+rationals fail this: a sequence of rational approximations to the square root of two is Cauchy and
+has no rational limit. Completeness is what licenses constructing objects as limits of
+approximations, which is the fundamental technique of the subject.
+
+Compactness is the other structural property that does most of the work in proofs. In a metric
+space it is equivalent to every sequence having a convergent subsequence, and in finite-dimensional
+Euclidean space it coincides with being closed and bounded. In infinite dimensions that equivalence
+fails, and the failure is the central difficulty of functional analysis: the closed unit ball is
+compact exactly when the space is finite-dimensional, so the extraction of convergent subsequences
+that makes finite-dimensional arguments work is simply unavailable.
+
+Metric foundations:
+  metric               non-negative, symmetric, triangle inequality
+  open and closed sets  the topological vocabulary; continuity is preimages of
+                       open sets being open
+  Cauchy sequence      terms becoming arbitrarily close to each other
+  completeness         every Cauchy sequence converges within the space
+  the rationals' failure  approximations to irrational numbers have no limit
+                       inside
+  completion           embedding a space densely in a complete one; the reals are
+                       the completion of the rationals
+  compactness          every sequence has a convergent subsequence, in a metric
+                       space
+  Heine-Borel          in finite-dimensional Euclidean space, compact equals
+                       closed and bounded
+  the infinite-dimensional failure  the closed unit ball is compact only in finite
+                       dimensions
+  uniform continuity   the modulus independent of location; automatic on a compact
+                       set
+  pointwise convergence  each point converges; preserves almost nothing
+  uniform convergence   the supremum of the difference goes to zero; preserves
+                       continuity and permits interchanging limits with integrals
+  the interchange question  when limits commute with integrals and derivatives is
+                       the recurring technical issue of the entire subject
+
+Q: A sequence of continuous functions converges pointwise to a discontinuous function. This shows:
+A. The functions were not really continuous
+B. Pointwise convergence does not preserve continuity; uniform convergence is the stronger notion
+   that does, and the distinction is precisely why it exists
+C. The limit does not exist
+D. An error in the calculation
+Reasoning: Pointwise convergence controls each point independently with no uniformity in the rate,
+so continuity can be lost in the limit. The standard example is powers of x on the unit interval
+converging to a function that jumps at the endpoint. Uniform convergence forbids this.
+Answer: B.
+
+## Measure and Integration
+
+The Riemann integral partitions the domain and is adequate for continuous functions on intervals.
+Its limitations are structural: it handles badly discontinuous functions poorly, it behaves badly
+under limits, and the space of Riemann-integrable functions is not complete under the natural
+distance. The Lebesgue integral partitions the range instead, asking how much of the domain maps
+into each range slice, and this reorganization fixes all three problems.
+
+Making that precise requires measure theory. A measure assigns sizes to sets, countably additively,
+on a sigma-algebra — a collection of sets closed under complement and countable union. The
+restriction to a sigma-algebra rather than all sets is not a technicality that better mathematics
+would remove: non-measurable sets provably exist under the axiom of choice, and any translation-
+invariant, countably additive measure defined on all subsets of the line is impossible.
+
+The convergence theorems are what make the Lebesgue theory worth the setup cost. Monotone
+convergence permits passing the limit inside the integral for increasing sequences. Dominated
+convergence permits it whenever the sequence is bounded by a fixed integrable function. Fatou's
+lemma gives an inequality in general. These have no adequate Riemann counterparts, and their
+availability is why probability theory, Fourier analysis, and partial differential equations are all
+built on Lebesgue integration.
+
+Measure and integration:
+  sigma-algebra        closed under complement and countable union
+  measure              countably additive size assignment
+  non-measurable sets  exist under choice; the sigma-algebra restriction is
+                       necessary
+  Lebesgue measure     the translation-invariant measure on Euclidean space
+  measurable function  preimages of measurable sets are measurable
+  the Lebesgue integral  partition the range, not the domain
+  almost everywhere    up to a set of measure zero; the equivalence that makes
+                       the function spaces work
+  monotone convergence  limits pass through for increasing sequences
+  dominated convergence  limits pass through under an integrable bound
+  Fatou's lemma        an inequality with no hypotheses beyond non-negativity
+  Fubini and Tonelli   when iterated integrals may be exchanged; integrability or
+                       non-negativity is required and counterexamples without it
+                       are easy to construct
+  Radon-Nikodym        one measure as a density with respect to another; the
+                       abstract foundation of conditional expectation
+  the probability connection  a probability space is a measure space of total
+                       mass one, and every probabilistic notion translates
+
+## Banach and Hilbert Spaces
+
+Functional analysis studies spaces whose points are functions, with the linear structure and a norm
+compatible with it. A Banach space is a complete normed vector space, and completeness again is
+what permits constructing solutions as limits. The characteristic difficulty is that the
+finite-dimensional intuitions fail: not all norms are equivalent, bounded sets need not have
+convergent subsequences, and linear maps need not be continuous.
+
+A Hilbert space adds an inner product inducing the norm, and this single addition recovers most of
+the geometry. Orthogonality becomes meaningful, projection onto a closed subspace exists and is
+unique, and every element has an expansion in an orthonormal basis with coefficients given by
+inner products. The space of square-integrable functions is the canonical example, and Fourier
+series are exactly the orthonormal expansion in it, which is why the Hilbert space framework
+explains rather than merely accommodates classical Fourier theory.
+
+The three foundational theorems of the subject are all consequences of completeness and each
+converts a pointwise hypothesis into a uniform conclusion. The uniform boundedness principle says a
+family of operators bounded at each point is uniformly bounded. The open mapping theorem says a
+surjective bounded operator is open, from which the bounded inverse theorem follows. The closed
+graph theorem says an operator with a closed graph is bounded. Their common character — local
+information forced into global conclusions by completeness — is worth recognizing.
+
+Banach and Hilbert structure:
+  normed space         a vector space with a compatible length
+  Banach space         complete normed space
+  the Lp spaces        p-th power integrable functions; complete for p at least
+                       one
+  the sup norm space   continuous functions on a compact set; complete
+  Hilbert space        complete inner product space
+  the square-integrable space  the canonical example
+  orthogonality        available only with an inner product
+  projection theorem   unique closest point in a closed convex set
+  orthonormal basis    expansion with inner-product coefficients
+  Parseval             the norm equals the sum of squared coefficients
+  Fourier series       the orthonormal expansion in the periodic case
+  dual space           the continuous linear functionals
+  Riesz representation  a Hilbert space is its own dual; every functional is an
+                       inner product
+  Hahn-Banach          functionals extend from subspaces without increasing norm;
+                       the reason dual spaces are large enough to be useful
+  uniform boundedness  pointwise bounded implies uniformly bounded
+  open mapping         surjective bounded operators are open
+  closed graph         a closed graph implies continuity
+  weak convergence     convergence against every functional; bounded sequences
+                       have weakly convergent subsequences in reflexive spaces,
+                       which is the substitute for the compactness that fails
+
+## Operators and Spectral Theory
+
+A linear operator between normed spaces is bounded exactly when it is continuous, and the two words
+are used interchangeably for this reason. The operator norm measures the largest factor by which
+the operator can stretch a vector, and the bounded operators on a space form an algebra under
+composition — a structure that carries much of the theory.
+
+The spectrum generalizes the eigenvalue set. In infinite dimensions an operator can fail to be
+invertible without having an eigenvector, so the spectrum is defined as the set of scalars for
+which the operator minus that scalar is not invertible, and it decomposes into point, continuous,
+and residual parts. For a compact operator the spectrum is discrete apart from zero and the
+finite-dimensional intuition largely survives, which is why compact operators are the tractable
+class.
+
+The spectral theorem is the central structural result. A self-adjoint operator on a Hilbert space
+has real spectrum and admits a representation as multiplication by a real function on an
+appropriate measure space, which is the infinite-dimensional statement of diagonalization. For
+compact self-adjoint operators the statement is concrete: an orthonormal basis of eigenvectors
+exists with real eigenvalues accumulating only at zero. This underlies the mode decompositions of
+vibrating systems, the eigenfunction expansions solving partial differential equations, and the
+observable structure of quantum mechanics.
+
+Operators and spectra:
+  bounded equals continuous  for linear maps
+  operator norm        the supremum stretching factor
+  adjoint              the transpose generalized via the inner product
+  self-adjoint         equal to its own adjoint; real spectrum
+  unitary              preserves the inner product
+  compact operator     maps bounded sets to relatively compact sets; the
+                       finite-dimensional intuition largely survives
+  spectrum             where the operator minus a scalar is not invertible
+  point spectrum       eigenvalues
+  continuous spectrum  not invertible without an eigenvector; no finite-
+                       dimensional analogue
+  resolvent            the inverse where it exists; analytic in the scalar
+  spectral theorem     self-adjoint operators are multiplication operators
+  compact self-adjoint  an orthonormal eigenbasis, eigenvalues accumulating at
+                       zero
+  functional calculus  applying functions to operators through the spectral
+                       decomposition
+  unbounded operators  differentiation is unbounded; domains must be specified
+                       and the theory is genuinely more delicate
+  the quantum connection  observables are self-adjoint operators, their spectra
+                       are the possible measured values, and the spectral theorem
+                       is what makes that statement coherent
+
+## Applications and Practical Consequences
+
+The abstract machinery pays off in specific places, and knowing where prevents the subject from
+seeming like formalism for its own sake. Existence proofs for differential equations are the
+clearest case: the contraction mapping principle on a complete space gives existence and uniqueness
+for ordinary differential equations directly, and variational methods in Sobolev spaces give weak
+solutions for elliptic partial differential equations where classical solutions may not exist.
+
+The notion of a weak solution is itself an important conceptual move. Rather than requiring an
+equation to hold pointwise with all derivatives existing, it is required to hold after integration
+against smooth test functions. This admits solutions with shocks, corners, and discontinuities that
+the classical formulation excludes, and it matches the physical situations — a shock wave is a real
+phenomenon and the classical formulation simply has nothing to say about it.
+
+In applied and computational work the relevant consequences are about approximation and stability.
+Choosing a function space determines what convergence means for a numerical method, and a method
+converging in one norm may diverge in another. Ill-posedness — where the solution does not depend
+continuously on the data — is an operator-theoretic statement about the inverse being unbounded,
+and regularization is the standard response: replace the unbounded inverse with a family of bounded
+approximations and choose the parameter by the noise level.
+
+Applications:
+  contraction mapping  existence and uniqueness by iteration on a complete space
+  Picard iteration     the concrete construction for ordinary differential
+                       equations
+  Sobolev spaces       functions with weak derivatives in an integrable class
+  weak solution        the equation holding against test functions
+  why it matters       admits shocks and corners that occur physically
+  variational methods  minimizing an energy functional; existence from
+                       lower semicontinuity and coercivity
+  the direct method    a minimizing sequence, weak compactness, and lower
+                       semicontinuity
+  approximation theory  which norm the method converges in; a method may converge
+                       in one and not another
+  finite elements      Galerkin approximation in a finite-dimensional subspace of
+                       a Sobolev space
+  ill-posedness        the inverse operator is unbounded; small data errors
+                       amplify without limit
+  inverse problems     deconvolution, tomography, and parameter estimation are
+                       all of this type
+  regularization       replace the unbounded inverse with bounded approximations
+  the parameter choice  set by the noise level; too little leaves noise
+                       amplified, too much biases the solution, and the tradeoff
+                       is exactly the bias-variance tradeoff appearing in
+                       statistical language elsewhere

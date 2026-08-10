@@ -1,0 +1,294 @@
+================================================================================
+AREA: Software and Web Engineering
+SUBJECT: Performance Engineering
+Subtopics: measurement and methodology, complexity and data structures, memory
+hierarchy, concurrency and parallelism, profiling, systems-level tuning, tradeoffs.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Measurement and Methodology
+
+Performance work that begins without measurement is guessing, and the consistent experience
+of the field is that intuition about where time goes is unreliable even for people who wrote
+the code. The bottleneck is regularly somewhere nobody suspected, and the parts that look
+expensive are frequently not on the critical path at all.
+
+Amdahl's law bounds what optimization can achieve. If a fraction of the work is
+unparallelizable or unoptimizable, the total speedup is limited by that fraction regardless of
+how much the rest improves. Optimizing a component that consumes ten percent of runtime to
+take zero time yields an eleven percent improvement at most, which is why identifying the
+dominant cost before optimizing anything is not merely good practice but the difference
+between a meaningful gain and a wasted week.
+
+The distinction between latency and throughput is fundamental and frequently conflated.
+Latency is the time for one operation; throughput is operations per unit time. They are not
+reciprocals in any system with parallelism or pipelining, and optimizing one often degrades
+the other — batching improves throughput by amortizing overhead and increases latency by
+making requests wait for a batch to fill. Deciding which matters for the workload is a
+prerequisite to optimizing either.
+
+Measurement principles:
+  measure first          intuition about bottlenecks is unreliable
+  Amdahl's law           speedup bounded by the unoptimized fraction
+  latency vs throughput  not reciprocals; frequently in tension
+  percentiles            report p50, p95, p99; the mean hides the tail users feel
+  the tail matters       in a request fanning out to N backends, the slowest of N
+                         dominates, so p99 backend latency becomes typical at the
+                         aggregate level
+  warm-up                JIT compilation, cache filling, and connection
+                         establishment mean early iterations are unrepresentative
+  variance               report distributions, not single runs; performance
+                         measurements are noisy
+  representative load    benchmark with realistic data sizes and access patterns;
+                         synthetic uniform data hides cache and branch behaviour
+  isolate the change     one variable at a time, or attribution is impossible
+  regression testing     automated benchmarks in CI catch gradual degradation that
+                         nobody notices in any single change
+
+The tail-at-scale effect deserves particular emphasis because it is counterintuitive and
+governs the behaviour of distributed systems. If a request must contact one hundred backends
+and each has a 99th-percentile latency of one second, the probability that at least one of the
+hundred is slow approaches certainty, so the aggregate request's typical latency is set by
+that backend p99 rather than by its median. This is why reducing tail latency is far more
+valuable than reducing median latency in fanned-out architectures, and why techniques
+targeting the tail specifically — hedged requests, tied requests, micro-partitioning — exist.
+
+Q: A service's mean response time is 40 ms and its p99 is 2.5 seconds. Each user request fans
+out to 50 such calls. The typical user-perceived latency will be closest to:
+A. 40 ms   B. 2 seconds   C. 200 ms   D. 2.5 seconds times 50
+Reasoning: With 50 independent calls each having a 1% chance of exceeding 2.5 seconds, the
+probability that at least one does is 1 - 0.99^50, about 39%. Combined with the tail's shape,
+the typical aggregate is dominated by the slowest call rather than the mean, landing on the
+order of a second or two. The mean of the individual calls is almost irrelevant to the user
+experience. Answer: B.
+
+## Complexity, Data Structures, and Algorithms
+
+Asymptotic complexity describes how cost grows with input size and is the first filter on
+algorithmic choice, with the important caveat that constants and lower-order terms dominate at
+practical sizes. An O(n log n) algorithm with a large constant loses to an O(n^2) algorithm for
+small n, which is why production sorting implementations switch to insertion sort below a
+threshold of a few dozen elements.
+
+The gap between asymptotic analysis and measured performance is largely explained by memory
+behaviour, which the standard model ignores. Big-O counts operations and treats all memory
+access as equal cost, and on real hardware a cache-resident access is a hundred times faster
+than a main-memory one. This is why an array frequently outperforms a linked list for
+traversal despite identical asymptotic complexity, why a flat array of structures may
+outperform a tree for small collections, and why algorithms designed for cache behaviour beat
+theoretically superior ones.
+
+Data structure selection follows from the operation mix, and the practical guidance is to
+identify which operations dominate before choosing. A structure with excellent insertion and
+poor iteration is wrong for a workload that builds once and reads many times, and the reverse
+holds for a workload that mutates constantly.
+
+Structures and their operation costs:
+  array / vector       O(1) index, O(n) insert in middle, excellent locality
+  linked list          O(1) insert given a node, O(n) search, terrible locality;
+                       rarely the right choice on modern hardware
+  hash table           O(1) average lookup, O(n) worst case, unordered, poor
+                       locality on collision-heavy loads
+  balanced tree        O(log n) for everything, ordered traversal, decent locality
+  B-tree               O(log n) with a high branching factor; designed for
+                       block-oriented storage, and equally beneficial for cache
+  heap                 O(1) peek, O(log n) insert and extract; priority queues
+  trie                 prefix operations; memory-hungry
+  bloom filter         probabilistic membership; no false negatives, tunable false
+                       positive rate, very compact
+  ring buffer          fixed capacity, O(1) both ends, excellent locality
+  sorted array         better than a tree for read-heavy workloads; binary search
+                       with perfect locality
+
+Amortized analysis explains why a dynamic array's append is considered constant time despite
+occasionally requiring a full reallocation and copy. Doubling the capacity on each growth means
+the total copying work across n appends is bounded by 2n, so the average per append is
+constant even though individual operations occasionally are not. The distinction matters when
+worst-case latency is a requirement rather than average throughput — a real-time system cannot
+tolerate the occasional expensive operation, which is why such systems preallocate.
+
+## Memory Hierarchy
+
+The memory hierarchy is the dominant factor in single-threaded performance on modern hardware,
+and the reason is a widening gap: processor speed improved far faster than memory latency for
+decades, so a main-memory access now costs on the order of two hundred cycles during which the
+processor could have executed hundreds of instructions.
+
+Caches exploit locality. Temporal locality means recently accessed data is likely to be
+accessed again; spatial locality means data near recently accessed data is likely to be
+accessed. Caches are organized in lines of typically 64 bytes, so accessing one byte loads its
+64-byte neighbourhood, which is why sequential access is dramatically faster than random —
+sequential access uses every byte of each loaded line while random access uses one.
+
+The practical consequences reshape data structure design. An array of structures places all
+fields of one element together, which suits code accessing whole elements. A structure of
+arrays places each field contiguously, which suits code accessing one field across many
+elements — and for that access pattern it can be several times faster, because the cache lines
+contain only useful data rather than being mostly the fields being skipped. This is why
+columnar layouts dominate analytical processing and why data-oriented design is a recurring
+theme in high-performance code.
+
+Memory hierarchy characteristics:
+  register             sub-nanosecond; a few hundred bytes
+  L1 cache             ~1 ns, ~4 cycles; 32-64 KB
+  L2 cache             ~4 ns, ~14 cycles; 256 KB - 2 MB
+  L3 cache             ~15 ns, ~40 cycles; shared, 8-64 MB
+  main memory          ~80-100 ns, ~200-300 cycles
+  SSD                  ~50-100 us
+  disk                 ~5-10 ms
+  cache line           64 bytes typically; the unit of transfer
+  sequential access    prefetchers detect the pattern; near peak bandwidth
+  random access        one useful byte per line; an order of magnitude slower
+  false sharing        two threads writing different variables on the same line
+                       cause the line to bounce between cores; a severe and
+                       invisible scalability killer
+  alignment            unaligned access crosses lines; pad hot structures
+  working set          if it fits in cache, everything changes; the largest single
+                       performance cliff in most programs
+  TLB                  virtual-to-physical translation cache; large working sets
+                       thrash it, and huge pages are the remedy
+
+False sharing deserves specific attention because it is invisible in the source code and can
+eliminate the benefit of parallelism entirely. Two threads updating adjacent variables that
+happen to share a cache line cause that line to be invalidated and transferred between cores on
+every write, so a program that should scale linearly instead slows down as threads are added.
+The fix is padding so that per-thread data occupies separate cache lines, and the diagnostic is
+that adding threads makes the program slower rather than faster while each thread's work is
+genuinely independent.
+
+[user] My data processing loop takes 4 seconds for 10 million records and I expected under
+one. It's a simple sum over one field.
+[assistant] tool_call perf.profile({"records": 10000000, "runtime_s": 4.1,
+"layout": "array_of_structs", "struct_bytes": 192, "field_bytes": 8,
+"access": "sequential", "cache_miss_rate": 0.94, "ipc": 0.31})
+[tool] {"bytes_touched_gb": 1.92, "bytes_useful_gb": 0.08, "efficiency": 0.042,
+"bound": "memory_bandwidth", "recommendation": "structure_of_arrays",
+"expected_runtime_s": 0.28}
+[assistant] You are reading 1.92 GB of memory to use 80 MB of it. The loop is
+memory-bandwidth-bound, and 96% of the bandwidth is spent on fields you never touch.
+
+Your records are 192 bytes each, and you are summing one 8-byte field. Because the cache line
+is 64 bytes and your access stride is 192, every record requires loading at least one full
+line to extract 8 useful bytes. The 94% cache miss rate and the instructions-per-cycle of 0.31
+both confirm this — the processor is stalled waiting for memory nearly all the time.
+
+Restructure to a structure of arrays: store each field in its own contiguous array rather than
+storing whole records contiguously. Summing one field then reads a dense 80 MB array with
+perfect spatial locality, every byte of every cache line is used, and the hardware prefetcher
+recognizes the sequential pattern and stays ahead of the loop. Expect roughly 0.3 seconds,
+which is about a fourteenfold improvement from a layout change with no algorithmic difference
+at all.
+
+If restructuring the whole record type is impractical because other code needs whole records,
+two intermediate options exist. Extract the hot field into a parallel array maintained
+alongside, accepting the bookkeeping cost of keeping them synchronized. Or split the struct
+into a hot portion accessed in tight loops and a cold portion accessed rarely, which preserves
+the record abstraction while improving locality for the common path.
+
+Once memory-bound behaviour is fixed, vectorization becomes worthwhile — the compiler can
+process four or eight elements per instruction on a dense array and cannot do so on a strided
+one. That may give another factor of two to four on top. Doing it before fixing the layout
+gains nothing, because the bottleneck is bandwidth rather than arithmetic.
+
+## Concurrency and Parallelism
+
+Concurrency and parallelism are distinct: concurrency is dealing with multiple things at
+once, which is a structuring concern, and parallelism is doing multiple things at once, which
+is an execution concern. A single-threaded event loop is concurrent and not parallel. The
+distinction matters because the right technique depends on whether the workload waits or
+computes.
+
+I/O-bound work waits, and the goal is to overlap the waiting. Asynchronous programming or
+lightweight threads let a single core manage thousands of in-flight operations, because a
+waiting operation costs a small structure rather than a thread stack. Adding more threads
+beyond a modest number provides nothing, since they would all be waiting too.
+
+CPU-bound work computes, and the goal is to use more cores. The parallelism should be sized
+near the core count, since more threads than cores merely add context-switching overhead. The
+practical limits are Amdahl's law bounding speedup by the sequential fraction, and
+synchronization overhead which can exceed the work being parallelized for fine-grained tasks.
+
+Concurrency mechanisms and hazards:
+  mutex                 mutual exclusion; simple, correct, serializes access
+  read-write lock       concurrent readers; helps read-heavy workloads and costs
+                        more than a mutex when contention is low
+  atomic operations     lock-free single-word updates; the building block
+  compare-and-swap      the primitive underlying most lock-free structures
+  memory ordering       relaxed, acquire-release, sequentially consistent; the
+                        weaker orderings are faster and much harder to reason about
+  lock-free             progress guaranteed for some thread; difficult to write
+                        correctly and often slower than a good mutex under low
+                        contention
+  contention            the dominant cost; reduce by sharding, by per-thread data,
+                        or by shrinking critical sections
+  deadlock              cyclic waiting; prevent by consistent lock ordering
+  livelock              threads active and making no progress
+  priority inversion    a high-priority thread blocked by a low-priority lock
+                        holder; fixed by priority inheritance
+  false sharing         padding is the remedy
+  work stealing         idle threads take tasks from busy ones; the standard
+                        scheduler for irregular parallel workloads
+
+The recurring practical advice is that the fastest synchronization is the synchronization not
+performed. Partitioning data so that each thread owns its portion exclusively eliminates
+contention entirely and scales linearly, where any shared mutable state introduces a
+serialization point that bounds scalability. Where sharing is unavoidable, reducing the
+critical section to the minimum and moving computation outside it is worth more than choosing a
+cleverer lock. Lock-free structures are appropriate when contention is genuinely high and
+measured, and they are difficult enough to get right that reaching for them first is usually a
+mistake.
+
+## Profiling and Systems Tuning
+
+Profilers come in two families that answer different questions. Sampling profilers interrupt
+periodically and record the stack, producing a statistical picture with low overhead and
+without distorting the program's behaviour — which is what makes them appropriate for
+production. Instrumenting profilers record every call, giving exact counts and substantial
+overhead that changes the behaviour being measured, particularly for small frequently called
+functions where the instrumentation cost exceeds the function's own.
+
+Flame graphs visualize sampled stacks with width proportional to time, which makes the
+dominant paths immediately visible in a way that a sorted function list does not, because they
+show the calling context. A function appearing expensive in a flat profile may be cheap per
+call and invoked from one hot path, and the flame graph shows which caller to address.
+
+Beyond the application, systems-level tools identify whether the bottleneck is even in the
+program. A process that is blocked on I/O, starved of memory bandwidth, throttled by the
+scheduler, or waiting on a lock in a library shows low CPU utilization and slow progress
+simultaneously, and the application profiler will show it waiting without saying why.
+
+Profiling and system tools:
+  sampling profiler     low overhead, statistical, production-safe
+  instrumenting         exact counts, high overhead, distorts small functions
+  flame graph           stacks with width by time; shows calling context
+  differential profile  compare two profiles to attribute a regression
+  hardware counters     cache misses, branch mispredictions, IPC, stalls; identify
+                        the microarchitectural cause
+  IPC below ~1          usually memory-bound
+  high branch misses    unpredictable control flow; consider branchless
+                        formulations
+  system tracing        syscalls, scheduling, I/O; find waiting rather than
+                        computing
+  allocation profiling  allocation is frequently the hidden dominant cost in
+                        managed languages
+  GC pressure           reduce allocation rate rather than tuning the collector
+  I/O patterns          sequential versus random; readahead and buffering
+  huge pages            reduce TLB pressure for large working sets
+  NUMA                  memory attached to a remote socket costs substantially
+                        more; pin threads near their data
+
+The optimization sequence that reliably works is to establish a benchmark, profile to find the
+dominant cost, address that cost, and re-measure — repeating until the remaining costs are
+distributed rather than concentrated. Each step should be validated by measurement, because
+changes that should help sometimes do not, for reasons ranging from the compiler already having
+performed the optimization to the change having disturbed some other property such as inlining
+or cache layout.
+
+The final consideration is when to stop. Performance work has costs — in complexity, in
+readability, in the risk of introducing bugs, and in the engineering time not spent on
+something else — and those costs are paid permanently while the benefit may be marginal. The
+right stopping point is when the performance meets a stated requirement, and having that
+requirement stated in advance is what prevents optimization from becoming an unbounded
+activity. Code that is fast enough and clear is a better outcome than code that is faster and
+that nobody can safely modify.

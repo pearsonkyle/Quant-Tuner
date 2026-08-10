@@ -1,0 +1,348 @@
+================================================================================
+AREA: Humanities, Business, and Social Science
+SUBJECT: Economics
+Subtopics: scarcity and incentives, supply and demand, market structure, market
+failure, macroeconomics, money and monetary policy, trade, behavioral economics.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Scarcity, Opportunity Cost, and Incentives
+
+Economics studies how societies allocate scarce resources among competing uses.
+Scarcity is the binding premise: wants exceed available means, so every choice
+forecloses others. This gives rise to the field's most portable idea, opportunity cost
+— the value of the best forgone alternative. The cost of a year in graduate school is
+not tuition; it is tuition plus the salary not earned, minus whatever consumption
+value the year itself provides. Accounting cost measures money spent; economic cost
+measures what was given up, and the two diverge whenever a resource has an alternative
+use that does not involve a transaction.
+
+The sunk cost principle follows directly and is violated constantly. Costs already
+incurred and unrecoverable should not influence forward-looking decisions, because
+they are identical under every option and therefore cannot distinguish between them.
+The rational question about a failing project is always whether the remaining
+investment is justified by the remaining expected return, never how much has already
+been spent. That the fallacy persists so robustly — in individuals, firms, and
+governments — is itself a finding, and behavioral economics treats it as a systematic
+feature of human cognition rather than as an error to be scolded away.
+
+Marginal analysis is the operational core of the discipline. Optimal decisions are made
+at the margin: continue an activity while marginal benefit exceeds marginal cost, stop
+where they are equal. This resolves the classical diamond-water paradox — water is
+essential and cheap while diamonds are frivolous and expensive, because price reflects
+the value of the *last* unit rather than the total value of the good, and water is
+abundant enough that the marginal litre is worth very little. Total utility and
+marginal utility answer different questions, and confusing them produces most naive
+pricing errors.
+
+Foundational concepts:
+  opportunity cost      value of the best forgone alternative
+  sunk cost             already incurred and unrecoverable; irrelevant going forward
+  marginal analysis     act while MB > MC; optimum at MB = MC
+  diminishing returns   adding one input while holding others fixed eventually
+                        raises output at a decreasing rate
+  comparative advantage lower opportunity cost, not lower absolute cost, drives
+                        gains from specialization and trade
+  incentives            behaviour responds to relative payoffs; unintended
+                        consequences follow from unmodelled margins of adjustment
+  efficiency vs equity  the size of the pie and its division are separable questions
+
+Incentive analysis is where economics earns its reputation for uncomfortable
+conclusions, because it predicts responses on margins that policy designers did not
+consider. A rule requiring severance pay makes hiring riskier and reduces employment
+at the margin. Fuel-efficiency mandates lower the cost per mile and induce more driving,
+partially offsetting the intended saving — the rebound effect. A bounty on cobra skins
+creates cobra farms. None of these observations settle whether a policy is desirable;
+they establish that the full effect includes the behavioural response, and that
+evaluating a policy by its intent rather than its incentive structure is not analysis.
+
+Q: A firm has spent $2M developing a product. Completing it requires $500k more and
+would generate $700k in revenue. The firm should:
+A. Abandon it; total cost of $2.5M exceeds $700k revenue
+B. Complete it; $700k exceeds the $500k still required
+C. Abandon it; the project was a mistake
+D. Complete it to recover the $2M
+Reasoning: The $2M is sunk and identical under both options, so it cannot inform the
+choice. The forward-looking comparison is $500k of additional cost against $700k of
+additional revenue, a $200k gain. The project was indeed a bad investment overall, and
+that fact should inform future decisions without affecting this one. Answer: B.
+
+## Supply, Demand, and Elasticity
+
+The demand curve slopes downward because higher prices reduce quantity demanded, through
+a substitution effect (buyers switch to alternatives) and an income effect (purchasing
+power falls). The supply curve slopes upward because higher prices make production
+worthwhile for suppliers with higher costs. Their intersection is the equilibrium — the
+only price at which quantity supplied equals quantity demanded, and the price toward
+which a competitive market tends because surpluses push prices down and shortages push
+them up.
+
+The essential distinction is between a movement along a curve and a shift of the curve.
+A change in the good's own price moves along the curve, changing quantity demanded. A
+change in anything else — income, the price of substitutes or complements, expectations,
+the number of buyers, tastes — shifts the entire curve, changing demand. Conflating the
+two produces the circular reasoning that "higher prices increase supply," which
+describes movement along a supply curve while sounding like a shift. This is the single
+most common error in casual economic argument.
+
+Elasticity measures responsiveness, and it determines who bears costs and how revenue
+responds to price. Price elasticity of demand is the percentage change in quantity per
+percentage change in price. Demand is elastic when the magnitude exceeds one, so
+quantity responds proportionally more than price and a price increase reduces total
+revenue. It is inelastic below one, so a price increase raises revenue. Elasticity is
+higher when close substitutes exist, when the good is a large share of the budget, when
+the purchase is discretionary, and when buyers have more time to adjust — which is why
+short-run and long-run elasticities differ substantially, most famously for gasoline,
+where the immediate response to a price rise is small and the multi-year response
+through vehicle choice and residential location is much larger.
+
+Elasticity reference:
+  price elasticity of demand    E = %dQ / %dP;  |E| > 1 elastic, < 1 inelastic
+  total revenue test            inelastic: raise price to raise revenue
+                                elastic: lower price to raise revenue
+                                unit elastic: revenue is at a maximum
+  income elasticity             > 0 normal good, > 1 luxury, < 0 inferior good
+  cross-price elasticity        > 0 substitutes, < 0 complements
+  price elasticity of supply    higher with spare capacity and longer horizons
+  tax incidence                 the more inelastic side bears more of the burden,
+                                regardless of who legally remits the tax
+
+Tax incidence is the clearest demonstration that legal and economic burden differ. A tax
+levied on sellers shifts the supply curve up by the tax amount, raising the price buyers
+pay and lowering the price sellers keep; the split between them depends entirely on the
+relative elasticities and not at all on which side writes the cheque. Payroll taxes
+split nominally between employer and employee are borne overwhelmingly by workers,
+because labour supply is far less elastic than labour demand. A tax on a good with
+perfectly inelastic demand is paid entirely by buyers; on one with perfectly elastic
+demand, entirely by sellers.
+
+Price controls illustrate the same machinery. A binding price ceiling below equilibrium
+creates a shortage, and because price can no longer ration the good, other mechanisms
+take over: queues, quality degradation, discrimination by sellers, and secondary
+markets. Rent control is the standard case, reliably producing reduced housing supply,
+reduced maintenance, and allocation by tenure rather than by need. A binding price
+floor above equilibrium creates a surplus — agricultural price supports produce
+unsellable stockpiles, and minimum wages produce disemployment effects whose empirical
+magnitude is genuinely contested, since labour markets deviate from the competitive
+model in ways (search frictions, monopsony) that can reverse the textbook prediction.
+
+## Market Structure and Firm Behaviour
+
+Perfect competition is a benchmark rather than a description: many small firms selling
+an identical product with free entry and full information, so each faces a horizontal
+demand curve and is a price taker. Firms produce where price equals marginal cost,
+economic profits attract entry that drives price to minimum average cost, and the
+outcome is allocatively and productively efficient. Its analytical value is as a
+reference point against which real structures are measured, since the ways actual
+markets depart from it are exactly what generates market power.
+
+Monopoly is the opposite pole: one seller facing the entire market demand curve, so it
+must lower price to sell more and marginal revenue falls below price. Profit
+maximization at marginal revenue equal to marginal cost yields a higher price and lower
+quantity than the competitive outcome, transferring surplus from consumers to the firm
+and destroying some entirely — the deadweight loss. Monopolies arise from barriers to
+entry: control of an essential input, patents and copyrights, network effects,
+regulatory protection, and natural monopoly where economies of scale are large enough
+relative to the market that one firm can serve it at lower cost than several.
+
+Between the poles lie the common structures. Monopolistic competition has many firms
+selling differentiated products with free entry, so firms have some pricing power but
+economic profits are competed away, leaving excess capacity and product variety as the
+characteristic outcome — restaurants, clothing, consumer software. Oligopoly has few
+firms whose decisions are interdependent, which makes it strategic and the natural
+domain of game theory. The prisoner's dilemma captures its central tension: collusion
+would maximize joint profit, each firm individually gains by defecting, so the
+non-cooperative equilibrium is more competitive than the cartel outcome and cartels are
+unstable without enforcement.
+
+Market structures compared:
+  perfect competition      many firms, identical product, free entry, P = MC,
+                           zero long-run economic profit, efficient
+  monopolistic competition many firms, differentiated, free entry, P > MC,
+                           zero long-run profit, excess capacity
+  oligopoly                few firms, interdependent, strategic, outcome ranges
+                           from near-competitive to near-cartel
+  monopoly                 one firm, blocked entry, P > MC, deadweight loss,
+                           positive economic profit sustained
+  monopsony                one buyer; symmetric analysis, depresses input prices
+                           and quantities below competitive levels
+
+Price discrimination lets a firm with market power capture more surplus by charging
+different prices for the same good. It requires market power, the ability to segment
+buyers by willingness to pay, and prevention of resale. First-degree charges each buyer
+their maximum, second-degree offers a menu of quantity or quality tiers that induce
+self-selection, and third-degree charges different groups different prices — student
+discounts, regional pricing, advance-purchase airfares. Welfare effects are ambiguous
+rather than simply negative: discrimination transfers surplus to the firm but can
+increase total output, and it can make markets viable that uniform pricing would leave
+unserved, which is the standard argument for tiered pharmaceutical pricing across
+countries.
+
+## Market Failure and Public Goods
+
+Competitive markets are efficient under strong assumptions, and market failure is the
+name for their systematic violation. Externalities occur when a transaction imposes
+costs or confers benefits on third parties who are not party to it. Because those
+effects do not enter the decision-maker's calculus, the market produces too much of
+goods with negative externalities and too little of those with positive ones. Pollution
+is the canonical negative case, education and vaccination the canonical positive ones.
+
+The remedies each internalize the externality by different means. A Pigouvian tax set
+equal to the marginal external cost makes the private cost equal the social cost, after
+which the market outcome is efficient. Tradable permits cap the total quantity and let
+the price emerge, which fixes the environmental outcome and lets abatement occur
+wherever it is cheapest. The Coase theorem observes that with well-defined property
+rights and negligible transaction costs, parties will bargain to an efficient outcome
+regardless of who initially holds the right — a result whose practical importance lies
+mostly in its conditions, since transaction costs are rarely negligible when the
+affected parties are numerous and diffuse, which is exactly the situation for most
+serious environmental problems.
+
+Public goods are non-rival, meaning one person's consumption does not diminish
+another's, and non-excludable, meaning non-payers cannot be prevented from benefiting.
+National defence, basic research, and a lighthouse are standard examples. Non-
+excludability creates free riding: each individual's contribution is negligible to the
+outcome while costly to themselves, so voluntary provision falls short of the efficient
+level. This is the central economic argument for public provision or subsidy, and it
+applies with particular force to knowledge, which is perfectly non-rival — the marginal
+cost of another person using an idea is zero — and which patent systems make artificially
+excludable to restore the incentive to produce it, at the cost of underuse.
+
+Market failures and standard responses:
+  negative externality   Pigouvian tax, tradable permits, regulation, liability
+  positive externality   subsidy, public provision, mandate
+  public good            public provision funded by taxation; free-rider problem
+  common-pool resource   rival but non-excludable; the tragedy of the commons.
+                         Ostrom documented that community governance frequently
+                         solves this without privatization or state control
+  information asymmetry  adverse selection (hidden characteristics) and moral
+                         hazard (hidden actions)
+  market power           antitrust, price regulation of natural monopolies
+  behavioural failure    default settings, disclosure rules, cooling-off periods
+
+Information asymmetry produces two distinct failures worth keeping separate. Adverse
+selection arises before a transaction when one party knows something relevant that the
+other does not — Akerlof's used-car market, where buyers cannot distinguish quality, so
+they offer an average price, so good cars are withdrawn, so average quality falls, in a
+cycle that can unravel the market entirely. Insurance markets face the same dynamic,
+which is the economic rationale for mandates and community rating. Moral hazard arises
+after a transaction when one party's unobservable actions affect the other's payoff:
+insured drivers take more risk, employees with fixed salaries exert less effort. The
+remedies differ accordingly — signalling, screening, and warranties address adverse
+selection, while deductibles, co-payments, monitoring, and performance-linked pay
+address moral hazard.
+
+[user] Our marketplace has a quality problem — good sellers are leaving and buyers
+complain the average listing is worse than a year ago.
+[assistant] tool_call market.diagnose({"seller_churn_by_quality": {"top_quartile":
+0.34, "bottom_quartile": 0.11}, "avg_rating_trend": -0.4, "buyer_price_dispersion":
+"low", "quality_signals_available": ["star_rating"], "return_rate": 0.19}
+[tool] {"pattern": "adverse_selection", "indicators": ["high_quality_sellers_exit_
+faster", "price_compression_across_quality_tiers", "rising_return_rate"],
+"signal_strength": "weak"}
+[assistant] This is textbook adverse selection — the used-car problem running in your
+marketplace — and the diagnostic signature is that your best sellers are leaving three
+times faster than your worst.
+
+The mechanism: buyers cannot reliably distinguish high from low quality before
+purchase, so they will only pay a price reflecting average quality. That price is above
+what low-quality listings are worth and below what high-quality ones cost to supply, so
+good sellers exit, average quality falls, buyers lower their willingness to pay
+further, and the cycle continues. Your low price dispersion across quality tiers
+confirms it: the market is not paying for quality, so quality is not being supplied.
+
+The fix is not to punish bad sellers — it is to make quality visible and credible enough
+that buyers will pay for it. In rough order of impact:
+
+Strengthen the signal. A single star rating is weak, especially with selection bias in
+who leaves reviews. Add verified-purchase weighting, recency weighting, dispute and
+return rates, and response times. Buyers need to be able to see the difference before
+purchase, not discover it after.
+
+Enable costly signalling. Let good sellers spend something that bad sellers would not
+find worthwhile — a paid verification tier with real vetting, extended warranties,
+free returns at the seller's expense. The economics of signalling require the cost to be
+lower for high types, so warranties work well: they are cheap for a seller whose goods
+rarely fail and expensive for one whose goods do.
+
+Shift risk to reduce buyer caution. A robust buyer-protection guarantee lets buyers
+bid closer to what a high-quality listing is actually worth, which restores the price
+premium that keeps good sellers in the market. This costs you money on claims and is
+usually worth it.
+
+Your 19% return rate is the number to track — if the interventions work, it should fall
+while the price premium for top-rated sellers widens.
+
+## Macroeconomics, Money, and Trade
+
+Gross domestic product measures the market value of final goods and services produced
+within a country in a period, and its construction determines what it does and does not
+capture. Intermediate goods are excluded to avoid double counting. Only final output
+counts, which is why the expenditure identity Y = C + I + G + NX exhausts it. Non-market
+production — household labour, volunteering — is excluded, as are environmental
+degradation and the distribution of the output. GDP is a measure of market activity, and
+treating it as a measure of welfare is a category error that its own designers warned
+against.
+
+Inflation is a sustained rise in the general price level, reducing money's purchasing
+power. Demand-pull inflation arises when spending outruns productive capacity;
+cost-push arises from supply shocks such as an oil price rise; and expectations are
+self-fulfilling, since workers and firms that expect inflation build it into wages and
+prices. The quantity theory, MV = PY, is an identity that becomes a theory under the
+assumption that velocity and output are stable — which holds poorly in the short run
+and better over long horizons and large monetary expansions, which is why it explains
+hyperinflations well and quarterly fluctuations badly. Moderate inflation is generally
+preferred to zero because it permits real wage adjustment without nominal wage cuts,
+which workers resist, and because it provides room to cut real interest rates below
+zero in a downturn.
+
+Unemployment is decomposed by cause, and the decomposition drives the policy response.
+Frictional unemployment reflects the time taken to match workers to jobs and is
+unavoidable and even productive. Structural unemployment reflects a mismatch between
+worker skills or location and available jobs, and responds to training and mobility
+policy rather than to demand stimulus. Cyclical unemployment reflects insufficient
+aggregate demand and is what monetary and fiscal policy target. The natural rate is the
+sum of the frictional and structural components, the level consistent with stable
+inflation, and attempting to push unemployment below it through demand policy produces
+accelerating inflation rather than sustained employment gains.
+
+Macro and monetary reference:
+  GDP (expenditure)    Y = C + I + G + (X - M)
+  real vs nominal      real is inflation-adjusted; always compare like with like
+  CPI                  fixed basket; overstates inflation via substitution and
+                       quality bias
+  quantity theory      MV = PY
+  Fisher equation      nominal rate ≈ real rate + expected inflation
+  Okun's law           ~2% output gap per 1pp of cyclical unemployment
+  Phillips curve       short-run inflation/unemployment tradeoff; vertical in the
+                       long run at the natural rate
+  money multiplier     1/reserve ratio, in the textbook model; modern banking is
+                       credit-driven and the multiplier is not a binding constraint
+  policy tools         open market operations, policy rate, reserve requirements,
+                       quantitative easing, forward guidance
+
+Comparative advantage is the core result in trade and the most counterintuitive in the
+discipline. A country benefits from specializing in goods where its opportunity cost is
+lowest and trading for the rest, even if it is absolutely less productive at everything.
+The gains come from reallocating production toward lower-opportunity-cost uses, so total
+output rises and trade lets both parties consume beyond their own production
+possibilities. The result is robust and is also frequently overstated in application:
+it establishes that aggregate gains exist, not that everyone gains. Trade produces
+winners and losers within a country, the losses concentrate in specific industries and
+regions while the gains diffuse across all consumers, and the political economy of that
+asymmetry — concentrated, visible losses against diffuse, invisible gains — explains
+protectionism's durability far better than any failure to understand the theory.
+
+Behavioral economics documents systematic departures from the rational-actor model and
+has been absorbed into the mainstream rather than remaining a critique of it. Loss
+aversion means losses weigh roughly twice as heavily as equivalent gains, producing the
+endowment effect and status quo bias. Anchoring makes irrelevant initial numbers
+influence subsequent estimates. Hyperbolic discounting produces preference reversals
+over time and explains under-saving. Framing changes choices without changing payoffs.
+Mental accounting treats fungible money as if it were earmarked. The practical
+consequence is that defaults are enormously powerful — automatic enrolment in retirement
+plans raises participation dramatically without restricting any choice — which is the
+foundation of choice architecture and its central design lesson: the question is never
+whether to influence behaviour, since some default must exist, but which default to
+choose.

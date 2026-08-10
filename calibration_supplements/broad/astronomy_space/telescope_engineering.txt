@@ -1,0 +1,253 @@
+================================================================================
+AREA: Astronomy and Space
+SUBJECT: Telescope and Instrument Engineering
+Subtopics: optical design, apertures and resolution, detectors, adaptive optics,
+mounts and pointing, space telescope constraints, spectrographs, calibration.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Optical Design and Fundamental Limits
+
+A telescope collects light and forms an image, and its two primary specifications follow directly
+from its aperture. Collecting area scales with the square of the diameter, which determines how
+faint an object can be detected in a given time. Angular resolution scales inversely with diameter,
+set by the diffraction limit, which determines how finely detail can be distinguished. Both push
+toward larger apertures, and cost scales considerably faster than diameter, which is why telescope
+history is largely a history of making large mirrors affordable.
+
+Refracting designs use lenses and suffer from chromatic aberration — different wavelengths focusing
+at different points — which can be partially corrected with multiple elements and never eliminated.
+They are also limited in size because a large lens can only be supported at its edge and sags under
+its own weight. Reflecting designs use mirrors, have no chromatic aberration at all since reflection
+is wavelength-independent, and can be supported across the back, which is why every large telescope
+is a reflector.
+
+The standard reflecting configurations trade off differently. A two-mirror arrangement with a
+parabolic primary and hyperbolic secondary gives excellent on-axis images and coma that grows
+rapidly off axis, limiting the usable field. Adding correction — either a modified primary and
+secondary pair or a corrector lens group near the focus — trades some on-axis perfection for a much
+wider well-corrected field, which is what survey telescopes need since their value is proportional
+to field of view times aperture.
+
+Optical fundamentals:
+  collecting area      scales as diameter squared; sets limiting magnitude
+  angular resolution   scales inversely with diameter; the diffraction limit
+  the cost scaling     rises much faster than diameter
+  refractor            lenses; chromatic aberration, edge support, size-limited
+  reflector            mirrors; achromatic and supportable across the back
+  the two-mirror design  excellent on axis, coma off axis
+  wide-field corrected designs  a wider usable field at some on-axis cost
+  the survey figure of merit  aperture times field of view
+  focal ratio          focal length over aperture; determines image scale and
+                       the exposure needed for extended sources
+  plate scale          arcseconds per millimetre at the focal plane
+  segmented mirrors    many smaller mirrors phased together; the only practical
+                       route past a certain diameter
+  active optics        slow correction of mirror figure against gravity and
+                       thermal distortion
+  the support problem  a large mirror deforms under its own weight as it tilts,
+                       which is why support systems are actively controlled
+  baffling             suppressing stray light; frequently the difference between
+                       a good instrument and a mediocre one, and it is
+                       consistently underestimated in early design
+
+Q: A ground-based telescope with a four-metre aperture routinely delivers images no sharper than a
+one-metre telescope would. The reason is:
+A. The optics are poorly figured
+B. Atmospheric turbulence limits the resolution to the seeing disk, typically around one arcsecond,
+   which is far worse than the diffraction limit of either aperture; the larger telescope collects
+   more light but does not resolve better without correction
+C. The detector is inadequate
+D. Diffraction increases with aperture
+Reasoning: Above roughly ten to twenty centimetres of aperture at a typical site, atmospheric
+turbulence rather than diffraction sets the image size. Larger apertures gain sensitivity and gain
+resolution only with adaptive optics, interferometry, or placement above the atmosphere.
+Answer: B.
+
+## Detectors and Photon Statistics
+
+The charge-coupled device and its complementary-metal-oxide successors converted astronomy from
+photographic to digital and improved quantum efficiency by more than an order of magnitude. A modern
+detector converts a large fraction of arriving photons into measurable charge, records the result
+linearly across a wide range, and can be read out with very low noise, and each of those properties
+matters for different observations.
+
+The noise budget determines what limits an observation and therefore what to change to improve it.
+Shot noise from the source scales as the square root of the signal. Sky background contributes its
+own shot noise and dominates for faint extended sources. Dark current accumulates with time and is
+suppressed by cooling. Read noise is added once per readout and dominates for very short exposures.
+Knowing which term dominates tells you whether to expose longer, cool further, bin pixels, or take
+fewer longer exposures instead of many short ones.
+
+Detector calibration removes instrumental signatures in a defined order. A bias frame captures the
+electronic offset. A dark frame captures thermally generated charge over the exposure time. A flat
+field captures the pixel-to-pixel sensitivity variation and the vignetting and dust shadows of the
+optical path. Applying these in the right order, with the right scaling, is routine and mechanical,
+and getting it wrong produces subtle photometric errors that survive into the science.
+
+Detectors and noise:
+  quantum efficiency   the fraction of photons converted; the primary sensitivity
+                       figure
+  linearity            output proportional to input over the usable range
+  full well capacity   where a pixel saturates
+  dynamic range        full well over read noise
+  shot noise           square root of the signal; irreducible
+  sky background       dominates for faint extended sources
+  dark current         thermal generation; suppressed by cooling
+  read noise           added once per readout; dominates short exposures
+  the diagnostic use   which term dominates determines the right remedy
+  binning              combining pixels; improves signal-to-noise where read
+                       noise dominates and sacrifices resolution
+  exposure strategy    fewer long exposures when read noise dominates, more short
+                       ones when saturation or tracking limits you
+  bias frame           the electronic offset
+  dark frame           thermal charge for the exposure time
+  flat field           pixel sensitivity, vignetting, and dust
+  cosmic rays          particle hits producing sharp spurious features; rejected
+                       by combining multiple exposures
+  charge transfer inefficiency  charge left behind during readout; worsens with
+                       radiation damage and matters for precise astrometry
+
+## Adaptive Optics and Atmospheric Correction
+
+The atmosphere degrades ground-based images because turbulent cells with slightly different
+temperatures have slightly different refractive indices, so a wavefront arriving flat from a distant
+source is corrugated by the time it reaches the telescope. The result is a blurred and constantly
+changing image, characterized by the seeing — the resulting image size, typically around one
+arcsecond at a good site and better at the best ones.
+
+Adaptive optics measures the wavefront distortion and corrects it in real time with a deformable
+mirror. A wavefront sensor samples the incoming wavefront hundreds to thousands of times per second,
+a control computer computes the correction, and actuators behind a thin mirror deform it to
+compensate. The correction must be faster than the turbulence evolves, which sets the loop rate, and
+the number of actuators must match the number of turbulent cells across the aperture, which sets the
+system's complexity as the square of the diameter.
+
+The system needs a bright reference source in the same direction as the target, and most targets do
+not have one nearby. Laser guide stars solve this by exciting sodium atoms in the upper atmosphere
+to create an artificial reference, which works for the higher-order correction and cannot sense
+overall tilt, since the laser's own outbound path shifts with it. A faint natural star is therefore
+still required for tilt, which is a much less restrictive requirement.
+
+Adaptive optics:
+  the cause            turbulent cells with differing refractive index
+  seeing               the resulting image size; around one arcsecond typically
+  coherence length     the aperture over which the wavefront is flat
+  coherence time       how fast the turbulence changes; sets the loop rate
+  isoplanatic angle    the angle over which the correction is valid; small,
+                       especially in visible light
+  wavefront sensor     samples the distortion at high rate
+  deformable mirror    actuators shaping a thin mirror
+  actuator count       scales as the square of the diameter
+  the wavelength dependence  correction is far easier in the infrared, which is
+                       why adaptive optics matured there first
+  natural guide star   a bright reference near the target; rarely available
+  laser guide star     an artificial reference in the sodium layer
+  the tilt limitation  the laser cannot sense overall tilt; a faint natural star
+                       is still needed
+  multi-conjugate systems  several deformable mirrors correcting different
+                       altitudes; widens the corrected field
+  interferometry       combining separated apertures for resolution set by their
+                       separation rather than their size; extraordinary resolution
+                       and a very limited field
+
+## Mounts, Pointing, and Space Constraints
+
+A telescope must point accurately and track the sky's apparent motion. Equatorial mounts have one
+axis aligned with the Earth's rotation, so tracking is a single constant-rate motion and the field
+does not rotate. Altitude-azimuth mounts are mechanically simpler and far more practical at large
+size, and they require coordinated motion on both axes plus a third rotation to counteract field
+rotation, which is why they became feasible only with computer control.
+
+Pointing accuracy is achieved through a pointing model rather than through mechanical perfection.
+The model fits a set of terms — axis misalignment, non-perpendicularity, flexure of the tube with
+elevation, encoder eccentricity — to observations of many stars across the sky, and the resulting
+corrections bring a mount with visible mechanical imperfections to arcsecond pointing. The model
+must be re-derived after any mechanical change, which is a maintenance obligation that is
+occasionally forgotten with confusing consequences.
+
+Space telescopes trade the atmosphere's degradation for a set of severe constraints. Mass and volume
+are limited by the launch vehicle, which drives segmented and deployable designs. Thermal control is
+harder without convection and matters more, since optics must hold their figure across the orbital
+temperature cycle. There is no servicing for most missions, so redundancy and conservative design
+replace repair. And pointing must be achieved without any ground contact, using reaction wheels and
+star trackers, with the accumulated momentum periodically dumped.
+
+Mounts and space:
+  equatorial mount     one axis on the rotation axis; simple tracking, no field
+                       rotation
+  altitude-azimuth     mechanically practical at size; needs coordinated axes and
+                       derotation
+  field rotation       the consequence of an altazimuth mount; corrected by a
+                       rotating instrument or derotator
+  pointing model       fitted corrections for known mechanical imperfections
+  the terms            misalignment, non-perpendicularity, flexure, eccentricity
+  re-derivation        required after mechanical changes
+  guiding              closed-loop correction on a reference star during exposure
+  the dome contribution  local turbulence from the enclosure and from the
+                       telescope's own heat; often worse than the free atmosphere
+  space advantages     no atmosphere, access to blocked wavelengths, stable
+                       thermal and gravitational environment
+  launch constraints   mass and volume; drives deployable and segmented designs
+  thermal control      no convection; radiative only, and figure stability
+                       depends on it
+  sunshields           passive cooling to the temperatures infrared instruments
+                       require
+  no servicing         redundancy and conservatism replace repair
+  attitude control     reaction wheels and star trackers
+  momentum management  accumulated wheel momentum dumped periodically
+  orbit selection      low Earth orbit for access, Lagrange points for thermal
+                       stability and continuous observation
+
+## Spectrographs, Calibration, and Data
+
+Spectroscopy disperses light by wavelength and extracts far more physical information than imaging:
+composition, temperature, density, ionization state, radial velocity, and magnetic field strength
+all leave signatures in a spectrum. The instrument's resolving power — wavelength divided by the
+smallest resolvable wavelength difference — determines which of these are accessible, and it trades
+directly against the light reaching each detector element.
+
+The standard design disperses light with a grating and images the result. A slit or fibre defines
+what enters, and the slit width trades spectral resolution against throughput. Echelle designs use
+high orders and a cross-disperser to record a wide wavelength range at high resolution
+simultaneously, at the cost of a complex two-dimensional format that requires careful extraction.
+Integral field units capture a spectrum at every point in a small field, which is the most
+information-rich configuration and produces correspondingly large data volumes.
+
+Wavelength calibration ties detector position to physical wavelength using a source of known
+emission lines, and its stability determines what velocity precision is achievable. The
+extraordinary precision needed for exoplanet detection by radial velocity — of order metres per
+second, which is a shift far smaller than a detector pixel — is achieved through simultaneous
+reference sources, extreme environmental stabilization, and careful modelling of the instrument
+profile. This is a case where the calibration strategy rather than the optics is the instrument's
+defining feature.
+
+Spectroscopy and calibration:
+  dispersion           separating light by wavelength
+  what a spectrum reveals  composition, temperature, density, ionization,
+                       velocity, magnetic field
+  resolving power      wavelength over the smallest resolvable difference
+  the tradeoff         resolution against light per detector element
+  slit width           resolution against throughput
+  fibre feed           decouples the spectrograph from the telescope; enables
+                       stabilization and multi-object work
+  echelle design       high orders plus cross-dispersion; wide range at high
+                       resolution
+  integral field unit  a spectrum at every point in a field
+  multi-object spectroscopy  many targets at once; the survey workhorse
+  wavelength calibration  known emission lines mapped to detector position
+  simultaneous reference  a calibration source recorded alongside the science
+                       exposure
+  instrument profile   the response to a monochromatic input; must be modelled
+                       for precise work
+  flux calibration     converting counts to physical units using standard stars
+  telluric correction  removing absorption by the Earth's atmosphere
+  the radial velocity case  metres-per-second precision from shifts far smaller
+                       than a pixel; achieved through calibration strategy and
+                       environmental control rather than through optical
+                       excellence
+  data volume          modern instruments produce more data than can be examined
+                       by hand, which has made pipeline design and archive
+                       quality part of instrument design rather than an
+                       afterthought

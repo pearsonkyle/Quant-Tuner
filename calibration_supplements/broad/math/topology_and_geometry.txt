@@ -1,0 +1,284 @@
+================================================================================
+AREA: Mathematics
+SUBJECT: Topology and Geometry
+Subtopics: metric and topological spaces, continuity and compactness, connectedness,
+surfaces and classification, homotopy and homology, differential geometry, applications.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Metric and Topological Spaces
+
+Topology studies properties preserved under continuous deformation — stretching and bending
+but not tearing or gluing. The motivating observation is that a great many results depend not on
+distances but only on which points are near which, and abstracting away the metric reveals which
+results those are.
+
+A metric space equips a set with a distance function satisfying non-negativity, symmetry, the
+identity of indiscernibles, and the triangle inequality. From the metric one obtains open balls,
+and from open balls one obtains open sets, and it turns out that the open sets alone suffice to
+define continuity, convergence, compactness, and connectedness. A topological space therefore
+dispenses with the metric and specifies the open sets directly, subject to axioms: the empty set
+and the whole space are open, arbitrary unions of open sets are open, and finite intersections
+are open.
+
+The asymmetry between arbitrary unions and finite intersections is not arbitrary and is worth
+understanding. An infinite intersection of open sets need not be open — the intersection of the
+intervals from minus one over n to one over n, over all n, is the single point zero, which is
+not open. Restricting to finite intersections is exactly what is needed for the axioms to
+produce the intended notion of nearness.
+
+Different metrics can induce the same topology, which is the point of the abstraction. The
+Euclidean, taxicab, and maximum metrics on the plane give different distances and identical open
+sets, so every topological statement about one holds for the others. Conversely some
+topological spaces are not metrizable at all, so the topological setting is strictly more
+general.
+
+Metric and topological concepts:
+  metric               non-negativity, symmetry, identity, triangle inequality
+  open ball            points within a distance of a centre
+  open set             a union of open balls; or an axiomatic primitive
+  topology             the collection of open sets satisfying the axioms
+  closed set           complement of an open set; sets can be both, neither, or one
+  interior, closure    largest open subset, smallest closed superset
+  boundary             closure minus interior
+  neighbourhood        a set containing an open set containing the point
+  basis                generates the topology by unions
+  subspace topology    induced on a subset
+  product topology     on a product of spaces; the finite case is the obvious one
+                       and the infinite case requires care
+  quotient topology    from an identification; how surfaces are built by gluing
+  homeomorphism        a continuous bijection with continuous inverse; the
+                       topological notion of sameness
+  metrizable           a topology arising from some metric; not all topologies are
+
+Q: A continuous bijection between topological spaces is not necessarily a homeomorphism.
+The additional requirement is:
+A. The spaces must be metric spaces
+B. The inverse map must also be continuous
+C. The map must preserve distances
+D. The spaces must be compact
+Reasoning: A homeomorphism requires continuity in both directions, and a continuous bijection
+can have a discontinuous inverse — mapping the half-open interval [0, 1) onto a circle by
+wrapping is the standard example, continuous and bijective with a discontinuous inverse at the
+join. Continuity of the inverse is automatic when the domain is compact and the codomain
+Hausdorff, which is why option D is close and not the general answer. Answer: B.
+
+## Continuity, Compactness, and Connectedness
+
+Continuity in the topological setting is defined by preimages: a map is continuous when the
+preimage of every open set is open. This is equivalent to the epsilon-delta definition in metric
+spaces and is more general, and its direction — preimages rather than images — is the part that
+initially surprises. The image of an open set under a continuous map need not be open, as the
+constant map demonstrates.
+
+Compactness is the topological property doing the most work in analysis, and its definition —
+every open cover has a finite subcover — appears technical and is exactly right. In Euclidean
+space the Heine-Borel theorem identifies compact sets with those that are closed and bounded,
+which is the familiar characterization, and in general spaces the two notions diverge and
+compactness is the useful one.
+
+What compactness buys is the ability to pass from local to global. A continuous function on a
+compact set attains its maximum and minimum, is uniformly continuous, and is bounded — each
+proved by covering the set with local statements and extracting a finite subcover. These are
+exactly the theorems that fail on a non-compact set such as an open interval, where a continuous
+function may be unbounded and may fail to attain its bounds. Compactness is what makes the
+extreme value theorem true.
+
+Connectedness formalizes being in one piece: a space is connected when it cannot be written as
+the union of two disjoint nonempty open sets. Path connectedness is the stronger and more
+intuitive condition that any two points are joined by a continuous path, and it implies
+connectedness while the converse fails — the topologist's sine curve is connected and not path
+connected, which is the standard counterexample.
+
+Continuity, compactness, connectedness:
+  continuity           preimages of open sets are open
+  homeomorphism        continuous with continuous inverse
+  compact              every open cover has a finite subcover
+  Heine-Borel          in Euclidean space, compact iff closed and bounded
+  extreme value        a continuous function on a compact set attains its bounds
+  uniform continuity   automatic on a compact domain
+  sequential compactness  every sequence has a convergent subsequence;
+                       equivalent to compactness in metric spaces
+  connected            not a union of two disjoint nonempty open sets
+  path connected       any two points joined by a path; strictly stronger
+  intermediate value   a continuous image of a connected set is connected; this is
+                       the whole content of the intermediate value theorem
+  Hausdorff            distinct points have disjoint neighbourhoods; the
+                       separation axiom that makes limits unique
+  separation axioms    a hierarchy from T0 to T4; most useful spaces are Hausdorff
+                       and better
+
+The intermediate value theorem's topological content is worth stating because it explains why
+the theorem is true. A continuous image of a connected set is connected, an interval is
+connected, and the connected subsets of the real line are exactly the intervals — so the image
+of an interval under a continuous function is an interval, which contains every value between
+any two of its values. The familiar theorem is a corollary of a structural statement about
+connectedness, which is the pattern topology repeatedly reveals.
+
+## Surfaces and Their Classification
+
+Surfaces are two-dimensional manifolds — spaces locally resembling the plane — and the compact
+ones without boundary admit a complete classification, which is unusual and instructive. Every
+such surface is either a sphere with some number of handles attached, or a sphere with some
+number of cross-caps, and the number determines it up to homeomorphism.
+
+The genus counts the handles, so the sphere has genus zero, the torus genus one, the two-holed
+torus genus two, and so on. Orientability distinguishes the two families: a surface is
+orientable if a consistent notion of clockwise can be defined globally, and non-orientable if
+not. The Möbius band and Klein bottle are the standard non-orientable examples, and the Möbius
+band demonstrates the phenomenon concretely — a small clock face transported around the band
+returns reversed.
+
+The Euler characteristic is the invariant that makes classification computable. For a surface
+divided into vertices, edges, and faces, the alternating sum of their counts is independent of
+how the division was made, which is a striking result. It equals two for the sphere, zero for the
+torus, and two minus twice the genus in general for orientable surfaces. Because it is a
+topological invariant, two surfaces with different Euler characteristics cannot be homeomorphic,
+and computing it from any convenient triangulation settles the question.
+
+Surfaces and invariants:
+  manifold             locally resembles Euclidean space of a fixed dimension
+  surface              two-dimensional manifold
+  genus                number of handles; the classifying invariant for orientable
+                       compact surfaces
+  orientable           a consistent global orientation exists
+  Möbius band          the simplest non-orientable surface; one side, one edge
+  Klein bottle         non-orientable and closed; cannot embed in three dimensions
+                       without self-intersection
+  Euler characteristic  V - E + F; independent of the triangulation
+  sphere               characteristic 2, genus 0
+  torus                characteristic 0, genus 1
+  classification theorem  compact surfaces are classified by orientability and
+                       Euler characteristic
+  connected sum        glue two surfaces along a removed disc; genus adds
+  Gauss-Bonnet         total curvature equals 2 pi times the Euler characteristic;
+                       links geometry to topology
+  hairy ball theorem   no non-vanishing continuous tangent vector field on an
+                       even-dimensional sphere; hence a cowlick, and hence a
+                       cyclone somewhere on Earth's surface
+
+The Gauss-Bonnet theorem deserves emphasis because it connects a geometric quantity to a
+topological one in a way that seems too strong to be true. The total Gaussian curvature
+integrated over a closed surface equals two pi times its Euler characteristic — so however a
+sphere is deformed, stretched, or dented, the total curvature is unchanged. Bending the surface
+redistributes curvature and cannot change its total, because the total is determined by the
+topology alone. This is the archetype of a rigidity result linking local geometry to global
+topology, and it has descendants throughout modern mathematics and theoretical physics.
+
+## Homotopy, Homology, and Invariants
+
+Topological classification requires invariants — quantities preserved by homeomorphism — because
+proving two spaces are homeomorphic requires exhibiting a map, while proving they are not
+requires showing some invariant differs. Algebraic topology constructs invariants by assigning
+algebraic objects to spaces in a way that respects continuous maps.
+
+Homotopy formalizes continuous deformation of maps. Two maps are homotopic if one can be
+continuously deformed into the other, and two spaces are homotopy equivalent if maps between
+them compose to something homotopic to the identity. Homotopy equivalence is coarser than
+homeomorphism — a disc is homotopy equivalent to a point, and a solid torus to a circle — which
+makes it easier to compute and sufficient for many purposes.
+
+The fundamental group is the first and most intuitive algebraic invariant. It consists of loops
+based at a point, considered up to homotopy, with concatenation as the group operation. A space
+in which every loop contracts to a point has trivial fundamental group and is called simply
+connected — the sphere is, the torus is not, and the circle's fundamental group is the integers,
+counting how many times a loop winds around.
+
+Homology groups generalize this to higher dimensions and are more computable than higher
+homotopy groups. They detect holes of each dimension: the zeroth counts connected components,
+the first counts loops that do not bound a surface, the second counts voids enclosed by
+surfaces. Their computability is what makes them the practical tool, since higher homotopy groups
+are notoriously difficult to compute even for the sphere.
+
+Algebraic invariants:
+  homotopy             continuous deformation of maps
+  homotopy equivalence  coarser than homeomorphism, easier to compute
+  contractible         homotopy equivalent to a point
+  fundamental group    loops up to homotopy; the first algebraic invariant
+  simply connected     trivial fundamental group; every loop contracts
+  circle               fundamental group is the integers; the winding number
+  covering space       a space mapping locally homeomorphically; corresponds to
+                       subgroups of the fundamental group
+  homology             holes by dimension; computable
+  Betti numbers        the ranks of the homology groups; the count of holes of
+                       each dimension
+  Euler characteristic  the alternating sum of Betti numbers; recovers the
+                       combinatorial definition
+  Brouwer fixed point  every continuous self-map of a disc has a fixed point;
+                       proved by a homology argument
+  Borsuk-Ulam          any continuous map from a sphere to the plane sends some
+                       antipodal pair to the same point; hence two antipodal
+                       points on Earth with equal temperature and pressure
+  persistent homology  homology across a range of scales; the foundation of
+                       topological data analysis
+
+Brouwer's fixed point theorem deserves note because its proof illustrates the method. The
+theorem states that any continuous map from a disc to itself has a fixed point, which is
+intuitive and not obviously provable. The standard argument is by contradiction: if no fixed
+point existed, a retraction from the disc onto its boundary circle could be constructed, and such
+a retraction would induce a homomorphism from the trivial fundamental group of the disc onto the
+integers of the circle, which is impossible. An algebraic impossibility establishes a geometric
+fact, which is what algebraic topology exists to do.
+
+## Differential Geometry and Applications
+
+Differential geometry studies smooth manifolds with additional structure permitting
+differentiation, and its central concept is curvature — a local measurement of how a space
+departs from being flat. For a surface, Gaussian curvature is the product of the principal
+curvatures, and Gauss's theorema egregium establishes that it is intrinsic: it can be determined
+by measurements made entirely within the surface, without reference to how the surface sits in
+space.
+
+The theorem's practical consequence is that a surface with nonzero Gaussian curvature cannot be
+flattened without distortion. A sphere has positive curvature everywhere and a plane has zero, so
+no map projection can preserve both distances and angles — every world map distorts something,
+and which distortion is accepted is a choice rather than a technical limitation. A cylinder, by
+contrast, has zero Gaussian curvature despite appearing curved, which is why a sheet of paper
+rolls into a cylinder without stretching.
+
+Geodesics generalize straight lines as the locally shortest paths within a surface, and they are
+what a particle follows in the absence of force. On a sphere they are great circles, which is why
+long-distance flight paths appear curved on a flat map — they are straight in the geometry that
+matters and the map's distortion makes them look otherwise. In general relativity, spacetime is
+a curved manifold and free particles follow geodesics, so gravity is not a force acting on
+trajectories but the curvature of the space the trajectories are straight in.
+
+Differential geometry and applications:
+  smooth manifold      locally Euclidean with compatible smooth structure
+  tangent space        the linear approximation at a point
+  Riemannian metric    an inner product on each tangent space; gives lengths and
+                       angles
+  geodesic             locally shortest path; the generalization of a straight line
+  Gaussian curvature   intrinsic by the theorema egregium
+  developable surface  zero Gaussian curvature; flattens without distortion
+  map projection       no projection preserves both distance and angle; the choice
+                       of distortion is the design decision
+  parallel transport   moving a vector along a path keeping it parallel; the
+                       result depends on the path when curvature is nonzero
+  holonomy             the discrepancy after transport around a loop; measures
+                       curvature
+  connection           specifies how to differentiate vector fields on a manifold
+  curvature tensor     the general-dimension measure; Einstein's equations relate
+                       it to energy and momentum
+  Gauss-Bonnet         total curvature is a topological invariant
+  applications         general relativity, robotics configuration spaces, computer
+                       graphics surface modelling, optimization on manifolds,
+                       topological data analysis
+
+Topological data analysis deserves the closing note because it applies these ideas
+computationally. Data is treated as a sampled point cloud, and building a simplicial complex by
+connecting points within a distance threshold produces a space whose homology reflects the data's
+shape. Varying the threshold gives a family of complexes, and persistent homology tracks which
+topological features appear and persist across scales — features persisting over a wide range of
+thresholds are structural, and short-lived ones are noise. This provides a description of shape
+that is invariant to the coordinate system, robust to noise, and able to detect structure such
+as loops and voids that clustering and dimensionality reduction do not represent at all.
+
+The recurring lesson across the subject is that ignoring information reveals structure. Topology
+discards distance and finds what depends only on nearness; homotopy discards more and becomes
+computable; homology discards the group structure of loops and becomes computable in every
+dimension. Each abstraction loses detail and gains generality and tractability, and the results
+obtained apply to every space satisfying the weaker assumptions — which is why theorems about
+abstract topological spaces constrain map projections, weather patterns, robot motion planning,
+and the geometry of spacetime alike.

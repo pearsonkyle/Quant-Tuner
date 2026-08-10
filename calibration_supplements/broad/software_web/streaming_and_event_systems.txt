@@ -1,0 +1,238 @@
+================================================================================
+AREA: Software and Web Engineering
+SUBJECT: Streaming and Event-Driven Systems
+Subtopics: logs and queues, delivery semantics, stream processing, time and windowing,
+state and checkpointing, event-driven architecture, operations.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Logs, Queues, and the Underlying Model
+
+A streaming system moves records from producers to consumers continuously rather than in scheduled
+batches, and the two foundational abstractions are the queue and the log. A queue delivers each
+message to one consumer and removes it; a log appends records to an ordered, durable sequence that
+consumers read at their own position. The difference is not cosmetic — the log's retention of
+records after consumption is what enables replay, multiple independent consumers, and recovery from
+a bug by reprocessing, and those capabilities define what the system can be used for.
+
+Partitioning is how a log scales. The stream is split into partitions, each an independently ordered
+sequence, and ordering is guaranteed within a partition and not across them. The partition key
+therefore determines both the parallelism and the ordering guarantee available to the application:
+records sharing a key land in the same partition and are processed in order, which is why keying by
+the entity whose ordering matters — an account, a device, a session — is the central schema
+decision.
+
+Consumer groups distribute partitions among instances so that each partition is read by exactly one
+member. Adding consumers increases throughput only up to the partition count, which makes partition
+count a capacity decision that is awkward to change later since increasing it redistributes keys and
+breaks per-key ordering across the change. Choosing it generously at the start is the standard
+advice and the standard regret when it was not followed.
+
+Logs and partitions:
+  queue                one consumer per message, removed on consumption
+  log                  ordered durable sequence, consumers track position
+  retention            what enables replay, multiple consumers, and reprocessing
+  offset               a consumer's position in a partition
+  partition            an independently ordered subsequence
+  ordering guarantee   within a partition only
+  partition key        determines parallelism and which records are ordered
+                       together
+  the schema decision  key by the entity whose ordering matters
+  hot partition        a key with disproportionate volume; the standard skew
+                       failure
+  consumer group       partitions distributed one-to-one among members
+  the parallelism ceiling  consumers beyond the partition count idle
+  repartitioning       redistributes keys and breaks ordering across the change
+  retention policy     by time, by size, or compacted to the latest value per key
+  log compaction       keeps the most recent record per key; turns a log into a
+                       durable changelog of current state
+  the two views        a log is simultaneously a stream of changes and a table of
+                       current state, and moving between those views is the core
+                       idea behind most stream processing frameworks
+
+Q: A streaming application requires that all events for a given user are processed in order, but
+occasionally sees them out of order. The most likely cause is:
+A. The broker lost ordering
+B. The events for that user are not all going to the same partition — ordering is guaranteed only
+   within a partition, so the partition key must be the user identifier
+C. Consumers are too slow
+D. The clock is wrong
+Reasoning: Ordering across partitions is not guaranteed by design. If records for one entity are
+spread across partitions, they are consumed by different instances concurrently and interleave.
+Keying by the entity is the fix. Answer: B.
+
+## Delivery Semantics
+
+Delivery guarantees are among the most misunderstood parts of distributed messaging, and precision
+here prevents a great deal of wasted effort. At-most-once delivery may lose records and never
+duplicates them; it results from acknowledging before processing. At-least-once may duplicate and
+never loses; it results from acknowledging after processing, and it is the default in most systems
+because losing data is usually worse than repeating it.
+
+Exactly-once is the guarantee people want and the one that requires care to state correctly.
+Exactly-once delivery over an unreliable network is impossible — the sender cannot distinguish a
+lost message from a lost acknowledgement, so it must either retry or risk loss. What is achievable
+is exactly-once processing semantics, in which duplicates may be delivered but their effects on
+state are applied once, through transactional writes coupling the output and the offset commit, or
+through idempotent operations.
+
+Idempotency is the practical route and it is worth designing for regardless of what the framework
+promises, because it degrades gracefully. An operation that produces the same result when applied
+twice makes duplicate delivery harmless, and the standard techniques are deduplication on a
+producer-assigned identifier, upserts keyed by a natural identifier, and conditional writes that
+check a version. Systems built this way survive failures, replays, and reprocessing without special
+handling.
+
+Delivery semantics:
+  at-most-once         acknowledge before processing; may lose
+  at-least-once        acknowledge after processing; may duplicate
+  the usual default    at-least-once, because loss is worse than duplication
+  exactly-once delivery  impossible over an unreliable network
+  the impossibility    a lost message and a lost acknowledgement are
+                       indistinguishable to the sender
+  exactly-once processing  duplicates delivered, effects applied once
+  transactional writes  output and offset committed atomically
+  the scope limit      transactional guarantees usually end at the system
+                       boundary; a call to an external service is outside them
+  idempotency          the same result when applied twice
+  deduplication key    a producer-assigned identifier
+  upsert               keyed by a natural identifier
+  conditional write    check a version before applying
+  the design advice    build for idempotency regardless of the framework's
+                       guarantee, because it survives replay and reprocessing
+  dead letter queue    records that repeatedly fail; isolate them rather than
+                       blocking the partition
+  poison message       one bad record halting a partition indefinitely; the
+                       failure that dead lettering exists to prevent
+
+## Time, Windowing, and Late Data
+
+Time is the hardest part of stream processing because there are two of them. Event time is when
+something happened, recorded at the source; processing time is when the system sees it. They differ
+by network delay, buffering, retries, backlogs, and offline devices, and the difference is
+unbounded — a mobile device that was offline for a week delivers events a week late.
+
+Results should almost always be computed on event time, because event-time results are reproducible
+and correct while processing-time results depend on when the job happened to run. Reprocessing a
+day of data should give the same answer as the original run, and only event-time semantics provide
+that. The cost is that the system must decide when a time window is complete despite not knowing
+whether more data is coming.
+
+Watermarks are the mechanism for that decision. A watermark is an assertion that no more events
+with a timestamp earlier than some point are expected, and it advances based on observed timestamps
+plus a tolerance. It is a heuristic, so the choice of how much tolerance to allow is a direct
+tradeoff between latency and completeness — waiting longer catches more late data and delays every
+result. Records arriving after the watermark need an explicit policy: drop them, emit a correction,
+or route them to a side output for separate handling.
+
+Time and windowing:
+  event time           when it happened; recorded at the source
+  processing time      when the system saw it
+  the gap              unbounded; offline devices deliver arbitrarily late
+  the reproducibility argument  event-time results are stable across
+                       reprocessing
+  tumbling window      fixed, non-overlapping intervals
+  sliding window       fixed length, advancing by a smaller step; overlapping
+  session window       activity separated by gaps of inactivity; length is
+                       data-dependent
+  watermark            an assertion that earlier events are not expected
+  the tradeoff         more tolerance catches more late data and delays every
+                       result
+  allowed lateness     how long a window stays open for corrections
+  late data policy     drop, correct, or side output; make it explicit
+  triggers             when to emit; early speculative results, on watermark, and
+                       on late arrival
+  the emission question  a downstream consumer must understand whether a result
+                       is final or may be revised, and encoding that in the
+                       output is usually necessary
+  out-of-order tolerance  the single parameter that most determines whether a
+                       streaming job's numbers match a batch recomputation
+
+## State, Checkpointing, and Fault Tolerance
+
+Stateful stream processing keeps state per key — counts, aggregates, session data, joined records —
+and that state must survive failures. The standard architecture keeps state in a local embedded
+store for speed and replicates changes to a durable changelog, so a failed instance's state is
+rebuilt by replaying its changelog on a new instance rather than by recomputing from the source
+stream.
+
+Checkpointing coordinates the state snapshot with the input positions. A consistent checkpoint
+records both the state and the offsets that produced it, so recovery restores the state and resumes
+reading from exactly the matching position. Getting this coupling right is what makes exactly-once
+processing possible; getting it wrong produces state that reflects records the offsets say have not
+been read, or vice versa, and the resulting corruption is subtle and persistent.
+
+Backpressure is the mechanism preventing a fast producer from overwhelming a slow consumer. In a
+log-based system it is implicit — the consumer simply reads more slowly and its lag grows — which is
+a much better property than in a push-based system, where a slow consumer must either buffer without
+bound or drop data. Consumer lag is therefore the single most informative operational metric for a
+streaming system: it is a direct measure of whether processing is keeping up, and its trend
+distinguishes a temporary spike from a capacity deficit.
+
+State and fault tolerance:
+  local state store    embedded, fast, per-instance
+  changelog            durable replication of state changes
+  recovery             replay the changelog rather than the source stream
+  standby replicas     warm state copies reducing recovery time
+  checkpoint           state plus the matching input offsets
+  the coupling         state and offsets must be consistent or recovery corrupts
+  state size           grows without a retention policy; unbounded key spaces are
+                       a common outage cause
+  time-to-live on state  the routine fix, and it changes results, so it is a
+                       semantic decision
+  backpressure         a slow consumer reading more slowly; implicit in a log
+  consumer lag         the primary operational metric
+  lag trend            a spike differs from a deficit; the derivative matters
+  rebalancing          partition reassignment on membership change; pauses
+                       processing and rebuilds state
+  the rebalance cost   frequent rebalances from aggressive timeouts cause more
+                       disruption than the failures they detect
+  restart storms       all consumers restarting together and rebalancing
+                       repeatedly; stagger them
+
+## Event-Driven Architecture and Operations
+
+Event-driven architecture uses events as the integration mechanism between services, and the shift
+from request-response is a shift in coupling. A service publishing events does not know its
+consumers; a new consumer is added without touching the producer. This decoupling is the primary
+benefit and it comes with a cost that is frequently underestimated: the flow of control is no longer
+visible in any one place, so understanding what happens when an event is published requires
+consulting a registry of consumers rather than reading code.
+
+Event schemas are the contract and they must evolve without breaking consumers, which requires
+discipline from the start. Additive changes with defaults are safe; removing a field or changing its
+meaning is not. A schema registry with compatibility enforcement makes the rule mechanical rather
+than a matter of review, and the most valuable thing it prevents is a producer deploying a change
+that silently breaks a consumer nobody remembered existed.
+
+Event sourcing takes the pattern further by making the event log the authoritative record of state,
+with current state derived by replaying events. Its advantages are a complete audit trail, the
+ability to reconstruct state at any past time, and the ability to derive new views retroactively.
+Its costs are that schema evolution now applies to historical events that cannot be changed, that
+queries require projections maintained separately, and that the pattern is a poor fit where the
+domain does not naturally decompose into events.
+
+Architecture and operations:
+  event-driven integration  producers unaware of consumers
+  the benefit          new consumers without producer changes
+  the cost             control flow not visible in any single place
+  event notification   a signal to fetch; small payloads, more coupling
+  event-carried state  the payload contains what consumers need; larger, less
+                       coupled
+  schema contract      additive changes with defaults are safe
+  schema registry      compatibility enforced mechanically
+  the silent break     a producer change breaking a forgotten consumer
+  event sourcing       the log is the authoritative state
+  projections          derived query views maintained separately
+  the retroactive advantage  new views derived from history
+  the immutability cost  historical events cannot be corrected in place; a
+                       compensating event is the mechanism
+  the fit question     event sourcing suits domains that decompose into events
+                       and is painful where they do not
+  observability        trace identifiers propagated through events; without them
+                       a multi-hop event flow is undebuggable
+  replay as a tool     reprocessing from a past offset to fix a bug or build a new
+                       view is the single most valuable operational capability a
+                       log-based system provides, and designing consumers to be
+                       safely replayable is what preserves it

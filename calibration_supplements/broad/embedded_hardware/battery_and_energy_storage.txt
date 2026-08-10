@@ -1,0 +1,244 @@
+================================================================================
+AREA: Embedded and Hardware Engineering
+SUBJECT: Battery and Energy Storage Systems
+Subtopics: cell chemistry, characterization, charging, battery management systems,
+state estimation, pack design and safety, energy harvesting, low-power design.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Cell Chemistry and Characteristics
+
+A battery cell converts chemical energy to electrical energy through a reversible reaction between
+two electrodes separated by an electrolyte. The chemistry determines nominal voltage, energy
+density, power capability, cycle life, temperature tolerance, and safety behaviour, and no chemistry
+optimizes all of these simultaneously — every selection is a set of tradeoffs made for a specific
+application.
+
+Lithium-ion dominates portable and vehicle applications because of energy density, and it is not one
+chemistry but a family distinguished by cathode material. Cobalt-rich variants give the highest
+energy density and the worst thermal stability. Iron-phosphate gives lower energy density, a
+notably flat discharge curve, far better thermal stability, and longer cycle life. Nickel-rich
+variants sit between. The flat discharge curve of iron-phosphate is an underappreciated engineering
+consequence: it makes voltage-based state-of-charge estimation nearly useless, because a large
+capacity range maps to a millivolt-scale voltage range.
+
+The parameters that describe a cell are worth being precise about because they are routinely
+confused. Capacity in amp-hours is charge, not energy; energy in watt-hours is capacity times
+average voltage. C-rate expresses current as a multiple of the capacity value, so 2C on a 3 Ah cell
+is 6 A. Internal resistance determines both the voltage sag under load and the heat generated, and
+it rises with age and falls with temperature, which couples the thermal and ageing behaviour
+together.
+
+Cell fundamentals:
+  nominal voltage      chemistry-determined; 3.6-3.7 V for most lithium-ion,
+                       3.2 V for iron-phosphate
+  capacity             amp-hours; charge, not energy
+  energy               watt-hours; capacity times average voltage
+  C-rate               current as a multiple of capacity
+  specific energy      watt-hours per kilogram; the mass metric
+  energy density       watt-hours per litre; the volume metric
+  internal resistance  voltage sag and heat; rises with age, falls with
+                       temperature
+  cycle life           cycles to a defined capacity fade, typically eighty percent
+  calendar life        degradation with time regardless of cycling
+  self-discharge       capacity loss while idle; low for lithium, high for older
+                       nickel chemistries
+  cobalt-rich          highest energy, worst thermal stability
+  iron-phosphate       lower energy, flat curve, stable, long life
+  the flat curve consequence  voltage tells you almost nothing about state of
+                       charge, so coulomb counting becomes mandatory
+  lithium titanate     very long life and high rate, low energy density
+  solid state          higher energy and safety in principle; manufacturing is
+                       the obstacle
+
+Q: An iron-phosphate pack reports wildly inaccurate state of charge from a voltage lookup table.
+The cause is:
+A. A faulty voltage sensor
+B. The chemistry's discharge curve is nearly flat across most of its usable range, so small
+   voltage measurement errors map to very large charge errors; coulomb counting with periodic
+   endpoint correction is required instead
+C. The pack is defective
+D. The table is for the wrong temperature
+Reasoning: A flat open-circuit voltage curve makes voltage a poor observable for charge state. The
+standard approach is integrating current over time and correcting the accumulated drift at the
+steep regions near full and empty, where voltage does become informative. Answer: B.
+
+## Charging and Degradation
+
+The standard lithium-ion charge profile has two phases. Constant current brings the cell up to its
+voltage limit at a controlled rate; constant voltage then holds at that limit while the current
+tapers, and charging terminates when the current falls below a threshold. Most of the capacity
+enters during the constant current phase, which is why fast charging to eighty percent is much
+quicker than the remaining twenty.
+
+Charging outside the safe window causes damage that is often irreversible. Charging below freezing
+plates metallic lithium on the anode rather than intercalating it, which permanently reduces
+capacity and creates internal short-circuit risk; a correct charger refuses to charge a cold pack
+and warms it first if it can. Overcharging drives the cathode beyond its stable range and can
+initiate decomposition. Both failures are prevented by the same design principle: the charger
+should treat temperature and voltage limits as hard interlocks rather than as advisory.
+
+Degradation proceeds through several mechanisms simultaneously, and the practical levers follow
+from knowing which dominates. Growth of the interface layer on the anode consumes lithium and is
+accelerated by high temperature and by time at high state of charge. Mechanical stress from
+repeated expansion drives particle cracking, accelerated by deep cycling and high rates. Storing at
+a mid state of charge in a cool place and avoiding both full charge and full discharge in routine
+use addresses most of the controllable degradation.
+
+Charging and ageing:
+  constant current phase  the bulk of the charge
+  constant voltage phase  taper; slow and it completes the fill
+  termination          current falling below a threshold
+  fast charge to eighty  much of the time cost is in the last fifth
+  cold charging        plates lithium; permanent damage and a short risk
+  the interlock principle  temperature and voltage limits enforced in hardware
+                       where possible
+  balancing            equalizing cell voltages in a series string
+  passive balancing    bleed the high cells through a resistor; simple, wasteful
+  active balancing     transfer charge between cells; efficient, complex
+  the weakest cell     determines pack capacity in series; balancing addresses
+                       drift, not intrinsic mismatch
+  interface layer growth  lithium consumed; driven by heat and high charge state
+  particle cracking    mechanical; driven by deep cycles and high rates
+  the practical levers  cool storage, mid state of charge, shallow cycles,
+                       moderate rates
+  depth of discharge   shallower cycles yield disproportionately more of them
+  the throughput view  total energy delivered over life is often a better metric
+                       than cycle count
+
+## Battery Management and State Estimation
+
+A battery management system protects the pack, estimates its state, and reports to the system. The
+protection function is safety-critical and should be simple, independent, and verifiable: overvoltage,
+undervoltage, overcurrent, and over- and under-temperature cutoffs, ideally with a hardware
+protection layer that operates even if the microcontroller has failed. Complexity belongs in the
+estimation function, not the protection function.
+
+State of charge estimation combines two imperfect methods. Coulomb counting integrates current, which
+is accurate in the short term and drifts without bound as sensor offset accumulates. Voltage-based
+estimation uses the open-circuit voltage relationship, which does not drift but requires the cell to
+rest before it is valid and is nearly useless on flat-curve chemistries. A Kalman filter or
+equivalent combines them, trusting the integration over short intervals and correcting from voltage
+when conditions allow.
+
+State of health is harder because the quantity of interest — remaining capacity relative to new —
+is only directly measurable by a full discharge, which is rarely acceptable in service. Practical
+estimators track internal resistance growth, partial-cycle capacity increments, and voltage
+relaxation behaviour, and they are best understood as trended indicators rather than as
+measurements. A state-of-health number that moves smoothly and monotonically is more likely to be
+heavily filtered than accurate.
+
+Battery management:
+  protection function  safety-critical; simple, independent, verifiable
+  hardware protection  a second layer independent of firmware
+  the design rule      complexity in estimation, never in protection
+  coulomb counting     accurate short term, unbounded drift
+  current sensor offset  the drift source; a small offset integrates to a large
+                       error over a day
+  open-circuit voltage  no drift, needs rest, useless on flat curves
+  Kalman filtering     combining both with a cell model
+  equivalent circuit model  resistance plus RC branches; enough for most
+                       estimation
+  state of health      capacity fade; not directly measurable in service
+  resistance tracking  a usable proxy for ageing
+  incremental capacity  differential analysis of partial charges; sensitive to
+                       degradation mode
+  cell-level monitoring  required in series strings; a single pack voltage hides
+                       a failing cell entirely
+  temperature sensing  multiple points; a pack has thermal gradients and the
+                       hottest cell ages fastest
+  logging              the data that makes a field failure diagnosable; log
+                       current, voltage per cell, and temperature at a rate that
+                       captures events rather than averages
+
+## Pack Design, Thermal, and Safety
+
+A pack is cells in series for voltage and parallel for capacity, plus interconnects, sensing,
+protection, thermal management, and enclosure. The series count sets the voltage and therefore the
+insulation, isolation, and safety category; the parallel count sets capacity and the fault current
+available, which is frequently underestimated. A modest lithium pack can deliver hundreds of amps
+into a short circuit, and every design decision about conductors and fusing follows from that
+number.
+
+Thermal management is a first-order concern rather than an afterthought. Heat generation scales
+with current squared times internal resistance, so high-rate operation heats the pack rapidly.
+Elevated temperature accelerates every degradation mechanism, and temperature non-uniformity across
+the pack causes cells to age at different rates, which progressively worsens the imbalance the
+balancing system is trying to correct. Designing for uniform temperature is as important as
+designing for low temperature.
+
+Thermal runaway is the failure mode that governs safety design. A cell driven past its stability
+limit by overcharge, internal short, mechanical damage, or external heat begins exothermic
+decomposition, which raises the temperature, which accelerates the decomposition. Once initiated it
+cannot be stopped, so the entire safety strategy is prevention and containment: prevent the
+initiating conditions, and design the pack so that one cell in runaway does not propagate to its
+neighbours.
+
+Pack design and safety:
+  series count         sets voltage, insulation, and safety category
+  parallel count       sets capacity and available fault current
+  fault current        larger than intuition suggests; sizes conductors and fusing
+  interconnect resistance  a source of imbalance and localized heating
+  fusing               per-cell fusing limits the consequence of a single failure
+  contactors           high-voltage disconnect; sequencing and pre-charge matter
+  pre-charge           limits inrush into capacitive loads; skipping it welds
+                       contactors
+  isolation monitoring  detects insulation breakdown before it becomes a hazard
+  heat generation      current squared times resistance
+  thermal uniformity   as important as absolute temperature; gradients create
+                       divergent ageing
+  cooling approaches   passive, forced air, liquid, phase change; chosen by heat
+                       flux and packaging
+  thermal runaway      self-sustaining exothermic decomposition; unstoppable once
+                       started
+  propagation resistance  spacing, barriers, and venting so one cell does not
+                       take the pack
+  venting              directed away from occupants and electronics
+  transport and regulation  lithium shipment is regulated; certification testing
+                       is a schedule item, not a formality
+
+## Harvesting and Low-Power Design
+
+Not every system carries a battery sized for its whole life. Energy harvesting extracts power from
+the environment — light, vibration, thermal gradient, radio frequency — and the defining
+characteristic is that the available power is small, intermittent, and highly variable. A harvesting
+design is therefore an energy budget problem rather than a power supply problem, and it needs
+storage to buffer between when energy arrives and when it is needed.
+
+The power extracted from most harvesters depends strongly on the load impedance, and maximum power
+point tracking adjusts the operating point to keep it at the optimum. For a small photovoltaic cell
+this can double or triple the harvested energy compared with directly charging a battery, which is
+frequently the difference between a design that works and one that does not.
+
+Low-power firmware design follows a single principle: the processor should be asleep almost all of
+the time. Average current is dominated by whatever runs continuously, so a design with a fifty
+microamp sleep current and a brief twenty milliamp active burst is limited by the sleep current
+entirely. The corollary is that peripherals left enabled, pins floating, and pull-ups fighting
+external drives frequently consume more than the processor itself, and finding them requires
+measuring rather than reasoning.
+
+Harvesting and low power:
+  sources              light, vibration, thermal gradient, radio frequency
+  the characteristic   small, intermittent, variable
+  energy budget        the correct framing; joules per event, not watts
+  storage buffer       supercapacitor for cycling, battery for density
+  cold start           harvesting from zero stored energy; needs a dedicated
+                       circuit
+  maximum power point  the load impedance for peak extraction; tracking it can
+                       multiply the yield
+  duty cycling         the primary low-power technique
+  sleep modes          retention versus wake latency versus current; know which
+                       mode retains what
+  wake sources         timer, pin, peripheral; the interrupt structure defines the
+                       power profile
+  average current      dominated by sleep current when the duty cycle is low
+  the hidden consumers  enabled peripherals, floating inputs, pull-ups fighting
+                       drives, unused regulators
+  measurement          a current probe with sufficient dynamic range and
+                       bandwidth; microamps and milliamps in one trace is the
+                       requirement
+  the practical method  measure the current profile of one full cycle, integrate
+                       it, and multiply by the event rate; every low-power
+                       estimate made without that measurement has been wrong in
+                       my experience, usually by more than a factor of two

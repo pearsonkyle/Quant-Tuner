@@ -1,0 +1,273 @@
+================================================================================
+AREA: Software and Web Engineering
+SUBJECT: Testing and Software Quality
+Subtopics: the test pyramid, unit and integration testing, test design, doubles,
+property-based and fuzz testing, end-to-end and flakiness, code review, quality practice.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## The Purpose and Shape of a Test Suite
+
+A test suite exists to let people change code confidently, and every property worth having
+follows from that purpose. Tests that are slow discourage running them. Tests that fail
+intermittently train people to ignore failures. Tests that break on every refactor make
+refactoring expensive, which is the opposite of the intent. A suite optimized for coverage
+metrics rather than for confidence produces all three problems simultaneously.
+
+The test pyramid describes the sensible distribution: many fast unit tests over individual
+components, fewer integration tests over the interaction between them, and a small number of
+end-to-end tests over complete user journeys. The shape follows from cost and diagnostic
+value — a unit test runs in milliseconds and points precisely at the broken function, while an
+end-to-end test runs in seconds to minutes and reports only that something in a long chain
+failed.
+
+The inverted pyramid, sometimes called the ice cream cone, is the common failure mode: a large
+suite of slow, brittle end-to-end tests with little underneath. It arises naturally because
+end-to-end tests are the most obvious to write and require no design for testability, and it
+produces a suite that takes an hour to run, fails for unrelated reasons, and gives no
+information about where the problem is.
+
+Test suite properties:
+  fast                  a suite that is slow is a suite that is skipped
+  deterministic         intermittent failure destroys the signal entirely
+  isolated              tests must not depend on each other's state or on order
+  focused               one behaviour per test; a failing test should name the
+                        problem
+  readable              a test is documentation of intended behaviour
+  behaviour not implementation  tests coupled to internals break on refactoring
+                        without indicating a defect
+  meaningful failure    the message should identify what was expected and what
+                        happened
+  pyramid shape         many unit, fewer integration, few end-to-end
+  fast feedback first   run the cheap tests before the expensive ones in CI
+  coverage as a floor   low coverage indicates untested code; high coverage does
+                        not indicate good tests
+
+Coverage deserves a precise statement because it is so often misused. Line coverage measures
+which lines executed during the test run, which establishes that code was reached and nothing
+about whether its behaviour was verified — a test calling a function and asserting nothing
+produces full coverage of it. Branch coverage is stronger, requiring each conditional outcome.
+Mutation testing is stronger still: it introduces small changes to the code and checks whether
+any test fails, which directly measures whether the tests would catch a defect. Coverage is
+therefore useful as a floor, identifying code no test touches, and misleading as a target,
+since it is trivially gamed.
+
+Q: A codebase has 95% line coverage and a production defect ships in a heavily covered
+function. The most likely explanation is:
+A. The coverage tool is wrong
+B. The tests execute the code without asserting the behaviour that broke, or the case was not
+   among those tested
+C. 95% is too low
+D. The defect is in the 5%
+Reasoning: Line coverage records execution, not verification. A function can be executed by
+many tests that assert only that it does not throw, and a specific input combination can be
+uncovered while every line is reached by other inputs. Mutation testing measures what coverage
+is often assumed to measure. Answer: B.
+
+## Unit and Integration Testing
+
+A unit test verifies one component in isolation, and the definition of a unit is a matter of
+judgment rather than doctrine. Defining it as a single class or function leads to tests
+coupled to the implementation structure, which break whenever that structure changes even when
+behaviour is unaffected. Defining it as a unit of behaviour, potentially spanning several
+collaborating classes, produces tests that survive refactoring and describe what the code does
+rather than how it is arranged.
+
+The arrange-act-assert structure organizes a test into setting up the preconditions, performing
+the operation, and verifying the outcome. Keeping these visually separate makes tests readable
+and makes it obvious when a test is doing too much — several act-assert pairs in one test
+usually means it should be several tests, since a failure in the first prevents the rest from
+running and the test's name cannot describe all of them.
+
+Integration tests verify that components work together, and their value is in the seams —
+the interfaces between modules, the interaction with the database, the serialization format
+crossing a network boundary. These are exactly the places where unit tests with mocked
+collaborators give false confidence, because the mock encodes the developer's belief about the
+collaborator's behaviour rather than its actual behaviour.
+
+Testing structure:
+  arrange-act-assert     setup, operation, verification; keep them separate
+  one behaviour per test  a failure should name the problem
+  descriptive names      the name should state the expected behaviour, so a
+                         failure report is readable without opening the file
+  no logic in tests      conditionals and loops in a test mean the test needs
+                         testing; prefer parameterized cases
+  test the contract      public behaviour, not private implementation
+  fixtures               shared setup; keep them minimal and obvious, since
+                         distant setup makes tests unreadable
+  builders               construct test data with sensible defaults and explicit
+                         overrides for the properties under test
+  integration seams      database access, serialization, network boundaries,
+                         third-party interfaces
+  contract tests         verify that a provider satisfies what consumers expect;
+                         catch breaking changes without full integration
+  test containers        real dependencies in containers; far higher fidelity
+                         than mocks and now fast enough for routine use
+
+The choice between a mock and a real dependency in integration tests has shifted with tooling.
+Mocking a database was standard when running one in a test was slow and awkward, and it means
+the tests never exercise the actual SQL, the actual constraints, the actual transaction
+behaviour, or the actual type mapping — which is where a substantial fraction of real defects
+live. Running a real database in a container per test suite is now fast enough that it is the
+better default, and the fidelity gain is large.
+
+## Test Doubles and Test Design
+
+Test doubles stand in for real collaborators, and the taxonomy matters because the varieties
+support different purposes. A dummy is passed and never used. A stub returns configured values.
+A spy records how it was called. A mock has expectations about how it should be called and
+fails if they are not met. A fake is a working lightweight implementation, such as an in-memory
+repository.
+
+Overmocking is the most common testing pathology. A test in which every collaborator is mocked
+verifies that the code under test calls its collaborators in a particular way, which is a
+statement about the implementation rather than about behaviour. Such tests break whenever the
+implementation changes, pass when the collaborators change in ways that break the integration,
+and provide confidence proportional to the accuracy of the developer's assumptions about the
+collaborators, which is precisely what is in doubt.
+
+The practical guidance is to mock at architectural boundaries — external services, the clock,
+randomness, the filesystem — and to use real objects within the unit under test. This produces
+tests that verify behaviour and that survive internal restructuring, and it concentrates the
+mocking on the things that are genuinely awkward to use directly.
+
+Test doubles and design:
+  dummy                 passed but unused
+  stub                  returns configured values
+  spy                   records interactions
+  mock                  asserts on interactions; overuse couples tests to
+                        implementation
+  fake                  a working lightweight implementation
+  mock at boundaries    external services, clock, randomness, filesystem, network
+  do not mock what you own  prefer real objects within your own code
+  dependency injection  makes substitution possible; the primary testability
+                        design technique
+  hexagonal architecture  domain logic isolated behind ports; the domain is
+                        testable with no infrastructure at all
+  pure functions        trivially testable; push side effects to the edges
+  time                  inject a clock rather than calling the system clock;
+                        otherwise tests are time-dependent and flaky
+  randomness            inject a seeded generator
+  test data builders    readable construction with explicit relevant properties
+
+Testability is a design property rather than a testing technique, and code that is hard to
+test is usually hard for other reasons too. A function reading global state, calling the system
+clock, performing I/O, and returning nothing is difficult to test because it has many implicit
+dependencies and no observable output — and those same properties make it difficult to reason
+about, to reuse, and to change. Restructuring toward explicit dependencies and returned values
+improves both testability and design, which is why the discipline of writing tests tends to
+improve architecture as a side effect.
+
+## Property-Based, Fuzz, and Specialized Testing
+
+Example-based tests verify specific inputs, which means they verify what the author thought
+of. Property-based testing instead states a property that should hold for all valid inputs and
+generates many inputs to check it, which finds cases the author did not consider. When a
+failure is found, the framework shrinks the input toward a minimal failing case, which is
+frequently the difference between a baffling failure and an obvious one.
+
+The properties worth asserting follow recognizable patterns. Round-trip properties state that
+encoding then decoding returns the original, which tests serialization thoroughly with one
+assertion. Invariant properties state that something holds regardless of the operation — a
+sorted list remains sorted, a balance is never negative, a collection's size changes correctly.
+Metamorphic properties relate the outputs of related inputs, which is valuable when the correct
+answer is unknown but the relationship is: sorting a list and sorting its reverse should give
+the same result.
+
+Fuzz testing generates inputs, often malformed, to find crashes and undefined behaviour.
+Coverage-guided fuzzing instruments the program and mutates inputs toward those that reach new
+code paths, which is dramatically more effective than random generation. It has found enormous
+numbers of security-relevant defects in parsers, decoders, and protocol implementations, and it
+is now standard practice for any code processing untrusted input.
+
+Specialized testing:
+  property-based        state a property, generate inputs, shrink failures
+  round-trip            encode then decode returns the original
+  invariants            hold regardless of the operation
+  metamorphic           relate outputs of related inputs; useful when the correct
+                        answer is unknown
+  fuzz testing          generated and malformed inputs; finds crashes
+  coverage-guided fuzz  mutate toward new code paths; far more effective
+  snapshot testing      compare output to a stored baseline; convenient and prone
+                        to blind acceptance of changed snapshots
+  golden files          the same idea for larger artifacts
+  approval testing      human review of the first output, then automated
+                        comparison
+  performance tests     assert on latency or throughput; noisy, so use statistical
+                        thresholds rather than exact ones
+  load testing          behaviour under expected and peak load
+  chaos testing         inject failures to verify resilience assumptions
+  security testing      dependency scanning, static analysis, penetration testing
+  accessibility testing automated checks catch roughly a third; keyboard and
+                        screen reader passes catch the rest
+
+Snapshot testing deserves a caution because its convenience is also its weakness. Recording the
+output and comparing subsequent runs against it catches unintended changes with almost no
+authoring effort, and it produces failures that are resolved by regenerating the snapshot. When
+regeneration becomes routine, the test stops verifying anything — a genuine regression is
+accepted along with the intended change because the diff is large and nobody reads it. The
+discipline that keeps it useful is treating a snapshot change as requiring the same review as a
+code change.
+
+## End-to-End Testing, Flakiness, and Practice
+
+End-to-end tests exercise the complete system as a user would, and they are the only tests
+that verify the whole assembly actually works. They are also slow, brittle, and expensive to
+maintain, which is why the pyramid places few of them. The right selection is the critical user
+journeys — the paths whose failure would be unacceptable — rather than comprehensive coverage
+of features that unit and integration tests already verify.
+
+Flakiness is the property of failing intermittently without a code change, and it is the most
+damaging defect a test suite can have because it destroys the suite's meaning. Once reruns are
+routine, a genuine failure is indistinguishable from a flake and gets rerun too. Automatic
+retry configured to hide flakiness is therefore actively harmful: it converts an
+intermittent failure that would have been fixed into a permanent blind spot.
+
+The causes of flakiness are enumerable and each has a specific remedy. Timing assumptions —
+waiting a fixed duration for an asynchronous operation — fail when the machine is loaded, and
+the remedy is waiting for a condition rather than a duration. Shared state between tests
+produces order dependence, remedied by isolation. Real time dependencies fail at midnight, at
+daylight saving transitions, or in a different timezone, remedied by injecting a clock. External
+service dependencies fail when the service does, remedied by stubbing at the boundary.
+Concurrency in the system under test produces genuinely nondeterministic behaviour, which is a
+real defect the test has surfaced rather than a test problem.
+
+Flakiness and quality practice:
+  fixed sleeps          the leading cause; wait for a condition instead
+  shared state          isolate; each test creates and cleans its own data
+  test order dependence  randomize order in CI to detect it
+  real clock            inject a controllable one
+  external services     stub at the boundary for reliability; test the real
+                        integration separately and less often
+  concurrency           nondeterminism in the system, not in the test; investigate
+                        rather than retry
+  quarantine            move a flaky test out of the blocking suite with an owner
+                        and a deadline; do not simply retry it
+  measure flake rate    track it; a rising rate is a quality signal
+  code review           a second reader catches design and logic issues that no
+                        tool finds; keep changes small enough to review properly
+  static analysis       cheap, catches known patterns, needs tuning to stay
+                        credible
+  linting and formatting  automate; a formatter removes an entire category of
+                        review discussion
+  types                 catch a substantial class of error before runtime
+  CI gates              tests, lint, types, security scan; fast checks first
+  definition of done    what must be true before a change is complete; written
+                        down rather than assumed
+
+Code review's value is worth stating precisely because it is frequently conducted as a
+formality. Its highest-value contribution is not defect detection, which tools do more
+reliably, but design feedback, knowledge transfer, and the shared understanding that comes
+from a second person having read the code. Its effectiveness falls sharply with change size —
+a reviewer engages properly with a fifty-line change and skims a thousand-line one — so the
+practice that most improves review quality is keeping changes small, which also makes them
+easier to test, to deploy, and to revert.
+
+The final observation is that testing is a means rather than an end. The goal is software that
+works and that can be changed safely, and tests are the most effective known technique for the
+second half of that. A suite that has grown to the point where it obstructs change has stopped
+serving its purpose, and deleting tests that verify nothing, that duplicate others, or that
+have become coupled to a design that has since changed is legitimate maintenance rather than
+negligence. The measure is whether the suite makes people more willing to change the code, and
+a suite that makes them less willing is failing regardless of its coverage.

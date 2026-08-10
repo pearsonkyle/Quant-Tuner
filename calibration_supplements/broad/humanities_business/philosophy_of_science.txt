@@ -1,0 +1,318 @@
+================================================================================
+AREA: Humanities, Business, and Social Science
+SUBJECT: Philosophy of Science and Epistemology
+Subtopics: knowledge and justification, induction, demarcation, theory change,
+explanation and causation, realism, probability and evidence, science in practice.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Knowledge, Justification, and the Problem of Induction
+
+The classical analysis defines knowledge as justified true belief, and Gettier's short 1963
+paper showed the analysis is insufficient with counterexamples in which all three conditions
+hold and the belief is nonetheless not knowledge — because the justification connects to the
+truth accidentally. A person who believes it is three o'clock from a stopped clock that
+happens to read the correct time has a justified true belief and does not know the time.
+Attempts to repair the definition by adding a fourth condition have proliferated without
+consensus, which is itself informative: the concept may not admit a clean set of necessary and
+sufficient conditions.
+
+The problem of induction, sharpened by Hume, is more consequential for science. Inductive
+inference generalizes from observed cases to unobserved ones, and no deductive argument
+justifies it: that the sun has risen every day does not entail it will rise tomorrow. The
+attempt to justify induction by its past success is circular, since that argument is itself
+inductive. Hume's conclusion was that induction is a habit of mind rather than a rational
+inference, and no subsequent proposal has achieved general acceptance as a solution.
+
+Goodman's new riddle of induction sharpens the problem further. Define a predicate that
+applies to things examined before a future time and found green, or not examined and blue.
+All observed emeralds satisfy both "green" and this artificial predicate equally well, so
+the evidence supports both generalizations, which make contradictory predictions about future
+observations. The problem is not that we lack evidence but that any body of evidence supports
+indefinitely many incompatible generalizations, and something beyond the evidence must
+determine which we project.
+
+Epistemological concepts:
+  justified true belief   the classical analysis; refuted as sufficient by Gettier
+  reliabilism             a belief is justified if produced by a reliable process
+  problem of induction    no deductive justification for generalizing; the circular
+                          defence fails
+  Goodman's riddle        evidence underdetermines which predicate to project
+  underdetermination      multiple theories fit any finite body of evidence
+  Duhem-Quine thesis      hypotheses face evidence in bundles, so a failed
+                          prediction never falsifies one claim uniquely
+  auxiliary hypothesis    the background assumptions that can absorb an anomaly
+  theory-ladenness        observation is shaped by the theoretical framework used
+                          to make and describe it
+  coherentism             beliefs justified by mutual support rather than by
+                          foundations
+  fallibilism             every claim is revisable; the working stance of science
+
+The Duhem-Quine thesis has direct methodological consequences. A prediction derives from a
+hypothesis together with auxiliary assumptions — about the instruments, the background
+conditions, the absence of interference, the correctness of the mathematics. When the
+prediction fails, logic tells you that something in the conjunction is wrong and does not tell
+you what. Historically this has cut both ways: anomalies in Uranus's orbit were resolved by
+positing a new planet, which was found, while identical reasoning applied to Mercury's
+perihelion posited a planet that does not exist and the resolution came from replacing
+Newtonian gravity. The same move was scientifically respectable in one case and mistaken in
+the other, and no rule distinguishes them in advance.
+
+Q: An experiment contradicts a well-established theory's prediction. Which conclusion is
+licensed by logic alone?
+A. The theory is false
+B. At least one element of the conjunction of theory, auxiliary assumptions, and experimental
+   conditions is false
+C. The experiment was flawed
+D. The theory needs modification
+Reasoning: The prediction follows from the theory together with auxiliaries about
+instrumentation, background conditions, and the absence of confounds. A failed prediction
+falsifies the conjunction, and logic does not identify which conjunct to reject. This is the
+Duhem-Quine thesis, and it is why a single anomalous result rarely overturns a theory in
+practice. Answer: B.
+
+## Demarcation and Scientific Method
+
+The demarcation problem asks what distinguishes science from non-science. Popper's answer was
+falsifiability: a scientific theory forbids something, and a theory compatible with every
+possible observation says nothing. This has real diagnostic value — it identifies why an
+unfalsifiable claim, however plausible, is not doing scientific work — and it does not
+survive as a sharp criterion, for the reason Duhem and Quine identified: no theory is
+falsifiable in isolation, since any prediction can be preserved by adjusting auxiliaries, and
+scientists routinely and correctly do exactly that.
+
+Lakatos proposed research programmes as the unit of appraisal rather than individual
+theories. A programme has a hard core protected by convention and a protective belt of
+auxiliary hypotheses that absorb anomalies. What distinguishes a progressive programme from a
+degenerating one is whether its modifications generate novel predictions that are subsequently
+confirmed, or merely accommodate what is already known. This preserves Popper's insight that
+content and risk matter while accounting for the fact that theories are defended rather than
+abandoned at the first anomaly.
+
+The image of a single scientific method proceeding from observation through hypothesis to
+experiment to conclusion is a textbook simplification that describes little actual practice.
+Real inquiry involves theory-driven observation, hypotheses generated by analogy and
+mathematical structure as often as by data, extended periods of model refinement, and results
+that are negotiated through peer review and replication. That there is no algorithm does not
+mean there is no method — the practices of controlled comparison, quantification, prediction,
+replication, and open criticism are genuinely distinctive and genuinely effective.
+
+Demarcation and method:
+  falsifiability        a theory must forbid something; useful heuristic, not a
+                        sharp criterion
+  ad hoc modification   a change that saves a theory without adding testable
+                        content; the real target of Popper's objection
+  research programme    hard core plus protective belt; progressive if it predicts
+                        novel facts, degenerating if it only accommodates
+  novel prediction      predicting something not used in constructing the theory;
+                        the strongest form of confirmation
+  severe testing        a test the hypothesis would probably have failed if false
+  replication           independent reproduction; the practical core of reliability
+  peer review           a filter, not a guarantee; catches some errors and misses
+                        many
+  consilience           independent lines converging; the strongest evidence
+                        available in practice
+  parsimony             prefer fewer assumptions; a heuristic with no guarantee
+                        that nature is simple
+  pseudoscience markers unfalsifiable claims, immunity to disconfirming evidence,
+                        reliance on anecdote, absence of a mechanism, appeal to
+                        conspiracy to explain rejection
+
+Consilience deserves emphasis because it is what actually produces confidence in mature
+science and is underrepresented in philosophical accounts focused on single tests. The age of
+the Earth is established by radiometric dating of multiple isotope systems, by stellar
+physics, by sedimentation rates, by the sea's salinity budget, and by the cosmic distance
+ladder — methods with entirely different assumptions, instrumentation, and failure modes, all
+converging. The improbability of independent methods agreeing by coincidence is what makes the
+conclusion secure, and it is a far stronger argument than the falsification of any single
+alternative.
+
+## Theory Change and Explanation
+
+Kuhn's account of scientific change distinguished normal science, in which a paradigm
+supplies the problems and the standards for solving them, from revolutionary science, in
+which anomalies accumulate until the framework itself is replaced. His claim that competing
+paradigms are incommensurable — that they differ in the meanings of their terms and in what
+counts as a legitimate problem — was widely read as implying that theory choice is irrational
+and that later theories are not closer to truth.
+
+That reading was stronger than Kuhn's considered position and stronger than the historical
+record supports. Successive theories in mature sciences typically preserve the empirical
+successes of their predecessors as limiting cases: Newtonian mechanics is recovered from
+relativity at low velocity and from quantum mechanics at large scale. That structure of
+retention is difficult to explain if the theories are merely different rather than
+successively better. Laudan's pessimistic induction pushes the other way, observing that
+many past theories were empirically successful and are now considered false, so current
+success is weak evidence for truth.
+
+Explanation is a distinct question from prediction, and theories can do one well and the
+other badly. The deductive-nomological model treats explanation as deduction from laws plus
+initial conditions, which captures a great deal and has known counterexamples: the height of
+a flagpole and the length of its shadow are mutually derivable, and only one direction is
+explanatory, which suggests explanation involves asymmetric dependence that deduction does not
+capture. Causal accounts locate explanation in identifying what produced the phenomenon;
+unificationist accounts locate it in reducing the number of independent assumptions needed to
+account for many phenomena.
+
+Theory change and explanation:
+  paradigm               the framework of assumptions, methods, and exemplars
+  normal science         puzzle-solving within a paradigm
+  anomaly                a persistent unsolved problem
+  scientific revolution  paradigm replacement
+  incommensurability     differences in meaning and standards across paradigms
+  correspondence         a new theory recovers the old one in a limiting regime
+  pessimistic induction  past successful theories were false, so current ones
+                         may be too
+  deductive-nomological  explanation as deduction from laws; asymmetry problems
+  causal explanation     identifying the producing mechanism
+  unification            explaining many phenomena from few assumptions
+  mechanism              decomposing a phenomenon into interacting parts; the
+                         dominant model of explanation in biology and medicine
+  inference to the best  accept the hypothesis that best explains the evidence;
+                         requires that the best available be good enough
+
+## Causation, Probability, and Evidence
+
+Causal claims are the ones science most wants to make and the hardest to establish from
+observation. Regularity accounts identify causation with constant conjunction and cannot
+distinguish causes from correlated effects of a common cause. Counterfactual accounts define a
+cause as something whose absence would have prevented the effect, which matches intuition and
+requires evaluating claims about non-actual situations. Manipulationist accounts identify a
+cause as something that would change the effect if intervened upon, which connects directly
+to experimental practice and is the framework underlying modern causal inference.
+
+The formal apparatus of causal inference makes these distinctions operational. Causal
+diagrams represent assumed relationships, and rules on those diagrams determine which
+statistical adjustments identify a causal effect. The key results are that confounders — common
+causes of treatment and outcome — must be adjusted for, that mediators lie on the causal path
+and adjusting for them removes the effect being estimated, and that colliders are common
+effects whose adjustment induces spurious association. That last case is why controlling for
+additional variables is not conservative: adjusting for a collider creates bias where none
+existed.
+
+Probability admits interpretations that support different inferential practices. Frequentism
+identifies probability with long-run relative frequency, which makes it undefined for
+one-off events and grounds procedures with guaranteed error rates over repeated use. Bayesian
+interpretation treats probability as degree of belief updated by evidence, which applies to
+single events and requires a prior. The practical difference is what a result means: a
+confidence interval is a statement about the procedure's long-run behaviour, and a credible
+interval is a statement about the parameter given the data — the latter being what people
+almost always intend.
+
+Causation and evidence:
+  correlation            symmetric; consistent with either direction or a common
+                         cause
+  confounder             a common cause of exposure and outcome; adjust for it
+  mediator               on the causal path; adjusting removes the effect
+  collider               a common effect; adjusting induces spurious association
+  randomization          breaks confounding by design; the strongest evidence
+  natural experiment     an as-if random assignment occurring without intervention
+  Bradford Hill criteria strength, consistency, specificity, temporality, gradient,
+                         plausibility, coherence, experiment, analogy; heuristics
+                         for causal inference from observational data, not a
+                         checklist
+  base rate              the prior prevalence; ignoring it is the most common
+                         probabilistic error
+  likelihood ratio       how much more probable the evidence is under one
+                         hypothesis than another; the natural measure of
+                         evidential strength
+  p-value                probability of data this extreme under the null; not the
+                         probability the null is true
+  prior sensitivity      where a Bayesian conclusion depends heavily on the prior,
+                         report the dependence rather than a single posterior
+
+[user] A study finds people who drink coffee live longer. What would it take to conclude
+coffee causes longevity?
+[assistant] tool_call causal.assess({"claim": "coffee_causes_longevity",
+"design": "observational_cohort", "adjusted_for": ["age", "sex", "income"],
+"unadjusted": ["smoking", "baseline_health", "reverse_causation"],
+"effect_size_hr": 0.88})
+[tool] {"identification": "not_established", "threats": ["confounding_by_smoking",
+"reverse_causation_sick_quitters", "healthy_user_bias", "collider_risk_if_adjusting_
+for_health_outcomes"], "strengthening_evidence": ["dose_response", "mendelian_
+randomization", "rct_on_intermediate_outcome"]}
+[assistant] As it stands the study establishes association, and three specific alternatives
+are all consistent with the data.
+
+Confounding is the first. Coffee drinking correlates with smoking, income, education, and
+occupation, and the study adjusted for only some of these. Smoking in particular is a strong
+confounder in the opposite direction, so residual confounding by unmeasured smoking intensity
+can produce or destroy an apparent effect. Adjusting for the variables you happen to have
+measured does not address the ones you did not.
+
+Reverse causation is the second and is easy to miss. People who are already unwell often
+reduce or stop coffee — the sick-quitter effect — so the non-drinking group is enriched in
+people with pre-existing illness, and their higher mortality is caused by the illness rather
+than by the absence of coffee. The standard mitigation is excluding deaths in the first
+several years of follow-up and excluding people with baseline disease, and reporting whether
+the effect survives.
+
+Healthy user bias is the third: behaviours cluster, and whatever makes someone a moderate
+coffee drinker may correlate with other health-promoting behaviours not captured.
+
+What would strengthen the causal claim, roughly in ascending order of strength. A
+dose-response gradient consistent across the range is suggestive though also explicable by
+graded confounding. Consistency across populations with different confounding structures —
+where coffee drinking correlates with smoking in one country and not another — is more
+persuasive, because the confounders differ while the association persists. Mendelian
+randomization, using genetic variants affecting caffeine metabolism as instruments,
+approximates randomization since genotype is assigned at conception and is unlikely to
+correlate with lifestyle confounders. And a randomized trial on an intermediate outcome, such
+as a biomarker, provides direct experimental evidence for a mechanism even where a mortality
+trial is infeasible.
+
+One caution on adjustment: do not adjust for variables that could be on the causal path, such
+as blood pressure or inflammatory markers, if the hypothesis is that coffee acts through them.
+That removes the very effect being estimated, and adjusting for a common effect of coffee and
+mortality would actively create bias.
+
+## Values, Practice, and the Social Structure of Science
+
+The claim that science is value-free does not survive examination, and the useful distinction
+is between where values legitimately operate and where they do not. Values are unavoidable in
+choosing which questions to pursue, in deciding what counts as an acceptable risk of error, in
+selecting how to categorize and measure, and in judging when evidence is sufficient for
+action. Values are illegitimate in determining what the evidence says. The argument from
+inductive risk observes that any decision to accept or reject a hypothesis carries a risk of
+error whose consequences are asymmetric, and weighing those consequences requires value
+judgments that cannot be derived from the data.
+
+The social structure of science is part of its epistemology rather than incidental to it.
+Objectivity is achieved less by individual detachment than by a community with diverse
+perspectives, shared standards for criticism, and mechanisms by which criticism can change
+what is believed. Peer review, replication, open data, and adversarial collaboration are the
+institutional expression of this, and their failures — publication bias, incentive
+misalignment, homogeneous reviewer pools, unreplicable findings — are epistemological problems
+rather than merely administrative ones.
+
+The replication crisis across several fields is the most instructive recent case. Its causes
+are structural: publication favours positive novel results, analytic flexibility permits
+significance to be reached from noise without conscious dishonesty, small samples produce
+inflated effect estimates when they do reach significance, and replication attempts were
+neither rewarded nor published. The reforms that followed — preregistration, registered
+reports where acceptance precedes results, open data and code, larger samples, and the
+publication of null results — are corrections to the institutional structure rather than to
+individual reasoning, which is consistent with the view that scientific reliability is a
+property of communities and their practices.
+
+Values and practice:
+  question selection    unavoidably value-laden; what gets studied reflects
+                        priorities and funding
+  inductive risk        the choice of error rates weighs consequences, which is a
+                        value judgment
+  legitimate role       values in choosing problems, thresholds, and applications
+  illegitimate role     values determining what the evidence shows
+  transparency          state the assumptions and the analytic choices so others
+                        can assess them
+  diversity             heterogeneous perspectives catch assumptions a homogeneous
+                        community shares and cannot see
+  incentive structure   publication and funding shape what research is done and
+                        how it is reported
+  preregistration       separates prediction from accommodation
+  open science          data, code, and materials available for reanalysis
+  expertise             warranted deference is to a well-functioning community
+                        process, not to individual authority
+  uncertainty communication  stating what is known, how well, and what would change
+                        the assessment is more honest and more useful than
+                        projecting either certainty or agnosticism

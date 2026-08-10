@@ -1,0 +1,320 @@
+================================================================================
+AREA: Software and Web Engineering
+SUBJECT: Security
+Subtopics: threat modeling, cryptography, authentication and authorization, web
+vulnerabilities, secrets and supply chain, network security, secure development.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Threat Modeling and Security Principles
+
+Security is a property of a system relative to an adversary, so the first question is
+always who you are defending against and what they want. A threat model that is not
+written down is a threat model that is inconsistent, and most security effort misallocated
+in practice is misallocated because the team never articulated which attacks matter.
+Defending a hobby project against a nation-state adversary is wasted effort; defending a
+payments system against only casual attackers is negligence.
+
+The STRIDE taxonomy provides a usable checklist per component: spoofing identity,
+tampering with data, repudiation of actions, information disclosure, denial of service,
+and elevation of privilege. Walking each data flow in a system architecture against these
+six categories surfaces most of the important issues in an hour, which is a far better
+return than most security tooling provides.
+
+The foundational principles are old and remain correct. Defense in depth means multiple
+independent layers, so that one failure is not total. Least privilege means every
+component has only the access it needs, so that a compromise is bounded. Fail securely
+means an error results in denial rather than in access — a check that throws an exception
+should not fall through to permitting the operation. Complete mediation means every access
+is checked, not just the first. Separation of duties means no single actor can complete a
+sensitive operation alone.
+
+Kerckhoffs's principle deserves particular emphasis: a system should remain secure even if
+everything about it except the key is public. Security through obscurity fails because
+obscurity is not durable — code is decompiled, protocols are observed, employees leave —
+and because a system whose security depends on secrecy of design cannot be reviewed, which
+means its flaws are found by attackers rather than by defenders. Obscurity is acceptable
+as an additional layer and never as the foundation.
+
+Core principles:
+  least privilege        minimum access necessary, for the minimum time
+  defense in depth       independent layers; no single point of security failure
+  fail securely          errors deny access; never fall through to permit
+  complete mediation     check every access, every time; no cached authorization
+  Kerckhoffs             security rests in the key, not in the design's secrecy
+  economy of mechanism   simple systems can be verified; complex ones cannot
+  open design            reviewed designs are stronger than secret ones
+  psychological accept.  if security is painful, users route around it, and the
+                         workaround is less secure than the thing they avoided
+  assume breach          design for containment and detection, not only prevention
+
+The psychological acceptability principle is the one most often neglected and most often
+responsible for real failures. A password policy demanding frequent rotation of long
+complex passwords produces passwords written on notes and predictable increments. A VPN
+that breaks routinely produces engineers who disable it. Security controls that impose
+high friction get circumvented, and the circumvention is invariably worse than a slightly
+weaker control that people actually use.
+
+Q: An application checks authorization when a user opens a document and caches the result
+for the session. This violates:
+A. Least privilege   B. Complete mediation   C. Kerckhoffs's principle   D. Fail securely
+Reasoning: Complete mediation requires that every access be checked against current
+authorization. Caching the decision means a revoked permission remains effective until the
+session ends, so a user removed from a project retains access. This is a common and
+consequential design error. Answer: B.
+
+## Cryptography
+
+The first rule of applied cryptography is not to implement it. Cryptographic primitives
+are easy to use incorrectly in ways that are invisible — the output still looks random and
+the tests still pass — and the failures are catastrophic. Use vetted libraries at the
+highest level of abstraction available, prefer authenticated encryption over composing
+primitives, and treat any need to make a low-level cryptographic decision as a signal to
+find a higher-level construct.
+
+Symmetric encryption uses one key for encryption and decryption, is fast, and is what
+actually protects bulk data. AES is the standard block cipher and ChaCha20 the standard
+stream cipher, with ChaCha20 preferred where hardware AES acceleration is unavailable. The
+mode of operation matters more than the cipher: ECB mode encrypts each block
+independently and therefore leaks structure so badly that an encrypted image remains
+recognizable, and it should never be used. Authenticated modes — AES-GCM, ChaCha20-Poly1305
+— provide integrity as well as confidentiality, and this is essential rather than
+optional, because unauthenticated ciphertext can be modified in transit in ways that
+produce predictable plaintext changes.
+
+Asymmetric encryption uses a public key for encryption and a private key for decryption,
+solving the key distribution problem at a large performance cost. In practice it is used to
+establish a symmetric key rather than to encrypt bulk data. Elliptic curve cryptography
+provides equivalent security to RSA at much smaller key sizes — a 256-bit elliptic curve
+key is comparable to a 3072-bit RSA key — which is why new systems default to it.
+
+Hash functions map arbitrary input to fixed-size output, and the security requirements are
+preimage resistance, second preimage resistance, and collision resistance. MD5 and SHA-1
+are broken for collision resistance and must not be used where that matters. SHA-256 and
+the SHA-3 family are current. Critically, general-purpose hashes are the wrong tool for
+passwords precisely because they are fast: a modern GPU computes billions of SHA-256 hashes
+per second, so a stolen database of hashed passwords is cracked rapidly.
+
+Cryptographic tool selection:
+  bulk encryption        AES-GCM or ChaCha20-Poly1305; authenticated, always
+  key exchange           ECDH, or a hybrid with a post-quantum KEM
+  digital signature      Ed25519 or ECDSA; RSA-PSS if compatibility demands
+  hashing                SHA-256, SHA-3, BLAKE3
+  password storage       Argon2id, scrypt, or bcrypt; deliberately slow and
+                         memory-hard, with a per-password salt
+  message authentication HMAC, or the authenticated mode's built-in tag
+  key derivation         HKDF from a high-entropy secret; a password KDF from a
+                         password
+  randomness             the OS CSPRNG; never a general-purpose PRNG
+  comparison             constant-time; a short-circuiting comparison of MAC tags
+                         leaks the correct value one byte at a time
+
+Nonce reuse is the failure mode that most reliably destroys an otherwise correct
+implementation. In AES-GCM, encrypting two different messages with the same key and nonce
+allows an attacker to recover the XOR of the plaintexts and, worse, to forge the
+authentication tag for arbitrary messages — the security collapses completely rather than
+degrading. Nonces must be unique per key, which is achieved with a counter or with random
+values large enough that collision is negligible, and the constraint must survive process
+restarts, backups, and virtual machine snapshots.
+
+Post-quantum cryptography is now a practical concern rather than a theoretical one. A
+sufficiently large quantum computer running Shor's algorithm breaks RSA and elliptic curve
+cryptography entirely, while symmetric cryptography and hashes are only weakened, requiring
+roughly doubled key sizes. The harvest-now-decrypt-later threat means that data requiring
+long-term confidentiality is already at risk, which is why hybrid key exchanges combining a
+classical and a post-quantum algorithm are being deployed ahead of any working quantum
+computer.
+
+## Authentication and Authorization
+
+Authentication establishes who someone is; authorization determines what they may do.
+Conflating them produces systems where being logged in is treated as sufficient, which is
+the underlying error in most broken access control.
+
+Password storage has a settled answer that is still frequently gotten wrong. Store a hash
+produced by a password-specific key derivation function — Argon2id preferred, scrypt or
+bcrypt acceptable — with a unique random salt per password, tuned so that a single
+verification takes on the order of a hundred milliseconds. The salt prevents precomputed
+rainbow tables and ensures identical passwords hash differently. The deliberate slowness
+and memory-hardness raise the cost of offline cracking by many orders of magnitude. Never
+store passwords reversibly, never use a fast general-purpose hash, and never impose a
+maximum password length below a hundred characters or restrict character sets, both of
+which reduce entropy for no security benefit.
+
+Multi-factor authentication is the highest-value control available against credential
+theft, and the factors are not equivalent. SMS codes are vulnerable to SIM swapping and to
+interception and are better than nothing. Time-based one-time codes from an authenticator
+app are substantially better. Hardware security keys implementing WebAuthn are best,
+because the protocol binds the credential to the origin and the authentication is a
+challenge-response with a private key that never leaves the device — which makes phishing
+structurally impossible rather than merely difficult, since a key registered for one domain
+will not respond to another.
+
+Session management is where authentication commonly leaks. Session identifiers must be
+generated from a cryptographically secure random source with enough entropy to preclude
+guessing, transmitted only over TLS, stored in cookies marked HttpOnly to prevent script
+access and Secure to prevent transmission over plaintext, with an appropriate SameSite
+attribute to mitigate cross-site request forgery. Sessions must be invalidated server-side
+on logout — clearing the client cookie alone leaves a valid token in an attacker's hands —
+and rotated on privilege change to prevent session fixation.
+
+Authentication and authorization practices:
+  password hashing       Argon2id with per-password salt, ~100 ms verification
+  MFA                    WebAuthn > TOTP > SMS; phishing-resistant matters most
+  session tokens         CSPRNG, sufficient entropy, HttpOnly, Secure, SameSite
+  session invalidation   server-side on logout, rotation on privilege change
+  rate limiting          on authentication endpoints; per-account and per-IP
+  account enumeration    identical responses and timing for valid and invalid users
+  password reset         single-use, time-limited, high-entropy tokens; the reset
+                         flow is frequently weaker than the login it protects
+  authorization model    RBAC for coarse roles, ABAC for context-dependent rules
+  deny by default        access requires an explicit grant
+  object-level checks    verify the current user owns the specific object, not
+                         merely that they may access objects of that type
+
+Broken object-level authorization — verifying that a user may access a resource type
+without verifying they may access this particular instance — is consistently among the
+most prevalent serious vulnerabilities in web applications and APIs. An endpoint that
+returns an invoice by identifier, checking only that the caller is authenticated, lets any
+user enumerate every invoice in the system. It is trivially exploitable, invisible to
+scanners that do not understand the application's ownership model, and prevented only by
+checking ownership on every access to every object.
+
+[user] We're storing user passwords with SHA-256 plus a global salt. How bad is it and
+what's the migration path?
+[assistant] tool_call sec.password_audit({"algorithm": "sha256", "salt": "global_static",
+"iterations": 1, "user_count": 840000})
+[tool] {"severity": "high", "gpu_hashes_per_sec": 1.2e10, "time_to_crack_8char_common":
+"minutes", "rainbow_table_viable": true, "issues": ["fast_hash", "shared_salt",
+"no_key_stretching"], "recommended": "argon2id", "migration": "wrap_on_verify"}
+[assistant] It is bad, and the shared salt is the worst part. Two problems compound.
+
+A single global salt means every user with the same password has the same hash, so an
+attacker who cracks one common password immediately identifies every account using it, and
+a rainbow table can be precomputed once against your specific salt and reused for all
+840,000 accounts. Per-password salts exist precisely to force the attacker to attack each
+password independently.
+
+SHA-256 being fast is the second problem. A commodity GPU computes on the order of 12
+billion SHA-256 hashes per second, so an eight-character password from a common wordlist
+falls in minutes and most human-chosen passwords fall within hours.
+
+The migration path that does not require anyone to reset their password:
+
+Immediately, wrap the existing hashes. Compute argon2id over the stored SHA-256 value with
+a new per-user random salt, and store that along with a marker recording the scheme. This
+is a pure database migration requiring no user interaction, and it makes offline cracking
+computationally expensive right away. Your verification then becomes: hash the submitted
+password with SHA-256 and the old global salt, then run argon2id over that result with the
+user's salt, and compare in constant time.
+
+Then upgrade on next login. When a user with a wrapped hash authenticates successfully, you
+have their plaintext password momentarily — recompute a clean argon2id hash directly from
+it, store that, and update the marker. Over a few months most active accounts migrate
+naturally. Keep both verification paths until the wrapped count is small enough to force
+resets on the remainder.
+
+Parameters: argon2id with roughly 64 MB of memory, three iterations, and parallelism
+matched to your hardware, tuned so verification takes about 100 ms on your production
+machines. Measure it rather than copying numbers, since the right setting depends on your
+authentication rate.
+
+Two related things worth doing while you are in this code: add rate limiting per account
+and per source address on the login endpoint if it is not there, and check submitted
+passwords against a breached-password list at registration and at change time. That last
+one prevents more account compromise in practice than any hashing improvement, because
+credential stuffing with known-breached passwords is the dominant real-world attack.
+
+## Web Vulnerabilities
+
+Injection flaws arise whenever untrusted input is interpreted as code or command
+structure. SQL injection is the canonical case and is entirely prevented by parameterized
+queries, which send the query structure and the data separately so that data can never be
+reinterpreted as syntax. String concatenation to build queries is the vulnerability, and no
+amount of escaping or input validation is a reliable substitute — escaping must be correct
+for every context and every character set, and it will eventually not be. The same
+principle applies to command injection, LDAP injection, and template injection: use an API
+that separates code from data.
+
+Cross-site scripting occurs when attacker-controlled content is rendered as script in
+another user's browser. Stored XSS persists in the database and affects everyone viewing
+the content; reflected XSS comes from the request and requires luring a victim; DOM-based
+XSS occurs entirely client-side when script writes untrusted data into a dangerous sink.
+The defense is context-aware output encoding — HTML, attribute, JavaScript, URL, and CSS
+contexts each require different escaping — which modern templating frameworks do
+automatically, so the vulnerability now concentrates in the places where developers
+deliberately bypass that escaping.
+
+Content Security Policy provides a second layer by restricting which scripts may execute.
+A strict policy using nonces or hashes, with no unsafe-inline and no unsafe-eval, prevents
+injected script from running even when an XSS flaw exists. It is genuinely effective and
+genuinely difficult to retrofit onto an application full of inline handlers, which is why
+it should be adopted early.
+
+Common web vulnerability classes and their defenses:
+  SQL injection          parameterized queries; never concatenate
+  command injection      avoid shell invocation; pass argument arrays, not strings
+  XSS                    context-aware output encoding, strict CSP, avoid
+                         innerHTML and equivalents
+  CSRF                   SameSite cookies, anti-CSRF tokens, verify Origin
+  SSRF                   allowlist destinations, block internal ranges and the
+                         cloud metadata endpoint, resolve then validate to prevent
+                         DNS rebinding
+  XXE                    disable external entity resolution in XML parsers
+  insecure deserialization  never deserialize untrusted data into arbitrary types
+  path traversal         canonicalize then validate against a base directory
+  open redirect          allowlist redirect targets
+  mass assignment        explicit field allowlists when binding request data
+  broken access control  object-level checks on every access
+
+Server-side request forgery deserves attention because cloud environments made it far more
+dangerous. An application that fetches a user-supplied URL can be induced to request
+internal services, and in many cloud environments the instance metadata endpoint returns
+credentials to anything that asks from the instance. Defenses must validate after DNS
+resolution rather than before, since a hostname can resolve to an internal address, and
+must handle redirects, since an allowed URL can redirect to a forbidden one.
+
+## Secrets, Supply Chain, and Secure Development
+
+Secrets in source control are among the most common serious findings in any codebase
+audit, and the damage is durable: a secret committed and later removed remains in the
+repository history and in every clone. The remedy sequence is to rotate the secret first —
+removal without rotation accomplishes nothing — then purge history if the repository is
+sensitive, then prevent recurrence with pre-commit scanning and CI checks. Secrets belong
+in a dedicated secret manager with access control, audit logging, and rotation, injected
+at runtime rather than baked into images or configuration files.
+
+Supply chain security has become a primary attack surface because modern applications
+consist mostly of code nobody on the team wrote. A typical application pulls in hundreds of
+transitive dependencies, any of which can be compromised through a maintainer account
+takeover, a malicious contribution, or typosquatting on a package name. The mitigations are
+to pin exact versions with a lockfile including integrity hashes, to generate and retain a
+software bill of materials, to scan dependencies for known vulnerabilities continuously
+rather than at release, to minimize the dependency count, and to vendor or mirror critical
+dependencies so that an upstream removal does not break builds.
+
+Secure development practices, ordered by return on effort:
+  threat model early     an hour of design review beats weeks of remediation
+  parameterized queries  eliminates an entire vulnerability class
+  framework defaults     use the framework's escaping, CSRF, and auth rather than
+                         reimplementing
+  dependency scanning    in CI, on a schedule, with a patching commitment
+  secret management      dedicated store, runtime injection, automatic rotation
+  static analysis        catches common patterns cheaply; tune to reduce noise or
+                         it will be ignored
+  code review            a second reader catches logic flaws tools cannot
+  penetration testing    finds what tools and reviews missed; annually and after
+                         major changes
+  logging and detection  security-relevant events centralized, retained, alerted on
+  incident response      a rehearsed plan; the time to design one is not during a
+                         breach
+
+Logging deserves a specific caution because it is both a security control and a security
+risk. Authentication attempts, authorization failures, privilege changes, and
+administrative actions should be logged with enough context to reconstruct an incident.
+Passwords, tokens, session identifiers, card numbers, and personal data should never appear
+in logs, and they routinely do — through a debug statement that dumps a whole request
+object, through an error handler that includes the failing input, through a third-party
+logging integration that captures more than intended. Log review should include checking
+what is in the logs, not only what the logs report.

@@ -1,0 +1,243 @@
+================================================================================
+AREA: Mathematics
+SUBJECT: Dynamical Systems and Chaos
+Subtopics: flows and maps, fixed points and stability, bifurcations, chaos and attractors,
+Lyapunov exponents, fractal dimension, time series reconstruction, applications.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Flows, Maps, and Phase Space
+
+A dynamical system is a rule for how a state evolves in time, and the framework's power comes from
+studying the geometry of that evolution rather than solving for trajectories explicitly. Continuous
+time gives a flow, defined by differential equations; discrete time gives a map, defined by
+iteration. The two are closely connected, since sampling a flow at fixed intervals or at crossings
+of a surface produces a map, and much of the analysis of flows proceeds through the associated map.
+
+Phase space is the space of all possible states, with one dimension per state variable. A
+trajectory is a curve in it, and the qualitative theory studies the collection of all trajectories —
+where they converge, what invariant sets exist, how the picture changes as parameters vary. This
+geometric view is what makes the subject applicable to systems whose equations cannot be solved,
+which is nearly all of them.
+
+Dimension determines what behaviour is possible, and the constraint is sharp for continuous
+systems. Trajectories cannot cross, since the rule is deterministic, and in the plane this
+topological fact forces trajectories to either approach a fixed point, approach a closed orbit, or
+diverge. Chaos therefore requires at least three dimensions in continuous time. Discrete maps have
+no such constraint and can be chaotic in one dimension, which is why the simplest chaotic examples
+are maps.
+
+Flows, maps, and phase space:
+  flow                 continuous time; differential equations
+  map                  discrete time; iteration
+  Poincaré section     a surface transverse to the flow; reduces a flow to a map
+  phase space          one dimension per state variable
+  trajectory           a curve through phase space
+  determinism          trajectories cannot cross
+  invariant set        maps to itself under the dynamics
+  the planar constraint  in two continuous dimensions only fixed points, closed
+                       orbits, and divergence are possible
+  the three-dimension requirement  chaos in continuous time needs at least three
+  one-dimensional maps  can be chaotic; the simplest examples
+  autonomous           the rule does not depend explicitly on time
+  non-autonomous       time-dependent forcing; adds an effective dimension
+  conservative systems  preserve phase space volume; no attractors
+  dissipative systems  contract volume; attractors exist
+
+Q: A two-dimensional continuous system is observed to produce an irregular non-repeating
+trajectory. The most likely explanation is:
+A. The system is chaotic
+B. Something is missing from the model — chaos is impossible in a planar autonomous flow, so
+   either there is a hidden state variable, external time-dependent forcing, or noise
+C. The integration is unstable
+D. Two dimensions is enough for chaos
+Reasoning: The Poincaré-Bendixson theorem constrains planar autonomous flows to fixed points,
+closed orbits, or divergence, because non-crossing trajectories in the plane cannot explore
+irregularly. Observing chaos in what appears to be a planar system means the system is not what it
+appears to be. Answer: B.
+
+## Fixed Points, Stability, and Bifurcations
+
+A fixed point is a state where the dynamics leave the system unchanged, and stability asks what
+happens to nearby states. Linearizing the dynamics near a fixed point gives a matrix whose
+eigenvalues determine local behaviour: for a flow, negative real parts mean attraction and positive
+mean repulsion; for a map, the criterion is whether eigenvalue magnitudes are below or above one.
+Complex eigenvalues add rotation, producing spirals.
+
+The classification of planar fixed points is a standard vocabulary worth having: stable and unstable
+nodes with real same-sign eigenvalues, saddles with opposite signs, stable and unstable spirals with
+complex eigenvalues, and centres with purely imaginary ones. The saddle is the most important for
+understanding global structure, because its stable and unstable manifolds — the sets of points
+approaching it forward and backward in time — partition phase space and organize the flow
+everywhere.
+
+A bifurcation is a qualitative change in the dynamics as a parameter varies, and bifurcation theory
+catalogues the ways this can happen. The elementary local bifurcations are few in number and appear
+across enormously different systems, which is the subject's most useful generalization: the
+saddle-node, where two fixed points collide and vanish; the transcritical, where they exchange
+stability; the pitchfork, where one splits into three; and the Hopf, where a fixed point loses
+stability and a limit cycle is born.
+
+Stability and bifurcation:
+  fixed point          the dynamics leave it unchanged
+  linearization        the Jacobian's eigenvalues determine local behaviour
+  flow criterion       negative real parts attract
+  map criterion        eigenvalue magnitude below one attracts
+  node, saddle, spiral, centre  the planar classification
+  stable manifold      points approaching forward in time
+  unstable manifold    points approaching backward in time
+  the organizing role  saddle manifolds partition phase space
+  hyperbolic           no eigenvalue on the stability boundary; linearization is
+                       then reliable
+  the non-hyperbolic case  linearization is inconclusive and higher order terms
+                       decide
+  limit cycle          an isolated closed orbit; self-sustained oscillation
+  saddle-node          two fixed points collide and vanish
+  transcritical        two exchange stability
+  pitchfork            one becomes three; associated with symmetry
+  Hopf bifurcation     a fixed point loses stability and a cycle appears
+  subcritical versus supercritical  whether the emerging branch is stable;
+                       determines whether the transition is smooth or abrupt with
+                       hysteresis
+  the practical significance  a subcritical transition jumps to a distant state
+                       and does not return when the parameter is reversed, which
+                       is the mathematical structure behind tipping points
+
+## Chaos and Strange Attractors
+
+Chaos is deterministic dynamics with sensitive dependence on initial conditions, aperiodic
+long-term behaviour, and topological mixing. Sensitivity is the defining feature: two states
+initially arbitrarily close separate exponentially, so any finite-precision knowledge of the initial
+condition becomes useless after a finite time. The system is deterministic and unpredictable
+simultaneously, and reconciling those is the conceptual work the subject requires.
+
+A strange attractor is the invariant set a chaotic dissipative system settles onto. It attracts
+nearby trajectories, so the long-term behaviour is confined; it has zero volume, since the dynamics
+contract; and it has fractal structure, since trajectories on it must diverge locally while
+remaining bounded globally. The resolution of that apparent contradiction is stretching and
+folding: the dynamics stretch a region in one direction and fold it back on itself, repeatedly, which
+produces both exponential separation and boundedness.
+
+Routes to chaos are surprisingly universal. Period doubling — a cycle becoming a cycle of twice the
+period, then four times, accumulating at a finite parameter value — occurs across systems that share
+no physics, and the ratio of successive parameter intervals converges to a constant that is the same
+for a whole class of maps. That a number extracted from a simple iterated equation predicts the
+transition to turbulence in a fluid experiment is one of the more remarkable results in applied
+mathematics.
+
+Chaos and attractors:
+  sensitive dependence  exponential separation of nearby states
+  the practical meaning  finite-precision knowledge decays to nothing
+  deterministic and unpredictable  not a contradiction
+  aperiodicity         no repetition, though arbitrarily close returns occur
+  topological mixing   any region eventually spreads over the attractor
+  strange attractor    attracting, zero volume, fractal structure
+  stretching and folding  the mechanism producing both divergence and
+                       boundedness
+  the horseshoe map    the geometric prototype of that mechanism
+  period doubling      cycles of doubling period accumulating at a finite
+                       parameter
+  universality         the accumulation ratio is the same across a whole class of
+                       systems
+  intermittency        another route; long regular stretches interrupted by
+                       irregular bursts
+  quasiperiodic route  two incommensurate frequencies breaking down
+  transient chaos      chaotic behaviour for a long time before settling; easily
+                       mistaken for an attractor
+  crisis               an attractor colliding with an unstable set and changing
+                       abruptly or vanishing
+  the predictability horizon  the time over which prediction remains useful,
+                       growing only logarithmically with measurement precision;
+                       a hundredfold improvement in initial data buys a small
+                       constant addition to forecast lead time
+
+## Quantifying Chaos
+
+Lyapunov exponents measure the average exponential rate at which nearby trajectories separate along
+each direction in phase space. A positive largest exponent is the standard quantitative criterion
+for chaos, and its reciprocal gives the characteristic time over which predictability is lost. The
+full spectrum of exponents describes the local expansion and contraction structure, and their sum
+gives the volume contraction rate, which must be negative for a dissipative system.
+
+Fractal dimension quantifies the geometry of a strange attractor, and several definitions coexist
+that agree for simple sets and differ for realistic ones. The box-counting dimension counts covering
+boxes as a function of scale. The correlation dimension counts pairs of points within a distance and
+is far more practical to estimate from data. The Kaplan-Yorke relation predicts a dimension directly
+from the Lyapunov spectrum, and the agreement between that prediction and a measured correlation
+dimension is a standard consistency check.
+
+Estimating these quantities from experimental data requires reconstructing the phase space, since
+usually only one variable is measured. Delay embedding does this: a vector built from a measurement
+and its time-delayed copies is, under general conditions, a faithful representation of the true
+state space preserving its topological and dynamical properties. Choosing the delay and the
+embedding dimension are the practical decisions, and the standard heuristics use the first minimum
+of mutual information and the false-nearest-neighbour criterion respectively.
+
+Quantification and reconstruction:
+  Lyapunov exponent    average exponential separation rate along a direction
+  positive largest exponent  the quantitative criterion for chaos
+  the predictability time  roughly the reciprocal of the largest exponent
+  the spectrum         one exponent per phase-space direction
+  the sum              the volume contraction rate; negative when dissipative
+  box-counting dimension  covering boxes against scale
+  correlation dimension  pair counts within a distance; practical from data
+  Kaplan-Yorke          dimension predicted from the Lyapunov spectrum
+  the consistency check  predicted against measured dimension
+  delay embedding      state reconstructed from a scalar series and its delays
+  the embedding theorem  a sufficiently high-dimensional delay vector preserves
+                       the dynamics
+  delay choice         first minimum of mutual information
+  dimension choice     false nearest neighbours falling to zero
+  data requirements    the amount needed grows steeply with dimension, which is
+                       why dimension estimates from short records should be
+                       treated sceptically
+  noise                sets a scale below which the fractal structure is
+                       unresolvable and can produce spurious finite dimension
+                       estimates from stochastic data
+
+## Applications and Practical Consequences
+
+The subject's practical value is less in predicting chaotic systems than in recognizing what kind of
+system one is dealing with and what that implies. A system with sensitive dependence cannot be
+forecast beyond a horizon regardless of model quality, so effort spent on longer forecasts is
+wasted while effort spent on ensemble methods that characterize the distribution of outcomes is
+not. Weather forecasting reorganized itself around exactly this recognition.
+
+Bifurcation structure explains abrupt transitions in systems that change gradually. A parameter
+drifting slowly past a saddle-node produces a sudden jump with no gradual warning in the state
+variable itself, though there are warnings in the statistics: as a fixed point loses stability, the
+system's recovery from perturbations slows, so variance and autocorrelation rise. This critical
+slowing down is the basis of early warning indicators for tipping points in ecosystems, climate
+subsystems, and physiological states.
+
+Control of chaotic systems exploits a property that seems like a disadvantage. A chaotic attractor
+contains infinitely many unstable periodic orbits, and the trajectory passes near each of them
+repeatedly; sensitive dependence means a very small perturbation applied at the right moment can
+push the system onto one and hold it there. Chaos is thus easier to control with small inputs than a
+stable system would be, which has been applied to cardiac rhythms, lasers, and mechanical
+oscillators.
+
+Applications:
+  the forecasting implication  a horizon exists regardless of model quality
+  ensemble forecasting  characterize the outcome distribution rather than
+                       predicting a trajectory
+  weather                the canonical application; the field reorganized around
+                       this recognition
+  climate versus weather  the attractor's statistics are predictable even when
+                       trajectories are not, which is why climate projection and
+                       weather forecasting are different problems
+  tipping points       saddle-node structure producing abrupt transitions
+  critical slowing down  variance and autocorrelation rising before a transition
+  early warning indicators  the practical use of that signal
+  hysteresis           the state does not return when the parameter reverses
+  chaos control        small perturbations stabilizing embedded unstable orbits
+  synchronization      coupled oscillators locking; from fireflies to power grids
+                       to neural populations
+  population dynamics  simple ecological models producing chaotic abundance
+  physiology           heart rhythms and neural dynamics analysed with these tools
+  the modelling caution  fitting a low-dimensional chaotic model to a short noisy
+                       record is easy and usually wrong; the burden of proof for
+                       a claim of deterministic chaos in real data is high, and
+                       surrogate data testing against a linear stochastic null is
+                       the minimum standard

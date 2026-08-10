@@ -1,0 +1,320 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: Reinforcement Learning
+Subtopics: the problem formulation, dynamic programming, model-free methods, function
+approximation, policy gradients, exploration, offline and applied RL.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## The Problem Formulation
+
+Reinforcement learning studies agents that learn to act from interaction rather than from
+labelled examples. An agent observes a state, takes an action, receives a reward, and
+transitions to a new state, and the objective is a policy maximizing cumulative reward over
+time. The distinguishing features relative to supervised learning are that there is no
+supervisor providing correct actions, that feedback is evaluative rather than instructive, that
+it may be delayed by many steps, and that the agent's actions determine the data it
+subsequently sees.
+
+That last property — the data distribution depends on the policy — is what makes the problem
+hard and what breaks the theoretical guarantees that supervised learning enjoys. A policy that
+never visits a region of the state space never learns about it, and improving the policy changes
+which regions are visited, so the learning problem is non-stationary in a way that ordinary
+regression is not.
+
+The Markov decision process formalizes the setting: a set of states, a set of actions,
+transition probabilities, a reward function, and a discount factor. The Markov property
+requires that the next state and reward depend only on the current state and action, not on the
+history, which is a strong assumption that is satisfied by construction when the state is
+defined to include everything relevant — and the practical difficulty is that the observable
+state often is not sufficient, giving a partially observable process where the agent must
+maintain a belief or a history summary.
+
+Formulation concepts:
+  state                  the situation; Markov if it summarizes all relevant history
+  action                 what the agent can do; discrete or continuous
+  reward                 the scalar signal defining the objective
+  transition             the environment's dynamics
+  policy                 a mapping from states to actions; deterministic or
+                         stochastic
+  return                 cumulative discounted reward from a time step onward
+  discount factor        weights immediate against future reward; below one, it
+                         also bounds the return in continuing tasks
+  value function         expected return from a state under a policy
+  action-value (Q)       expected return from a state-action pair under a policy
+  optimal policy         maximizes expected return from every state; at least one
+                         deterministic optimal policy always exists in a finite MDP
+  Bellman equation       the value of a state relates to the values of successors
+  POMDP                  partial observability; requires belief states or memory
+  exploration-exploitation  the central tension; act to gain reward or to gain
+                         information
+
+The discount factor deserves more attention than its notational simplicity suggests. It
+expresses how much future reward is worth relative to immediate reward, and its value strongly
+affects what the agent learns. A small discount makes the agent myopic, which is appropriate
+when the horizon is genuinely short and disastrous when credit must be assigned across many
+steps. A discount near one makes the effective horizon long, which is often what is wanted and
+which increases variance in the return estimates and slows learning. Its role is partly
+mathematical — ensuring convergence in continuing tasks — and partly a statement about the
+problem, and conflating the two leads to treating it as a hyperparameter to tune when it
+sometimes encodes a genuine specification.
+
+Q: An agent receives +1 for reaching a goal and 0 otherwise, with a discount factor of 0.99.
+Compared with a discount of 0.9, the agent will:
+A. Learn faster
+B. Value distant goals much more, since 0.99^100 is about 0.37 while 0.9^100 is about 0.00003
+C. Ignore the goal
+D. Behave identically
+Reasoning: The discount raised to the number of steps determines how much a distant reward is
+worth now. At a hundred steps, a discount of 0.99 retains 37% of the value while 0.9 retains
+essentially none, so the higher discount makes long-horizon goals learnable at all. The cost is
+higher variance in return estimates and slower convergence. Answer: B.
+
+## Dynamic Programming and the Bellman Equations
+
+When the environment's dynamics are known, the problem is one of planning rather than
+learning, and dynamic programming solves it exactly. The Bellman expectation equation states
+that the value of a state under a policy equals the expected immediate reward plus the
+discounted value of the successor state, which is a recursive consistency condition rather than
+a formula for computing the value directly.
+
+Policy evaluation applies that equation iteratively until the values converge, and policy
+improvement then constructs a better policy by acting greedily with respect to the computed
+values. Alternating the two is policy iteration, and it converges to the optimal policy in a
+finite number of steps for a finite MDP because each improvement step produces a strictly
+better policy and there are finitely many. Value iteration collapses the two by applying the
+Bellman optimality equation directly, updating values toward the maximum over actions, which
+converges to the optimal value function from which the optimal policy is read off.
+
+The policy improvement theorem is the result that makes all of this work. Acting greedily with
+respect to a policy's value function produces a policy at least as good in every state, which
+means the alternation cannot cycle or regress. This guarantee is what generalized policy
+iteration inherits — the pattern of interleaving partial evaluation with partial improvement,
+which describes nearly every reinforcement learning algorithm regardless of how the evaluation
+and improvement steps are implemented.
+
+Dynamic programming:
+  Bellman expectation     v(s) = expected [r + gamma v(s')] under the policy
+  Bellman optimality      v*(s) = max over a of expected [r + gamma v*(s')]
+  policy evaluation       iterate the expectation equation to convergence
+  policy improvement      act greedily with respect to the values
+  policy iteration        alternate the two; converges in finite steps
+  value iteration         apply the optimality equation directly
+  generalized policy iteration  the pattern underlying nearly all RL methods
+  contraction mapping     the Bellman operator is a contraction, which is why
+                          iteration converges
+  bootstrapping           updating an estimate from other estimates rather than
+                          from complete returns
+  curse of dimensionality  tabular methods require memory proportional to the
+                          state space, which is why function approximation is
+                          necessary for anything realistic
+  requires a model        transition probabilities and rewards must be known
+
+## Model-Free Learning
+
+Model-free methods learn from experience without knowing the environment's dynamics, which is
+the situation in nearly every application. Monte Carlo methods wait until an episode completes
+and update values toward the observed return, which is unbiased since the return is a sample of
+exactly the quantity being estimated, and high variance because a single return reflects the
+accumulated randomness of an entire trajectory. They also require episodes to terminate.
+
+Temporal difference learning updates from the immediate reward plus the current estimate of
+the successor's value, without waiting for the episode to end. This bootstrapping introduces
+bias, since the successor estimate is wrong early in learning, and dramatically reduces
+variance, since only one step of randomness enters each update. It also permits learning in
+continuing tasks and online from incomplete episodes, which is why temporal difference methods
+dominate in practice.
+
+The distinction between on-policy and off-policy learning is the other axis and has practical
+consequences. SARSA updates toward the value of the action actually taken, so it learns the
+value of the policy being followed including its exploration — which makes it appropriately
+cautious near hazards, since it accounts for the possibility of exploring into them. Q-learning
+updates toward the maximum over actions, so it learns the optimal policy's value regardless of
+what the behaviour policy does, which makes it off-policy and able to learn from any data
+source.
+
+Model-free methods:
+  Monte Carlo             wait for the return; unbiased, high variance, needs
+                          episodes
+  temporal difference     bootstrap from the next estimate; biased, low variance,
+                          online
+  TD(lambda)              interpolates between them via eligibility traces
+  SARSA                   on-policy; learns the value of the policy being followed
+  Q-learning              off-policy; learns the optimal value directly
+  expected SARSA          averages over the policy's action distribution; lower
+                          variance than SARSA
+  importance sampling     corrects for the difference between behaviour and target
+                          policies; high variance over long horizons
+  n-step methods          bootstrap after n steps; intermediate bias and variance
+  maximization bias       taking a max over noisy estimates overestimates;
+                          double Q-learning uses two estimators to correct it
+  the cliff-walking case  Q-learning finds the optimal path along the cliff edge
+                          and falls off while exploring; SARSA learns a safer path
+                          because it accounts for exploration
+
+Maximization bias deserves emphasis because it is subtle and consequential. Q-learning
+updates toward the maximum over actions of noisy estimates, and the maximum of noisy estimates
+is systematically higher than the maximum of their true values — the expectation of a maximum
+exceeds the maximum of expectations. This inflates value estimates, which can cause the agent
+to persistently prefer actions whose values were overestimated by chance. Double Q-learning
+maintains two independent estimators and uses one to select the action and the other to
+evaluate it, which decouples the selection from the evaluation and removes the bias.
+
+## Function Approximation and Deep RL
+
+Tabular methods store a value per state and are limited to small discrete state spaces.
+Function approximation generalizes across states by learning a parameterized value function or
+policy, which is what makes reinforcement learning applicable to problems with continuous or
+high-dimensional state.
+
+Combining function approximation with bootstrapping and off-policy learning produces the
+deadly triad, so named because the three together can cause divergence even though any two are
+safe. The mechanism is that bootstrapping updates toward a target computed from the same
+approximator being updated, off-policy data means the update distribution does not match the
+policy being evaluated, and the approximator generalizes updates to states that were not
+visited — so errors can amplify rather than correct. This is not a hypothetical concern; it is
+why deep reinforcement learning required specific stabilization techniques before it worked.
+
+Deep Q-networks addressed it with two mechanisms that are now standard. Experience replay
+stores transitions in a buffer and samples them randomly, which breaks the temporal correlation
+in the update sequence and reuses data. A target network computes the bootstrap targets from a
+periodically-copied older set of parameters, which stops the target from moving as fast as the
+estimate and removes a feedback loop that otherwise destabilizes learning.
+
+Deep reinforcement learning:
+  function approximation  generalize across states; necessary for realistic
+                          problems
+  deadly triad            function approximation, bootstrapping, off-policy data;
+                          together they can diverge
+  experience replay       break correlation, reuse data
+  prioritized replay      sample high-error transitions more often
+  target network          stabilizes bootstrap targets
+  double DQN              decouples selection from evaluation; reduces
+                          overestimation
+  duelling architecture   separate state value and action advantage streams
+  distributional RL       learn the return distribution rather than its mean;
+                          empirically better even when only the mean is used
+  frame stacking          gives the agent a sense of velocity from static frames
+  reward clipping         stabilizes across environments with different reward
+                          scales; distorts the objective
+  sample efficiency       the central practical weakness; millions of interactions
+                          are routine
+
+Sample efficiency is the limitation that determines where deep reinforcement learning is
+applicable. Learning a competent policy commonly requires millions to hundreds of millions of
+environment interactions, which is feasible in a simulator running faster than real time and
+infeasible when each interaction costs real time, money, or risk. This is why the field's
+successes concentrate in games and simulation and why applying it to physical systems requires
+either a good simulator with successful transfer, learning from logged data, or a model-based
+approach that extracts more from each interaction.
+
+## Policy Gradients and Actor-Critic
+
+Value-based methods derive a policy from learned values, which requires a maximization over
+actions and therefore suits discrete action spaces. Policy gradient methods parameterize the
+policy directly and optimize its parameters by gradient ascent on expected return, which
+handles continuous actions naturally, can represent stochastic policies, and gives smoother
+policy changes than the discontinuous jumps that value-based greedy selection produces.
+
+The policy gradient theorem provides the gradient without requiring differentiation through
+the environment's dynamics, which would be impossible since they are unknown. The resulting
+estimator is unbiased and has high variance, and variance reduction is the practical focus. A
+baseline subtracted from the return reduces variance without introducing bias, provided the
+baseline does not depend on the action, and the state value function is the natural choice —
+giving the advantage function, which measures how much better an action is than the policy's
+average.
+
+Actor-critic methods combine both families: the actor is a parameterized policy and the critic
+is a learned value function used to compute the advantage. This reduces variance relative to
+pure policy gradients and reduces bias relative to pure bootstrapping, and it is the
+architecture underlying most modern algorithms.
+
+Policy-based methods:
+  REINFORCE               the basic policy gradient; unbiased, very high variance
+  baseline                subtract a state-dependent value; reduces variance
+                          without bias
+  advantage               how much better an action is than average
+  actor-critic            learned policy plus learned value function
+  A2C / A3C               synchronous and asynchronous parallel actor-critic
+  trust region            constrain the policy change per update; prevents
+                          destructive steps
+  PPO                     clipped surrogate objective approximating a trust region;
+                          simple, robust, the common default
+  DDPG / TD3 / SAC        continuous control; deterministic or maximum-entropy
+                          policies with off-policy learning
+  entropy regularization  encourages stochasticity, improving exploration and
+                          preventing premature convergence
+  GAE                     generalized advantage estimation; interpolates the
+                          bias-variance tradeoff in advantage estimates
+  RLHF                    preference-based reward models optimized with PPO or
+                          replaced by direct preference optimization; how language
+                          models are aligned
+
+The trust region idea deserves explanation because it addresses a specific failure mode. In
+supervised learning, a too-large gradient step produces a worse model that subsequent steps can
+correct. In reinforcement learning, a too-large policy step produces a worse policy that then
+collects worse data, so the learner can enter a spiral it does not recover from. Constraining
+how far the policy may move per update — measured by a divergence between the old and new
+action distributions rather than by parameter distance — prevents this, and PPO's clipped
+objective achieves approximately the same effect with far less computation than an explicit
+constrained optimization.
+
+## Exploration, Offline RL, and Practice
+
+Exploration is necessary because an agent that only exploits its current estimates never
+discovers better options, and it is costly because exploratory actions forgo known reward.
+Epsilon-greedy exploration acts randomly with small probability and is simple, undirected, and
+adequate for small problems. Optimistic initialization sets initial value estimates high so that
+unexplored actions look attractive until tried, which produces systematic exploration early
+without a tuning parameter. Upper confidence bound methods select actions by their estimated
+value plus an uncertainty bonus, which directs exploration toward genuinely uncertain options
+rather than randomly.
+
+Sparse rewards make exploration the dominant difficulty. If reward is received only on
+reaching a distant goal, random exploration will essentially never reach it, so there is no
+learning signal at all. Reward shaping adds intermediate rewards, which works and risks
+changing the optimal policy unless the shaping is potential-based, a form that provably
+preserves the optimal policy. Curiosity-driven methods generate intrinsic reward for reaching
+novel or surprising states. Curriculum learning orders tasks from easy to hard. Learning from
+demonstrations bypasses the exploration problem for the covered region entirely.
+
+Reward specification is the failure mode most likely to produce a technically successful and
+practically useless result. Agents optimize the reward they are given rather than the intention
+behind it, and the literature contains many examples of policies achieving high reward through
+behaviour nobody wanted — exploiting simulator physics, cycling to collect a repeatable bonus,
+or achieving a proxy without the outcome it proxied for. The reward function is a specification,
+and specifying it correctly is as hard as any other specification problem.
+
+Exploration and practice:
+  epsilon-greedy          random with small probability; undirected
+  optimistic init         unexplored options look good until tried
+  UCB                     value plus an uncertainty bonus; directed
+  Thompson sampling       sample from a posterior over values and act greedily
+  entropy bonus           keeps the policy stochastic
+  intrinsic motivation    curiosity, novelty, prediction error as internal reward
+  reward shaping          intermediate rewards; use potential-based forms to
+                          preserve optimality
+  curriculum              order tasks by difficulty
+  imitation learning      learn from demonstrations; behavioural cloning suffers
+                          compounding error under distribution shift
+  offline RL              learn from a fixed dataset with no interaction; the key
+                          difficulty is that the learned policy may prefer actions
+                          the data does not cover, where value estimates are
+                          unconstrained and typically overestimated
+  conservative methods    penalize out-of-distribution actions; the standard
+                          offline remedy
+  sim-to-real             domain randomization to make policies robust to the
+                          reality gap
+  evaluation              high variance across seeds; report multiple runs with
+                          intervals, since single-seed results are not reproducible
+
+Offline reinforcement learning deserves the closing note because it is where the field's
+practical applicability is expanding. Many domains have large logs of past decisions and
+outcomes — clinical records, recommendation histories, industrial control logs — and cannot
+tolerate exploratory interaction. The central difficulty is distributional shift: the learned
+policy will prefer actions the behaviour policy rarely took, precisely because those actions
+have unconstrained and typically overestimated value estimates, and there is no data to correct
+them. The remedies constrain the learned policy toward the data distribution or penalize values
+for out-of-distribution actions, which trades some potential improvement for reliability — an
+appropriate trade in exactly the settings where interaction is not possible.

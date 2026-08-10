@@ -1,0 +1,341 @@
+================================================================================
+AREA: Earth and Life Sciences
+SUBJECT: Atmospheric Science and Meteorology
+Subtopics: atmospheric structure, radiation and energy, thermodynamics and moisture,
+dynamics and circulation, weather systems, severe weather, forecasting, air quality.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Atmospheric Structure and Composition
+
+The atmosphere is layered by its temperature profile, and the layers exist because different
+heating mechanisms dominate at different altitudes. The troposphere, from the surface to roughly
+ten kilometres, is heated from below by the surface and therefore cools with height, which makes
+it convectively unstable and is why essentially all weather occurs there. The stratosphere above
+it warms with height because ozone absorbs ultraviolet radiation, which makes it stably stratified
+and largely free of vertical mixing — the reason aircraft cruise there and the reason material
+injected into it persists for years.
+
+Pressure falls approximately exponentially with height because the atmosphere is compressible and
+in hydrostatic balance. The scale height, roughly eight kilometres, is the altitude over which
+pressure falls by a factor of e, and it depends on temperature, which is why the profile differs
+between warm and cold air columns. Half the atmosphere's mass lies below about 5.5 kilometres,
+which is why altitude affects human physiology so sharply and why mountain observatories are
+above a substantial fraction of the atmosphere's absorption.
+
+Composition is dominated by nitrogen and oxygen, which together are ninety-nine percent, and both
+are transparent to infrared and therefore radiatively inactive. The radiatively important
+constituents are trace gases — water vapour, carbon dioxide, methane, ozone, nitrous oxide — whose
+combined abundance is well under one percent and whose infrared absorption determines the
+planet's surface temperature. Water vapour is the most abundant and the most variable, ranging
+from near zero to several percent, and its concentration is set by temperature rather than being
+independent.
+
+Structure and composition:
+  troposphere          surface to ~10 km; cools with height, convectively active,
+                       contains essentially all weather
+  tropopause           the boundary; its height varies from ~8 km polar to ~17 km
+                       tropical
+  stratosphere         warms with height from ozone absorption; stably stratified
+  mesosphere           cools again; where meteors ablate
+  thermosphere         very hot and very thin; where aurora occur
+  scale height         ~8 km; pressure falls by a factor of e
+  half the mass        below ~5.5 km
+  nitrogen and oxygen  99%; radiatively inactive
+  water vapour         the most abundant greenhouse gas, most variable,
+                       temperature-controlled, and therefore a feedback
+  carbon dioxide       well mixed, long lived; the dominant anthropogenic forcing
+  ozone                stratospheric absorption protects the surface;
+                       tropospheric ozone is a pollutant
+  aerosols             scatter and absorb; seed cloud droplets; the largest
+                       uncertainty in the radiative budget
+  lapse rate           the temperature decrease with height; the environmental
+                       rate varies while the adiabatic rates are fixed by
+                       thermodynamics
+
+Q: Nitrogen and oxygen constitute 99% of the atmosphere and contribute essentially nothing to the
+greenhouse effect. The reason is:
+A. Their concentration is too low
+B. Diatomic molecules of identical atoms have no changing dipole moment during vibration, so they
+   do not absorb infrared radiation
+C. They are too light
+D. They are located too high
+Reasoning: Infrared absorption requires a vibrational mode that changes the molecule's dipole
+moment. Symmetric diatomic molecules have no dipole and none of their modes create one, so they
+are transparent to infrared. Molecules with three or more atoms, or with dissimilar atoms, have
+such modes, which is why trace gases dominate the radiative properties. Answer: B.
+
+## Radiation, Energy, and Thermodynamics
+
+The atmosphere is driven by the imbalance between incoming solar radiation and outgoing infrared,
+distributed unevenly over the surface. The tropics receive more energy than they radiate and the
+poles radiate more than they receive, and the resulting gradient is what drives atmospheric and
+oceanic circulation — the entire weather system is a heat engine transporting energy poleward.
+
+Energy is transported by three mechanisms whose relative importance varies with height and
+latitude. Radiation transfers energy directly between the surface, the atmosphere, and space.
+Conduction is negligible in air except in the millimetre adjacent to the surface. Convection
+transports enormous quantities vertically, and latent heat transport — evaporating water at the
+surface and releasing the heat where it condenses aloft — is a substantial component that a purely
+sensible-heat analysis misses entirely.
+
+Atmospheric thermodynamics is dominated by the behaviour of rising air. A parcel rising expands
+because pressure falls, and expansion cools it — adiabatically, since the parcel exchanges
+negligible heat with its surroundings on the relevant timescale. The dry adiabatic lapse rate is
+about ten degrees per kilometre, and once condensation begins the released latent heat partially
+offsets the cooling, giving a moist rate of roughly five to six degrees per kilometre that varies
+with temperature.
+
+Stability follows from comparing the environmental lapse rate to the adiabatic rates. If the
+environment cools with height faster than a rising parcel does, the parcel remains warmer than its
+surroundings and continues rising — unstable, and convection develops. If the environment cools
+more slowly, a displaced parcel returns — stable. The interesting case is conditional instability,
+where the environment is stable for unsaturated air and unstable for saturated air, so convection
+develops only if a parcel is lifted far enough to reach saturation.
+
+Radiation and thermodynamics:
+  energy imbalance     tropics gain, poles lose; drives circulation
+  latent heat transport  evaporation and condensation; a large and easily
+                       overlooked component
+  adiabatic process    no heat exchange; the parcel's temperature changes from
+                       expansion alone
+  dry adiabatic lapse  ~9.8 C/km; fixed by thermodynamics
+  moist adiabatic lapse  ~5-6 C/km; latent heat offsets the cooling
+  environmental lapse  the actual profile; varies
+  absolute stability   environment cools slower than moist adiabatic
+  absolute instability  environment cools faster than dry adiabatic
+  conditional instability  between them; unstable only once saturated
+  level of free convection  where a lifted parcel becomes buoyant
+  CAPE                 convective available potential energy; the buoyancy
+                       integral, and the fuel for thunderstorms
+  convective inhibition  the energy required to reach free convection; a cap that
+                       allows CAPE to accumulate before release
+  relative humidity    vapour relative to saturation; temperature dependent, so
+                       it changes when air is heated or cooled with no moisture
+                       change
+  dew point            the temperature at which saturation occurs; a direct
+                       moisture measure and more informative than relative
+                       humidity
+
+Convective inhibition deserves emphasis because it explains why severe convection is explosive
+rather than gradual. A stable layer aloft — a cap — prevents parcels from reaching their level of
+free convection, so surface heating accumulates buoyant energy without releasing it. When the cap
+is finally broken, by continued heating or by lifting at a front, the accumulated energy is
+released at once and produces far more violent convection than would have occurred had it been
+released continuously. This is why the most severe thunderstorms develop in environments with both
+large available energy and a cap, and why forecasting them involves predicting when the cap will
+break.
+
+## Dynamics and Circulation
+
+Atmospheric motion results from pressure gradients, modified by rotation, friction, and
+curvature. The pressure gradient force pushes air from high to low pressure, and if it acted alone
+the air would flow directly across the isobars and equalize the pressure within hours. It does not,
+because Earth's rotation deflects moving air.
+
+The Coriolis effect deflects motion to the right in the northern hemisphere and to the left in
+the southern, with magnitude proportional to speed and to the sine of latitude — so it vanishes at
+the equator and is strongest at the poles. Above the friction layer, the balance between the
+pressure gradient and the Coriolis deflection produces geostrophic flow, which runs parallel to
+the isobars rather than across them. This is why weather systems have circulation around them
+rather than flow into them, and why wind direction can be read from a pressure map.
+
+Near the surface, friction slows the wind, which weakens the Coriolis effect and permits some
+flow across the isobars toward low pressure. The consequence is convergence into low pressure
+systems, which forces ascent, which produces cloud and precipitation — and divergence from high
+pressure, which forces subsidence and clear conditions. This is why lows are associated with
+unsettled weather and highs with settled weather, and it follows from friction rather than from
+anything about the pressure itself.
+
+The general circulation organizes into cells. The Hadley cell rises at the equator where heating
+is greatest, moves poleward aloft, and descends around thirty degrees latitude — which is where
+the world's major deserts are, because descending air warms and its relative humidity falls. The
+Ferrel and polar cells complete the pattern, and the jet streams flow along the boundaries where
+temperature gradients are strongest.
+
+Dynamics and circulation:
+  pressure gradient force  from high to low
+  Coriolis effect      deflects right in the north; proportional to speed and to
+                       the sine of latitude
+  geostrophic balance  gradient against Coriolis; flow parallel to the isobars
+  gradient wind        adds curvature; explains why flow around a low is
+                       subgeostrophic and around a high supergeostrophic
+  friction layer       the lowest kilometre; permits cross-isobar flow
+  convergence and ascent  into a low; produces cloud and precipitation
+  divergence and subsidence  from a high; produces clear conditions
+  Hadley cell          equatorial ascent, descent at ~30 degrees; the desert belt
+  Ferrel cell          the mid-latitude indirect cell
+  polar cell           high latitude
+  jet stream           along the strongest temperature gradients; steers weather
+                       systems
+  Rossby waves         large-scale meanders in the jet; their amplitude determines
+                       whether weather is progressive or blocked
+  blocking             a stalled pattern; produces persistent heat, cold, or wet
+                       conditions and is the mechanism behind most prolonged
+                       extremes
+  thermal wind         the vertical wind shear is proportional to the horizontal
+                       temperature gradient; why the jet sits above the strongest
+                       gradient
+
+The thermal wind relationship deserves note because it links the temperature and wind fields
+directly. The vertical change in the geostrophic wind is proportional to the horizontal temperature
+gradient, so a strong temperature contrast necessarily produces strong shear and a jet aloft. This
+is why the polar jet sits above the boundary between polar and mid-latitude air, why it
+strengthens in winter when that contrast is greatest, and why a reduced equator-to-pole temperature
+gradient would be expected to weaken it — which is the basis of the argument that Arctic warming
+affects mid-latitude circulation, an argument that remains contested.
+
+## Weather Systems and Severe Weather
+
+Mid-latitude weather is dominated by extratropical cyclones, which develop along the boundary
+between air masses of different temperature. The process is baroclinic instability: a horizontal
+temperature gradient stores available potential energy, and a wave disturbance on the boundary
+grows by converting it, with warm air rising poleward and cold air sinking equatorward. The
+resulting system has a characteristic structure of warm and cold fronts that produces a
+recognizable sequence of weather as it passes.
+
+Fronts are boundaries between air masses and produce different weather according to which air is
+advancing. A warm front has warm air overriding retreating cold air along a shallow slope,
+producing extensive layered cloud and prolonged light precipitation ahead of it. A cold front has
+cold air undercutting warm air along a steeper slope, forcing rapid ascent and producing a narrow
+band of intense convective precipitation. An occluded front forms when the faster cold front
+overtakes the warm one, lifting the warm air entirely off the surface.
+
+Thunderstorms require moisture, instability, and a lifting mechanism, and their severity depends
+substantially on vertical wind shear. In weak shear, the downdraught falls into the updraught and
+cuts off the storm's inflow, so the storm is short-lived. In strong shear the updraught is tilted
+so the downdraught falls elsewhere, the storm sustains itself, and it can organize into a
+supercell with a rotating updraught — which is the structure producing most strong tornadoes and
+the largest hail.
+
+Weather systems:
+  air mass             a large body with uniform properties, acquired from its
+                       source region
+  front                the boundary between air masses
+  warm front           shallow slope, layered cloud, prolonged light precipitation
+  cold front           steeper slope, convective band, brief intense precipitation
+  occlusion            the cold front overtakes the warm; warm air lifted off the
+                       surface
+  extratropical cyclone  baroclinic instability converting available potential
+                       energy
+  the conveyor belts   warm, cold, and dry airstreams; the modern conceptual model
+  thunderstorm requirements  moisture, instability, lift
+  wind shear           determines organization; weak shear gives short-lived
+                       storms, strong shear gives sustained ones
+  supercell            a rotating updraught; most strong tornadoes and giant hail
+  mesocyclone          the rotating updraught itself
+  squall line          organized linear convection; damaging straight-line winds
+  tropical cyclone     a warm-core system over warm ocean; requires sea surface
+                       above ~26 C, sufficient depth, low shear, and Coriolis, so
+                       none form within a few degrees of the equator
+  eyewall              the strongest winds; replacement cycles cause intensity
+                       fluctuations
+  rapid intensification  a large increase in a day; the hardest forecast problem
+                       and the most consequential
+
+The distinction between tropical and extratropical cyclones deserves stating because they are
+different phenomena with a shared name. An extratropical cyclone is cold-cored and derives its
+energy from horizontal temperature contrasts, so it requires a front and it strengthens with the
+contrast. A tropical cyclone is warm-cored and derives its energy from latent heat released by
+condensation of water evaporated from a warm ocean, so it requires warm water and it is destroyed
+by the wind shear that extratropical systems require. Their structures, energy sources,
+forecasting methods, and hazards differ accordingly.
+
+[user] Why do weather forecasts become unreliable beyond about a week when we have detailed models
+and enormous computing power?
+[assistant] tool_call met.predictability({"model_resolution_km": 9, "observations_per_cycle": 4e7,
+"initial_condition_error": "small_but_nonzero", "system": "chaotic",
+"doubling_time_hours": 36})
+[tool] {"limit_mechanism": "sensitive_dependence_on_initial_conditions",
+"error_doubling_time_h": 36, "practical_limit_days": [7, 14],
+"note": "improvement_is_logarithmic_in_observation_quality",
+"ensemble_approach": "probabilistic_rather_than_deterministic"}
+[assistant] It is not a computing limitation and it will not be solved by more of either. The
+atmosphere is chaotic, which means small differences in the initial state grow exponentially.
+
+The mechanism: whatever error exists in your initial conditions — and there is always some, since
+observations are finite in number and imperfect in accuracy — doubles roughly every day and a half.
+An error too small to measure grows to dominate the forecast after enough doublings, and the number
+of doublings available before the error reaches the size of the signal is what sets the horizon.
+At current accuracy that is roughly seven to fourteen days depending on the situation and the
+quantity being forecast.
+
+The critical property is that improving the initial conditions helps only logarithmically. Halving
+the initial error buys one additional doubling time — about a day and a half of forecast horizon.
+Reducing it by a factor of a thousand buys about ten doublings, or two weeks. There is no
+achievable observational improvement that extends the horizon substantially, which is why this is a
+property of the atmosphere rather than of the forecasting system.
+
+The response is to forecast probabilistically rather than deterministically. Run an ensemble of
+forecasts from slightly perturbed initial conditions and slightly perturbed model formulations, and
+the spread among them estimates the uncertainty. Where the members agree, confidence is high; where
+they diverge, the atmosphere is in a sensitive state and the forecast is genuinely uncertain. This
+is more useful than a single forecast even at short range, because it distinguishes a confident
+prediction from an uncertain one.
+
+Two things remain predictable well beyond the weather horizon. Climate — the statistics of the
+atmosphere rather than its specific state — is a boundary value problem rather than an initial
+value problem, so it is predictable in ways individual weather is not. And slowly varying boundary
+conditions such as sea surface temperatures give seasonal predictability of anomaly statistics,
+which is why El Niño's effects can be anticipated months ahead while the weather on a particular
+day cannot.
+
+## Forecasting and Air Quality
+
+Numerical weather prediction solves the governing equations on a grid, and its accuracy has
+improved steadily for decades — a modern five-day forecast is about as accurate as a three-day
+forecast was thirty years ago. The improvements come from higher resolution, better representation
+of processes too small to resolve, more and better observations, and improved methods for
+combining observations with the model's prior state.
+
+Data assimilation is the step that receives the least attention and contributes the most. The
+model's forecast provides a prior estimate of the atmosphere's state, observations provide
+information about it, and assimilation combines them weighted by their respective uncertainties.
+The number of observations is far smaller than the number of model variables, so the model's prior
+does most of the work, and the assimilation determines how effectively each observation
+constrains the state.
+
+Air quality is a separate atmospheric concern with its own dynamics, and the key insight is that
+the pollutant concentration depends on the emission rate divided by the volume it disperses into,
+so meteorology matters as much as emissions. A stable atmosphere with a shallow mixing layer
+concentrates the same emissions into a fraction of the volume, which is why pollution episodes
+coincide with stagnant high-pressure conditions and with temperature inversions.
+
+Forecasting and air quality:
+  numerical prediction  the governing equations on a grid
+  resolution           finer resolves more; a five-day forecast now matches a
+                       three-day forecast of thirty years ago
+  parameterization     processes below the grid scale — convection, cloud
+                       microphysics, turbulence, radiation — represented
+                       statistically; the main source of model differences
+  data assimilation    combine observations with the model prior; the highest-value
+                       and least visible component
+  ensembles            perturbed forecasts estimating uncertainty
+  the predictability limit  set by the atmosphere, not by the computation
+  climate versus weather  a boundary value problem versus an initial value problem
+  primary pollutants   emitted directly; particulates, nitrogen oxides, sulfur
+                       dioxide, carbon monoxide
+  secondary pollutants  formed in the atmosphere; ozone and secondary particulates
+  photochemical smog   nitrogen oxides and volatile organics under sunlight
+                       producing ozone
+  the ozone paradox    reducing nitrogen oxides can increase ozone in
+                       hydrocarbon-limited regions, because the oxides also destroy
+                       ozone; which regime applies determines the correct control
+                       strategy
+  mixing layer depth   the volume pollutants disperse into; shallow layers
+                       concentrate
+  temperature inversion  a stable layer trapping pollutants below it; the
+                       mechanism of severe pollution episodes
+  long range transport  pollution crosses borders; dust, smoke, and sulfates
+                       travel intercontinentally
+
+The ozone control paradox deserves the closing note because it demonstrates why atmospheric
+chemistry requires modelling rather than intuition. Ground-level ozone forms from nitrogen oxides
+and volatile organic compounds reacting under sunlight, so reducing nitrogen oxides seems
+straightforwardly beneficial. In regions where volatile organics are the limiting reactant,
+reducing nitrogen oxides increases ozone, because those oxides also participate in reactions that
+destroy it. Which regime a given location is in depends on the ratio of the two precursors and
+varies by location, by season, and by time of day — so an effective control strategy requires
+determining the regime, and a strategy applied on general reasoning can worsen the problem it
+addresses.

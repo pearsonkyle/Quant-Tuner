@@ -1,0 +1,291 @@
+================================================================================
+AREA: Physics
+SUBJECT: Nuclear and Particle Physics
+Subtopics: nuclear structure, radioactivity, fission and fusion, the standard model,
+forces and symmetries, accelerators and detectors, open questions and applications.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Nuclear Structure
+
+The nucleus contains protons and neutrons bound by the residual strong force, and its
+existence poses an immediate question: the protons repel each other electrostatically with
+enormous force at nuclear separations, so something stronger must hold them. The strong
+interaction is roughly a hundred times stronger than the electromagnetic at those distances
+and is very short-ranged, falling off over about a femtometre, which explains why nuclei exist
+and why they cannot grow indefinitely.
+
+That competition between short-range attraction and long-range repulsion determines nuclear
+stability. Each nucleon interacts only with its immediate neighbours because the strong force
+saturates, so the binding energy grows roughly linearly with nucleon count. Electrostatic
+repulsion, being long-ranged, grows with the square of the proton count. As nuclei get larger
+the repulsion grows faster, which is why heavy nuclei need progressively more neutrons to
+remain bound and why there is an upper limit to stability.
+
+Binding energy per nucleon is the quantity that organizes nuclear energetics. It rises steeply
+for the lightest nuclei, peaks near iron-56 at about 8.8 million electronvolts per nucleon, and
+declines slowly thereafter. The peak is why fusion of light nuclei releases energy and fission
+of heavy ones does too, and why iron is the endpoint of stellar nucleosynthesis — beyond it,
+neither process releases energy, so a stellar core of iron has no remaining fuel and collapses.
+
+Nuclear structure:
+  nucleons             protons and neutrons; the neutron is slightly heavier
+  strong force         binds nucleons; short-ranged, saturating, ~100x
+                       electromagnetic at nuclear distances
+  binding energy       the mass deficit times c squared
+  binding per nucleon  peaks at iron-56, ~8.8 MeV
+  fusion below iron    releases energy
+  fission above iron   releases energy
+  isotopes             same protons, different neutrons
+  nuclear radius       ~1.2 fm times the mass number to the one third power
+  liquid drop model    volume, surface, Coulomb, asymmetry, and pairing terms;
+                       reproduces binding energies well
+  shell model          nucleons in orbitals; explains magic numbers
+  magic numbers        2, 8, 20, 28, 50, 82, 126; closed shells give extra
+                       stability
+  valley of stability  the neutron-to-proton ratio for bound nuclei; rises from 1
+                       for light nuclei toward about 1.5 for heavy ones
+  neutron excess       needed in heavy nuclei to dilute proton repulsion
+
+The magic numbers are worth noting because they are direct evidence that nucleons occupy
+discrete energy levels rather than forming an undifferentiated fluid. Nuclei with a magic
+number of protons or neutrons are unusually stable and abundant, doubly magic nuclei such as
+helium-4 and lead-208 exceptionally so, in the same way that noble gases are chemically inert
+because their electron shells are closed. That the same shell logic applies to two entirely
+different force laws is a nontrivial and instructive result.
+
+Q: Both fusion of hydrogen and fission of uranium release energy. This is because:
+A. Both increase the total mass
+B. Binding energy per nucleon peaks at iron, so moving toward iron from either direction
+   releases energy
+C. Fusion releases energy and fission absorbs it
+D. Both split heavy nuclei
+Reasoning: The binding energy per nucleon curve peaks near iron-56. Fusing light nuclei moves
+up the curve toward the peak, and splitting heavy nuclei also moves toward the peak from the
+other side. In both cases the products are more tightly bound, so the excess mass is released
+as energy. Answer: B.
+
+## Radioactivity and Decay
+
+An unstable nucleus decays toward a more stable configuration, and the mode depends on which
+way it is unstable. Alpha decay emits a helium-4 nucleus and occurs in heavy nuclei where the
+Coulomb repulsion is large; it proceeds by quantum tunnelling through the Coulomb barrier,
+which is why the half-lives vary over more than twenty orders of magnitude while the emitted
+energies vary by only a factor of two — the exponential sensitivity of tunnelling to barrier
+height and energy.
+
+Beta decay converts a neutron to a proton or the reverse, mediated by the weak interaction.
+Beta-minus emits an electron and an antineutrino and occurs in neutron-rich nuclei; beta-plus
+emits a positron and a neutrino and occurs in proton-rich ones, as does electron capture. The
+neutrino was postulated precisely because the emitted electron's energy spectrum is continuous
+rather than discrete, which appeared to violate energy conservation until a third undetected
+particle carrying the remainder was proposed — a proposal made in 1930 and confirmed
+experimentally only in 1956.
+
+Gamma decay emits a photon from a nucleus in an excited state, changing neither the proton nor
+the neutron count. It typically follows alpha or beta decay, which frequently leaves the
+daughter nucleus excited, and the discrete gamma energies are characteristic of the emitting
+nuclide, which is what makes gamma spectroscopy a precise identification technique.
+
+Decay and radiation:
+  alpha                emits helium-4; heavy nuclei; tunnelling, so half-lives span
+                       an enormous range
+  beta-minus           neutron to proton plus electron and antineutrino
+  beta-plus            proton to neutron plus positron and neutrino
+  electron capture     an inner electron absorbed; competes with beta-plus
+  gamma                photon from an excited nucleus; characteristic energies
+  decay law            N = N_0 exp(-lambda t);  half-life = ln2 / lambda
+  activity             decays per second; becquerel
+  penetration          alpha stopped by paper, beta by millimetres of aluminium,
+                       gamma requires centimetres of lead
+  ionizing power       inverse to penetration; alpha is most damaging internally
+                       and harmless externally
+  absorbed dose        gray; energy per unit mass
+  equivalent dose      sievert; weighted by radiation type
+  background           ~2-3 mSv per year typical, dominated by radon and by
+                       cosmic rays at altitude
+  half-life range      from microseconds to billions of years
+
+The inverse relationship between penetration and ionizing power has a consequence that is
+frequently misunderstood. Alpha particles are stopped by a sheet of paper or the dead outer
+layer of skin, so an external alpha source is essentially harmless. The same particles deposit
+all their energy in a very short path, so an alpha emitter inhaled or ingested delivers an
+intense localized dose and is among the most hazardous internal contaminants. The hazard
+depends on the exposure pathway, not on the radiation type alone.
+
+Radiometric dating applies the decay law in reverse, and its reliability rests on decay rates
+being independent of temperature, pressure, and chemical environment — which has been verified
+across the ranges accessible to experiment. The assumptions that must be checked in any
+application are that the system remained closed to gain or loss of parent and daughter, and
+that the initial daughter abundance is known or determinable, which isochron methods establish
+from the data itself rather than assuming.
+
+## Fission, Fusion, and Applications
+
+Fission splits a heavy nucleus into fragments, releasing energy and typically two or three
+neutrons. Those neutrons can induce further fissions, and whether the reaction sustains itself
+depends on the multiplication factor: the average number of subsequent fissions caused by each
+one. Below one the reaction dies out, at exactly one it is critical and self-sustaining at
+constant rate, and above one it grows.
+
+Reactor control rests on a detail that makes it possible at all. About 0.65 percent of fission
+neutrons are delayed, emitted seconds to minutes after the fission by decaying fragments rather
+than promptly. A reactor is operated so that it is subcritical on prompt neutrons alone and
+critical only with the delayed contribution, which means the reactor's response time is
+governed by the delayed neutron timescale of seconds rather than by the prompt timescale of
+microseconds. Without delayed neutrons, mechanical control would be impossible.
+
+Fusion combines light nuclei and releases more energy per unit mass than fission, with fuel
+that is abundant and products that are not long-lived waste. The difficulty is the Coulomb
+barrier: nuclei must approach within the range of the strong force against their mutual
+repulsion, which requires temperatures of order a hundred million kelvin. At those temperatures
+matter is a plasma that must be confined, and the two approaches are magnetic confinement,
+holding the plasma in a magnetic field for long periods at low density, and inertial
+confinement, compressing a small target so rapidly that it fuses before it disassembles.
+
+Fission and fusion:
+  fission              heavy nucleus splits; ~200 MeV per event
+  chain reaction       neutrons induce further fissions
+  multiplication factor  below 1 subcritical, 1 critical, above 1 supercritical
+  delayed neutrons     ~0.65%; what makes reactor control possible
+  moderator            slows neutrons to thermal energies where fission cross
+                       sections are far larger; water, heavy water, graphite
+  control rods         neutron absorbers; adjust reactivity
+  enrichment           raising the uranium-235 fraction; ~3-5% for power reactors
+  breeder reactor      produces more fissile material than it consumes
+  fission products     highly radioactive; the waste problem
+  fusion, D-T          deuterium plus tritium; the easiest reaction, and it
+                       produces a fast neutron that activates the structure
+  Lawson criterion     the density, temperature, and confinement time product
+                       required for net energy
+  magnetic confinement tokamaks and stellarators; long confinement, low density
+  inertial confinement laser or beam compression; short confinement, high density
+  aneutronic fuels     avoid neutron activation; require much higher temperatures
+
+The waste question is worth stating accurately because the discussion is frequently
+imprecise. Fission products are intensely radioactive and mostly short-lived, decaying to
+background levels over a few hundred years. Transuranic actinides produced by neutron capture
+are far less intensely radioactive and persist for tens of thousands of years, and they are what
+drives the long-term disposal requirement. Reprocessing separates them and they can in principle
+be transmuted in fast reactors, which converts a hundred-thousand-year problem into a
+several-hundred-year one — a technically demonstrated capability whose deployment is limited by
+economics and by proliferation concerns rather than by physics.
+
+## The Standard Model
+
+The standard model describes all known fundamental particles and three of the four forces, and
+it is the most precisely tested theory in science. Matter consists of fermions in three
+generations: quarks that feel the strong force and leptons that do not. Forces are mediated by
+gauge bosons. The Higgs field gives mass to the fermions and to the weak bosons through
+spontaneous symmetry breaking.
+
+The three generations are a genuine puzzle. The second and third generations are heavier
+copies of the first with otherwise identical properties, they decay rapidly into first
+generation particles, and ordinary matter consists entirely of the first. Why there are three,
+and why the masses span such an enormous range — the top quark is roughly three hundred
+thousand times heavier than the electron — is unexplained by the theory, which takes the masses
+as input parameters rather than predicting them.
+
+Quarks are never observed in isolation because of colour confinement. The strong force between
+them does not weaken with distance as other forces do; the field energy grows, so separating
+two quarks eventually supplies enough energy to create a new quark-antiquark pair, and the
+result is two hadrons rather than two free quarks. The complementary property, asymptotic
+freedom, is that the interaction weakens at very short distances, so quarks behave as nearly
+free particles inside a hadron — which is why high-energy scattering experiments can probe them
+at all.
+
+The standard model:
+  quarks               up, down, charm, strange, top, bottom; fractional charge,
+                       carry colour
+  leptons              electron, muon, tau and their neutrinos
+  three generations    heavier copies; unexplained
+  photon               electromagnetic; massless, infinite range
+  W and Z bosons       weak; massive, hence very short range
+  gluons               strong; carry colour themselves, which is why the force
+                       behaves so differently
+  Higgs boson          the excitation of the field giving mass; confirmed 2012
+  confinement          quarks are never free; the field energy grows with
+                       separation
+  asymptotic freedom   the strong interaction weakens at short distance
+  hadrons              baryons of three quarks, mesons of quark-antiquark
+  mass origin          most of a proton's mass is binding energy, not quark mass
+  antimatter           same mass, opposite charge; annihilates with matter
+  neutrino oscillation  neutrinos change flavour, which requires nonzero mass;
+                       the first confirmed departure from the original standard
+                       model
+
+Neutrino oscillation deserves emphasis because it is established physics beyond the standard
+model as originally formulated. Neutrinos produced in one flavour are detected as another,
+which requires that the flavour states be superpositions of states with different masses — and
+therefore that at least two neutrino masses are nonzero. The original theory assumed them
+massless. The absolute mass scale, the ordering of the masses, and whether neutrinos are their
+own antiparticles all remain open, and each is the target of substantial current experimental
+effort.
+
+## Accelerators, Detectors, and Open Questions
+
+Particle accelerators probe short distances by achieving high energy, and the connection is
+direct: the de Broglie wavelength is inversely proportional to momentum, so resolving smaller
+structures requires higher energy. They also create heavy particles, since energy converts to
+mass, which is why discovering a particle of a given mass requires a collider capable of
+supplying it.
+
+Colliding beams rather than striking a fixed target is what makes the highest energies
+accessible. In a fixed-target collision much of the energy goes into the momentum of the
+products rather than into the interaction, and the useful centre-of-mass energy grows only as
+the square root of the beam energy. In a symmetric collider the centre-of-mass frame is the
+laboratory frame and the full energy is available, which is why every high-energy frontier
+machine is a collider.
+
+Detectors reconstruct what happened from what emerges, and modern designs are layered
+cylinders each identifying different particles. Tracking detectors in a magnetic field measure
+charged particle trajectories, with the curvature giving momentum and the sign of the charge.
+Electromagnetic calorimeters absorb electrons and photons and measure their energy. Hadronic
+calorimeters do the same for hadrons. Muon chambers on the outside detect the only charged
+particles that penetrate everything else. Neutrinos escape entirely and are inferred from
+missing transverse momentum.
+
+Accelerators, detectors, and open problems:
+  wavelength and energy  higher energy resolves smaller structures
+  fixed target vs collider  collider energy is fully available; fixed target
+                         wastes most of it to momentum
+  synchrotron radiation  charged particles radiate when accelerated; the reason
+                         electron rings are limited and proton rings are not
+  luminosity             collision rate; determines how fast rare processes
+                         accumulate
+  tracking detector      curvature in a magnetic field gives momentum and charge
+  calorimeter            absorbs and measures energy
+  muon system            the outermost layer; muons penetrate everything else
+  missing momentum       infers neutrinos and any invisible particle
+  trigger                selects which of billions of collisions per second to
+                         record; most data is discarded in microseconds and is
+                         unrecoverable, so trigger design determines what can be
+                         discovered
+  five sigma             the discovery convention in particle physics; a
+                         one-in-3.5-million false positive rate, chosen because
+                         the number of searches is enormous
+  open: dark matter      no standard model candidate
+  open: matter asymmetry  standard model CP violation is far too small
+  open: neutrino mass    origin, scale, and ordering
+  open: hierarchy        why the Higgs mass is so far below the Planck scale
+  open: gravity          not included in the standard model at all
+  open: parameters       around nineteen free parameters taken from experiment
+
+The trigger deserves the last technical word because it determines what is discoverable.
+A modern collider produces collisions faster than any system could record, so hardware and
+software triggers select a tiny fraction within microseconds based on coarse criteria, and
+everything else is discarded permanently. This means the experiment can only find what the
+trigger was designed to keep, and a signature nobody anticipated is thrown away before anyone
+sees it. Considerable effort goes into designing triggers that preserve unanticipated
+signatures, and it is a genuine limit on discovery rather than a technicality.
+
+The applications of nuclear and particle physics extend far beyond the field. Medical imaging
+uses positron emission from radiotracers and nuclear magnetic resonance. Radiotherapy uses
+beams shaped to deposit dose in a tumour, with proton and carbon ion therapy exploiting the
+Bragg peak to concentrate the dose at a controllable depth rather than along the whole path.
+Carbon dating and other radiometric methods date archaeological and geological material.
+Neutron scattering probes material structure. Accelerator-produced isotopes are used in
+industry and medicine. And the World Wide Web was created at a particle physics laboratory to
+share data among collaborators — the most economically consequential outcome of the field, and
+one that no funding case could have predicted.
