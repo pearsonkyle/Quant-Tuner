@@ -21,6 +21,11 @@ Writes into ``--out``:
     corpus.eval.agentic.txt   SWE trajectory holdout        -> its own baseline.kld
     corpus.eval.broad.txt     broad-supplement holdout      -> its own baseline.kld
     corpus.eval.redteam.txt   held-out attacks + refusals   -> its own baseline.kld
+    corpus.cal.jsonl.gz       the calibration corpus as records (one per window, with the
+                              source label) — same content as corpus.cal.txt
+    sft.jsonl.gz              FULL conversations for supervised fine-tuning: untrimmed,
+                              untemplated, tool_calls + reasoning_content as message
+                              fields, split-tagged to match the calibration split
     corpora_audit.json        token counts, per-source shares, tool-call marker scan,
                               and the chat-template report
 
@@ -87,6 +92,12 @@ def main() -> int:
     p.add_argument("--allow-template-warnings", action="store_true",
                    help="build even if the chat-template check FAILS (it always warns "
                         "loudly; use only after inspecting the render by hand)")
+    p.add_argument("--no-sft", action="store_true",
+                   help="skip sft.jsonl.gz (the full-fidelity conversation export)")
+    p.add_argument("--sft-token-counts", action="store_true",
+                   help="add per-conversation n_tokens to sft.jsonl.gz. Costs a second "
+                        "tokenization pass over ~30M tokens and is specific to --model's "
+                        "tokenizer")
     p.add_argument("--allow-no-tool-calls", action="store_true",
                    help="do not fail when the built corpus has zero tool-call markers")
     a = p.parse_args()
@@ -112,6 +123,8 @@ def main() -> int:
         seed=a.seed,
         strict_template=not a.allow_template_warnings,
         require_tool_calls=not a.allow_no_tool_calls,
+        write_sft=not a.no_sft,
+        sft_token_counts=a.sft_token_counts,
     )
     audit = universal.build(cfg)
     share = audit["calibration"]["token_share"]

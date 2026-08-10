@@ -82,12 +82,56 @@ def test_count_available_counts_both_shapes():
     assert reasoning.count_available(msgs) == 2
 
 
-def test_multiple_inline_blocks_are_all_extracted():
-    m = {"role": "assistant",
-         "content": "<think>one</think>mid<think>two</think>end"}
+def test_only_a_LEADING_think_block_counts_as_reasoning():
+    """Assistant turns in coding logs discuss `<think>` in prose.
+
+    An unanchored match spanned from a backticked `<think>` to a `</think>` mentioned later
+    in the same message and deleted the explanation in between — 3 mangled turns on the real
+    logs. Reasoning is only ever emitted at the start of a turn, so anchor there.
+    """
+    prose = {"role": "assistant",
+             "content": "The template opens with `<think>` and llama-server returns only "
+                        "the post-`</think>` content."}
+    out = reasoning.apply_policy([prose], "field")[0]
+    assert "reasoning_content" not in out
+    assert out["content"] == prose["content"]      # untouched, nothing deleted
+
+    leading = {"role": "assistant", "content": "<think>real cot</think>the answer"}
+    out = reasoning.apply_policy([leading], "field")[0]
+    assert out["reasoning_content"] == "real cot"
+    assert out["content"] == "the answer"
+
+    # a second block mid-message is content, not a second reasoning block
+    two = {"role": "assistant", "content": "<think>one</think>mid <think>two</think> end"}
+    out = reasoning.apply_policy([two], "field")[0]
+    assert out["reasoning_content"] == "one"
+    assert out["content"] == "mid <think>two</think> end"
+
+
+def test_unclosed_leading_think_is_treated_as_truncated_reasoning():
+    """Truncated generation: leaving a naked marker would put an unbalanced token in data."""
+    m = {"role": "assistant", "content": "<think>cut off mid-thought"}
     out = reasoning.apply_policy([m], "field")[0]
-    assert out["reasoning_content"] == "one\ntwo"
-    assert "<think>" not in out["content"]
+    assert out["reasoning_content"] == "cut off mid-thought"
+    assert out.get("content", "") == ""
+    assert "<think>" not in reasoning.apply_policy([m], "drop")[0].get("content", "")
+
+
+def test_orphaned_closing_tag_is_treated_as_reasoning():
+    """Capture that began mid-thought: the turn opens with a tail and a tag it never opened."""
+    m = {"role": "assistant", "content": "…before formatting.\n</think>\n\nNow the answer"}
+    out = reasoning.apply_policy([m], "field")[0]
+    assert out["reasoning_content"] == "…before formatting."
+    assert out["content"] == "Now the answer"
+    assert "</think>" not in reasoning.apply_policy([m], "drop")[0]["content"]
+
+
+def test_a_closing_tag_discussed_in_prose_after_an_opening_one_is_left_alone():
+    """Both tags present mid-prose -> not reasoning, and nothing may be deleted."""
+    m = {"role": "assistant",
+         "content": "It emits `<think>` then the post-`</think>` content."}
+    out = reasoning.apply_policy([m], "field")[0]
+    assert out["content"] == m["content"] and "reasoning_content" not in out
 
 
 # -------------------------------------------------------------------------- refusals

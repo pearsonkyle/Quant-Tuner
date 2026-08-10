@@ -158,6 +158,12 @@ class UniversalConfig:
     # How assistant reasoning is normalized before templating; see data.reasoning.
     # "drop" for a non-thinking target model.
     reasoning_policy: str = "auto"
+    # Also emit sft.jsonl.gz: the same sources as FULL conversations (untrimmed, untemplated,
+    # tool_calls + reasoning_content as fields) for supervised fine-tuning. Token counts are
+    # off by default — they cost a second tokenization pass over ~30M tokens and are specific
+    # to whichever tokenizer this build used.
+    write_sft: bool = True
+    sft_token_counts: bool = False
     require_tool_calls: bool = True       # fail if the built corpus has no tool-call markers
     strict_template: bool = True          # fail on blocking chat-template checks
 
@@ -378,6 +384,67 @@ def pack_raw_samples(
     return chunks, total
 
 
+# --------------------------------------------------------------------------- jsonl writers
+def write_jsonl_gz(path: Path, records: Iterable[dict]) -> tuple[int, int]:
+    """Stream ``records`` to a gzipped JSONL. Returns ``(n_records, bytes_written)``."""
+    import gzip
+
+    n = 0
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with gzip.open(path, "wt", encoding="utf-8") as fh:
+        for r in records:
+            fh.write(json.dumps(r, ensure_ascii=False, default=str) + "\n")
+            n += 1
+    return n, path.stat().st_size
+
+
+def sft_record(session: dict, *, split_name: str, source: str, tok=None) -> dict:
+    """One conversation as an SFT training row — **complete, nothing trimmed**.
+
+    This is deliberately *not* the calibration view. The calibration corpus is windowed to
+    ≤3.5k tokens, has its system prose and tool schemas stubbed after a quota, clips tool
+    outputs to 512 tokens, and is flattened to rendered text against one model's chat
+    template. All of that is right for fitting an importance matrix and wrong for training:
+    here every message survives in full, with ``tool_calls``, ``tool_call_id``/``name`` and
+    ``reasoning_content`` kept as **separate fields** rather than inlined, so a trainer can
+    template them however it likes (and mask reasoning independently of the answer).
+
+    Model-agnostic by design — no chat template is applied. ``n_tokens`` is filled only when
+    a tokenizer is passed, and is then specific to that tokenizer.
+    """
+    msgs = ingest.normalize_messages(session.get("messages") or [])
+    ingest.coerce_tool_call_arguments(msgs)
+    msgs = reasoning.apply_policy(msgs, "field")
+
+    keep = ("role", "content", "reasoning_content", "tool_calls", "tool_call_id", "name")
+    clean = [{k: m[k] for k in keep if m.get(k) not in (None, "")} for m in msgs]
+    clean = [m for m in clean if m.get("role")]
+
+    n_chars = sum(len(str(m.get("content") or "")) + len(str(m.get("reasoning_content") or ""))
+                  for m in clean)
+    rec = {
+        "id": session.get("id") or ingest.session_fingerprint(session)[:16],
+        "source": source,
+        "split": split_name,
+        "messages": clean,
+        "tools": split.session_tools(session, msgs) or [],
+        "n_messages": len(clean),
+        "n_tool_calls": sum(len(m.get("tool_calls") or []) for m in clean),
+        "n_tool_results": sum(1 for m in clean if m.get("role") == "tool"),
+        "n_reasoning": sum(1 for m in clean if m.get("reasoning_content")),
+        "n_chars": n_chars,
+    }
+    if session.get("meta"):
+        rec["meta"] = session["meta"]
+    if tok is not None:
+        texts = [str(m.get("content") or "") for m in clean]
+        texts += [str(m.get("reasoning_content") or "") for m in clean
+                  if m.get("reasoning_content")]
+        rec["n_tokens"] = sum(
+            len(ids) for ids in tok(texts, add_special_tokens=False)["input_ids"])
+    return rec
+
+
 # ------------------------------------------------------------------------------ marker scan
 def tool_call_marker_counts(text: str, markers: Iterable[str]) -> dict[str, int]:
     return {m: text.count(m) for m in markers if m in text}
@@ -408,6 +475,107 @@ class _Part:
     chunks: list[str]
     tokens: int
     audit: dict = field(default_factory=dict)
+
+
+def _write_sft(
+    cfg: UniversalConfig, out: Path, tok, *,
+    log_splits: dict[str, list[dict]],
+    swe_cal: list[dict], swe_eval: list[dict],
+    redteam_cal: list[dict], redteam_eval: list[dict],
+) -> dict:
+    """Write ``sft.jsonl.gz``: every chat-shaped source, full fidelity, split-tagged.
+
+    Re-reads the sources rather than reusing the packer's copies, because by this point
+    those have been clipped and windowed for calibration. The ``split`` field carries the
+    SAME assignment the calibration corpus used, so training on ``split == "train"`` leaves
+    the tools / agentic / refusal eval holdouts genuinely held out.
+    """
+    counter = tok if cfg.sft_token_counts else None
+    by_source: dict[str, dict[str, int]] = {}
+
+    def records() -> Iterable[dict]:
+        # logs: re-load (the packer's copies are clipped by now), then tag from the split
+        # calibration used. Matched on the row `id`, which both log formats carry and which
+        # is unaffected by normalization — session_fingerprint is NOT usable here, because
+        # it hashes messages[0] and the packer's copies have theirs parsed from JSON
+        # strings into dicts, so every CLI session would silently fail to match.
+        split_of: dict[str, str] = {
+            str(s.get("id") or ingest.session_group(s)): name
+            for name, sessions in log_splits.items() for s in sessions
+        }
+        if split_of:
+            for s in ingest.filter_sessions(
+                ingest.load_all_sessions([ingest.resolve_log_path(p) for p in cfg.log_files]),
+                min_score=0.3, require_tools=False,
+            ):
+                name = split_of.get(str(s.get("id") or ingest.session_group(s)))
+                if name is None:
+                    continue
+                src = SOURCE_LOGS if not str(s.get("source", "")).startswith("agents:") \
+                    else "logs-agents"
+                yield _tally(by_source, sft_record(s, split_name=name, source=src,
+                                                   tok=counter))
+
+        if swe_cal or swe_eval:
+            for rows, name in ((swe_cal, "train"), (swe_eval, "holdout")):
+                ids = {s["id"] for s in rows}
+                for r in _hub_jsonl(SWE_DATASET, SWE_SPLIT, cfg.swe_jsonl):
+                    if r.get("instance_id") not in ids:
+                        continue
+                    s = {"id": r["instance_id"], "messages": r.get("messages") or [],
+                         "tools": r.get("tools") or [],
+                         "meta": {k: r.get(k) for k in ("repo", "resolved", "instance_id")}}
+                    yield _tally(by_source, sft_record(s, split_name=name,
+                                                       source=SOURCE_SWE, tok=counter))
+
+        # red-team: the REFUSAL-substituted conversations, never the originals.
+        for rows, name in ((redteam_cal, "train"), (redteam_eval, "holdout")):
+            for s in rows:
+                yield _tally(by_source, sft_record(s, split_name=name,
+                                                   source=SOURCE_REDTEAM, tok=counter))
+
+        # the supplement's instruction view — already prompt/response pairs
+        for r in _hub_jsonl(BROAD_DATASET, "instruct", None):
+            s = {"id": r.get("id"), "messages": r.get("messages") or [],
+                 "meta": {k: r.get(k) for k in ("area", "subject", "register", "half",
+                                                "prompt_source")}}
+            # `half` mirrors the calibration split: calib was seen by the imatrix, mtp
+            # was not (it is reserved for draft-head training).
+            yield _tally(by_source, sft_record(
+                s, split_name="train" if r.get("half") == "calib" else "holdout",
+                source="broad-instruct", tok=counter))
+
+    path = out / "sft.jsonl.gz"
+    n, nbytes = write_jsonl_gz(path, records())
+    print(f"  sft:         {path} ({n:,} conversations, {nbytes / 1024**2:.1f} MiB gz)",
+          file=sys.stderr)
+    return {
+        "path": str(path),
+        "conversations": n,
+        "bytes_gz": nbytes,
+        "per_source": by_source,
+        "token_counts": cfg.sft_token_counts,
+        "fields": ["id", "source", "split", "messages", "tools", "meta", "n_messages",
+                   "n_tool_calls", "n_tool_results", "n_reasoning", "n_chars"]
+                  + (["n_tokens"] if cfg.sft_token_counts else []),
+        "note": "FULL conversations — no windowing, no tool-output clipping, no system/"
+                "schema stubbing, no chat template applied. tool_calls and "
+                "reasoning_content are separate message fields. `split` matches the "
+                "calibration corpus, so training on split=='train' keeps the eval "
+                "holdouts held out.",
+    }
+
+
+def _tally(acc: dict[str, dict[str, int]], rec: dict) -> dict:
+    a = acc.setdefault(rec["source"], {"conversations": 0, "messages": 0, "tool_calls": 0,
+                                       "reasoning_turns": 0, "chars": 0, "tokens": 0})
+    a["conversations"] += 1
+    a["messages"] += rec["n_messages"]
+    a["tool_calls"] += rec["n_tool_calls"]
+    a["reasoning_turns"] += rec["n_reasoning"]
+    a["chars"] += rec["n_chars"]
+    a["tokens"] += rec.get("n_tokens", 0)
+    return rec
 
 
 def build(cfg: UniversalConfig) -> dict:
@@ -671,7 +839,17 @@ def build(cfg: UniversalConfig) -> dict:
 
     # --- 5) the calibration corpus: all sources interleaved ---------------------------
     cal_corpus = out / "corpus.cal.txt"
-    split.write_corpus(split.interleave_many([p.chunks for p in parts]), cal_corpus)
+    ordered = split.interleave_many([p.chunks for p in parts])
+    split.write_corpus(ordered, cal_corpus)
+    # Same content, one record per window, with the source label attached. corpus.cal.txt
+    # is what llama-imatrix eats; this is what you query when a number looks wrong and you
+    # need to know which source a given span came from.
+    source_of = {id(c): p.name for p in parts for c in p.chunks}
+    write_jsonl_gz(
+        out / "corpus.cal.jsonl.gz",
+        ({"i": i, "source": source_of.get(id(c), "?"), "n_chars": len(c), "text": c}
+         for i, c in enumerate(ordered)),
+    )
     cal_text = cal_corpus.read_text()
     scan = _scan_tool_calls(cal_text)
     # Per-source too: a source that quietly stops carrying tool calls (a template change,
@@ -859,6 +1037,15 @@ def build(cfg: UniversalConfig) -> dict:
                          "swe cal/eval, broad cal/eval")
     print("  disjointness: OK", file=sys.stderr)
 
+    # --- 9) the SFT export: full conversations, nothing trimmed -----------------------
+    if cfg.write_sft:
+        audit["sft"] = _write_sft(
+            cfg, out, tok,
+            log_splits=log_splits,
+            swe_cal=swe_cal, swe_eval=swe_eval,
+            redteam_cal=redteam_cal, redteam_eval=redteam_eval,
+        )
+
     (out / "corpora_audit.json").write_text(json.dumps(audit, indent=2, default=str))
     print(f"  audit:       {out / 'corpora_audit.json'}", file=sys.stderr)
     return audit
@@ -879,6 +1066,8 @@ __all__ = [
     "clip_tool_messages",
     "pack_raw_samples",
     "reasoning_windows",
+    "sft_record",
     "swe_sessions",
     "tool_call_marker_counts",
+    "write_jsonl_gz",
 ]

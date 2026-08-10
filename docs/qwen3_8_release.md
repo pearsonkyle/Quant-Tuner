@@ -113,6 +113,29 @@ The log source is spread by the packer's `(source, length_bucket)` round-robin w
 per-stratum shuffle, so no single agent source dominates: 20 sources, none above 15%, 18 of
 the 19 trajectory languages represented.
 
+### Two extra outputs from the same pass
+
+`corpus.cal.jsonl.gz` — the calibration corpus as records (`i`, `source`, `n_chars`,
+`text`), one per window, byte-identical to `corpus.cal.txt`. This is what you query when a
+number looks wrong and you need to know which source a given span came from.
+
+`sft.jsonl.gz` — **the training view**, and deliberately not the calibration view. Every
+chat-shaped source as complete conversations: no windowing, no tool-output clipping, no
+system/schema stubbing, no chat template applied. `tool_calls`, `tool_call_id`/`name` and
+`reasoning_content` are separate message fields, so a trainer can template them however it
+likes and mask reasoning independently of the answer. `split` matches the calibration
+split, so training on `split == "train"` leaves the tools / agentic / refusal holdouts
+genuinely held out.
+
+```
+6,643 conversations · 85,643 messages · 33,572 tool calls · 4,289 reasoning turns · 87M chars
+  broad-instruct    5,536      logs-agents  435      redteam-refusals  348
+  logs (CLI)          253      swe-traj      71
+```
+
+Pass `--sft-token-counts` for per-conversation `n_tokens` (a second tokenization pass over
+~30M tokens, and specific to `--model`'s tokenizer); `--no-sft` skips the file.
+
 ## Stage 3 — imatrix + the four quants
 
 ```bash

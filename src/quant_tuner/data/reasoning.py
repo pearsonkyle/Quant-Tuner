@@ -32,16 +32,39 @@ import re
 THINK_OPEN = "<think>"
 THINK_CLOSE = "</think>"
 _THINK_RE = re.compile(r"<think>(.*?)</think>\s*", re.DOTALL)
+# Reasoning is only ever emitted at the START of an assistant turn — that is how the model
+# generates it and how templates render it. Anchoring here is not pedantry: these are coding
+# logs, so assistant turns *discuss* `<think>` and `</think>` in prose, and an unanchored
+# match happily spans from a backticked `<think>` to a `</think>` mentioned three sentences
+# later and deletes the explanation in between. Caught on the real logs (3 mangled turns).
+_LEADING_THINK = re.compile(r"^\s*<think>(.*?)</think>\s*", re.DOTALL)
+# Truncated generation: a leading block that never closed. The whole turn is reasoning, and
+# leaving the naked marker in `content` would put an unbalanced control token in the data.
+_UNCLOSED_THINK = re.compile(r"^\s*<think>(.*)$", re.DOTALL)
+# The mirror image: capture that began mid-reasoning, so the turn opens with the tail of a
+# thought and a closing tag it never opened. Everything up to that tag is the reasoning.
+_ORPHAN_CLOSE = re.compile(r"^((?:(?!<think>).)*?)</think>\s*", re.DOTALL)
 
 POLICIES = ("auto", "field", "drop")
 
 
 def strip_inline(content: str) -> tuple[str, str]:
-    """Split ``<think>…</think>`` out of a content string -> ``(reasoning, remainder)``."""
-    if not isinstance(content, str) or THINK_OPEN not in content:
+    """Split a LEADING ``<think>…</think>`` off a content string -> ``(reasoning, rest)``.
+
+    Only a leading block counts; ``<think>`` appearing mid-message is ordinary content that
+    happens to mention the marker, and is left alone.
+    """
+    if not isinstance(content, str):
         return "", content
-    found = _THINK_RE.findall(content)
-    return "\n".join(t.strip() for t in found), _THINK_RE.sub("", content).lstrip()
+    if THINK_OPEN in content:
+        if (m := _LEADING_THINK.match(content)) is not None:
+            return m.group(1).strip(), content[m.end():]
+        if (m := _UNCLOSED_THINK.match(content)) is not None:
+            return m.group(1).strip(), ""
+        return "", content
+    if THINK_CLOSE in content and (m := _ORPHAN_CLOSE.match(content)) is not None:
+        return m.group(1).strip(), content[m.end():]
+    return "", content
 
 
 def reasoning_of(message: dict) -> str:

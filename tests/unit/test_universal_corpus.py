@@ -12,9 +12,14 @@ from quant_tuner.models import mtp
 
 
 class WSTokenizer:
-    """Whitespace tokenizer: one token per word, so budgets are readable in tests."""
+    """Whitespace tokenizer: one token per word, so budgets are readable in tests.
+
+    Accepts a list like a real HF fast tokenizer does — sft_record batches its inputs.
+    """
 
     def __call__(self, text, add_special_tokens=False):
+        if isinstance(text, list):
+            return {"input_ids": [list(range(len(t.split()))) for t in text]}
         return {"input_ids": list(range(len(text.split())))}
 
     def decode(self, ids, skip_special_tokens=True):
@@ -193,3 +198,68 @@ def test_config_declares_mtp_reads_every_known_key_and_nests():
     assert mtp.config_declares_mtp({"text_config": {"mtp_num_hidden_layers": 1}}) == 1
     assert mtp.config_declares_mtp({"mtp_num_hidden_layers": 0}) == 0
     assert mtp.config_declares_mtp({}) == 0
+
+
+# ------------------------------------------------------------------------ SFT export
+def test_sft_record_keeps_tool_calls_and_reasoning_as_separate_fields():
+    """The training view, unlike the calibration view, must lose nothing."""
+    session = {
+        "id": "sess-1",
+        "messages": [
+            {"role": "system", "content": "sys"},
+            {"role": "user", "content": "fix it"},
+            {"role": "assistant", "content": "<think>plan it out</think>on it",
+             "tool_calls": [{"id": "c1", "type": "function",
+                             "function": {"name": "bash", "arguments": '{"command": "ls"}'}}]},
+            {"role": "tool", "tool_call_id": "c1", "name": "bash", "content": "a.py b.py"},
+            {"role": "assistant", "content": "done"},
+        ],
+        "tools": [{"type": "function", "function": {"name": "bash"}}],
+        "meta": {"language": "python"},
+    }
+    rec = universal.sft_record(session, split_name="train", source="logs")
+
+    assert rec["id"] == "sess-1" and rec["split"] == "train" and rec["source"] == "logs"
+    assert rec["n_messages"] == 5
+    assert rec["n_tool_calls"] == 1 and rec["n_tool_results"] == 1 and rec["n_reasoning"] == 1
+    asst = rec["messages"][2]
+    # reasoning is a FIELD, not inlined — a trainer can mask it independently
+    assert asst["reasoning_content"] == "plan it out"
+    assert asst["content"] == "on it"
+    # tool-call arguments are coerced to a dict, not left as a JSON string
+    assert asst["tool_calls"][0]["function"]["arguments"] == {"command": "ls"}
+    # the tool result keeps its linkage back to the call
+    assert rec["messages"][3]["tool_call_id"] == "c1" and rec["messages"][3]["name"] == "bash"
+    assert rec["tools"] and rec["meta"] == {"language": "python"}
+    assert "n_tokens" not in rec           # only when a tokenizer is passed
+
+
+def test_sft_record_does_not_truncate_anything():
+    """A 40k-char tool dump is clipped for calibration and must NOT be for training."""
+    dump = "x" * 40_000
+    rec = universal.sft_record(
+        {"id": "s", "messages": [{"role": "user", "content": "go"},
+                                 {"role": "tool", "content": dump},
+                                 {"role": "assistant", "content": "ok"}]},
+        split_name="train", source="logs")
+    assert rec["messages"][1]["content"] == dump
+    assert rec["n_chars"] >= 40_000
+
+
+def test_sft_record_counts_tokens_only_when_asked():
+    rec = universal.sft_record(
+        {"id": "s", "messages": [{"role": "user", "content": "a b c"}]},
+        split_name="train", source="logs", tok=WSTokenizer())
+    assert rec["n_tokens"] == 3
+
+
+def test_write_jsonl_gz_roundtrips(tmp_path):
+    import gzip
+    import json
+
+    path = tmp_path / "out.jsonl.gz"
+    n, nbytes = universal.write_jsonl_gz(path, ({"i": i, "t": "café"} for i in range(3)))
+    assert n == 3 and nbytes > 0
+    with gzip.open(path, "rt", encoding="utf-8") as fh:
+        rows = [json.loads(ln) for ln in fh]
+    assert rows == [{"i": i, "t": "café"} for i in range(3)]

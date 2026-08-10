@@ -65,10 +65,22 @@ measuring fit rather than generalization.
 disjoint from both `datasets/swe-agentic-trajectories` (278 ids) and the SWE-rebench eval
 holdout (`out/external/swe-rebench/holdout.jsonl`). Re-check that if either is regenerated.
 
+## Two views come out of these
+
+`scripts/build_universal_corpus.py` emits both from one pass:
+
+* **calibration** — `corpus.cal.txt` (+ `corpus.cal.jsonl.gz`, same content with source
+  labels): windowed to ≤3.5k tokens, system prose and tool schemas stubbed after a quota,
+  tool outputs clipped to 512 tokens, rendered through one model's chat template. Right for
+  fitting an importance matrix.
+* **training** — `sft.jsonl.gz`: the same conversations *complete*. No windowing, no
+  clipping, no stubbing, no template. `tool_calls`, `tool_call_id`/`name` and
+  `reasoning_content` are separate message fields. `split` matches the calibration split.
+
 ## Where they are consumed
 
 * `quant_tuner.data.universal` / `scripts/build_universal_corpus.py` — **both** files, as the
-  `logs` source of the four-source calibration corpus; the holdout slice becomes
+  `logs` source of the universal calibration corpus; the holdout slice becomes
   `corpus.eval.tools.txt`.
 * `scripts/build_corpora.py` — the CLI logs **only**, deliberately: it reproduces the
   published two-source runs, whose numbers were produced before the agent logs existed.
