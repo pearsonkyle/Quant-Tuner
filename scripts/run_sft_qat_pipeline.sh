@@ -1,28 +1,31 @@
 #!/bin/bash
 # Universal-SFT QAT run: train Ternary-Bonsai-8B on the FULL universal SFT corpus at an
-# ~12k window -> export Q2_0 -> SWE-rebench generalization eval.
+# ~8k window -> export Q2_0 -> SWE-rebench generalization eval.
 #
 # What's new vs run_iter5_pipeline.sh (12 verified trajectories at window 4096):
 #   * data   — out/corpora/qwen3-universal/sft.jsonl.gz, ALL train-split sources, no caps:
 #              CLI logs + agent logs (19 languages) + verified SWE trajectories +
-#              red-team refusals + broad-instruct breadth. 19.4M tokens / ~1500 windows.
-#   * window — 12288, not 4096. qat.attention's query-chunked SDPA (bit-identical to the
-#              stock kernel, on by default) removes the MPSGraph INT_MAX cap entirely, so
-#              the ceiling is unified memory: 12288 measured at 10.3 ms/token vs 8.2 at
-#              8064, while 16128 swaps and doubles to 20.0. See docs/ternary_qat.md.
+#              red-team refusals + broad-instruct breadth. 19.4M tokens / 2088 windows @ 8064.
+#   * window — 8064, not 4096. qat.attention's query-chunked SDPA (bit-identical to the
+#              stock kernel, on by default) removes the MPSGraph INT_MAX cap (which was
+#              n_heads*S^2 < 2^31 => S <= 8191, i.e. 8192 failed by ONE element). Longer
+#              windows then become possible but not faster: measured in the real loop,
+#              8064 = 11.5 ms/token, 12288 = 16.3, 16128 never completed a step (swap at
+#              99%). 8064 is the only size that runs without swap. docs/ternary_qat.md.
 #   * val    — the disjoint `test` split of the same file, scored every --val-every steps.
 #
 # Usage: run_sft_qat_pipeline.sh [LR] [TAG] [EPOCHS]
 #   LR      peak learning rate (default 5e-4 — the measured sweet spot; 3e-4 flips ~0% of
 #           codes, i.e. scale drift with a falling loss and no real learning)
 #   TAG     artifact tag (default sft-lr<LR>)
-#   EPOCHS  fractional epochs over the ~1500-window corpus (default 0.35).
+#   EPOCHS  fractional epochs over the 2088-window corpus (default 0.35 = 182 steps).
 #           This corpus is ~150x the iter-5 one, so ONE epoch is not the unit any more —
-#           The budget is wall-clock. MEASURED in the real loop (not the probe): 800 s per
-#           step at window 12288 / grad-accum 4 = 16.3 ms/token, i.e. ~9 min per 49k tokens.
-#           0.25 epochs = 89 steps ~= 20 h. The probe's 9.5 ms/token is optimistic — it
-#           excludes the optimizer step and runs before swap builds up.
-#   CKPT_EVERY (env, default 10) — at 800 s/step, the old 40 meant 8.9 h of work at risk
+#           The budget is wall-clock. MEASURED in the real loop (not a probe): 370 s/step
+#           at window 8064 / grad-accum 4 = 11.5 ms/token. 0.35 epochs = 182 steps ~= 19 h.
+#           A single-window probe reports ~8 ms/token here — it omits the optimizer step
+#           (~106 s/step, fixed at every window size) and runs before swap builds. Size
+#           runs off s/step, not off the probe.
+#   CKPT_EVERY (env, default 10) — at ~370 s/step the old 40 meant 4 h of work at risk
 #           between checkpoints, and both historical OOM kills landed ON a checkpoint.
 #
 # Free the GPU first: a full-36-layer fp32 run sits near the unified-memory ceiling, so
@@ -36,17 +39,17 @@ PY=.venv/bin/python
 LR="${1:-5e-4}"
 TAG="${2:-sft-lr${LR}}"
 EPOCHS="${3:-0.35}"
-CORPUS="${CORPUS:-out/exp-058/sft_corpus_universal_12288.pt}"
-VAL="${VAL:-out/exp-058/sft_val_universal_12288.pt}"
+CORPUS="${CORPUS:-out/exp-058/sft_corpus_universal_8064.pt}"
+VAL="${VAL:-out/exp-058/sft_val_universal_8064.pt}"
 TRAIN_OUT="out/exp-058/trained_${TAG}"
 GGUF="out/exp-057/Ternary-Bonsai-8B-${TAG}-Q2_0.gguf"
 WS="out/swe-rebench/ternary-${TAG}-swe"
 
-[ -f "$CORPUS" ] || { echo "missing $CORPUS — build it with:"; echo "  PYTHONPATH=src $PY scripts/build_sft_qat_corpus.py --sft out/corpora/qwen3-universal/sft.jsonl.gz --window 12288 --max-tool-tokens 4096 --min-density 0.05 --budget logs=none --budget logs-agents=none --budget broad-instruct=none --out $CORPUS"; exit 1; }
+[ -f "$CORPUS" ] || { echo "missing $CORPUS — build it with:"; echo "  PYTHONPATH=src $PY scripts/build_sft_qat_corpus.py --sft out/corpora/qwen3-universal/sft.jsonl.gz --window 8064 --max-tool-tokens 3072 --min-density 0.05 --budget logs=none --budget logs-agents=none --budget broad-instruct=none --out $CORPUS"; exit 1; }
 VAL_ARGS=()
 [ -f "$VAL" ] && VAL_ARGS=(--val-corpus "$VAL" --val-every 40 --val-windows 8)
 
-echo "=== [$(date)] ${TAG} TRAIN (all-36, adafactor, fp32, window 12288, lr ${LR}, ${EPOCHS} epochs) ==="
+echo "=== [$(date)] ${TAG} TRAIN (all-36, adafactor, fp32, window 8064, lr ${LR}, ${EPOCHS} epochs) ==="
 $PY -u scripts/exp058_qat_train_v2.py \
   --corpus "$CORPUS" "${VAL_ARGS[@]}" \
   --layers 0-35 --optim adafactor --epochs "$EPOCHS" --grad-accum 4 --lr "$LR" \

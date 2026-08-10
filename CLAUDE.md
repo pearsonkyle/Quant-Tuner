@@ -377,7 +377,7 @@ the ternarization in the loop** (BitNet/TWN STE). Full guide: `docs/ternary_qat.
     reasoning survives **only on assistant turns after the last user turn**, so an agentic
     trajectory keeps all of it (3141/3141) and a multi-turn chat log keeps just its tail
     (138/367); `--max-tool-tokens` is by far the biggest cut — **1024 drops 28% of all
-    conversation content** and was only ever right at a 4096 window. Use **4096** with
+    conversation content** and was only ever right at a 4096 window. Scale it with the window (**3072 at 8064**, 4096 at 12288) with
     `--min-density 0.05` (at 0.10 the extra tool context just sinks windows below the
     floor, so keeping more history buys nothing).
 - `qat/train.py` — `QATConfig` + `train_qat()`; `scripts/exp058_qat_train_v2.py` is a CLI shim.
@@ -411,13 +411,16 @@ the ternarization in the loop** (BitNet/TWN STE). Full guide: `docs/ternary_qat.
   code flips), `--optim adafactor` to fit all 36 layers (~66-75 GB vs AdamW's ~116 GB).
   `--compute-dtype bf16` is a **pessimization** at all-36 (54.5 GiB vs 31 GiB — the fp32
   master copy stacks on top).
-- **The window ceiling is memory, not INT_MAX.** With chunked SDPA, measured full-model
-  fwd+bwd (all-36, fp32, adafactor, M4 Max 128 GB, idle machine): **12288 → 9.5
-  ms/token**, 16128 → 14.1, 20480 → 24.4, **24576 → hard OOM**. 12288 is the throughput
-  sweet spot (16128 costs +49%/token, 20480 +157%), so a longer window is a deliberate
-  trade of tokens-seen for whole-session context — justified mainly by
-  `swe-trajectories`, which goes 52% → 68% → 81% whole at 12288 → 16128 → 20480. Free
-  any resident LM Studio/llama-server model first: it is worth ~30% at 16128.
+- **Size the window from the TRAINING LOOP, not a single-window probe.** The probe omits
+  the optimizer step and runs before swap builds; trusting it picked a window that could
+  not train at all. Real s/step at grad-accum 4 on an idle M4 Max 128 GB (all-36, fp32,
+  adafactor): **8064 → 370 s = 11.47 ms/token**, 12288 → 800 s = 16.28, 16128 → *no step
+  in 31 min* (swap at 99%), 24576 → hard OOM. Fixed per-step cost is ~106 s at every
+  size, so 8064's step is exactly `4·66 + 106` — it runs **clean**, while 12288's missing
+  230 s is swap. **8064 is the working default**: 42% more tokens per wall-clock hour
+  than 12288. Longer windows trade tokens-seen for whole-session context (the one real
+  argument is `swe-trajectories`: 27% → 52% → 68% whole at 8064 → 12288 → 16128).
+  Free any resident LM Studio/llama-server model first — worth ~30% at 16128.
 - **The SFT corpus is bimodal in length**: 83% of conversations are short
   broad-instruct/refusal rows (<2k tokens) but only 2.6% of tokens; **81% of tokens are
   in conversations over 20k** (median CLI-log session 32k, agent-log 16k, SWE trajectory
@@ -636,7 +639,7 @@ The OmniCoder reproduction is here; the CLI handles ad-hoc runs.
   `run_iter5_autoloop.sh` (unattended grow-data/retrain/bench until it
   generalizes). `kd_precompute.py` is the iter-6 offline-KD entry point.
   **For a new run prefer the universal-SFT variant**: `build_sft_qat_corpus.py`
-  (`--window 12288 --max-tool-tokens 4096 --min-density 0.05`, train + `--split test`
+  (`--window 8064 --max-tool-tokens 3072 --min-density 0.05`, train + `--split test`
   val) → `run_sft_qat_pipeline.sh LR TAG EPOCHS`, which is the same train → export →
   SWE-rebench chain over all five SFT sources instead of the 12 Python trajectories.
 - **Red-team chain** (see `docs/benchmarks.md#red-team-safety`):

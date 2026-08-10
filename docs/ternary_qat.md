@@ -90,7 +90,7 @@ log formats with no stored schemas fall back to `reconstruct_tools` stubs.
 - **`foreach=False` is mandatory.** MPS multi-tensor (foreach) kernels *deadlock* at
   full-model scale — the "step-5 hang." AdamW, Adafactor (per-tensor by construction),
   `clip_grad_norm_`, and the fp32-master wrapper all stay per-tensor.
-- **The window ceiling is memory, not INT_MAX — and it is ~12288, not 4096.** torch 2.12
+- **The window ceiling is memory, not INT_MAX. It is ~12288 — but the FASTEST window is 8064.** torch 2.12
   has **no MPS training kernel for SDPA** (fused paths are inference-only), so training
   materializes the full `[B, heads, S, S]` scores tensor and MPSGraph refuses a tensor
   with > INT_MAX elements. That gives **`n_heads · S² < 2³¹`** → `S ≤ 8191` at 32 heads;
@@ -107,26 +107,30 @@ log formats with no stored schemas fall back to `reconstruct_tools` stubs.
   mask fast path still returns `attention_mask=None` for a plain causal decoder (a custom
   name gets an eager `[1,1,S,S]` float mask — 1 GB at S=16128).
 
-  With chunking on the wall is unified memory. Measured full-model fwd+bwd, all-36
-  layers, fp32, Adafactor, gradient checkpointing, M4 Max 128 GB — **on an otherwise
-  idle machine**, with the numbers from a machine also hosting a ~41 GB LM Studio model
-  for comparison, because the difference is large enough to change the decision:
+  With chunking on the wall is unified memory. **Size a run from the TRAINING LOOP, not
+  from a single-window probe** — the probe excludes the optimizer step and runs before
+  swap builds, and following it led straight to a window that could not train at all.
 
-  | window | fwd+bwd | ms/token | driver alloc | ms/token w/ 41 GB resident |
-  |---|---|---|---|---|
-  | 8064 | 66 s | — | 93 GiB | 8.16 |
-  | **12288** | **116 s** | **9.47** | **125 GiB** | 10.31 |
-  | 16128 | 227 s | 14.09 | 137 GiB | 19.98 |
-  | 20480 | 499 s | 24.36 | 137 GiB | 38.56 |
-  | 24576 | — | **hard OOM** | (tried 170 GiB) | — |
+  | window | probe fwd+bwd | probe ms/tok | **real s/step** (accum 4) | **real ms/tok** | driver alloc |
+  |---|---|---|---|---|---|
+  | **8064** | 66 s | 8.16 | **370 s** | **11.47** | 93 GiB |
+  | 12288 | 116 s | 9.47 | 800 s | 16.28 | 125 GiB |
+  | 16128 | 227 s | 14.09 | **no step in 31 min** | — | 137 GiB |
+  | 20480 | 499 s | 24.36 | — | — | 137 GiB |
+  | 24576 | hard OOM | — | — | — | (tried 170 GiB) |
 
-  **24576 is the hard wall.** Below it the cost is smoothly superlinear — attention is
-  quadratic and the allocator starts spilling past ~128 GiB. **12288 is the throughput
-  sweet spot**: 16128 costs +49% per token and 20480 +157%, so at a fixed wall-clock
-  budget 12288 sees ~1.5×/2.6× more data. Choose a longer window only when whole-session
-  context matters more than tokens seen — see the length distribution below. Freeing
-  other GPU consumers is worth ~30% at 16128 alone. Same math rules out B≥2; grad-accum
-  is the equivalent lever.
+  The decomposition is the useful part. Fixed per-step cost (Adafactor over 6.95B params,
+  flip telemetry, val) is **~106 s at every window size**; at 8064 the step is
+  `4·66 + 106 = 370 s`, exactly as predicted, so 8064 runs **clean**. At 12288 the step is
+  800 s against a predicted `4·116 + 106 = 570 s` — the missing 230 s is **swap**, and at
+  16128 swap hits 99% (54.7 of 55.3 GB) and the loop never completes a step even though
+  the probe finished that window in 227 s.
+
+  **8064 is the right window on a 128 GB M4 Max**: 11.47 ms/token vs 12288's 16.28, i.e.
+  **42% more tokens for the same wall-clock** (a 20 h budget buys 6.27M tokens at 8064 vs
+  4.42M at 12288). Going longer trades tokens-seen for whole-session context; see the
+  distribution below for what that actually buys. Same math rules out B≥2; grad-accum is
+  the equivalent lever.
 
   **Conversation-length distribution** (universal SFT train split, `--max-tool-tokens
   4096`) is strongly bimodal: 83% of *conversations* are short broad-instruct/refusal
@@ -367,13 +371,13 @@ held out. `build_sft_qat_corpus.py` masks and packs it exactly like the other tw
 ```bash
 PYTHONPATH=src .venv/bin/python scripts/build_sft_qat_corpus.py \
     --sft out/corpora/qwen3-universal/sft.jsonl.gz \
-    --window 12288 --max-tool-tokens 4096 --min-density 0.05 \
-    --out out/exp-058/sft_corpus_universal_12288.pt
+    --window 8064 --max-tool-tokens 3072 --min-density 0.05 \
+    --out out/exp-058/sft_corpus_universal_8064.pt
 # and the disjoint validation corpus for --val-corpus:
 PYTHONPATH=src .venv/bin/python scripts/build_sft_qat_corpus.py \
     --sft out/corpora/qwen3-universal/sft.jsonl.gz --split test \
-    --window 12288 --max-tool-tokens 4096 --min-density 0.05 \
-    --out out/exp-058/sft_val_universal_12288.pt
+    --window 8064 --max-tool-tokens 3072 --min-density 0.05 \
+    --out out/exp-058/sft_val_universal_8064.pt
 ```
 
 **Every source is taken whole** (`SFT_DEFAULT_BUDGETS = {}`). This is the deliberate
@@ -410,10 +414,9 @@ the density floor. Measured on the Qwen3-universal SFT file:
   | **4096** | **13%** | **89 / 79 / 75** |
   | 0 (off) | 0% | 93 / 82 / 75 |
 
-  1024 was right at a 4096 window and is far too aggressive above it. **Use 4096** at a
-  12288 window — a single tool result still can't eat more than a third of a window, but
-  realistic outputs survive nearly intact (the full-corpus build drops 13% of conversation
-  content, down from 28% at 1024). Note the interaction with `--min-density`: at 0.10 the
+  1024 was right at a 4096 window and is far too aggressive above it. Scale it with the
+  window so one tool result can never eat more than ~a third of it: **3072 at window 8064**
+  (drops 15% of conversation content, down from 28% at 1024), 4096 at 12288 (13%). Note the interaction with `--min-density`: at 0.10 the
   extra tool context just pushes windows below the floor and they get dropped anyway, so
   keeping more history buys nothing there. **0.05** is the setting that actually keeps it.
 
