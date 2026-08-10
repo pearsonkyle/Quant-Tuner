@@ -141,6 +141,7 @@ def session_windows(
     system_content: str | None = None,
     max_windows: int = 8,
     tools_after_first: list | None = None,
+    user_anchor: bool = False,
 ) -> list[tuple[str, int]]:
     """Slice one session into ≤max_windows chat-templated windows of ≤cap_tokens.
 
@@ -159,6 +160,16 @@ def session_windows(
     with ``tools`` and every subsequent window with ``tools_after_first``
     (typically ``stub_tools(tools)``), so the full schema boilerplate appears
     once per session instead of once per window.
+
+    ``user_anchor`` rescues windows from STRICT templates. Qwen3.6's official template
+    raises "No user query found" for any window without a user turn, and a long agentic
+    trajectory has one user turn at the top followed by fifty assistant/tool turns — so
+    every window past the first is refused and the rest of the trajectory is dropped
+    (measured: the reasoning source fell from 1.00M to 232k tokens, SWE from 675k to 425k).
+    With this on, a refused window is retried with the session's first user turn — the task
+    statement — prepended. That is on-distribution rather than a workaround: at inference the
+    model always has the original task in context, so ``[system, task, mid-span]`` is exactly
+    the history-truncated context it actually sees.
     """
     coerce_tool_call_arguments(messages)
     if messages and messages[0].get("role") == "system":
@@ -171,8 +182,16 @@ def session_windows(
         prefix = []
         body = messages
 
+    anchor = next((m for m in body if m.get("role") == "user"), None) if user_anchor else None
+
     def render(run: list[dict], w_tools) -> tuple[str, int]:
-        text = tokenizer.apply_chat_template(prefix + run, tools=w_tools, tokenize=False)
+        try:
+            text = tokenizer.apply_chat_template(prefix + run, tools=w_tools, tokenize=False)
+        except Exception:
+            if anchor is None or any(m is anchor for m in run):
+                raise
+            text = tokenizer.apply_chat_template(
+                prefix + [anchor] + run, tools=w_tools, tokenize=False)
         ntok = len(tokenizer(text, add_special_tokens=False)["input_ids"])
         return text, ntok
 
@@ -236,6 +255,7 @@ def stratified_pack(
     max_windows_per_session: int = 8,
     tool_schema_quota: int | None = 1,
     drop_oversize: bool = False,
+    user_anchor: bool = False,
 ) -> tuple[list[str], list[dict], int, dict[str, Any]]:
     """Round-robin across (source, length_bucket) strata. Returns (chunks, kept, total, audit).
 
@@ -385,6 +405,7 @@ def stratified_pack(
                     system_content=sys_content,
                     max_windows=1 if is_full else max_windows_per_session,
                     tools_after_first=rest_tools,
+                    user_anchor=user_anchor,
                 )
             except Exception:
                 continue

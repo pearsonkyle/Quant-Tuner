@@ -308,6 +308,25 @@ def check_template(tok, model_label: str = "") -> TemplateReport:
               else "this template KEEPS reasoning in history — reasoning_windows is "
                    "unnecessary here, and the ordinary windows already carry it"))
 
+    # Qwen3.6 added a `preserve_thinking` flag that keeps reasoning on EVERY assistant turn
+    # instead of only the final one. Where it exists, a corpus can carry far more
+    # reasoning-mode text than `reasoning_windows` can recover — at the cost of a history
+    # distribution that differs from default inference, which strips it. Detected, not used
+    # automatically: that trade-off is a judgement call per release.
+    try:
+        pt_text = tok.apply_chat_template(rsn_msgs, tools=None, tokenize=False,
+                                          preserve_thinking=True)
+        pt_supported = "QT_RSN_HISTORY" in pt_text
+    except Exception:  # noqa: BLE001 - templates that don't take the kwarg
+        pt_supported = False
+    add(Check("preserve_thinking_supported", pt_supported, "warn",
+              "template keeps history reasoning under preserve_thinking=True — far more "
+              "reasoning-mode text is available than reasoning_windows can recover, if you "
+              "accept a history distribution that differs from default inference"
+              if pt_supported else
+              "no preserve_thinking support; reasoning_windows is the only way to get "
+              "chain-of-thought into the corpus (expected for Qwen3.5 and earlier)"))
+
     # --- windowing must survive an assistant-first body ---------------------------
     wins = session_windows(tok, json.loads(json.dumps(FIXTURE_MESSAGES)), FIXTURE_TOOLS,
                            cap_tokens=4096, system_content=None, max_windows=4)

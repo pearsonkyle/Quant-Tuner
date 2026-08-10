@@ -1,7 +1,7 @@
 {
   "builder": "quant_tuner.data.universal",
   "seed": 42,
-  "model_dir": "out/exp-041/model_extracted",
+  "model_dir": "Qwen/Qwen3.6-27B",
   "sources": [
     "logs",
     "reasoning",
@@ -11,7 +11,7 @@
     "wiki"
   ],
   "template_check": {
-    "model": "out/exp-041/model_extracted",
+    "model": "Qwen/Qwen3.6-27B",
     "ok": true,
     "tool_call_marker": "<tool_call>",
     "tool_response_marker": "<tool_response>",
@@ -95,6 +95,12 @@
         "detail": "history reasoning is scrubbed (expected; matches inference)"
       },
       {
+        "name": "preserve_thinking_supported",
+        "ok": true,
+        "severity": "warn",
+        "detail": "template keeps history reasoning under preserve_thinking=True \u2014 far more reasoning-mode text is available than reasoning_windows can recover, if you accept a history distribution that differs from default inference"
+      },
+      {
         "name": "session_windows_nonempty",
         "ok": true,
         "severity": "fail",
@@ -102,9 +108,9 @@
       },
       {
         "name": "assistant_first_window",
-        "ok": true,
+        "ok": false,
         "severity": "warn",
-        "detail": "1 window(s)"
+        "detail": "template refuses a window that starts on an assistant turn (strict, like Qwen3.5-VL). The packer skips those starts; expect fewer windows per session \u2014 verify the corpus hits its token target."
       }
     ]
   },
@@ -117,13 +123,13 @@
     "cal_broad_tokens": null
   },
   "calibration": {
-    "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen3-universal-8k/corpus.cal.txt",
-    "bytes": 17100315,
-    "total_tokens": 4406512,
+    "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen36-official/corpus.cal.txt",
+    "bytes": 17187143,
+    "total_tokens": 4417697,
     "per_source": {
       "logs": {
-        "tokens": 2000073,
-        "chunks": 311,
+        "tokens": 1999900,
+        "chunks": 298,
         "files": {
           "/Users/kpearson/Programs/ai/llm/quant-tuner/datasets/agent-logs/data/logs-cli.jsonl.gz": 253,
           "/Users/kpearson/Programs/ai/llm/quant-tuner/datasets/agent-logs/data/logs-agents.jsonl.gz": 435
@@ -142,82 +148,82 @@
         "target_tokens": 2000000,
         "reasoning_policy": "auto",
         "reasoning_blocks_available": 4289,
-        "tool_outputs_clipped": 7952,
+        "tool_outputs_clipped": 7918,
         "max_tool_output_tokens": 512,
         "pack_audit": {
-          "total_tokens": 2000073,
-          "chunk_count": 311,
-          "session_count": 172,
+          "total_tokens": 1999900,
+          "chunk_count": 298,
+          "session_count": 155,
           "truncated_sessions": 0,
           "per_session_cap": 7500,
           "tokens_per_source": {
-            "agents:c": 83540,
-            "agents:clojure": 76024,
-            "agents:cpp": 132751,
-            "agents:csharp": 37980,
-            "agents:dart": 14640,
-            "agents:elixir": 109881,
-            "agents:go": 140046,
-            "agents:java": 7478,
-            "agents:js": 131723,
-            "agents:lua": 53081,
-            "agents:ocaml": 7783,
-            "agents:php": 99910,
-            "agents:python": 102141,
-            "agents:r": 46102,
-            "agents:rust": 80688,
-            "agents:swift": 142457,
-            "agents:ts": 96746,
-            "claude": 246221,
-            "opencode": 122957,
-            "qwen": 267924
+            "agents:c": 69727,
+            "agents:clojure": 85440,
+            "agents:cpp": 134483,
+            "agents:csharp": 38849,
+            "agents:dart": 17892,
+            "agents:elixir": 121577,
+            "agents:go": 177279,
+            "agents:java": 7434,
+            "agents:js": 137133,
+            "agents:lua": 59371,
+            "agents:ocaml": 9218,
+            "agents:php": 91375,
+            "agents:python": 91711,
+            "agents:r": 42095,
+            "agents:rust": 59468,
+            "agents:swift": 131902,
+            "agents:ts": 64078,
+            "claude": 221273,
+            "opencode": 120520,
+            "qwen": 319075
           },
           "tokens_per_length_bucket": {
-            "long": 1231952,
-            "medium": 653415,
-            "short": 114706
+            "long": 1239403,
+            "medium": 638593,
+            "short": 121904
           },
           "tokens_per_stratum": {
-            "agents:c/long": 51005,
-            "agents:c/medium": 32535,
-            "agents:clojure/long": 54607,
-            "agents:clojure/medium": 21417,
-            "agents:cpp/long": 86961,
-            "agents:cpp/medium": 45790,
-            "agents:csharp/medium": 37980,
-            "agents:dart/long": 14640,
-            "agents:elixir/long": 70749,
-            "agents:elixir/medium": 39132,
-            "agents:go/long": 83212,
-            "agents:go/medium": 31958,
-            "agents:go/short": 24876,
-            "agents:java/long": 7478,
-            "agents:js/long": 96304,
-            "agents:js/medium": 35419,
-            "agents:lua/long": 53081,
-            "agents:ocaml/medium": 7783,
-            "agents:php/long": 58832,
-            "agents:php/medium": 37067,
-            "agents:php/short": 4011,
-            "agents:python/long": 49679,
-            "agents:python/medium": 33960,
-            "agents:python/short": 18502,
-            "agents:r/long": 7459,
-            "agents:r/medium": 38643,
-            "agents:rust/long": 44493,
-            "agents:rust/medium": 31391,
-            "agents:rust/short": 4804,
-            "agents:swift/long": 77650,
-            "agents:swift/medium": 64807,
-            "agents:ts/long": 55889,
-            "agents:ts/medium": 40857,
-            "claude/long": 162086,
-            "claude/medium": 48060,
-            "claude/short": 36075,
-            "opencode/long": 122957,
-            "qwen/long": 134870,
-            "qwen/medium": 106616,
-            "qwen/short": 26438
+            "agents:c/long": 36554,
+            "agents:c/medium": 33173,
+            "agents:clojure/long": 61584,
+            "agents:clojure/medium": 23856,
+            "agents:cpp/long": 85975,
+            "agents:cpp/medium": 48508,
+            "agents:csharp/medium": 38849,
+            "agents:dart/long": 17892,
+            "agents:elixir/long": 79068,
+            "agents:elixir/medium": 42509,
+            "agents:go/long": 118522,
+            "agents:go/medium": 32972,
+            "agents:go/short": 25785,
+            "agents:java/long": 7434,
+            "agents:js/long": 106561,
+            "agents:js/medium": 30572,
+            "agents:lua/long": 59371,
+            "agents:ocaml/medium": 9218,
+            "agents:php/long": 55578,
+            "agents:php/medium": 31595,
+            "agents:php/short": 4202,
+            "agents:python/long": 47337,
+            "agents:python/medium": 29622,
+            "agents:python/short": 14752,
+            "agents:r/long": 7398,
+            "agents:r/medium": 34697,
+            "agents:rust/long": 29823,
+            "agents:rust/medium": 24635,
+            "agents:rust/short": 5010,
+            "agents:swift/long": 80386,
+            "agents:swift/medium": 51516,
+            "agents:ts/long": 29498,
+            "agents:ts/medium": 34580,
+            "claude/long": 139398,
+            "claude/medium": 37476,
+            "claude/short": 44399,
+            "opencode/long": 120520,
+            "qwen/long": 156504,
+            "qwen/medium": 134815,
+            "qwen/short": 27756
           },
           "sessions_available_per_stratum": {
             "agents:python/short": 6,
@@ -262,108 +268,108 @@
             "agents:java/long": 1
           },
           "sessions_consumed_per_stratum": {
-            "agents:c/long": 6,
-            "agents:c/medium": 5,
+            "agents:c/long": 18,
+            "agents:c/medium": 30,
             "agents:clojure/long": 4,
             "agents:clojure/medium": 4,
-            "agents:cpp/long": 5,
-            "agents:cpp/medium": 5,
-            "agents:csharp/medium": 5,
+            "agents:cpp/long": 18,
+            "agents:cpp/medium": 7,
+            "agents:csharp/medium": 6,
             "agents:dart/long": 1,
             "agents:elixir/long": 5,
             "agents:elixir/medium": 5,
-            "agents:go/long": 5,
+            "agents:go/long": 9,
             "agents:go/medium": 5,
-            "agents:go/short": 5,
+            "agents:go/short": 6,
             "agents:java/long": 1,
-            "agents:js/long": 5,
-            "agents:js/medium": 5,
+            "agents:js/long": 6,
+            "agents:js/medium": 7,
             "agents:lua/long": 4,
             "agents:ocaml/medium": 1,
-            "agents:php/long": 5,
-            "agents:php/medium": 5,
+            "agents:php/long": 18,
+            "agents:php/medium": 33,
             "agents:php/short": 1,
-            "agents:python/long": 5,
-            "agents:python/medium": 5,
-            "agents:python/short": 5,
+            "agents:python/long": 14,
+            "agents:python/medium": 38,
+            "agents:python/short": 6,
             "agents:r/long": 1,
             "agents:r/medium": 5,
-            "agents:rust/long": 5,
-            "agents:rust/medium": 5,
+            "agents:rust/long": 21,
+            "agents:rust/medium": 24,
             "agents:rust/short": 1,
-            "agents:swift/long": 5,
-            "agents:swift/medium": 5,
-            "agents:ts/long": 5,
-            "agents:ts/medium": 5,
-            "claude/long": 5,
-            "claude/medium": 5,
-            "claude/short": 5,
+            "agents:swift/long": 7,
+            "agents:swift/medium": 9,
+            "agents:ts/long": 9,
+            "agents:ts/medium": 15,
+            "claude/long": 20,
+            "claude/medium": 40,
+            "claude/short": 11,
             "opencode/long": 3,
-            "qwen/long": 5,
-            "qwen/medium": 5,
-            "qwen/short": 5
+            "qwen/long": 67,
+            "qwen/medium": 54,
+            "qwen/short": 10
           },
           "windowing": {
             "system_prose_budget": 256,
             "full_prose_quota": 1,
             "max_windows_per_session": 8,
             "tool_schema_quota": 1,
-            "windows_emitted": 311,
-            "sessions_kept": 172,
-            "avg_windows_per_session": 1.81,
-            "unique_system_prompts": 95,
-            "unique_tool_schemas": 38,
-            "full_prose_sessions": 95,
-            "stub_sessions": 77,
-            "full_schema_sessions": 38,
-            "schema_stub_sessions": 134,
-            "oversize_windows": 4,
+            "windows_emitted": 298,
+            "sessions_kept": 155,
+            "avg_windows_per_session": 1.92,
+            "unique_system_prompts": 174,
+            "unique_tool_schemas": 189,
+            "full_prose_sessions": 88,
+            "stub_sessions": 67,
+            "full_schema_sessions": 32,
+            "schema_stub_sessions": 123,
+            "oversize_windows": 20,
             "oversize_dropped": 0,
-            "system_prose_tokens": 127083,
-            "boilerplate_tokens": 222723,
-            "body_tokens": 1777350,
-            "tool_turn_token_share": 0.8886
+            "system_prose_tokens": 122141,
+            "boilerplate_tokens": 122141,
+            "body_tokens": 1877759,
+            "tool_turn_token_share": 0.9389
           }
         },
         "tool_calls": {
           "tool_call_markers": {
-            "<tool_call>": 4800,
+            "<tool_call>": 4019,
             "```json": 5
           },
-          "tool_call_marker_total": 4805,
+          "tool_call_marker_total": 4024,
           "tool_response_markers": {
-            "<tool_response>": 4014,
-            "tool\n": 2
+            "<tool_response>": 3269,
+            "tool\n": 5
           },
-          "tool_response_marker_total": 4016
+          "tool_response_marker_total": 3274
         },
-        "reasoning_blocks_in_corpus": 275
+        "reasoning_blocks_in_corpus": 538
       },
       "reasoning": {
-        "tokens": 1000878,
-        "chunks": 310,
+        "tokens": 1000590,
+        "chunks": 271,
         "target_tokens": 1000000,
         "source": "logs train slice, windows ending on a reasoning turn",
         "max_windows_per_session": 8,
-        "sessions_scanned": 380,
-        "sessions_contributing": 49,
+        "sessions_scanned": 349,
+        "sessions_contributing": 41,
         "note": "these overlap the `logs` windows by design \u2014 they re-render the same conversations cut so the reasoning turn is LAST, which is the only position a chat template preserves it in",
         "tool_calls": {
           "tool_call_markers": {
-            "<tool_call>": 1583,
+            "<tool_call>": 1384,
             "```json": 2
           },
-          "tool_call_marker_total": 1585,
+          "tool_call_marker_total": 1386,
           "tool_response_markers": {
-            "<tool_response>": 764
+            "<tool_response>": 658
           },
-          "tool_response_marker_total": 764
+          "tool_response_marker_total": 658
         },
-        "reasoning_blocks_in_corpus": 516
+        "reasoning_blocks_in_corpus": 816
       },
       "swe-trajectories": {
-        "tokens": 675040,
-        "chunks": 120,
+        "tokens": 686873,
+        "chunks": 121,
         "dataset": "pearsonkyle/swe-agentic-trajectories:resolved",
         "rows": 71,
         "cal_rows": 63,
@@ -371,26 +377,26 @@
         "target_tokens": 1000000,
         "reasoning_policy": "auto",
         "reasoning_blocks_available": 1,
-        "tool_outputs_clipped": 322,
+        "tool_outputs_clipped": 321,
         "max_tool_output_tokens": 512,
         "pack_audit": {
-          "total_tokens": 675040,
-          "chunk_count": 120,
-          "session_count": 63,
+          "total_tokens": 686873,
+          "chunk_count": 121,
+          "session_count": 61,
           "truncated_sessions": 0,
           "per_session_cap": 7500,
           "tokens_per_source": {
-            "swe-trajectories": 675040
+            "swe-trajectories": 686873
           },
           "tokens_per_length_bucket": {
-            "long": 238081,
-            "medium": 410445,
-            "short": 26514
+            "long": 257169,
+            "medium": 423143,
+            "short": 6561
           },
           "tokens_per_stratum": {
-            "swe-trajectories/long": 238081,
-            "swe-trajectories/medium": 410445,
-            "swe-trajectories/short": 26514
+            "swe-trajectories/long": 257169,
+            "swe-trajectories/medium": 423143,
+            "swe-trajectories/short": 6561
           },
           "sessions_available_per_stratum": {
             "swe-trajectories/medium": 48,
@@ -407,38 +413,38 @@
             "full_prose_quota": 1,
             "max_windows_per_session": 32,
             "tool_schema_quota": 1,
-            "windows_emitted": 120,
-            "sessions_kept": 63,
-            "avg_windows_per_session": 1.9,
+            "windows_emitted": 121,
+            "sessions_kept": 61,
+            "avg_windows_per_session": 1.98,
             "unique_system_prompts": 1,
             "unique_tool_schemas": 1,
             "full_prose_sessions": 1,
-            "stub_sessions": 62,
+            "stub_sessions": 60,
             "full_schema_sessions": 1,
-            "schema_stub_sessions": 62,
+            "schema_stub_sessions": 60,
             "oversize_windows": 0,
             "oversize_dropped": 0,
-            "system_prose_tokens": 18360,
-            "boilerplate_tokens": 35414,
-            "body_tokens": 639626,
-            "tool_turn_token_share": 0.9475
+            "system_prose_tokens": 18513,
+            "boilerplate_tokens": 18513,
+            "body_tokens": 668360,
+            "tool_turn_token_share": 0.973
           }
         },
         "tool_calls": {
           "tool_call_markers": {
-            "<tool_call>": 2260
+            "<tool_call>": 2058
           },
-          "tool_call_marker_total": 2260,
+          "tool_call_marker_total": 2058,
           "tool_response_markers": {
-            "<tool_response>": 1792,
-            "ipython": 3
+            "<tool_response>": 1779,
+            "ipython": 6
           },
-          "tool_response_marker_total": 1795
+          "tool_response_marker_total": 1785
         },
         "reasoning_blocks_in_corpus": 0
       },
       "broad-supplement": {
-        "tokens": 344589,
+        "tokens": 344483,
         "chunks": 47,
         "dataset": "pearsonkyle/broad-domain-supplement:corpus",
         "calib_half_rows": 2704,
@@ -458,7 +464,7 @@
         "reasoning_blocks_in_corpus": 0
       },
       "redteam-refusals": {
-        "tokens": 88812,
+        "tokens": 88798,
         "chunks": 305,
         "dataset": "pearsonkyle/redteam-safety-disclosures:all",
         "rows": 348,
@@ -476,42 +482,42 @@
         "target_tokens": "all",
         "note": "attack turns kept verbatim; EVERY assistant turn replaced with a generic refusal. The targets' original completions and target_reasoning are never written to any corpus.",
         "pack_audit": {
-          "total_tokens": 88812,
+          "total_tokens": 88798,
           "chunk_count": 305,
           "session_count": 305,
           "truncated_sessions": 0,
           "per_session_cap": 7500,
           "tokens_per_source": {
             "redteam:benignframingbypass": 4791,
-            "redteam:bias": 8001,
+            "redteam:bias": 7998,
             "redteam:graphic_content": 5135,
             "redteam:illegal_activity": 15783,
             "redteam:intellectual_property": 3152,
             "redteam:misinformation": 13190,
-            "redteam:personal_safety": 4995,
-            "redteam:pii_leakage": 8015,
-            "redteam:prompt_leakage": 9770,
+            "redteam:personal_safety": 4993,
+            "redteam:pii_leakage": 8012,
+            "redteam:prompt_leakage": 9767,
             "redteam:robustness": 6809,
-            "redteam:structuredoutputsmuggling": 2655,
+            "redteam:structuredoutputsmuggling": 2652,
             "redteam:toxicity": 6516
           },
           "tokens_per_length_bucket": {
-            "short": 87947,
+            "short": 87933,
             "medium": 865
           },
           "tokens_per_stratum": {
             "redteam:benignframingbypass/short": 4791,
-            "redteam:bias/short": 8001,
+            "redteam:bias/short": 7998,
             "redteam:graphic_content/short": 5135,
             "redteam:illegal_activity/short": 15783,
             "redteam:intellectual_property/medium": 865,
             "redteam:intellectual_property/short": 2287,
             "redteam:misinformation/short": 13190,
-            "redteam:personal_safety/short": 4995,
-            "redteam:pii_leakage/short": 8015,
-            "redteam:prompt_leakage/short": 9770,
+            "redteam:personal_safety/short": 4993,
+            "redteam:pii_leakage/short": 8012,
+            "redteam:prompt_leakage/short": 9767,
             "redteam:robustness/short": 6809,
-            "redteam:structuredoutputsmuggling/short": 2655,
+            "redteam:structuredoutputsmuggling/short": 2652,
             "redteam:toxicity/short": 6516
           },
           "sessions_available_per_stratum": {
@@ -562,7 +568,7 @@
             "oversize_dropped": 0,
             "system_prose_tokens": 0,
             "boilerplate_tokens": 0,
-            "body_tokens": 88812,
+            "body_tokens": 88798,
             "tool_turn_token_share": 1.0
           }
         },
@@ -575,7 +581,7 @@
         "reasoning_blocks_in_corpus": 0
       },
       "wiki": {
-        "tokens": 297120,
+        "tokens": 297053,
         "chunks": 43,
         "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/exp-001/wiki/wiki.test.raw",
         "n_chunks": 43,
@@ -591,105 +597,105 @@
       }
     },
     "token_share": {
-      "logs": 0.4539,
-      "reasoning": 0.2271,
-      "swe-trajectories": 0.1532,
-      "broad-supplement": 0.0782,
-      "redteam-refusals": 0.0202,
-      "wiki": 0.0674
+      "logs": 0.4527,
+      "reasoning": 0.2265,
+      "swe-trajectories": 0.1555,
+      "broad-supplement": 0.078,
+      "redteam-refusals": 0.0201,
+      "wiki": 0.0672
     },
     "tool_calls": {
       "tool_call_markers": {
-        "<tool_call>": 8643,
+        "<tool_call>": 7461,
         "```json": 7
       },
-      "tool_call_marker_total": 8650,
+      "tool_call_marker_total": 7468,
       "tool_response_markers": {
-        "<tool_response>": 6570,
-        "ipython": 3,
-        "tool\n": 5
+        "<tool_response>": 5706,
+        "ipython": 6,
+        "tool\n": 8
       },
-      "tool_response_marker_total": 6578
+      "tool_response_marker_total": 5720
     },
     "reasoning": {
       "policy": "auto",
-      "blocks_in_corpus": 792,
+      "blocks_in_corpus": 1354,
       "note": "chat templates keep reasoning only on a render's FINAL assistant turn, so this is far below the number of reasoning turns in the sources (see per_source.*.reasoning_blocks_available) \u2014 by design, since that is also what the model sees at inference"
     },
     "special_tokens": {
       "present": {
-        "<tool_call>": 8643,
-        "<tool_response>": 6570,
-        "<|im_end|>": 16672
+        "<tool_call>": 7461,
+        "<tool_response>": 5706,
+        "<|im_end|>": 14912
       },
       "multi_id": [],
       "all_single_id": true,
-      "non_ascii_chars": 37747,
-      "non_ascii_share": 0.002217,
+      "non_ascii_chars": 33912,
+      "non_ascii_share": 0.001981,
       "has_carriage_returns": true
     },
     "sampled_coverage": {
-      "corpus_tokens": 4408123,
+      "corpus_tokens": 4419359,
       "ctx": 512,
       "awq": {
         "budget_tokens": 65536,
         "chunks": 128,
-        "sampled_tokens": 65339,
+        "sampled_tokens": 65311,
         "corpus_share": 0.0148,
         "source_share": {
-          "logs": 0.4527,
-          "swe-trajectories": 0.1736,
-          "reasoning": 0.1623,
-          "broad-supplement": 0.1035,
-          "wiki": 0.0939,
-          "redteam-refusals": 0.014
+          "logs": 0.4911,
+          "reasoning": 0.2389,
+          "swe-trajectories": 0.1159,
+          "broad-supplement": 0.0979,
+          "wiki": 0.0392,
+          "redteam-refusals": 0.0171
         },
         "sources_seen": 6,
-        "tool_calls_in_sample": 110,
-        "tool_results_in_sample": 95
+        "tool_calls_in_sample": 107,
+        "tool_results_in_sample": 90
       },
       "gptq": {
         "budget_tokens": 32768,
         "chunks": 64,
-        "sampled_tokens": 32571,
+        "sampled_tokens": 32543,
         "corpus_share": 0.0074,
         "source_share": {
-          "logs": 0.4723,
-          "reasoning": 0.3055,
-          "swe-trajectories": 0.1251,
-          "broad-supplement": 0.0614,
-          "redteam-refusals": 0.02,
-          "wiki": 0.0157
+          "logs": 0.4461,
+          "reasoning": 0.27,
+          "swe-trajectories": 0.1692,
+          "broad-supplement": 0.0944,
+          "redteam-refusals": 0.0165,
+          "wiki": 0.0038
         },
         "sources_seen": 6,
-        "tool_calls_in_sample": 71,
-        "tool_results_in_sample": 51
+        "tool_calls_in_sample": 58,
+        "tool_results_in_sample": 53
       }
     }
   },
   "validation": {
-    "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen3-universal-8k/corpus.val.txt",
+    "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen36-official/corpus.val.txt",
     "sources": {
       "logs_test": {
-        "tokens": 10140,
+        "tokens": 10123,
         "chunks": 2,
         "pack_audit": {
-          "total_tokens": 10140,
+          "total_tokens": 10123,
           "chunk_count": 2,
           "session_count": 2,
           "truncated_sessions": 0,
           "per_session_cap": 7500,
           "tokens_per_source": {
-            "agents:go": 7405,
-            "qwen": 2735
+            "agents:go": 7254,
+            "qwen": 2869
           },
           "tokens_per_length_bucket": {
-            "long": 7405,
-            "short": 2735
+            "long": 7254,
+            "medium": 2869
           },
           "tokens_per_stratum": {
-            "agents:go/long": 7405,
-            "qwen/short": 2735
+            "agents:go/long": 7254,
+            "qwen/medium": 2869
           },
           "sessions_available_per_stratum": {
             "qwen/medium": 5,
@@ -711,22 +717,22 @@
             "agents:ts/medium": 8
           },
           "sessions_consumed_per_stratum": {
-            "agents:go/long": 1,
-            "agents:java/long": 1,
-            "agents:java/medium": 1,
-            "agents:js/long": 1,
-            "agents:js/medium": 1,
-            "agents:kotlin/long": 1,
-            "agents:python/medium": 1,
+            "agents:go/long": 2,
+            "agents:java/long": 2,
+            "agents:java/medium": 2,
+            "agents:js/long": 2,
+            "agents:js/medium": 2,
+            "agents:kotlin/long": 2,
+            "agents:python/medium": 2,
             "agents:python/short": 1,
-            "agents:ts/long": 1,
-            "agents:ts/medium": 1,
+            "agents:ts/long": 2,
+            "agents:ts/medium": 2,
             "agents:ts/short": 1,
-            "claude/medium": 1,
-            "claude/short": 1,
+            "claude/medium": 2,
+            "claude/short": 2,
             "opencode/medium": 1,
-            "qwen/long": 1,
-            "qwen/medium": 1,
+            "qwen/long": 2,
+            "qwen/medium": 2,
             "qwen/short": 1
           },
           "windowing": {
@@ -737,8 +743,8 @@
             "windows_emitted": 2,
             "sessions_kept": 2,
             "avg_windows_per_session": 1.0,
-            "unique_system_prompts": 13,
-            "unique_tool_schemas": 10,
+            "unique_system_prompts": 20,
+            "unique_tool_schemas": 15,
             "full_prose_sessions": 1,
             "stub_sessions": 1,
             "full_schema_sessions": 2,
@@ -746,9 +752,9 @@
             "oversize_windows": 0,
             "oversize_dropped": 0,
             "system_prose_tokens": 1005,
-            "boilerplate_tokens": 2100,
-            "body_tokens": 8040,
-            "tool_turn_token_share": 0.7929
+            "boilerplate_tokens": 1005,
+            "body_tokens": 9118,
+            "tool_turn_token_share": 0.9007
           }
         }
       },
@@ -761,7 +767,7 @@
   },
   "eval": {
     "external": {
-      "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen3-universal-8k/corpus.eval.txt",
+      "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen36-official/corpus.eval.txt",
       "repo": "eaddario/imatrix-calibration",
       "domains": {
         "code_small": {
@@ -780,36 +786,37 @@
       "used_for": "headline PPL/KLD (code/math/tools) \u2014 disjoint from every cal source"
     },
     "general": {
-      "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen3-universal-8k/corpus.eval.general.txt",
+      "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen36-official/corpus.eval.general.txt",
       "domain": "combined_en_tiny",
       "tokens": 30000,
       "rows": 1
     },
     "tools": {
-      "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen3-universal-8k/corpus.eval.tools.txt",
+      "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen36-official/corpus.eval.tools.txt",
       "source_slice": "logs.holdout (cli + agents)",
-      "tokens": 30544,
-      "windows": 5,
+      "tokens": 29200,
+      "windows": 6,
       "pack_audit": {
-        "total_tokens": 30544,
-        "chunk_count": 5,
-        "session_count": 4,
+        "total_tokens": 29200,
+        "chunk_count": 6,
+        "session_count": 5,
         "truncated_sessions": 0,
         "per_session_cap": 7500,
         "tokens_per_source": {
-          "agents:csharp": 16024,
-          "agents:go": 7173,
-          "agents:java": 7347
+          "agents:csharp": 16554,
+          "agents:go": 7425,
+          "agents:java": 5221
         },
         "tokens_per_length_bucket": {
-          "long": 21926,
-          "medium": 8618
+          "long": 16087,
+          "medium": 13113
         },
         "tokens_per_stratum": {
-          "agents:csharp/long": 7406,
-          "agents:csharp/medium": 8618,
-          "agents:go/long": 7173,
-          "agents:java/long": 7347
+          "agents:csharp/long": 7016,
+          "agents:csharp/medium": 9538,
+          "agents:go/long": 7425,
+          "agents:java/medium": 3575,
+          "agents:java/long": 1646
         },
         "sessions_available_per_stratum": {
           "qwen/long": 9,
@@ -831,69 +838,69 @@
           "agents:rust/long": 4
         },
         "sessions_consumed_per_stratum": {
-          "agents:csharp/long": 1,
-          "agents:csharp/medium": 1,
-          "agents:go/long": 1,
-          "agents:java/long": 1,
-          "agents:java/medium": 0,
-          "agents:java/short": 0,
-          "agents:python/long": 0,
-          "agents:python/medium": 0,
-          "agents:python/short": 0,
-          "agents:rust/long": 0,
-          "agents:rust/medium": 0,
-          "agents:scala/medium": 0,
-          "claude/medium": 0,
-          "claude/short": 0,
-          "qwen/long": 0,
-          "qwen/medium": 0,
-          "qwen/short": 0
+          "agents:csharp/long": 3,
+          "agents:csharp/medium": 7,
+          "agents:go/long": 10,
+          "agents:java/long": 2,
+          "agents:java/medium": 5,
+          "agents:java/short": 3,
+          "agents:python/long": 9,
+          "agents:python/medium": 3,
+          "agents:python/short": 2,
+          "agents:rust/long": 4,
+          "agents:rust/medium": 5,
+          "agents:scala/medium": 1,
+          "claude/medium": 3,
+          "claude/short": 1,
+          "qwen/long": 9,
+          "qwen/medium": 8,
+          "qwen/short": 2
         },
         "windowing": {
           "system_prose_budget": 256,
           "full_prose_quota": 1,
           "max_windows_per_session": 8,
           "tool_schema_quota": 1,
-          "windows_emitted": 5,
-          "sessions_kept": 4,
-          "avg_windows_per_session": 1.25,
-          "unique_system_prompts": 3,
-          "unique_tool_schemas": 2,
+          "windows_emitted": 6,
+          "sessions_kept": 5,
+          "avg_windows_per_session": 1.2,
+          "unique_system_prompts": 35,
+          "unique_tool_schemas": 28,
           "full_prose_sessions": 3,
-          "stub_sessions": 1,
-          "full_schema_sessions": 2,
-          "schema_stub_sessions": 2,
+          "stub_sessions": 2,
+          "full_schema_sessions": 1,
+          "schema_stub_sessions": 4,
           "oversize_windows": 0,
           "oversize_dropped": 0,
-          "system_prose_tokens": 2934,
-          "boilerplate_tokens": 5200,
-          "body_tokens": 25344,
-          "tool_turn_token_share": 0.8298
+          "system_prose_tokens": 3043,
+          "boilerplate_tokens": 3043,
+          "body_tokens": 26157,
+          "tool_turn_token_share": 0.8958
         }
       },
       "caveat": "llama-perplexity has no --parse-special: chat markers tokenize as plain BPE. Quant-vs-quant only, not absolute PPL."
     },
     "agentic": {
-      "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen3-universal-8k/corpus.eval.agentic.txt",
+      "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen36-official/corpus.eval.agentic.txt",
       "source": "pearsonkyle/swe-agentic-trajectories:resolved holdout",
-      "tokens": 28896,
+      "tokens": 28946,
       "windows": 5,
       "pack_audit": {
-        "total_tokens": 28896,
+        "total_tokens": 28946,
         "chunk_count": 5,
-        "session_count": 3,
+        "session_count": 4,
         "truncated_sessions": 0,
         "per_session_cap": 7500,
         "tokens_per_source": {
-          "swe-trajectories": 28896
+          "swe-trajectories": 28946
         },
         "tokens_per_length_bucket": {
-          "long": 23392,
-          "medium": 5504
+          "long": 22054,
+          "medium": 6892
         },
         "tokens_per_stratum": {
-          "swe-trajectories/long": 23392,
-          "swe-trajectories/medium": 5504
+          "swe-trajectories/long": 22054,
+          "swe-trajectories/medium": 6892
         },
         "sessions_available_per_stratum": {
           "swe-trajectories/long": 3,
@@ -909,33 +916,33 @@
           "max_windows_per_session": 8,
           "tool_schema_quota": 1,
           "windows_emitted": 5,
-          "sessions_kept": 3,
-          "avg_windows_per_session": 1.67,
+          "sessions_kept": 4,
+          "avg_windows_per_session": 1.25,
           "unique_system_prompts": 1,
           "unique_tool_schemas": 1,
           "full_prose_sessions": 1,
-          "stub_sessions": 2,
+          "stub_sessions": 3,
           "full_schema_sessions": 1,
-          "schema_stub_sessions": 2,
+          "schema_stub_sessions": 3,
           "oversize_windows": 0,
           "oversize_dropped": 0,
           "system_prose_tokens": 765,
-          "boilerplate_tokens": 1489,
-          "body_tokens": 27407,
-          "tool_turn_token_share": 0.9485
+          "boilerplate_tokens": 765,
+          "body_tokens": 28181,
+          "tool_turn_token_share": 0.9736
         }
       },
       "caveat": "same --parse-special caveat as the tools eval"
     },
     "broad": {
-      "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen3-universal-8k/corpus.eval.broad.txt",
+      "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen36-official/corpus.eval.broad.txt",
       "source": "pearsonkyle/broad-domain-supplement:corpus (mtp half, eval slice)",
-      "tokens": 27455,
+      "tokens": 27448,
       "chunks": 4,
       "used_for": "did low-bit quantization cost general knowledge outside the coding/tool distribution the imatrix was fit on?"
     },
     "redteam": {
-      "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen3-universal-8k/corpus.eval.redteam.txt",
+      "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen36-official/corpus.eval.redteam.txt",
       "source": "pearsonkyle/redteam-safety-disclosures:all holdout, refused",
       "tokens": 9901,
       "windows": 41,
@@ -1003,7 +1010,7 @@
   },
   "disjointness": "asserted: logs train/test/holdout (grouped by issue), swe cal/eval, broad cal/eval",
   "sft": {
-    "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen3-universal-8k/sft.jsonl.gz",
+    "path": "/Users/kpearson/Programs/ai/llm/quant-tuner/out/corpora/qwen36-official/sft.jsonl.gz",
     "conversations": 6643,
     "bytes_gz": 22689214,
     "per_source": {

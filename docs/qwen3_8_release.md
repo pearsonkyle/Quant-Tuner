@@ -187,12 +187,58 @@ same value to all three**: `llama-imatrix -c`, `awq.calibrate(ctx=)`, `gptq.cali
 Note 59% of agentic windows still end at the 7500 cap — these trajectories are long enough
 that 16K would capture more again.
 
+### Tokenizer & template: what carries forward from 3.5/3.6
+
+Checked directly (full id→token map, not just vocab size):
+
+| model | vocab | vocab sha | chat template |
+|---|---|---|---|
+| Qwen3.5-27B | 248,077 | `5660eab8ed1d73c3` | `a4aee8afcf2e` |
+| Qwen3.5-4B | 248,077 | `5660eab8ed1d73c3` | `a4aee8afcf2e` |
+| Qwen3.6-27B | 248,077 | `5660eab8ed1d73c3` | `e84f32a23fdd` |
+| Qwen3-0.6B | 151,669 | `8a14c88d4bebfca7` | different |
+
+**The tokenizer is byte-identical across Qwen3.5 and Qwen3.6** and changed only between
+Qwen3 and Qwen3.5. If Qwen3.8 keeps it, this corpus needs **no rebuild** — the token
+budgets, window packing and marker ids all carry over, and the imatrix can start the moment
+the weights land.
+
+The **chat template does differ** (3.5 → 3.6 is a 2-line diff): 3.6 adds a `preserve_thinking`
+flag and changes tool-call argument serialization. Two consequences:
+
+* The corpus is now built with the **official `Qwen/Qwen3.6-27B`** tokenizer, not the
+  Qwopus3.6 finetune's (whose template is a different, shorter 4,718 chars). The finetune's
+  template is not a good proxy for what Qwen ships.
+* The official template is **strict** — it raises `"No user query found"` for any window
+  without a user turn. On a long agentic trajectory (one task, then fifty assistant/tool
+  turns) that refuses every window past the first: the reasoning source fell 1.00M → 232k
+  tokens and SWE 675k → 425k before this was fixed. `session_windows(user_anchor=True)`
+  retries a refused window with the session's task statement prepended, which is exactly the
+  history-truncated context the model has at inference. Restored: reasoning 1.00M, SWE 687k.
+* `preserve_thinking=True` (3.6 only, not 3.5) keeps reasoning on **every** assistant turn
+  rather than the final one. `verify_chat_template.py` now reports whether a template
+  supports it. Not enabled by default: it would put far more reasoning in the corpus at the
+  cost of a history distribution that differs from default inference, which strips it —
+  a per-release judgement call.
+
+### Can the imatrix be prepared in advance? No.
+
+An imatrix is per-model activation statistics — `E[a²]` per input channel per tensor,
+collected by running **that model's weights** forward over the corpus. There is no way to
+compute it without the weights, and borrowing Qwen3.6's would be quietly wrong: channel
+importances differ between models even at identical architecture, and the result is a quant
+that loads, runs, and is just worse. The same holds for AWQ scales and GPTQ Hessians.
+
+What *is* ready in advance: the corpus, the packing, the template pre-flight, the eval
+holdouts and the whole run chain. Release day is then a single unattended chain, and the
+only long pole is the ~17 h imatrix pass.
+
 ### The built dataset (2026-08-10)
 
-Saved at `out/corpora/qwen3-universal/` (60 MB), built with the Qwen3.6 tokenizer as the
-stand-in for Qwen3.8 — rebuild with the real tokenizer once the model lands, since the
-calibration corpus is chat-templated and therefore tokenizer-specific. The audit is tracked
-at `docs/qwen3_universal_corpora_audit.json`.
+Saved at `out/corpora/qwen3-universal/`, built with the **official `Qwen/Qwen3.6-27B`**
+tokenizer + template (4,417,697 tokens, ctx 8192). Rebuild only if Qwen3.8 changes the
+tokenizer or template — check with `verify_chat_template.py` and the vocab sha above. The
+audit is tracked at `docs/qwen3_universal_corpora_audit.json`.
 
 | file | what |
 |---|---|

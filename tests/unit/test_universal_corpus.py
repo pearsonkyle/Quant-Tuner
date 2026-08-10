@@ -263,3 +263,60 @@ def test_write_jsonl_gz_roundtrips(tmp_path):
     with gzip.open(path, "rt", encoding="utf-8") as fh:
         rows = [json.loads(ln) for ln in fh]
     assert rows == [{"i": i, "t": "café"} for i in range(3)]
+
+
+# ------------------------------------------------------ strict templates / user anchor
+class StrictTokenizer(WSTokenizer):
+    """Qwen3.6's official template: refuses any render without a user turn."""
+
+    chat_template = "strict"
+
+    def apply_chat_template(self, messages, tools=None, tokenize=False):
+        if not any(m.get("role") == "user" for m in messages):
+            raise ValueError("No user query found in messages.")
+        return " ".join(f"<{m['role']}>{m.get('content') or ''}" for m in messages)
+
+
+def _agentic_session(n_turns: int = 12) -> list[dict]:
+    """One user task followed by a long assistant/tool run — the agentic shape."""
+    msgs = [{"role": "system", "content": "sys"}, {"role": "user", "content": "fix the bug"}]
+    for i in range(n_turns):
+        msgs.append({"role": "assistant", "content": f"step {i}"})
+        msgs.append({"role": "tool", "content": f"output {i}"})
+    return msgs
+
+
+def test_strict_template_drops_mid_trajectory_windows_without_an_anchor():
+    """The measured failure: reasoning fell 1.00M -> 232k tokens on the official template."""
+    tok = StrictTokenizer()
+    wins = split.session_windows(tok, _agentic_session(), None, cap_tokens=12,
+                                 max_windows=8, user_anchor=False)
+    # everything after the first window is refused, because no later span has a user turn
+    assert len(wins) == 1
+
+
+def test_user_anchor_rescues_them_and_keeps_the_task_in_context():
+    tok = StrictTokenizer()
+    wins = split.session_windows(tok, _agentic_session(), None, cap_tokens=12,
+                                 max_windows=8, user_anchor=True)
+    assert len(wins) > 1
+    # every window carries the original task statement, which is what inference gives it
+    assert all("fix the bug" in text for text, _ in wins)
+    # and the later windows really are later spans, not a repeat of the head
+    assert any("step 6" in text or "step 7" in text for text, _ in wins)
+
+
+def test_user_anchor_is_a_no_op_for_lenient_templates():
+    """The published two-source builder must be byte-identical with the flag off or on."""
+    class Lenient(WSTokenizer):
+        chat_template = "lenient"
+
+        def apply_chat_template(self, messages, tools=None, tokenize=False):
+            return " ".join(f"<{m['role']}>{m.get('content') or ''}" for m in messages)
+
+    tok = Lenient()
+    session = _agentic_session()
+    off = split.session_windows(tok, session, None, cap_tokens=12, max_windows=8)
+    on = split.session_windows(tok, session, None, cap_tokens=12, max_windows=8,
+                               user_anchor=True)
+    assert off == on

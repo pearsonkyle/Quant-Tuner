@@ -498,6 +498,23 @@ The OmniCoder reproduction is here; the CLI handles ad-hoc runs.
   4,291 available. `universal.reasoning_windows` is the fix: extra windows cut so a reasoning
   turn lands last (the only position that survives, and the context the model actually has
   while generating it). Coverage is reported per source in the audit.
+- **Strict chat templates need `user_anchor`.** Qwen3.6's *official* template raises "No
+  user query found" for a window with no user turn; an agentic trajectory is one task turn
+  followed by dozens of assistant/tool turns, so every window past the first is refused and
+  the trajectory's tail is silently dropped (measured: reasoning 1.00M → 232k tokens, SWE
+  675k → 425k). `split.session_windows(user_anchor=True)` retries a refused window with the
+  session's task statement prepended — on-distribution, since inference always has the task
+  in context. `data.universal` sets it; `build_corpora.py` does not, so published runs stay
+  byte-identical.
+- **Tokenizer vs template across the Qwen3.x line**: Qwen3.5 and Qwen3.6 share a
+  byte-identical 248,077-token vocab (`5660eab8ed1d73c3`); Qwen3 (151,669) does not. The
+  chat *template* does differ — 3.6 adds `preserve_thinking` (keeps reasoning on every
+  assistant turn, not just the last; `template_check` detects it) and changes tool-call arg
+  serialization. Build corpora against the **official** repo's tokenizer, not a finetune's:
+  Qwopus3.6 ships its own 4,718-char template vs the official 7,764.
+- **An imatrix cannot be precomputed without the weights** — it is per-model `E[a²]`
+  activation statistics. Borrowing another model's (even same-architecture) gives a quant
+  that loads and is quietly worse. Same for AWQ scales and GPTQ Hessians.
 - `data/system_prompt.py` — **SFT-only** system-prompt scrubbing. 90% of system-prompt
   characters in the logs are blocks repeated verbatim across sessions (tone, git etiquette,
   worked examples). A repeated block is dropped **unless it names a path/file the same

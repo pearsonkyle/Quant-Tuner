@@ -345,8 +345,19 @@ def reasoning_windows(
     if not targets:
         return []
 
+    # Strict templates ("No user query found") refuse a mid-trajectory span; retry with the
+    # session's task statement prepended, which is the context the model has at inference.
+    anchor = next((m for m in body if m.get("role") == "user"), None)
+
     def render(lo: int, hi: int) -> tuple[str, int]:
-        text = tok.apply_chat_template(prefix + body[lo:hi], tools=tools, tokenize=False)
+        run = body[lo:hi]
+        try:
+            text = tok.apply_chat_template(prefix + run, tools=tools, tokenize=False)
+        except Exception:
+            if anchor is None or any(m is anchor for m in run):
+                raise
+            text = tok.apply_chat_template(
+                prefix + [anchor] + run, tools=tools, tokenize=False)
         return text, len(tok(text, add_special_tokens=False)["input_ids"])
 
     out: list[tuple[str, int]] = []
@@ -781,9 +792,9 @@ def build(cfg: UniversalConfig) -> dict:
         "template_check": report.to_dict(),
         "ctx": cfg.ctx,
         "window_cap": cfg.window_cap,
-        "ctx_note": "every calibrator must read this corpus at ctx=%d — llama-imatrix -c, "
-                    "awq.calibrate(ctx=), gptq.calibrate(ctx=). Windows are packed to fit "
-                    "one context exactly." % cfg.ctx,
+        "ctx_note": f"every calibrator must read this corpus at ctx={cfg.ctx} — "
+                    "llama-imatrix -c, awq.calibrate(ctx=), gptq.calibrate(ctx=). Windows "
+                    "are packed to fit one context exactly.",
         "budgets": {
             "cal_logs_tokens": _budget_label(cfg.cal_logs_tokens),
             "cal_swe_tokens": cfg.cal_swe_tokens,
@@ -797,6 +808,7 @@ def build(cfg: UniversalConfig) -> dict:
         full_prose_quota=cfg.full_prose_quota,
         max_windows_per_session=cfg.max_windows_per_session,
         tool_schema_quota=cfg.tool_schema_quota,
+        user_anchor=True,
     )
 
     parts: list[_Part] = []
