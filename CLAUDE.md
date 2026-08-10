@@ -709,6 +709,18 @@ Adapted (Apache-2.0, see root `NOTICE`) from `anthropics/jacobian-lens` (the
     numbers are off-distribution. Prefer a raw-text eval corpus —
     `build_corpora.py`'s external `corpus.eval.txt`, wired into a recipe via
     `bench.eval_corpus` — over the pipeline's default log-derived eval slice.
+- **Calibration ctx is a PACKING parameter, not just a runtime flag.** `data.universal`'s
+  `UniversalConfig.ctx` (default **8192**) sizes the windows it emits (`window_cap = ctx -
+  headroom`), and the same value must reach `llama-imatrix -c`, `awq.calibrate(ctx=)` and
+  `gptq.calibrate(ctx=)` — a corpus packed for one ctx and read at another either straddles
+  chunk boundaries or glues unrelated conversations into one context. The corpus records
+  what it was packed for in `corpora_audit.json: calibration.ctx`. Measured on the logs: at
+  ctx 4096 / cap 3500, **51% of log windows and 46% of SWE windows ended at the cap** (chains
+  cut mid-chain); repacking for 8192 took mean tool results per agentic window from **6.1 to
+  13.5**. Cost on a 27B F16 on Metal: 48.5 s per 4096-pass (84 tok/s) vs 116.2 s per
+  8192-pass (70 tok/s) — +19% wall-clock for the same tokens, ~17 h for a full 4.4M-token
+  pass. `scripts/build_corpora.py` and the older recipes stay at 4096 so published numbers
+  reproduce; **numbers from different ctxs are not comparable**, including PPL/KLD.
 - `calibration.params.imatrix_ctx` (default **4096**, `pipeline.DEFAULT_IMATRIX_CTX`)
   sets the llama-imatrix context length for all three methods; it is consumed by
   the pipeline and not forwarded to the calibrators. 4096 fits the packer's

@@ -144,8 +144,19 @@ class UniversalConfig:
     broad_eval_tokens: int = 30_000       # broad supplement mtp-half slice
     redteam_eval_tokens: int = 10_000     # held-out attacks + refusals
 
-    # Packing (mirrors scripts/build_corpora.py; keep per_session_cap < imatrix ctx).
-    per_session_cap: int = 3_500
+    # The context every calibrator will read this corpus at. It is a PACKING parameter, not
+    # just a runtime flag: a window longer than ctx straddles a chunk boundary, and a window
+    # much shorter than ctx means the calibrator sees two unrelated conversations glued
+    # together in one context. Measured at ctx 4096 / cap 3500, 51% of log windows and 46% of
+    # SWE windows ended exactly at the cap — i.e. agentic tool-call chains were being cut
+    # mid-chain, which is precisely the structure a coding model needs to see whole.
+    # Whatever this is set to, `llama-imatrix -c`, `awq.calibrate(ctx=)` and
+    # `gptq.calibrate(ctx=)` must be given the SAME value.
+    ctx: int = 8192
+    # Window budget. None = derive from ctx with headroom for the system prefix + schemas
+    # that every render carries, so no window can straddle a context boundary.
+    per_session_cap: int | None = None
+    ctx_headroom: int = 692
     system_prose_budget: int = 256
     full_prose_quota: int = 1
     max_windows_per_session: int = 8
@@ -189,6 +200,13 @@ class UniversalConfig:
 
     def enabled(self, name: str) -> bool:
         return name in self.sources
+
+    @property
+    def window_cap(self) -> int:
+        """Max tokens per emitted window — explicit, or derived from ``ctx``."""
+        if self.per_session_cap is not None:
+            return self.per_session_cap
+        return max(512, self.ctx - self.ctx_headroom)
 
 
 # -------------------------------------------------------------------------------- loading
@@ -761,6 +779,11 @@ def build(cfg: UniversalConfig) -> dict:
         "model_dir": str(cfg.model_dir),
         "sources": list(cfg.sources),
         "template_check": report.to_dict(),
+        "ctx": cfg.ctx,
+        "window_cap": cfg.window_cap,
+        "ctx_note": "every calibrator must read this corpus at ctx=%d — llama-imatrix -c, "
+                    "awq.calibrate(ctx=), gptq.calibrate(ctx=). Windows are packed to fit "
+                    "one context exactly." % cfg.ctx,
         "budgets": {
             "cal_logs_tokens": _budget_label(cfg.cal_logs_tokens),
             "cal_swe_tokens": cfg.cal_swe_tokens,
@@ -768,7 +791,7 @@ def build(cfg: UniversalConfig) -> dict:
         },
     }
     pack_kwargs: dict[str, Any] = dict(
-        per_session_cap=cfg.per_session_cap,
+        per_session_cap=cfg.window_cap,
         seed=cfg.seed,
         system_prose_budget=cfg.system_prose_budget,
         full_prose_quota=cfg.full_prose_quota,
@@ -859,7 +882,7 @@ def build(cfg: UniversalConfig) -> dict:
                 break
             scanned += 1
             wins = reasoning_windows(
-                s, tok, cfg.per_session_cap,
+                s, tok, cfg.window_cap,
                 max_windows=cfg.max_reasoning_windows_per_session,
             )
             if wins:
@@ -924,7 +947,7 @@ def build(cfg: UniversalConfig) -> dict:
         n_val = max(0, min(len(broad_eval) // 4, len(broad_eval) - 1))
         broad_val, broad_eval = broad_eval[:n_val], broad_eval[n_val:]
         chunks, total = pack_raw_samples(
-            broad_cal, tok, _budget(cfg.cal_broad_tokens), cfg.per_session_cap,
+            broad_cal, tok, _budget(cfg.cal_broad_tokens), cfg.window_cap,
             cfg.seed,
         )
         split.write_corpus(chunks, out / "corpus.cal.broad.txt")
@@ -976,7 +999,7 @@ def build(cfg: UniversalConfig) -> dict:
     if cfg.enabled(SOURCE_WIKI) and cfg.wiki:
         assert Path(cfg.wiki).exists(), f"missing wiki: {cfg.wiki}"
         all_chunks = split.chunk_text(
-            Path(cfg.wiki).read_text(), approx_chars=cfg.per_session_cap * 4,
+            Path(cfg.wiki).read_text(), approx_chars=cfg.window_cap * 4,
         )
         wiki_chunks: list[str] = []
         wiki_total = 0
@@ -1100,7 +1123,7 @@ def build(cfg: UniversalConfig) -> dict:
         val_audit["logs_test"] = {"tokens": vtot, "chunks": len(vc), "pack_audit": vpack}
     if broad_val and cfg.val_broad_tokens > 0:
         bc, btot = pack_raw_samples(
-            broad_val, tok, cfg.val_broad_tokens, cfg.per_session_cap, cfg.seed + 1,
+            broad_val, tok, cfg.val_broad_tokens, cfg.window_cap, cfg.seed + 1,
         )
         val_chunks.append(bc)
         val_audit["broad_supplement"] = {"tokens": btot, "chunks": len(bc)}
@@ -1168,7 +1191,7 @@ def build(cfg: UniversalConfig) -> dict:
 
     if broad_eval:
         bchunks, btot = pack_raw_samples(
-            broad_eval, tok, cfg.broad_eval_tokens, cfg.per_session_cap, cfg.seed + 2,
+            broad_eval, tok, cfg.broad_eval_tokens, cfg.window_cap, cfg.seed + 2,
         )
         split.write_corpus(bchunks, out / "corpus.eval.broad.txt")
         audit["eval"]["broad"] = {

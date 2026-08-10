@@ -160,6 +160,33 @@ is also checked for control tokens on the bytes as written (`<tool_call>` 9,393,
 Pass `--sft-token-counts` for per-conversation `n_tokens` (a second tokenization pass over
 ~30M tokens, and specific to `--model`'s tokenizer); `--no-sft` skips the file.
 
+### Calibration context: 8192, and why the corpus is packed for it
+
+The context is a **packing** parameter, not just a runtime flag. At ctx 4096 the packer's
+3500-token windows ended exactly at the cap for **51% of log windows and 46% of SWE
+windows** — agentic tool-call chains cut mid-chain, which is the one structure this release
+most needs calibrated. Repacking for 8192 (windows ≤7500) roughly doubles how much of a
+chain fits in one context:
+
+| | ctx 4096 | ctx 8192 |
+|---|---|---|
+| windows (same 4.4M tokens) | 1,754 | 1,136 |
+| median chat window | 3,169 tok | 5,434 tok |
+| **mean tool results per agentic window** | **6.1** | **13.5** |
+| longest chain in one window | 26 | 42 |
+
+Cost, measured on the 27B F16 on Metal: **48.5 s per 4096-token pass (84 tok/s) vs 116.2 s
+per 8192-token pass (70 tok/s)** — about +19% wall-clock for the same token budget, since
+attention is quadratic in context. A full 4.4M-token imatrix pass is ~15 h at 4096 and ~17 h
+at 8192 on this machine; it is an overnight job either way, and much faster on CUDA. Trim
+`--cal-logs-tokens` if that is too long.
+
+`ctx` lives in `UniversalConfig` and the window budget derives from it, so the corpus always
+records the context it was packed for (`corpora_audit.json: calibration.ctx`). **Give the
+same value to all three**: `llama-imatrix -c`, `awq.calibrate(ctx=)`, `gptq.calibrate(ctx=)`.
+Note 59% of agentic windows still end at the 7500 cap — these trajectories are long enough
+that 16K would capture more again.
+
 ### The built dataset (2026-08-10)
 
 Saved at `out/corpora/qwen3-universal/` (60 MB), built with the Qwen3.6 tokenizer as the
@@ -169,7 +196,7 @@ at `docs/qwen3_universal_corpora_audit.json`.
 
 | file | what |
 |---|---|
-| `corpus.cal.txt` (17.4 MB) | 4,407,923 tokens · 9,402 tool calls · 5,943 tool results · 375 reasoning blocks |
+| `corpus.cal.txt` (17.4 MB) | 4,406,512 tokens · 8,650 tool calls · 5,464 tool results · 791 reasoning blocks, packed for **ctx 8192** |
 | `corpus.cal.jsonl.gz` | the same, one record per window, source-labelled |
 | `corpus.val.txt` | AWQ cv-scoring slice (in-domain logs + out-of-domain breadth) |
 | `corpus.eval.{txt,general,tools,agentic,broad,redteam}.txt` | six disjoint eval holdouts, each needing its own `baseline.kld` |
@@ -177,13 +204,14 @@ at `docs/qwen3_universal_corpora_audit.json`.
 
 **All three calibrators were run against this corpus, not assumed to work:**
 
-* **imatrix** — `llama-imatrix` on the real 27B F16 (`out/exp-041/model-f16.gguf`), 12 chunks
-  at ctx 4096 with `--parse-special`. 496 tensor entries, all finite, no all-zero tensor,
-  and it loads through `calibrate.imatrix._load_base_imatrix` (the input every variant
-  consumes).
-* **AWQ** — `awq.calibrate` end-to-end on Qwen3-0.6B: 56 groups, per-tensor α search with
-  `cv_strategy="gate"` scored against `corpus.val.txt`.
-* **GPTQ** — `gptq.calibrate` end-to-end: 196 Hessians (112 attn / 84 mlp) accumulated from
+* **imatrix** — `llama-imatrix` on the real 27B F16 (`out/exp-041/model-f16.gguf`) with
+  `--parse-special`, at **both** contexts: 12 chunks @4096 and 8 chunks @8192. 496 tensor
+  entries, all finite, no all-zero tensor, and the result loads through
+  `calibrate.imatrix._load_base_imatrix` (the input every variant consumes).
+* **AWQ** — `awq.calibrate` end-to-end on Qwen3-0.6B at ctx 4096 and **8192**: 56 groups,
+  per-tensor α search with `cv_strategy="gate"` scored against `corpus.val.txt`.
+* **GPTQ** — `gptq.calibrate` end-to-end at ctx 2048 and **8192** (its default is 2048, so
+  8192 is a 4× jump in sequence length): 196 Hessians (112 attn / 84 mlp) accumulated from
   the strided sample, snapshotted without error.
 
 ## Stage 3 — imatrix + the four quants

@@ -25,7 +25,7 @@ data:
   train_frac: 0.8
   test_frac: 0.1
   holdout_frac: 0.1
-  per_session_cap: 3500
+  per_session_cap: 7500       # one 8192-token imatrix context, minus render headroom
   context_len: 16384
 
 extract:
@@ -35,7 +35,7 @@ calibration:
   method: imatrix
   variant: hybrid_custom
   params:
-    imatrix_ctx: 4096
+    imatrix_ctx: 8192
 
 quantize:
   type: Q5_K_M
@@ -43,6 +43,6 @@ quantize:
 
 bench:
   suite: full
-  eval_ctx: 4096
+  eval_ctx: 8192
   eval_corpus: ./out/exp-060/corpora/corpus.eval.txt
   eval_tools_corpus: ./out/exp-060/corpora/corpus.eval.tools.txt

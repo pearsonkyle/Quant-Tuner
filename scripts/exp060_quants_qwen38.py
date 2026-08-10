@@ -44,8 +44,13 @@ DEFAULT_MODEL_ID = "Qwen/Qwen3.8-27B"
 DEFAULT_RUN = "exp-060"
 # The published ladder: one aggressive 2-bit row, two mid rows, one near-lossless row.
 DEFAULT_ROWS = ("IQ2_M", "IQ3_M", "IQ4_XS", "Q5_K_M")
-CTX = 4096          # matches DEFAULT_IMATRIX_CTX; numbers at 512 are NOT comparable
-EVAL_CTX = 4096
+# 8192, not the historical 4096: at 4096 the packer's 3500-token windows cut 51% of log
+# windows and 46% of SWE windows off mid-chain, and an agentic tool-call chain that doesn't
+# fit in one context is exactly the structure this release needs calibrated. The corpus is
+# PACKED for this ctx (windows sized to fill one), so the corpus and these two constants
+# must move together. Numbers produced at a different ctx are not comparable.
+CTX = 8192
+EVAL_CTX = 8192
 
 # eval name -> (corpus filename, baseline filename, results csv)
 EVALS = {
@@ -127,7 +132,7 @@ def main() -> int:
              lambda: universal.build(universal.UniversalConfig(
                  out_dir=corpora, model_dir=hf_dir,
                  log_files=tuple(a.logs_jsonl), wiki=a.wiki,
-                 per_session_cap=CTX - 596,   # < imatrix ctx: no window straddles a chunk
+                 ctx=CTX,   # packs windows to fill exactly one imatrix context
              )))
     audit = json.loads((corpora / "corpora_audit.json").read_text())
     cal = audit["calibration"]

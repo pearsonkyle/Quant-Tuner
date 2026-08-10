@@ -82,8 +82,14 @@ def main() -> int:
                         "token_share in the audit — with small chat budgets wiki "
                         "otherwise dominates the mix")
     p.add_argument("--eval-tokens-per-domain", type=int, default=30_000)
-    p.add_argument("--per-session-cap", type=int, default=3_500,
-                   help="max tokens per window; keep < the imatrix ctx (default 4096)")
+    p.add_argument("--ctx", type=int, default=8192,
+                   help="the context EVERY calibrator will read this corpus at (default "
+                        "8192). Windows are packed to fill one context, so this is a "
+                        "packing parameter — pass the same value to llama-imatrix -c, "
+                        "awq.calibrate(ctx=) and gptq.calibrate(ctx=)")
+    p.add_argument("--per-session-cap", type=int, default=None,
+                   help="override the window budget (default: ctx minus headroom for the "
+                        "system prefix + tool schemas every render carries)")
     p.add_argument("--max-tool-output-tokens", type=int, default=512,
                    help="head+tail clip for role=tool contents (0 disables)")
     p.add_argument("--reasoning", default="auto", choices=["auto", "field", "drop"],
@@ -125,6 +131,7 @@ def main() -> int:
         reasoning_policy=a.reasoning,
         cal_wiki_tokens=a.cal_wiki_tokens,
         eval_tokens_per_domain=a.eval_tokens_per_domain,
+        ctx=a.ctx,
         per_session_cap=a.per_session_cap,
         max_tool_output_tokens=a.max_tool_output_tokens,
         seed=a.seed,
