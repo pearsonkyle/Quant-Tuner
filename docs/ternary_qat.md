@@ -107,21 +107,45 @@ log formats with no stored schemas fall back to `reconstruct_tools` stubs.
   mask fast path still returns `attention_mask=None` for a plain causal decoder (a custom
   name gets an eager `[1,1,S,S]` float mask — 1 GB at S=16128).
 
-  With chunking on, **nothing fails up to 20480**; the wall is unified memory. Measured
-  full-model fwd+bwd, all-36 layers, fp32, Adafactor, gradient checkpointing, M4 Max
-  128 GB (with ~41 GB held by an unrelated LM Studio model):
+  With chunking on the wall is unified memory. Measured full-model fwd+bwd, all-36
+  layers, fp32, Adafactor, gradient checkpointing, M4 Max 128 GB — **on an otherwise
+  idle machine**, with the numbers from a machine also hosting a ~41 GB LM Studio model
+  for comparison, because the difference is large enough to change the decision:
 
-  | window | fwd+bwd | ms/token | torch driver alloc |
-  |---|---|---|---|
-  | 8064 | 66 s | 8.16 | 93 GiB |
-  | **12288** | **127 s** | **10.31** | **121 GiB** |
-  | 16128 | 322 s | 19.98 | 139 GiB |
-  | 20480 | 790 s | 38.56 | 148 GiB |
+  | window | fwd+bwd | ms/token | driver alloc | ms/token w/ 41 GB resident |
+  |---|---|---|---|---|
+  | 8064 | 66 s | — | 93 GiB | 8.16 |
+  | **12288** | **116 s** | **9.47** | **125 GiB** | 10.31 |
+  | 16128 | 227 s | 14.09 | 137 GiB | 19.98 |
+  | 20480 | 499 s | 24.36 | 137 GiB | 38.56 |
+  | 24576 | — | **hard OOM** | (tried 170 GiB) | — |
 
-  The knee is sharp and it is swap: past ~128 GiB the per-token cost **doubles**. So
-  **12288 is the practical ceiling** — +52% window over 8064 for only +26% per token.
-  15-16k is reachable but costs 2× per token; take it only if you free the machine first.
-  Same math rules out B≥2; grad-accum is the equivalent lever.
+  **24576 is the hard wall.** Below it the cost is smoothly superlinear — attention is
+  quadratic and the allocator starts spilling past ~128 GiB. **12288 is the throughput
+  sweet spot**: 16128 costs +49% per token and 20480 +157%, so at a fixed wall-clock
+  budget 12288 sees ~1.5×/2.6× more data. Choose a longer window only when whole-session
+  context matters more than tokens seen — see the length distribution below. Freeing
+  other GPU consumers is worth ~30% at 16128 alone. Same math rules out B≥2; grad-accum
+  is the equivalent lever.
+
+  **Conversation-length distribution** (universal SFT train split, `--max-tool-tokens
+  4096`) is strongly bimodal: 83% of *conversations* are short broad-instruct/refusal
+  rows under 2k tokens but only 2.6% of *tokens*; **81% of tokens live in conversations
+  longer than 20k** (median CLI-log session 32k, agent-log 16k, SWE trajectory 11.5k;
+  longest 256k). Share of conversations that fit whole in one window:
+
+  | source | 4096 | 8064 | 12288 | 16128 | 20480 | 32768 |
+  |---|---|---|---|---|---|---|
+  | logs | 3% | 5% | 9% | 19% | 24% | 51% |
+  | logs-agents | 2% | 22% | 37% | 49% | 58% | 76% |
+  | swe-trajectories | 8% | 27% | 52% | 68% | 81% | 97% |
+  | *all tokens in fitting convs* | 2.9% | 5.7% | 9.5% | 14.6% | 19.2% | 35.9% |
+
+  There is no cliff — it is a long tail, and even 32k only reaches 36% of tokens.
+  Nothing is *lost* at a smaller window (sessions pack contiguously across boundaries);
+  what a longer window buys is the model seeing the far end of a trajectory conditioned
+  on its start. The strongest case is `swe-trajectories`, the source the SWE-rebench
+  eval actually grades: 52% → 68% → 81% whole at 12288 → 16128 → 20480.
 - **fp32 latents, not bf16.** bf16 either destabilizes (high lr) or *underflows* the
   ternary threshold so no codes flip (low lr) — a ~lr update is below one bf16 ulp of
   a ~1e-2 latent. `--compute-dtype bf16` is the supported middle path: fp32 masters

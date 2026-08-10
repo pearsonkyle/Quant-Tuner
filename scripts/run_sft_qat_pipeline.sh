@@ -18,8 +18,12 @@
 #   TAG     artifact tag (default sft-lr<LR>)
 #   EPOCHS  fractional epochs over the ~1500-window corpus (default 0.35).
 #           This corpus is ~150x the iter-5 one, so ONE epoch is not the unit any more —
-#           the budget is wall-clock (~10.3 ms/token => a full epoch over 19.4M tokens is
-#           ~55 h). Read the flip telemetry, not the epoch count.
+#           The budget is wall-clock. MEASURED in the real loop (not the probe): 800 s per
+#           step at window 12288 / grad-accum 4 = 16.3 ms/token, i.e. ~9 min per 49k tokens.
+#           0.25 epochs = 89 steps ~= 20 h. The probe's 9.5 ms/token is optimistic — it
+#           excludes the optimizer step and runs before swap builds up.
+#   CKPT_EVERY (env, default 10) — at 800 s/step, the old 40 meant 8.9 h of work at risk
+#           between checkpoints, and both historical OOM kills landed ON a checkpoint.
 #
 # Free the GPU first: a full-36-layer fp32 run sits near the unified-memory ceiling, so
 # unload any resident LM Studio / llama-server model before starting.
@@ -46,7 +50,7 @@ echo "=== [$(date)] ${TAG} TRAIN (all-36, adafactor, fp32, window 12288, lr ${LR
 $PY -u scripts/exp058_qat_train_v2.py \
   --corpus "$CORPUS" "${VAL_ARGS[@]}" \
   --layers 0-35 --optim adafactor --epochs "$EPOCHS" --grad-accum 4 --lr "$LR" \
-  --dtype fp32 --ckpt-every 40 --flip-sample 12 \
+  --dtype fp32 --ckpt-every "${CKPT_EVERY:-10}" --flip-sample 12 \
   --out "$TRAIN_OUT"
 
 echo "=== [$(date)] ${TAG} EXPORT -> Q2_0 (prism) ==="

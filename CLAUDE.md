@@ -411,11 +411,19 @@ the ternarization in the loop** (BitNet/TWN STE). Full guide: `docs/ternary_qat.
   code flips), `--optim adafactor` to fit all 36 layers (~66-75 GB vs AdamW's ~116 GB).
   `--compute-dtype bf16` is a **pessimization** at all-36 (54.5 GiB vs 31 GiB — the fp32
   master copy stacks on top).
-- **The window ceiling is memory, not INT_MAX.** With chunked SDPA nothing fails up to
-  20480; measured full-model fwd+bwd (all-36, fp32, adafactor, M4 Max 128 GB): 8064 →
-  8.2 ms/token, **12288 → 10.3**, 16128 → 20.0, 20480 → 38.6. The knee is swap past
-  ~128 GiB, so **12288 is the practical ceiling** (+52% window for +26% per token) and
-  15-16k costs 2× per token. Free any resident LM Studio/llama-server model first.
+- **The window ceiling is memory, not INT_MAX.** With chunked SDPA, measured full-model
+  fwd+bwd (all-36, fp32, adafactor, M4 Max 128 GB, idle machine): **12288 → 9.5
+  ms/token**, 16128 → 14.1, 20480 → 24.4, **24576 → hard OOM**. 12288 is the throughput
+  sweet spot (16128 costs +49%/token, 20480 +157%), so a longer window is a deliberate
+  trade of tokens-seen for whole-session context — justified mainly by
+  `swe-trajectories`, which goes 52% → 68% → 81% whole at 12288 → 16128 → 20480. Free
+  any resident LM Studio/llama-server model first: it is worth ~30% at 16128.
+- **The SFT corpus is bimodal in length**: 83% of conversations are short
+  broad-instruct/refusal rows (<2k tokens) but only 2.6% of tokens; **81% of tokens are
+  in conversations over 20k** (median CLI-log session 32k, agent-log 16k, SWE trajectory
+  11.5k, longest 256k). No window has a cliff — even 32k holds only 36% of tokens in
+  whole conversations. Nothing is lost at a smaller window (sessions pack contiguously);
+  what a longer one buys is conditioning a trajectory's tail on its start.
 - **Read the code-flip telemetry, not the loss.** A ternary model only learns by flipping codes;
   lr 3e-4 flips ~0% (scale drift only) while the loss still falls. 5e-4 for ~2.2 epochs is the
   measured sweet spot; 8 epochs memorizes.
