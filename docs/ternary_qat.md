@@ -39,51 +39,105 @@ one-off scripts:
 | `qat/export.py` | trained latents → Q2_0 GGUF via the prism fork |
 | `qat/kd_precompute.py` | offline top-K teacher logits + `kd_loss_from_topk` (Method B, below) |
 
-## Quickstart (adapting to a new model)
+## Quickstart — the universal-SFT run (current default)
+
+One command does train → export Q2_0 → agentic SWE-rebench eval:
 
 ```bash
-# 0. trainable checkpoint -> out/<exp>/model/, and the F16 GGUF for the chat template
-#    (extract tokenizer.chat_template from the shipped GGUF -> out/<exp>/chat_template.jinja)
+# corpora (train + the disjoint `test` validation split), then the whole chain
+PYTHONPATH=src .venv/bin/python scripts/build_sft_qat_corpus.py \
+    --sft out/corpora/qwen3-universal/sft.jsonl.gz \
+    --window 8064 --max-tool-tokens 3072 --min-density 0.05 \
+    --out out/exp-058/sft_corpus_universal_8064.pt
+PYTHONPATH=src .venv/bin/python scripts/build_sft_qat_corpus.py \
+    --sft out/corpora/qwen3-universal/sft.jsonl.gz --split test \
+    --window 8064 --max-tool-tokens 3072 --min-density 0.05 \
+    --out out/exp-058/sft_val_universal_8064.pt
 
-# 1. masked, schema-rendered, turn-aware corpora (train + val; window <= 4096 on MPS)
-PYTHONPATH=src .venv/bin/python scripts/build_qat_masked_corpus.py \
-    --window 4096 --wiki-tokens 300000 --max-tool-tokens 1024 \
-    --out out/<exp>/masked_corpus_4096_v2.pt
-PYTHONPATH=src .venv/bin/python scripts/build_qat_masked_corpus.py \
-    --window 4096 --wiki-tokens 0 --max-tool-tokens 1024 --split test \
-    --out out/<exp>/masked_val_4096_v2.pt
-# read the printed density deciles; re-run with --min-density if the low tail is fat
+bash scripts/run_sft_qat_pipeline.sh 5e-4 mytag 1.0        # LR / tag / epochs
+```
 
-# 2. LR probe FIRST (3 x ~40 steps): at 5e-5 the expected code-flip count is ~zero —
-#    pick the highest LR whose val masked-CE is stable and whose flip telemetry moves
-for LR in 5e-5 3e-4 1e-3; do
+`run_sft_qat_pipeline.sh LR TAG EPOCHS` reads these env overrides: `CORPUS`, `VAL`,
+`CKPT_EVERY` (default 10). Interrupted? The trainer signal-saves, and
+`--resume <out>/trained_latents.pt` continues with data order, step and Adafactor state
+(the corpus fingerprint must match).
+
+### Changing the data
+
+Point `--sft` at any `sft.jsonl` / `.jsonl.gz` with this row shape — it is what
+`data.universal` emits, and `scripts/build_universal_corpus.py` regenerates it for a new
+model or new sources:
+
+```json
+{"id": "...", "source": "logs-agents", "split": "train",
+ "messages": [{"role": "...", "content": "...", "tool_calls": [...],
+               "reasoning_content": "..."}],
+ "tools": [ {"type": "function", "function": {...}} ]}
+```
+
+Only `source`, `split` and `messages` are required; `tools` is strongly recommended
+(without it the builder falls back to `reconstruct_tools` name→arg-key stubs, and the
+model trains on schemas it will never see at inference).
+
+- **Subset**: `--source logs-agents --source swe-trajectories` (repeatable).
+- **Cap or drop a source**: `--budget logs=2000000 --budget broad-instruct=0`
+  (`none` = uncapped, `0` = drop). Uncapped is the default — see below.
+- **Different split**: `--split test` for the val corpus; `--split all` only for a
+  throwaway diagnostic, since the eval holdouts live in the same file.
+- Rows are shuffled per source with `--seed` before the budget is spent, so a cap is a
+  random sample, not the head of the file.
+
+### Choosing the parameters
+
+| Knob | How to pick it | Why |
+|---|---|---|
+| `--window` | **8064** on a 128 GB M4 Max. Measure `s/step` for one candidate above and one below before committing. | Not a free parameter — see the window table below. The fastest window is the largest one that does not swap, and that is *not* the largest one that runs. |
+| `--max-tool-tokens` | ≈ **window / 2.6** (3072 at 8064, 4096 at 12288) | One tool result must never eat more than ~a third of a window. Too low silently deletes conversation history — 1024 at an 8064 window drops 28% of it. |
+| `--min-density` | **0.05** | 0.10 negates any gain from keeping more tool history (the extra masked tokens just sink windows below the floor). 0.0 wastes a full forward/backward on near-empty windows. Read the printed density deciles. |
+| `--budget` | uncapped | QAT spends its budget in *fractional epochs*, so put everything on disk. This is the deliberate opposite of the calibration corpus. |
+| `LR` | **5e-4** for this model; probe it for a new one (below) | The whole ballgame — a ternary model only learns by flipping codes. |
+| `EPOCHS` | wall-clock ÷ `s/step`, then × `grad_accum / n_windows` | Fractional epochs are normal on a 19M-token corpus. |
+| `--grad-accum` | 4 | B≥2 does not fit; grad-accum is the equivalent lever. |
+| `--optim` | `adafactor` | The only optimizer that fits all 36 layers (~66-75 GB vs AdamW's ~116 GB). |
+| `--dtype` | `fp32` | bf16 latents underflow the ternary threshold → zero code flips. |
+| `--ckpt-every` | ~1 h of steps (10 at 370 s/step) | Both historical OOM kills landed *on* a checkpoint boundary. |
+
+**Estimating wall-clock before committing.** The step time is linear in the fixed cost:
+
+```
+s/step  ≈  grad_accum · fwd_bwd(window)  +  ~106 s
+```
+
+The ~106 s is Adafactor over 6.95B params + flip telemetry + val, and it is constant
+across window sizes. If a measured `s/step` exceeds that prediction, the excess is swap
+— that is exactly how 12288 was ruled out (800 s measured vs 570 s predicted).
+
+### Adapting to a different model
+
+Update `MODEL` / `CHAT_TEMPLATE` at the top of `qat/corpus.py` (currently
+`out/exp-057/model` + the chat template extracted from the shipped GGUF), then:
+
+1. **Verify the chat template first** — `scripts/verify_chat_template.py`. A template
+   that drops `tools=`, or refuses a window, silently guts the corpus.
+2. **Re-check the window ceiling.** It is `n_heads · S² < 2³¹` *without* chunked
+   attention, and pure memory with it — both depend on the model's head count and size.
+3. **Re-probe the LR** (three ~40-step runs) and read the **flip telemetry**, not the
+   loss: at too low an LR the loss falls while ~0% of codes move, i.e. the run only
+   drifted fp16 scales and changed nothing.
+
+```bash
+for LR in 1e-4 3e-4 5e-4 1e-3; do
   PYTORCH_ENABLE_MPS_FALLBACK=1 PYTHONPATH=src .venv/bin/python scripts/exp058_qat_train_v2.py \
-    --corpus out/<exp>/masked_corpus_4096_v2.pt --val-corpus out/<exp>/masked_val_4096_v2.pt \
+    --corpus <train>.pt --val-corpus <val>.pt \
     --layers 0-35 --optim adafactor --epochs 0.08 --grad-accum 4 --lr $LR \
     --ckpt-every 20 --out out/<exp>/probe_$LR
 done
-
-# 3. the real run: all 36 layers via Adafactor (~66-75 GB), >=1 full epoch, resumable
-PYTORCH_ENABLE_MPS_FALLBACK=1 PYTHONPATH=src .venv/bin/python scripts/exp058_qat_train_v2.py \
-    --corpus out/<exp>/masked_corpus_4096_v2.pt --val-corpus out/<exp>/masked_val_4096_v2.pt \
-    --layers 0-35 --optim adafactor --epochs 1 --grad-accum 8 --lr <probe-winner> \
-    --train-norms --out out/<exp>/trained
-#   ... interrupted? continue with:  --resume out/<exp>/trained/trained_latents.pt
-#   capability lever (adds ~16 GB): --kd-teacher <dense parent, e.g. Qwen/Qwen3-8B>
-#     ^ in-loop KD; prefer the OFFLINE top-K path below (Method B) at all-36 — the resident
-#       teacher does not fit next to a student already at the memory ceiling
-#   speed lever (validate parity):  --compute-dtype bf16
-
-# 4. export -> Q2_0 GGUF (prints code-flips vs shipped — ~0% means the run only
-#    drifted scales: raise LR / train longer before burning a SWE-rebench eval)
-LLAMA_CPP_DIR=vendor/llama.cpp-prism PYTHONPATH=src .venv/bin/python \
-    scripts/exp057_qat_export.py --latents out/<exp>/trained/trained_latents.pt --tag mytune
 ```
 
-To point at a different model, update `MODEL` / `CHAT_TEMPLATE` at the top of the
-three scripts (currently `out/exp-057/model`). Tool schemas are read from the logs
-(`session["tools"]` or `messages[0]["tools"]` via `data.split.session_tools`); only
-log formats with no stored schemas fall back to `reconstruct_tools` stubs.
+Other levers: `--train-norms`; `--compute-dtype bf16` (a *pessimization* at all-36);
+`--kd-teacher` for in-loop KD (does not fit at all-36 — prefer the offline top-K path,
+Method B below); `--no-chunked-attention` to restore the stock SDPA kernel and its
+8191-token cap.
 
 ## Hard constraints on Metal (learned the hard way — see the audit doc)
 
@@ -516,6 +570,26 @@ bash scripts/run_iter5_indist_eval.sh myrun
 
 Read them together: in-dist up + generalization flat = it learned but overfit (get more data);
 both up = real learning; both flat = the run was scale-drift, check the flip telemetry.
+
+### Quantifying what actually changed
+
+Three numbers, in the order you should read them — the first one gates the other two:
+
+1. **Code flips vs the shipped weights**, printed by `exp057_qat_export.py` over the whole
+   artifact (the trainer's per-20-step `--flip-sample` telemetry is the live version). This
+   is the only direct measure that the ternary *codes* moved rather than the fp16 scales
+   drifting under them. **~0% flips means the run changed nothing structural** — the loss
+   falling is not evidence otherwise, and there is no point spending ~10 h of agentic eval
+   on it. On this model, lr 3e-4 flipped ~0% and lr 5e-4 flipped ~0.7%.
+2. **Validation masked-CE** (`--val-corpus`, every `--val-every` steps) on the disjoint
+   `test` split. Falling val CE with non-zero flips is the healthy signature; falling
+   train loss with flat val CE at 8 epochs was memorization.
+3. **Agentic `patch_rate` / `pass_rate`** on the 10-instance holdout, printed by the
+   pipeline's last line. `patch_rate` (produced a non-empty diff at all) is the capability
+   floor and moves first; `pass_rate` (gold tests pass) is the real target. Check
+   `tool_error_rate` and `mean_steps` alongside — a model that stops tool-calling scores a
+   deceptively clean-looking run. Full trajectories land in
+   `<workspace>/trajectories/<model>/*.traj.json` for reading the failures directly.
 
 Q2_0 (ftype 41) requires the **prism llama.cpp fork** — hence `LLAMA_CPP_DIR=vendor/llama.cpp-prism`.
 
