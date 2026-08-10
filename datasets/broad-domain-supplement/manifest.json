@@ -1,0 +1,181 @@
+{
+  "name": "broad-domain-supplement",
+  "version": "0.1.0",
+  "splits": {
+    "corpus": {
+      "file": "data/corpus.jsonl",
+      "description": "raw authored samples + provenance; carries the calib/mtp `half` label",
+      "publish": true,
+      "rows": 5536,
+      "resolved_rows": 0,
+      "mean_tool_calls": 0.0,
+      "bytes": 5658828,
+      "sha256": "9805fd10727dca0c2b7dcb39f2e19c7eb7341772214d02138bfae7be86240a78",
+      "est_tokens": 969606,
+      "by_area": {
+        "data_science_ml": 861,
+        "software_web": 699,
+        "humanities_business": 633,
+        "physics": 616,
+        "math": 614,
+        "embedded_hardware": 571,
+        "generative_art": 539,
+        "earth_life_sciences": 520,
+        "astronomy_space": 483
+      },
+      "by_register": {
+        "prose": 4245,
+        "table": 971,
+        "qa": 224,
+        "transcript": 96
+      },
+      "by_half": {
+        "mtp": 2832,
+        "calib": 2704
+      },
+      "areas": {
+        "data_science_ml": {
+          "rows": 861,
+          "subjects": 27,
+          "est_tokens": 148041
+        },
+        "software_web": {
+          "rows": 699,
+          "subjects": 24,
+          "est_tokens": 118985
+        },
+        "humanities_business": {
+          "rows": 633,
+          "subjects": 24,
+          "est_tokens": 116425
+        },
+        "math": {
+          "rows": 614,
+          "subjects": 22,
+          "est_tokens": 106933
+        },
+        "physics": {
+          "rows": 616,
+          "subjects": 21,
+          "est_tokens": 106368
+        },
+        "embedded_hardware": {
+          "rows": 571,
+          "subjects": 19,
+          "est_tokens": 99046
+        },
+        "earth_life_sciences": {
+          "rows": 520,
+          "subjects": 19,
+          "est_tokens": 97693
+        },
+        "generative_art": {
+          "rows": 539,
+          "subjects": 19,
+          "est_tokens": 90941
+        },
+        "astronomy_space": {
+          "rows": 483,
+          "subjects": 17,
+          "est_tokens": 85174
+        }
+      }
+    },
+    "instruct": {
+      "file": "data/instruct.jsonl",
+      "description": "the same samples as chat-format prompt/response pairs",
+      "publish": true,
+      "rows": 5536,
+      "resolved_rows": 0,
+      "mean_tool_calls": 0.0,
+      "bytes": 6743299,
+      "sha256": "7f49489ffd72abb67376fc118caa663eacff4f07becf7eaabf1ea5a2867e4954",
+      "est_tokens": 1084399,
+      "by_area": {
+        "data_science_ml": 861,
+        "software_web": 699,
+        "humanities_business": 633,
+        "physics": 616,
+        "math": 614,
+        "embedded_hardware": 571,
+        "generative_art": 539,
+        "earth_life_sciences": 520,
+        "astronomy_space": 483
+      },
+      "by_register": {
+        "prose": 4245,
+        "table": 971,
+        "qa": 224,
+        "transcript": 96
+      },
+      "by_half": {
+        "mtp": 2832,
+        "calib": 2704
+      },
+      "by_prompt_source": {
+        "templated": 5216,
+        "authored": 320
+      },
+      "areas": {
+        "data_science_ml": {
+          "rows": 861,
+          "subjects": 27,
+          "est_tokens": 166104
+        },
+        "software_web": {
+          "rows": 699,
+          "subjects": 24,
+          "est_tokens": 133360
+        },
+        "humanities_business": {
+          "rows": 633,
+          "subjects": 24,
+          "est_tokens": 128826
+        },
+        "math": {
+          "rows": 614,
+          "subjects": 22,
+          "est_tokens": 119053
+        },
+        "physics": {
+          "rows": 616,
+          "subjects": 21,
+          "est_tokens": 119030
+        },
+        "embedded_hardware": {
+          "rows": 571,
+          "subjects": 19,
+          "est_tokens": 111410
+        },
+        "earth_life_sciences": {
+          "rows": 520,
+          "subjects": 19,
+          "est_tokens": 108024
+        },
+        "generative_art": {
+          "rows": 539,
+          "subjects": 19,
+          "est_tokens": 102814
+        },
+        "astronomy_space": {
+          "rows": 483,
+          "subjects": 17,
+          "est_tokens": 95778
+        }
+      }
+    }
+  },
+  "published": [
+    {
+      "version": "0.1.0",
+      "at": "2026-08-09T17:45:56",
+      "note": "Initial release: 192 subjects across 9 areas, ~1M tokens. Disjoint calib/mtp halves + instruction view.",
+      "splits": {
+        "corpus": 5536,
+        "instruct": 5536
+      }
+    }
+  ],
+  "hf_repo": "pearsonkyle/broad-domain-supplement",
+  "built_at": "2026-08-09T17:45:53"
+}

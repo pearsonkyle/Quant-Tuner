@@ -19,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import json
 import time
+from collections import Counter
 from pathlib import Path
 
 from quant_tuner.datasets.registry import DatasetSpec
@@ -70,22 +71,33 @@ def build(spec: DatasetSpec) -> dict:
 
     for split in spec.splits:
         out = data_dir / f"{split.name}.jsonl"
-        n_rows = 0
-        n_resolved = 0
-        n_tool_calls = 0
-        outcomes: dict[str, int] = {}
+        n_rows = n_resolved = n_tool_calls = est_tokens = 0
+        outcomes: Counter[str] = Counter()
         models: set[str] = set()
+        # Corpus-shaped datasets are described by distributions, not by pass/fail counts:
+        # which topics, which registers, and which disjoint half each row belongs to.
+        tally: dict[str, Counter[str]] = {
+            k: Counter() for k in ("area", "register", "half", "prompt_source")}
+        area_tokens: Counter[str] = Counter()
+        area_subjects: dict[str, set[str]] = {}
         with out.open("w") as fh:
             for rec in split.builder():
                 fh.write(json.dumps(rec) + "\n")
                 n_rows += 1
                 n_resolved += bool(rec.get("resolved"))
                 n_tool_calls += int(rec.get("n_tool_calls") or 0)
+                est_tokens += (tokens := int(rec.get("est_tokens") or 0))
                 # red-team datasets label an `outcome` + a target `model` instead
                 if rec.get("outcome"):
-                    outcomes[rec["outcome"]] = outcomes.get(rec["outcome"], 0) + 1
+                    outcomes[rec["outcome"]] += 1
                 if rec.get("model"):
                     models.add(rec["model"])
+                for key, counter in tally.items():
+                    if rec.get(key):
+                        counter[rec[key]] += 1
+                if area := rec.get("area"):
+                    area_tokens[area] += tokens
+                    area_subjects.setdefault(area, set()).add(rec.get("subject", ""))
         stats = {
             "file": f"data/{split.name}.jsonl",
             "description": split.description,
@@ -99,6 +111,15 @@ def build(spec: DatasetSpec) -> dict:
         if outcomes:  # red-team split: surface the outcome mix + model coverage
             stats["outcomes"] = dict(sorted(outcomes.items()))
             stats["models"] = sorted(models)
+        if est_tokens:
+            stats["est_tokens"] = est_tokens
+        stats |= {f"by_{k}": dict(c.most_common()) for k, c in tally.items() if c}
+        if area_tokens:
+            stats["areas"] = {
+                a: {"rows": tally["area"][a], "subjects": len(area_subjects[a]),
+                    "est_tokens": tok}
+                for a, tok in area_tokens.most_common()
+            }
         splits[split.name] = stats
         print(f"[dataset] {spec.name}:{split.name}  {n_rows} rows  "
               f"({splits[split.name]['bytes'] / 1024**2:.1f} MB)"
@@ -143,10 +164,15 @@ def render_card(spec: DatasetSpec, manifest: dict, *, include_withheld: bool = F
         "",
     ]
 
-    def _table(header: list[str], body_rows: list[list]) -> list[str]:
+    def _table(header: list[str], body_rows: list[list],
+               left: tuple[str, ...] = ()) -> list[str]:
         """A GFM table with a separator derived from the header (first col left,
-        the rest right-aligned) so the cell count can never drift out of sync."""
-        sep = ["---"] + ["---:"] * (len(header) - 1)
+        the rest right-aligned) so the cell count can never drift out of sync.
+
+        ``left`` names extra columns to left-align — prose columns like a description
+        read badly flushed right against the numbers.
+        """
+        sep = ["---" if i == 0 or h in left else "---:" for i, h in enumerate(header)]
         out = ["| " + " | ".join(header) + " |", "| " + " | ".join(sep) + " |"]
         out += ["| " + " | ".join(str(c) for c in r) + " |" for r in body_rows]
         return out
@@ -157,6 +183,45 @@ def render_card(spec: DatasetSpec, manifest: dict, *, include_withheld: bool = F
     if not splits:
         rows = ["_No splits are published for this dataset (withheld by default — "
                 "see below). Build locally to materialize them._"]
+    elif any(i.get("areas") for i in splits.values()):
+        # Corpus-shaped dataset: the useful summary is coverage — how many rows and
+        # tokens per split, then how those tokens are distributed over topics and
+        # registers. Counts are what the user asked to see in the card.
+        rows = _table(
+            ["split", "rows", "tokens~", "size", "contents"],
+            [[f"`{name}`", f"{i['rows']:,}", f"{i.get('est_tokens', 0):,}",
+              f"{i['bytes'] / 1024**2:.1f} MB", i.get("description", "")]
+             for name, i in splits.items()],
+            left=("contents",),
+        )
+        ref = next((i for i in splits.values() if i.get("areas")), {})
+        areas, total_tok = ref.get("areas", {}), max(1, ref.get("est_tokens", 0))
+        rows += ["", "### Topic distribution", ""]
+        rows += _table(
+            ["area", "subjects", "samples", "tokens~", "share"],
+            [[f"`{a}`", d["subjects"], f"{d['rows']:,}", f"{d['est_tokens']:,}",
+              f"{100 * d['est_tokens'] / total_tok:.1f}%"] for a, d in areas.items()]
+            + [["**total**", sum(d["subjects"] for d in areas.values()),
+                f"**{ref['rows']:,}**", f"**{ref.get('est_tokens', 0):,}**", "100%"]],
+        )
+        if (by_reg := ref.get("by_register")):
+            rows += ["", "### Sample registers", ""]
+            rows += _table(
+                ["register", "samples", "share"],
+                [[f"`{k}`", f"{v:,}", f"{100 * v / max(1, ref['rows']):.1f}%"]
+                 for k, v in by_reg.items()],
+            )
+        if (by_half := ref.get("by_half")):
+            rows += ["", "### Disjoint halves", "",
+                     "Every row carries `half`, a **deterministic, non-overlapping** "
+                     "assignment (see below). Filter on it; do not re-split.", ""]
+            rows += _table(
+                ["half", "samples", "intended use"],
+                [[f"`{k}`", f"{by_half.get(k, 0):,}", u] for k, u in
+                 (("calib", "quantization calibration (imatrix / AWQ / GPTQ)"),
+                  ("mtp", "MTP draft-head training"))],
+                left=("intended use",),
+            )
     elif any(i.get("outcomes") for i in splits.values()):
         rows = _table(
             ["split", "rows", "complied", "defended", "errored", "models", "size"],
@@ -231,8 +296,15 @@ def write_card(spec: DatasetSpec, manifest: dict, *, include_withheld: bool = Fa
 def append_changelog(spec: DatasetSpec, version: str, manifest: dict, note: str) -> None:
     p = spec.stage_dir / CHANGELOG
     head = f"# Changelog — {spec.name}\n" if not p.exists() else ""
+    def _detail(i: dict) -> str:
+        # corpus-shaped splits have no pass/fail notion; report tokens instead of
+        # "0 verified", which reads as a failure rather than as not-applicable
+        if i.get("est_tokens"):
+            return f"~{i['est_tokens']:,} tokens"
+        return f"{i['resolved_rows']} verified"
+
     rows = "\n".join(
-        f"- `{n}`: {i['rows']} rows ({i['resolved_rows']} verified), {i['bytes'] / 1024**2:.1f} MB"
+        f"- `{n}`: {i['rows']} rows ({_detail(i)}), {i['bytes'] / 1024**2:.1f} MB"
         for n, i in manifest.get("splits", {}).items())
     entry = (f"\n## v{version} — {time.strftime('%Y-%m-%d')}\n\n"
              f"{note.strip() or 'Dataset refresh.'}\n\n{rows}\n")
