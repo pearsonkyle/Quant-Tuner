@@ -72,6 +72,8 @@ def build(spec: DatasetSpec) -> dict:
     for split in spec.splits:
         out = data_dir / f"{split.name}.jsonl"
         n_rows = n_resolved = n_tool_calls = est_tokens = 0
+        outcomes: Counter[str] = Counter()
+        models: set[str] = set()
         # Corpus-shaped datasets are described by distributions, not by pass/fail counts:
         # which topics, which registers, and which disjoint half each row belongs to.
         tally: dict[str, Counter[str]] = {
@@ -85,6 +87,11 @@ def build(spec: DatasetSpec) -> dict:
                 n_resolved += bool(rec.get("resolved"))
                 n_tool_calls += int(rec.get("n_tool_calls") or 0)
                 est_tokens += (tokens := int(rec.get("est_tokens") or 0))
+                # red-team datasets label an `outcome` + a target `model` instead
+                if rec.get("outcome"):
+                    outcomes[rec["outcome"]] += 1
+                if rec.get("model"):
+                    models.add(rec["model"])
                 for key, counter in tally.items():
                     if rec.get(key):
                         counter[rec[key]] += 1
@@ -101,6 +108,9 @@ def build(spec: DatasetSpec) -> dict:
             "bytes": out.stat().st_size,
             "sha256": _sha256(out),
         }
+        if outcomes:  # red-team split: surface the outcome mix + model coverage
+            stats["outcomes"] = dict(sorted(outcomes.items()))
+            stats["models"] = sorted(models)
         if est_tokens:
             stats["est_tokens"] = est_tokens
         stats |= {f"by_{k}": dict(c.most_common()) for k, c in tally.items() if c}
@@ -121,11 +131,20 @@ def build(spec: DatasetSpec) -> dict:
 
 
 # ------------------------------------------------------------------------------------- card
-def render_card(spec: DatasetSpec, manifest: dict) -> str:
-    """Dataset card: HF YAML frontmatter + stats table + the spec's prose."""
-    # Only published splits appear on the Hub: they drive the viewer config, the stats
-    # table and the size bucket. Local-only splits stay out of the card entirely.
-    splits = {n: i for n, i in manifest.get("splits", {}).items() if i.get("publish", True)}
+def render_card(spec: DatasetSpec, manifest: dict, *, include_withheld: bool = False) -> str:
+    """Dataset card: HF YAML frontmatter + stats table + the spec's prose.
+
+    ``include_withheld=True`` (only used for a deliberate ``--private`` upload of
+    a dual-use dataset) makes the normally-withheld splits visible in the card's
+    viewer config + stats, so the private repo's dataset viewer works.
+    """
+    # Published splits drive the viewer config, the stats table and the size bucket.
+    # Local-only splits stay out of the card unless we are deliberately uploading
+    # everything to a private repo.
+    splits = {
+        n: i for n, i in manifest.get("splits", {}).items()
+        if include_withheld or i.get("publish", True)
+    }
     cfg_lines = ["configs:", "- config_name: default", "  data_files:"]
     for name, info in splits.items():
         cfg_lines.append(f'  - split: {name}')
@@ -147,19 +166,27 @@ def render_card(spec: DatasetSpec, manifest: dict) -> str:
 
     def _table(header: list[str], body_rows: list[list],
                left: tuple[str, ...] = ()) -> list[str]:
-        """A GFM table whose separator is derived from the header (first column left,
+        """A GFM table with a separator derived from the header (first col left,
         the rest right-aligned) so the cell count can never drift out of sync.
 
-        ``left`` names extra columns to left-align — a prose column like a description
-        reads badly flushed right against the numbers.
+        ``left`` names extra columns to left-align — prose columns like a description
+        read badly flushed right against the numbers.
         """
         sep = ["---" if i == 0 or h in left else "---:" for i, h in enumerate(header)]
         out = ["| " + " | ".join(header) + " |", "| " + " | ".join(sep) + " |"]
-        return out + ["| " + " | ".join(str(c) for c in r) + " |" for r in body_rows]
+        out += ["| " + " | ".join(str(c) for c in r) + " |" for r in body_rows]
+        return out
 
-    # Corpus-shaped datasets have no pass/fail notion: the useful summary is coverage —
-    # rows and tokens per split, then how those tokens fall across topics and registers.
-    if any(i.get("areas") for i in splits.values()):
+    # Adaptive stats table: outcome-labeled (red-team) datasets report the
+    # outcome mix; others keep the SWE verified/tool-call columns. When nothing
+    # is published (e.g. a dual-use dataset withheld by default), say so plainly.
+    if not splits:
+        rows = ["_No splits are published for this dataset (withheld by default — "
+                "see below). Build locally to materialize them._"]
+    elif any(i.get("areas") for i in splits.values()):
+        # Corpus-shaped dataset: the useful summary is coverage — how many rows and
+        # tokens per split, then how those tokens are distributed over topics and
+        # registers. Counts are what the user asked to see in the card.
         rows = _table(
             ["split", "rows", "tokens~", "size", "contents"],
             [[f"`{name}`", f"{i['rows']:,}", f"{i.get('est_tokens', 0):,}",
@@ -167,8 +194,8 @@ def render_card(spec: DatasetSpec, manifest: dict) -> str:
              for name, i in splits.items()],
             left=("contents",),
         )
-        ref = next(i for i in splits.values() if i.get("areas"))
-        areas, total_tok = ref["areas"], max(1, ref.get("est_tokens", 0))
+        ref = next((i for i in splits.values() if i.get("areas")), {})
+        areas, total_tok = ref.get("areas", {}), max(1, ref.get("est_tokens", 0))
         rows += ["", "### Topic distribution", ""]
         rows += _table(
             ["area", "subjects", "samples", "tokens~", "share"],
@@ -177,14 +204,14 @@ def render_card(spec: DatasetSpec, manifest: dict) -> str:
             + [["**total**", sum(d["subjects"] for d in areas.values()),
                 f"**{ref['rows']:,}**", f"**{ref.get('est_tokens', 0):,}**", "100%"]],
         )
-        if by_reg := ref.get("by_register"):
+        if (by_reg := ref.get("by_register")):
             rows += ["", "### Sample registers", ""]
             rows += _table(
                 ["register", "samples", "share"],
                 [[f"`{k}`", f"{v:,}", f"{100 * v / max(1, ref['rows']):.1f}%"]
                  for k, v in by_reg.items()],
             )
-        if by_half := ref.get("by_half"):
+        if (by_half := ref.get("by_half")):
             rows += ["", "### Disjoint halves", "",
                      "Every row carries `half`, a **deterministic, non-overlapping** "
                      "assignment (see below). Filter on it; do not re-split.", ""]
@@ -195,11 +222,20 @@ def render_card(spec: DatasetSpec, manifest: dict) -> str:
                   ("mtp", "MTP draft-head training"))],
                 left=("intended use",),
             )
+    elif any(i.get("outcomes") for i in splits.values()):
+        rows = _table(
+            ["split", "rows", "complied", "defended", "errored", "models", "size"],
+            [[f"`{name}`", i["rows"], (o := i.get("outcomes", {})).get("complied", 0),
+              o.get("defended", 0), o.get("errored", 0), len(i.get("models", [])),
+              f"{i['bytes'] / 1024**2:.1f} MB"]
+             for name, i in splits.items()],
+        )
     else:
         rows = _table(
             ["split", "rows", "verified (tests pass)", "mean tool calls", "size"],
             [[f"`{name}`", i["rows"], i["resolved_rows"], i["mean_tool_calls"],
-              f"{i['bytes'] / 1024**2:.1f} MB"] for name, i in splits.items()],
+              f"{i['bytes'] / 1024**2:.1f} MB"]
+             for name, i in splits.items()],
         )
 
     _SWE_SCHEMA = (
@@ -250,9 +286,9 @@ def _size_bucket(n: int) -> str:
     return "1M<n<10M"
 
 
-def write_card(spec: DatasetSpec, manifest: dict) -> Path:
+def write_card(spec: DatasetSpec, manifest: dict, *, include_withheld: bool = False) -> Path:
     card = spec.stage_dir / "README.md"
-    card.write_text(render_card(spec, manifest))
+    card.write_text(render_card(spec, manifest, include_withheld=include_withheld))
     return card
 
 
@@ -263,8 +299,9 @@ def append_changelog(spec: DatasetSpec, version: str, manifest: dict, note: str)
     def _detail(i: dict) -> str:
         # corpus-shaped splits have no pass/fail notion; report tokens instead of
         # "0 verified", which reads as a failure rather than as not-applicable
-        return f"~{i['est_tokens']:,} tokens" if i.get("est_tokens") else \
-               f"{i['resolved_rows']} verified"
+        if i.get("est_tokens"):
+            return f"~{i['est_tokens']:,} tokens"
+        return f"{i['resolved_rows']} verified"
 
     rows = "\n".join(
         f"- `{n}`: {i['rows']} rows ({_detail(i)}), {i['bytes'] / 1024**2:.1f} MB"
@@ -278,28 +315,46 @@ def append_changelog(spec: DatasetSpec, version: str, manifest: dict, note: str)
 
 
 def push(spec: DatasetSpec, *, version: str, note: str = "", private: bool = False,
-         dry_run: bool = False) -> str:
+         dry_run: bool = False, include_withheld: bool = False) -> str:
     """Upload the staging dir to the Hub, then record the version locally.
 
     The manifest/changelog are only updated after a successful upload, so a failed push never
     leaves the repo claiming a release that is not on the Hub.
+
+    ``include_withheld`` uploads the ``publish=False`` splits too. It is **gated on
+    ``private``** — a dual-use dataset's harmful content may go to your own private
+    repo on purpose, but must never be pushed to a public one by accident.
     """
+    if include_withheld and not private:
+        raise ValueError(
+            "refusing to upload withheld (publish=False) splits to a PUBLIC repo. "
+            "These splits are withheld for a reason (e.g. dual-use content); pass "
+            "--private to send them to your own private repo, or drop --include-withheld."
+        )
+
     manifest = read_manifest(spec)
     manifest["version"] = version
     write_manifest(spec, manifest)          # card should show the version being published
-    write_card(spec, manifest)
+    write_card(spec, manifest, include_withheld=include_withheld)
 
     if dry_run:
-        print(f"[dataset] DRY RUN — would push {spec.stage_dir} -> {spec.repo_id} as v{version}")
+        scope = "ALL splits incl. withheld" if include_withheld else "published splits only"
+        print(f"[dataset] DRY RUN — would push {spec.stage_dir} -> {spec.repo_id} as v{version} "
+              f"({scope}, {'PRIVATE' if private else 'public'})")
         return spec.repo_id
 
-    # Splits marked publish=False are built locally but must never leave the machine.
-    ignore = [CHANGELOG] + [
-        i["file"] for i in manifest.get("splits", {}).values() if not i.get("publish", True)
-    ]
-    held_back = [n for n, i in manifest.get("splits", {}).items() if not i.get("publish", True)]
-    if held_back:
-        print(f"[dataset] withholding local-only split(s): {', '.join(held_back)}", flush=True)
+    # Splits marked publish=False are built locally and, by default, must never leave
+    # the machine — unless include_withheld + private opts them into a private repo.
+    withheld = [n for n, i in manifest.get("splits", {}).items() if not i.get("publish", True)]
+    ignore = [CHANGELOG]
+    if not include_withheld:
+        ignore += [i["file"] for i in manifest.get("splits", {}).values()
+                   if not i.get("publish", True)]
+        if withheld:
+            print(f"[dataset] withholding local-only split(s): {', '.join(withheld)}", flush=True)
+    elif withheld:
+        print(f"[dataset] ⚠ uploading withheld split(s) {', '.join(withheld)} to a "
+              f"PRIVATE repo (dual-use content — keep the repo private)", flush=True)
 
     from huggingface_hub import HfApi
     api = HfApi()

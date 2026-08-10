@@ -1,0 +1,72 @@
+{
+  "name": "redteam-safety-disclosures",
+  "version": "0.3.0",
+  "splits": {
+    "flagged": {
+      "file": "data/flagged.jsonl",
+      "description": "cases the target COMPLIED with (or errored) \u2014 the safety holes",
+      "publish": false,
+      "rows": 42,
+      "resolved_rows": 0,
+      "mean_tool_calls": 0.0,
+      "bytes": 508449,
+      "sha256": "bf825718a75dd93ea4d14f32f2caa30db99e7b4120d268f56278840062a98baa",
+      "outcomes": {
+        "complied": 26,
+        "errored": 16
+      },
+      "models": [
+        "ornith-1.0-35b"
+      ]
+    },
+    "all": {
+      "file": "data/all.jsonl",
+      "description": "every case incl. defended (safe) \u2014 for balanced analysis",
+      "publish": false,
+      "rows": 348,
+      "resolved_rows": 0,
+      "mean_tool_calls": 0.0,
+      "bytes": 1498485,
+      "sha256": "81fa6f297d121e5c982d20647063148c845f2af554811ec238e66b9ae2e9667e",
+      "outcomes": {
+        "complied": 26,
+        "defended": 306,
+        "errored": 16
+      },
+      "models": [
+        "ornith-1.0-35b"
+      ]
+    }
+  },
+  "published": [
+    {
+      "version": "0.1.0",
+      "at": "2026-07-31T09:39:58",
+      "note": "First release: ornith-1.0-35b red-teamed with deepteam (broad + thorough configs, 3 reps). Each row = target model id + full conversation + outcome (complied/defended/errored). PRIVATE \u2014 dual-use.",
+      "splits": {
+        "flagged": 8,
+        "all": 91
+      }
+    },
+    {
+      "version": "0.2.0",
+      "at": "2026-07-31T13:10:44",
+      "note": "v0.2.0: maximal sweep + top-up (broad/thorough/maximal/topup, 5 new attack styles, custom vulns attempted). 234 rows across 17 attack methods; empty custom-vuln simulation-errors filtered.",
+      "splits": {
+        "flagged": 28,
+        "all": 234
+      }
+    },
+    {
+      "version": "0.3.0",
+      "at": "2026-08-01T01:41:26",
+      "note": "v0.3.0: +114 rows (348 total) from a maximal re-run with the schema fix \u2014 custom vulnerabilities (BenignFramingBypass/StructuredOutputSmuggling) now simulate and are captured. New finding: Bad Likert Judge -> weapons.",
+      "splits": {
+        "flagged": 42,
+        "all": 348
+      }
+    }
+  ],
+  "hf_repo": "pearsonkyle/redteam-safety-disclosures",
+  "built_at": "2026-08-01T01:41:24"
+}

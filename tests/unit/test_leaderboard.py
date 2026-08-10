@@ -217,3 +217,67 @@ def test_aggregate_raises_without_f16_row(tmp_path):
                     "same_top_p": 87.0, "decode_tok_s": 43.0})
     with pytest.raises(RuntimeError, match="no F16 baseline"):
         aggregate(csv_path)
+
+
+# ---------------------------------------------------------------------------
+# merge_redteam — safety columns are display-only, joined like the lens sidecar
+# ---------------------------------------------------------------------------
+
+
+def test_merge_redteam_joins_ladder_columns_by_basename(tmp_path):
+    from quant_tuner.leaderboard.aggregate import merge_redteam
+
+    csv_path = tmp_path / "ladder.csv"
+    csv_path.write_text(
+        "model,pass_rate,net_drift,n_flip_unsafe\n" "IQ2_XS-awq,0.62,-0.18,9\n"
+    )
+    rows = [{"quant_path": "out/run/gguf/IQ2_XS-awq.gguf"}]
+    merged = merge_redteam(rows, csv_path)
+    assert merged[0]["rt_pass_rate"] == "0.62"
+    assert merged[0]["rt_net_drift"] == "-0.18"
+    assert merged[0]["rt_flip_unsafe"] == "9"
+
+
+def test_merge_redteam_accepts_aggregated_shape(tmp_path):
+    """eval_redteam.py's *_aggregated.csv has pass_rate_mean and no pairing."""
+    from quant_tuner.leaderboard.aggregate import merge_redteam
+
+    csv_path = tmp_path / "agg.csv"
+    csv_path.write_text("model,pass_rate_mean\nQ4_K_M,0.81\n")
+    rows = [{"quant_path": "out/gguf/Q4_K_M.gguf"}]
+    merged = merge_redteam(rows, csv_path)
+    assert merged[0]["rt_pass_rate"] == "0.81"
+    assert "rt_net_drift" not in merged[0]
+
+
+def test_merge_redteam_missing_file_is_a_noop(tmp_path):
+    from quant_tuner.leaderboard.aggregate import merge_redteam
+
+    rows = [{"quant_path": "x.gguf"}]
+    assert merge_redteam(rows, tmp_path / "nope.csv") == rows
+
+
+def test_merge_redteam_leaves_unmatched_rows_alone(tmp_path):
+    from quant_tuner.leaderboard.aggregate import merge_redteam
+
+    csv_path = tmp_path / "ladder.csv"
+    csv_path.write_text("model,pass_rate\nOTHER,0.5\n")
+    rows = [{"quant_path": "out/gguf/Q4_K_M.gguf"}]
+    assert "rt_pass_rate" not in merge_redteam(rows, csv_path)[0]
+
+
+def test_redteam_columns_do_not_feed_sqs():
+    """Safety must not be tradeable against speed/size inside one scalar.
+
+    SQS weights compression against fidelity against speed. Folding a refusal
+    score into that would assert an exchange rate between "a bit less safe" and
+    "a bit faster", which is not a tradeoff this leaderboard should make on the
+    reader's behalf — the red-team columns are display-only.
+    """
+    from quant_tuner.leaderboard.aggregate import F16Baseline, compute_sqs
+
+    baseline = F16Baseline(size_gib=10.0, same_top_p=100.0, decode_tok_s=10.0)
+    row = {"size_gib": "3", "same_top_p": "94", "decode_tok_s": "20"}
+    before = compute_sqs(row, baseline)
+    after = compute_sqs({**row, "rt_pass_rate": "0.1", "rt_net_drift": "-0.9"}, baseline)
+    assert before == after and before is not None

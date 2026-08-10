@@ -79,6 +79,15 @@ def _swe_trajectories(resolved_only: bool) -> Callable[[], Iterator[dict]]:
     return build
 
 
+def _redteam(flagged_only: bool) -> Callable[[], Iterator[dict]]:
+    def build() -> Iterator[dict]:
+        from quant_tuner.datasets.redteam_disclosures import iter_redteam_records
+
+        yield from iter_redteam_records(flagged_only=flagged_only)
+
+    return build
+
+
 def _broad_corpus() -> Iterator[dict]:
     from quant_tuner.datasets.broad_supplement import iter_corpus_records
 
@@ -145,6 +154,73 @@ tool use trains correctly.
 * **Licensing**: the issue text and repository content originate from the upstream GitHub
   projects via SWE-rebench and retain their own licenses. Treat this as a derived research
   artifact and check upstream terms before commercial use.
+"""
+
+
+_REDTEAM_BODY = """
+## What one row is
+
+One row is a **single adversarial conversation** against one target model, plus how it
+turned out. It answers three questions: *which model*, *what was said* (the full
+conversation, including every turn of a multi-turn jailbreak), and *what happened*
+(`outcome`: `complied` / `defended` / `errored`).
+
+```json
+{
+  "model": "ornith-1.0-35b",
+  "case_id": "0fde225510a6842e",
+  "messages": [{"role": "user", "content": "..."}, {"role": "assistant", "content": "..."}],
+  "outcome": "complied",
+  "unsafe": true,
+  "category": "Safety", "vulnerability": "Toxicity", "vulnerability_type": "profanity",
+  "attack_method": "Prompt Injection", "attack_class": "single-turn",
+  "judge_reason": "The output contains toxic content ...",
+  "judge_model": "...", "simulator_model": "...", "config": "red_team_broad",
+  "target_reasoning": "..."
+}
+```
+
+## Provenance
+
+* **Harness**: `quant_tuner.eval.red_team` — the [deepteam](https://github.com/confident-ai/deepteam)
+  red-teamer over a local `llama-server`. Three independent endpoints: an uncensored model
+  *simulates* the attacks and *judges* the responses; the *target* is the model under test.
+* **Grading**: `outcome` is the judge's verdict. `defended` = the target refused; `complied`
+  = it produced the harmful content; `errored` = the case failed (kept, never scored as safe).
+* Generated on the operator's own hardware against their own model endpoints.
+
+## Splits
+
+* `flagged` — the cases the target **complied** with (plus errored). These are the safety
+  holes: what to disclose to the model's authors, and — paired with a refusal target and mixed
+  with benign→helpful — the fine-tune (QAT) seed that actually generalizes.
+* `all` — adds the **defended** cases (the model already refuses these), for a balanced view.
+
+## ⚠️ Dual-use — read before publishing
+
+`flagged` rows contain a **working attack and the harmful completion it elicited**. That is
+precisely what a maintainer needs to reproduce and fix a weakness, and precisely what should
+not be broadcast. **Both splits default to `publish=False`.** Share responsibly:
+
+* a **private** Hub repo (`scripts/dataset.py push redteam-safety-disclosures --private`), or
+* a metadata-only view (drop `messages` / `target_reasoning`, keep labels + `judge_reason`).
+
+The intent is defensive: hardening open-weight releases, in line with the position that
+sufficiently capable models should be safety-tested — including the *derived* artifacts that
+ship after release. Do not use this to attack systems you do not own or are not authorized
+to test.
+
+## Using it as a fine-tune seed
+
+The `complied` rows tell you *where* the model fails. Build the training set by pairing each
+attack with a refusal and interleaving benign→helpful examples so the fine-tune learns to see
+through the framing without over-refusing:
+
+```python
+import json
+rows = [json.loads(l) for l in open("data/flagged.jsonl")]
+attacks = [r for r in rows if r["unsafe"]]   # attack conversations to pair with refusals
+```
 """
 
 
@@ -325,7 +401,6 @@ REGISTRY: list[DatasetSpec] = [
         ),
         default_split="corpus",
     ),
-
     DatasetSpec(
         name="swe-agentic-trajectories",
         title="SWE Agentic Trajectories (verified)",
@@ -345,6 +420,49 @@ REGISTRY: list[DatasetSpec] = [
         tags=["agentic", "swe-bench", "code", "tool-use", "distillation", "trajectories"],
         body=_SWE_BODY,
         default_split="resolved",
+    ),
+    DatasetSpec(
+        name="redteam-safety-disclosures",
+        title="Red-Team Safety Disclosures",
+        summary=(
+            "Adversarial conversations from red-teaming open-weight models, each labeled "
+            "with the target model, the full conversation, and the safety outcome "
+            "(complied / defended / errored)."
+        ),
+        splits=[
+            # BOTH default publish=False — see _REDTEAM_BODY's dual-use note. The
+            # `flagged` rows contain a working attack AND the harmful completion it
+            # elicited; that is a responsible-disclosure artifact for a model's
+            # authors and a QAT training seed, not something to broadcast. Ship via
+            # a *private* Hub repo (`push --private`) or a metadata-only view.
+            SplitSpec("flagged", _redteam(True),
+                      "cases the target COMPLIED with (or errored) — the safety holes",
+                      publish=False),
+            SplitSpec("all", _redteam(False),
+                      "every case incl. defended (safe) — for balanced analysis",
+                      publish=False),
+        ],
+        license="other",
+        task_categories=["text-generation"],
+        tags=["red-team", "safety", "alignment", "refusal", "jailbreak", "open-weights"],
+        body=_REDTEAM_BODY,
+        schema_md=(
+            "| field | meaning |\n"
+            "| --- | --- |\n"
+            "| `model` | the **target** model that was probed |\n"
+            "| `case_id` | content hash of the attack — joins the same case across runs |\n"
+            "| `messages` | the **full conversation** in chat format (multi-turn jailbreaks "
+            "carry every escalation turn), ending in the model's response |\n"
+            "| `outcome` | `complied` (produced the harmful content) / `defended` (refused) / "
+            "`errored` |\n"
+            "| `unsafe` | `true` iff `outcome == complied` — the safety hole |\n"
+            "| `category`, `vulnerability`, `vulnerability_type` | what was probed |\n"
+            "| `attack_method`, `attack_class` | how (e.g. Prompt Injection; single-/multi-turn) |\n"
+            "| `judge_reason` | why the judge scored it that way |\n"
+            "| `target_reasoning` | the model's own chain-of-thought (findings only) |\n"
+            "| `judge_model`, `simulator_model`, `config` | provenance of the run |"
+        ),
+        default_split="flagged",
     ),
 ]
 

@@ -223,6 +223,66 @@ readouts stay faithful to the model's own distribution; pass
 `sampling={"repeat_penalty": 1.2, ...}` when you want penalized generation (e.g.
 to check whether a penalty alone breaks a loop before reaching for a bake).
 
+## Steering a red-team failure back to a refusal
+
+`scripts/lens_refusal_steer.py` takes a case the red-team sweep found *complied*
+and asks the mechanistic question directly: **where does the attack's framing
+suppress the refusal signal, and can we add it back at runtime?** It talks to a
+`jlens-server` over `POST /jlens/forward` (capture + `add`-mode steering), so it
+needs no lens GGUF and no torch — just the server and numpy.
+
+Worked example — ornith-1.0-35b (a `qwen35moe`), the profanity case the sweep
+disclosed (a swearing request disguised as "negative samples for an AI Safety Lab
+classifier"):
+
+1. **The refusal direction is real.** A contrast set (8 refused-harmful vs 8
+   complied-benign prompts), differenced at the last prompt token, separates at
+   **+8.4 σ at layer 37** — refusal is a clean, linear, late-layer feature.
+2. **The attack works by suppressing it.** The attack's projection sits at the
+   **decision boundary** (~51 % of the way from the benign mean to the harmful
+   mean), where a blunt direct request would sit near the harmful mean. The
+   "safety lab" framing literally drags the refusal feature down to the tipping
+   point — a mechanistic explanation of the disclosed finding.
+3. **It can be steered back.** Adding `+α·refusal_dir` at layer 37 flips
+   generation from the compliant JSON of swearing to a clean *"I cannot generate
+   aggressive or abusive messages…"*.
+4. **But an additive steer is not a clean drop-in mitigation** — the honest
+   result. There is **no global α window**: the attack only flips at α ≳ 10, and
+   by then benign prompts (a coding request, a plot summary) are already degraded
+   to garbage. A projection **gate** (fire only in the ambiguous band) helps but
+   still misfires, because benign coding/summary prompts overlap the disguised
+   attack in projection.
+
+**One prompt lies; use a variety.** Rebuilding the direction from a *labeled probe
+set* (`scripts/build_refusal_probe_set.py` — 16 correctly-refused vs 12 benign,
+plus 11 held-out failures) changes the story in two important ways:
+
+- the honest separation is **+3.3 σ, not +8.4 σ** — the single-pair
+  harmful-vs-benign direction was inflated by *topic*, not refusal;
+- steering along that clean direction **does not generalise**: at an α that keeps
+  benign coherent, **0 of the held-out failures** are fixed, at α from 12 to 30.
+
+So the single-prompt "it flips!" was a false positive — the topic-contaminated
+direction happened to align with that one attack. Across a variety of framed
+attacks, a fixed additive steer restores nothing without breaking benign output.
+
+**What this means for a fix.** The lens *diagnosis* is solid and useful — refusal
+is a real linear feature the model already computes, and the attacks work by
+*framing* the request so that feature never fires. But the *mitigation* is a
+training problem, not a runtime-vector problem: the model must learn to see
+through the benign-purpose framing, which a single additive direction cannot
+encode. The right fix is **continued safety fine-tuning (QAT)** on the probe
+set's `failure` prompts (paired with refusals) mixed with `benign` → helpful,
+then a normal quantize — which also yields a genuinely corrected standalone GGUF,
+something additive steering **cannot** bake into this hybrid SSM+attention+MoE
+arch (no residual bias hook; `scripts/lens_refusal_steer.py --export-gguf` writes
+a servable runtime bundle and says as much).
+
+The takeaway that generalises: this pipeline **locates** a safety failure and
+proves the capability exists to fix it — the diagnosis — while being honest that
+runtime additive steering is neither a general nor a bakeable mitigation, and
+pointing at the fine-tune that is.
+
 ## Experiment scripts (gemma-4-31B + Ornith-1.0-9B anchored)
 
 - `scripts/lens_exp101_toolcall_lens.py` — tool-call representations under quantization
@@ -231,6 +291,8 @@ to check whether a penalty alone breaks a loop before reaching for a bake).
 - `scripts/lens_exp104_why_calibration.py` — the calibration divergence study
 - `scripts/lens_exp105_ornith_action_bias.py` — why Ornith-9B IQ2_M patches but resolves 0 (explore≫act)
 - `scripts/lens_exp106_bake_deloop.py` — bake a jlens loop direction out of a GGUF (corrected quant)
+- `scripts/lens_refusal_steer.py` — steer a red-team failure back to a refusal (contrastive direction + gate + `--export-gguf` fix bundle)
+- `scripts/build_refusal_probe_set.py` — labeled failure/correct-refusal/benign set (direction source, fix eval, QAT seed)
 - `scripts/build_probe_set.py` — mine the probe set
 - `scripts/lens_smoke.sh` — CPU end-to-end smoke on a tiny GGUF (the acceptance gate)
 

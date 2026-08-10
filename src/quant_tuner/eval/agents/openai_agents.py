@@ -5,9 +5,15 @@ against the same local ``llama-server`` (OpenAI-compatible Chat Completions) and
 the same per-instance Docker container as the mini-swe-agent backend, but with
 the Agents SDK's own planning loop. The agent is given a single ``bash`` tool
 that shells into the instance's container (``env.execute``); after the loop ends
-(submission, max-turns, or wall-timeout) the patch is read back as
-``git diff`` of ``/testbed`` — no submit sentinel, which is also the contract the
-future CLI-in-container backends (Qwen Code, Claude Code) will use.
+(submission, max-turns, or wall-timeout) the patch is read back as a
+``git diff`` of the repo checkout — no submit sentinel, which is also the contract
+the future CLI-in-container backends (Qwen Code, Claude Code) will use.
+
+The checkout path is **per instance**, not a constant: SWE-rebench V1 images use
+``/testbed`` while V2 (multi-language) images use ``/<repo-name>``. It comes from
+``swebench_grade.workdir_for`` so the agent, the grader and the environment cannot
+disagree — if they do, every command returns an OCI ``chdir`` error and that error
+string silently becomes the submitted 'patch'.
 
 Requires the ``swebench`` extra (``openai-agents``). All SDK imports are lazy so
 ``get_backend('openai-agents')`` resolves without the extra installed; the
@@ -24,22 +30,23 @@ import time
 from typing import Any
 
 from quant_tuner.eval.agents.base import AgentRunContext, AgentRunResult
+from quant_tuner.eval.swebench_grade import workdir_for
 
 # Cap a single tool observation so a runaway command can't blow the context.
 _MAX_TOOL_OUTPUT_CHARS = 16000
 
 _SYSTEM_PROMPT = """\
-You are an autonomous software engineer fixing a real bug in a Python \
-repository already checked out at /testbed (the current working directory).
+You are an autonomous software engineer fixing a real bug in a {language}\
+repository already checked out at {repo_dir} (the current working directory).
 
 You have one tool: bash(command). Use it to explore the code, reproduce the \
 issue, edit files, and run the project's tests. Make all edits directly on the \
-files under /testbed with shell commands (e.g. python, sed, or writing files \
+files under {repo_dir} with shell commands (e.g. python, sed, or writing files \
 via heredocs). Work in small steps and inspect command output before \
 continuing.
 
 Your job is to FIX THE BUG IN THE LIBRARY/SOURCE CODE — the modules under \
-/testbed that implement the behavior, not the test suite. Find the function or \
+{repo_dir} that implement the behavior, not the test suite. Find the function or \
 class responsible and change its implementation. Writing a new test, or only \
 editing files under tests/, is never a valid fix on its own: the grader runs \
 the project's own hidden tests against your SOURCE changes, and it reverts any \
@@ -55,9 +62,27 @@ is scored as a failure. When the source fix is complete and you have verified \
 it, stop and give a short summary of what you changed.
 """
 
+# Paths a build/test run regenerates. `git add -A` stages new files (so a brand-new
+# source module shows up in the patch) but that also sweeps in whatever `npm install`,
+# `cargo build` or a test run just created. Observed for real: an agent ran `npm
+# install`, and the resulting 16k-line package-lock.json made the patch so large that
+# `git apply` timed out during grading — the instance was scored "model patch did not
+# apply" even though the source fix was fine. These are never the fix, so exclude them
+# from the diff; it also keeps the published trajectories free of lockfile noise.
+_SUBMISSION_EXCLUDES = [
+    "package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml",
+    "composer.lock", "Gemfile.lock", "poetry.lock", "uv.lock",
+    "node_modules", "__pycache__", ".pytest_cache", ".gradle", ".m2", ".venv",
+    "*.pyc", "*.class", "*.o",
+]
+_EXCLUDE_PATHSPEC = " ".join(f"':(exclude,glob)**/{p}'" for p in _SUBMISSION_EXCLUDES)
+
 # Command that snapshots the working tree as a patch to grade. Stages new files
 # too (`add -A`) so brand-new modules show up in the diff.
-_SUBMISSION_CMD = "git -C /testbed add -A && git -C /testbed diff --cached HEAD"
+_SUBMISSION_CMD = (
+    "git -C {repo_dir} add -A -- . " + _EXCLUDE_PATHSPEC + " && "
+    "git -C {repo_dir} diff --cached HEAD -- . " + _EXCLUDE_PATHSPEC
+)
 
 # If the agent stops cleanly but the working tree is still unchanged — it
 # explored the code, "understood" the bug, and quit without editing (the
@@ -65,12 +90,12 @@ _SUBMISSION_CMD = "git -C /testbed add -A && git -C /testbed diff --cached HEAD"
 # the same conversation with this forcing message so it actually makes the edit.
 # The gate fires ONLY on a clean ``completed`` exit, never on timeout/max_turns.
 _EMPTY_PATCH_NUDGE = (
-    "STOP — the `git diff` of /testbed is EMPTY: you explored the code but never "
+    "STOP — the `git diff` of {repo_dir} is EMPTY: you explored the code but never "
     "edited a source file, so there is nothing to grade. You indicated you understand "
     "the bug; now ACT on it. Use bash (e.g. `sed -i`, or rewrite the file via a "
-    "heredoc) to modify the responsible NON-TEST source file under /testbed, then "
+    "heredoc) to modify the responsible NON-TEST source file under {repo_dir}, then "
     "re-run the project's tests to confirm the failing behavior now passes. Do not "
-    "stop again until `git -C /testbed diff` shows a non-empty change to a source file."
+    "stop again until `git -C {repo_dir} diff` shows a non-empty change to a source file."
 )
 _MAX_EMPTY_PATCH_RETRIES = 2
 
@@ -82,8 +107,8 @@ _MAX_EMPTY_PATCH_RETRIES = 2
 _MAX_ERROR_RETRIES = 3
 _ERROR_RETRY_NOTE = (
     "\n\n[Your previous attempt hit a server error and was restarted: {err}. "
-    "Any file edits you already made are still in /testbed — run "
-    "`git -C /testbed diff` to see them, then continue fixing the bug. Do NOT "
+    "Any file edits you already made are still in {repo_dir} — run "
+    "`git -C {repo_dir} diff` to see them, then continue fixing the bug. Do NOT "
     "repeat the same command over and over; if a command already ran, use its "
     "result and move on.]"
 )
@@ -119,14 +144,36 @@ re-run the SAME test and confirm it now passes.
 """
 
 
-def _system_prompt() -> str:
-    """Base prompt plus optional opt-in scaffolding (``QT_SWE_EXTRA_INSTRUCTIONS``)."""
+# SWE-rebench-V2's short language codes -> what to call the repo in the prompt. The
+# dataset is 20 languages, so hard-coding "a Python repository" is both wrong and
+# actively misleading to the model about which toolchain to reach for.
+_LANGUAGE_NAMES = {
+    "python": "Python", "go": "Go", "rust": "Rust", "java": "Java", "kotlin": "Kotlin",
+    "js": "JavaScript", "ts": "TypeScript", "php": "PHP", "c": "C", "cpp": "C++",
+    "csharp": "C#", "scala": "Scala", "swift": "Swift", "dart": "Dart", "julia": "Julia",
+    "elixir": "Elixir", "r": "R", "clojure": "Clojure", "ocaml": "OCaml", "lua": "Lua",
+}
+
+
+def language_name(instance: dict) -> str:
+    """Human-readable language for the prompt (``''`` -> generic, never wrong)."""
+    code = (instance.get("language") or "python").strip().lower()
+    name = _LANGUAGE_NAMES.get(code, code.capitalize() if code else "")
+    return f"{name} " if name else ""
+
+
+def _system_prompt(repo_dir: str = "/testbed", language: str = "Python ") -> str:
+    """Base prompt plus optional opt-in scaffolding (``QT_SWE_EXTRA_INSTRUCTIONS``).
+
+    ``repo_dir``/``language`` are per instance — see the module docstring.
+    """
+    base = _SYSTEM_PROMPT.format(repo_dir=repo_dir, language=language)
     extra = os.environ.get("QT_SWE_EXTRA_INSTRUCTIONS", "").strip()
     if not extra:
-        return _SYSTEM_PROMPT
+        return base
     if extra.lower() == "scaffold":
-        return _SYSTEM_PROMPT + _SCAFFOLD_INSTRUCTIONS
-    return _SYSTEM_PROMPT + "\n\n" + extra
+        return base + _SCAFFOLD_INSTRUCTIONS
+    return base + "\n\n" + extra
 
 
 def _truncate_output(text: str, limit: int = _MAX_TOOL_OUTPUT_CHARS) -> str:
@@ -140,22 +187,24 @@ def _truncate_output(text: str, limit: int = _MAX_TOOL_OUTPUT_CHARS) -> str:
     return f"{head}\n...[{len(text) - limit} chars truncated]...\n{tail}"
 
 
-def _run_bash_tool(env: Any, command: str, *, step_timeout: int, counters: dict[str, int]) -> str:
+def _run_bash_tool(env: Any, command: str, *, step_timeout: int, counters: dict[str, int],
+                   cwd: str) -> str:
     """Execute one bash command in the container, tally use/errors, return output.
 
     Mirrors the mini-swe ``_MetricsAgent`` bookkeeping: every call bumps
     ``used``; a non-zero return code bumps ``errors``.
     """
-    out = env.execute({"command": command}, cwd="/testbed", timeout=step_timeout)
+    out = env.execute({"command": command}, cwd=cwd, timeout=step_timeout)
     counters["used"] = counters.get("used", 0) + 1
     if int(out.get("returncode", 0) or 0) != 0:
         counters["errors"] = counters.get("errors", 0) + 1
     return _truncate_output(out.get("output", ""))
 
 
-def _extract_submission(env: Any, *, step_timeout: int) -> str:
+def _extract_submission(env: Any, *, step_timeout: int, repo_dir: str) -> str:
     """Read the working-tree patch from the container as a git diff."""
-    out = env.execute({"command": _SUBMISSION_CMD}, cwd="/testbed", timeout=step_timeout)
+    cmd = _SUBMISSION_CMD.format(repo_dir=repo_dir)
+    out = env.execute({"command": cmd}, cwd=repo_dir, timeout=step_timeout)
     return out.get("output", "") or ""
 
 
@@ -206,6 +255,9 @@ class OpenAIAgentsBackend:
 
         # No OpenAI API key here — disable the SDK's hosted tracing exporter.
         set_tracing_disabled(True)
+        # Per-instance checkout path: /testbed (V1) or /<repo-name> (V2). Everything
+        # the agent does — cd, git diff, the prompt text — must use THIS path.
+        repo_dir = workdir_for(ctx.instance)
         client = AsyncOpenAI(base_url=ctx.base_url, api_key=ctx.api_key)
         model = OpenAIChatCompletionsModel(model=ctx.served_model, openai_client=client)
 
@@ -213,8 +265,9 @@ class OpenAIAgentsBackend:
 
         @function_tool
         def bash(command: str) -> str:
-            """Run a bash command in the repository checkout at /testbed and return its combined output."""
-            return _run_bash_tool(ctx.env, command, step_timeout=ctx.step_timeout, counters=counters)
+            """Run a bash command in the repository checkout and return its combined output."""
+            return _run_bash_tool(ctx.env, command, step_timeout=ctx.step_timeout,
+                                  counters=counters, cwd=repo_dir)
 
         # Accumulate call count, cumulative token usage, and model-output items
         # via hooks so they survive a MaxTurnsExceeded / wall-timeout — otherwise
@@ -246,7 +299,7 @@ class OpenAIAgentsBackend:
         )
         agent = Agent(
             name="swe-agent",
-            instructions=_system_prompt(),
+            instructions=_system_prompt(repo_dir, language_name(ctx.instance)),
             model=model,
             tools=[bash],
             model_settings=settings,
@@ -303,7 +356,7 @@ class OpenAIAgentsBackend:
                     n_errors += 1
                     exit_status = f"retried:{type(e).__name__}"
                     agent_input = ctx.instance["problem_statement"] + _ERROR_RETRY_NOTE.format(
-                        err=f"{type(e).__name__}: {str(e)[:200]}")
+                        err=f"{type(e).__name__}: {str(e)[:200]}", repo_dir=repo_dir)
                     continue
                 exit_status = f"error:{type(e).__name__}"
                 break
@@ -311,13 +364,15 @@ class OpenAIAgentsBackend:
 
             # Completion gate: a non-empty diff (or exhausted retries) ends it;
             # an empty diff on a clean stop resumes with the forcing nudge.
-            if _extract_submission(ctx.env, step_timeout=ctx.step_timeout).strip():
+            if _extract_submission(ctx.env, step_timeout=ctx.step_timeout,
+                                   repo_dir=repo_dir).strip():
                 break
             if attempt >= _MAX_EMPTY_PATCH_RETRIES:
                 break
             attempt += 1
             n_nudges += 1
-            agent_input = messages + [{"role": "user", "content": _EMPTY_PATCH_NUDGE}]
+            agent_input = messages + [{"role": "user",
+                                       "content": _EMPTY_PATCH_NUDGE.format(repo_dir=repo_dir)}]
 
         # Metrics from the hooks so they survive the exception paths above.
         n_calls = hooks.n_calls
@@ -329,7 +384,8 @@ class OpenAIAgentsBackend:
 
         # Read the patch regardless of how the loop ended — the agent may have
         # made edits before hitting the step/wall limit.
-        submission = _extract_submission(ctx.env, step_timeout=ctx.step_timeout)
+        submission = _extract_submission(ctx.env, step_timeout=ctx.step_timeout,
+                                         repo_dir=repo_dir)
 
         with contextlib.suppress(Exception):
             ctx.trajectory_path.write_text(

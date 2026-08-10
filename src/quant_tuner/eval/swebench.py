@@ -40,7 +40,12 @@ from typing import Any
 from quant_tuner.eval.agents import get_backend
 from quant_tuner.eval.agents.base import AgentRunContext
 from quant_tuner.eval.server import running_server
-from quant_tuner.eval.swebench_grade import grade_instance
+from quant_tuner.eval.swebench_grade import (
+    diagnose_container_error,
+    grade_instance,
+    is_v2_instance,
+    v2_workdir,
+)
 from quant_tuner.eval.toolcall import Sampling
 
 DEFAULT_MAX_STEPS = 100
@@ -125,22 +130,30 @@ def _sampling_to_model_kwargs(sampling: Sampling, *, max_tokens: int) -> dict[st
     return mk
 
 
-def _build_env_config(step_timeout: int) -> dict:
+def _build_env_config(step_timeout: int, instance: dict | None = None) -> dict:
     """The Docker ``environment`` config consumed by ``get_sb_environment``.
 
     Reproduces mini-swe-agent's builtin ``benchmarks/swebench.yaml`` environment
-    block (``cwd: /testbed``, ``interpreter: ["bash", "-c"]``, ``PAGER``) plus
+    block (``cwd``, ``interpreter: ["bash", "-c"]``, ``PAGER``) plus
     our ``timeout`` and a ``PYTHONWARNINGS=ignore`` (so warnings don't appear
-    before mini-swe-agent's submission sentinel on line 1). **``cwd: /testbed``
-    is load-bearing**: the grader (`swebench_grade.grade_instance`) and the
+    before mini-swe-agent's submission sentinel on line 1). **``cwd`` is
+    load-bearing**: the grader (`swebench_grade.grade_instance`) and the
     mini-swe agent both call ``env.execute`` without an explicit cwd and rely on
     this default — drop it and ``git apply``/``git reset`` run outside the repo
     (in ``/``) and silently fail. The image is derived from the instance by
     ``get_sb_environment``.
+
+    The checkout path differs by dataset generation: SWE-rebench **V1** images use
+    ``/testbed``; **V2** (multi-language) images use ``/<repo-name>``. Pass
+    ``instance`` so the right one is chosen — an agent started in the wrong
+    directory sees an empty repo and flails for its whole step budget.
     """
+    cwd = "/testbed"
+    if instance is not None and is_v2_instance(instance):
+        cwd = v2_workdir(instance)
     return {
         "environment": {
-            "cwd": "/testbed",
+            "cwd": cwd,
             "timeout": step_timeout,
             "interpreter": ["bash", "-c"],
             "env": {
@@ -211,6 +224,8 @@ def run_instance(
     record: dict[str, Any] = {
         "instance_id": instance_id,
         "repo": instance.get("repo", ""),
+        # V2 rows carry the language; V1 is Python-only and has no such field.
+        "language": instance.get("language") or ("python" if not is_v2_instance(instance) else ""),
         "agent": getattr(backend, "name", "?"),
         "exit_status": None,
         "patch_produced": False,
@@ -232,7 +247,9 @@ def run_instance(
     try:
         if progress:
             print(f"  [{instance_id}] starting environment…", flush=True)
-        env = get_sb_environment(_build_env_config(conn["step_timeout"]), instance)
+        env = get_sb_environment(
+            _build_env_config(conn["step_timeout"], instance), instance
+        )
         ctx = AgentRunContext(
             instance=instance,
             env=env,
@@ -282,7 +299,9 @@ def run_instance(
             )
         )
     except Exception as e:  # keep the suite going on a single bad instance
-        record["error"] = f"{type(e).__name__}: {e}"
+        # docker exit 125 covers registry outage / full disk / missing image alike,
+        # so classify it rather than recording an opaque CalledProcessError.
+        record["error"] = diagnose_container_error(e)
         if progress:
             print(f"  [{instance_id}] ERROR: {record['error']}", flush=True)
     finally:
