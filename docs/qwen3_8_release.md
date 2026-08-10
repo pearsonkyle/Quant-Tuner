@@ -133,6 +133,30 @@ genuinely held out.
   logs (CLI)          253      swe-traj      71
 ```
 
+**System prompts are scrubbed** in the SFT view (not in the calibration corpus, where the
+packer already stubs prose). 90% of system-prompt characters in these logs sit in blocks
+repeated verbatim across sessions — tone guidelines, git etiquette, worked examples — and
+training on 24k tokens of preamble thousands of times teaches nothing. A repeated block is
+**kept** when it names a path or file this conversation actually touches, which is what
+separates "the repo layout" from "the harness". 6.4M → 0.4M characters; `--no-sft-scrub-system`
+disables it. Neither frequency nor keywords alone works here: the harness blocks are full of
+the words "repository" and "file paths", and generic filenames (`package.json`, `CLAUDE.md`)
+plus library names (`Node.js`) ground nothing — they are filtered by document frequency.
+
+**What the quantizers actually sample** is now reported and gated. AWQ and GPTQ don't read
+the whole corpus; they stride a fixed budget across it. The audit runs the production sampler
+over an index tensor and attributes every sampled token back to its source:
+
+```
+awq  (65k budget): 1.5% of corpus, 6 sources — logs 49% · reasoning 18% · swe 18% · broad 6% · wiki 6% · redteam 4%, 141 tool calls
+gptq (32k budget): 0.7% of corpus, 6 sources — logs 50% · reasoning 17% · swe 12% · wiki 11% · broad 8% · redteam 2%,  59 tool calls
+```
+
+A build whose GPTQ slice contains zero tool calls now fails rather than shipping. The corpus
+is also checked for control tokens on the bytes as written (`<tool_call>` 9,393,
+`<tool_response>` 5,936, `<|im_end|>` 16,125) — every one must tokenize to a single id, since
+`llama-imatrix --parse-special` and the HF-side calibrators both depend on that.
+
 Pass `--sft-token-counts` for per-conversation `n_tokens` (a second tokenization pass over
 ~30M tokens, and specific to `--model`'s tokenizer); `--no-sft` skips the file.
 

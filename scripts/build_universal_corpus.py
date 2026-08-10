@@ -25,7 +25,8 @@ Writes into ``--out``:
                               source label) — same content as corpus.cal.txt
     sft.jsonl.gz              FULL conversations for supervised fine-tuning: untrimmed,
                               untemplated, tool_calls + reasoning_content as message
-                              fields, split-tagged to match the calibration split
+                              fields, split-tagged to match the calibration split, with
+                              agent-harness boilerplate scrubbed from system prompts
     corpora_audit.json        token counts, per-source shares, tool-call marker scan,
                               and the chat-template report
 
@@ -94,6 +95,12 @@ def main() -> int:
                         "loudly; use only after inspecting the render by hand)")
     p.add_argument("--no-sft", action="store_true",
                    help="skip sft.jsonl.gz (the full-fidelity conversation export)")
+    p.add_argument("--no-sft-scrub-system", action="store_true",
+                   help="keep agent-harness boilerplate in SFT system prompts (default is "
+                        "to drop blocks repeated across sessions unless they name a path "
+                        "this conversation touches; 6.4M -> 0.4M chars on these logs)")
+    p.add_argument("--sft-boilerplate-min-sessions", type=int, default=4,
+                   help="a system-prompt block in this many distinct sessions is boilerplate")
     p.add_argument("--sft-token-counts", action="store_true",
                    help="add per-conversation n_tokens to sft.jsonl.gz. Costs a second "
                         "tokenization pass over ~30M tokens and is specific to --model's "
@@ -125,6 +132,8 @@ def main() -> int:
         require_tool_calls=not a.allow_no_tool_calls,
         write_sft=not a.no_sft,
         sft_token_counts=a.sft_token_counts,
+        sft_scrub_system=not a.no_sft_scrub_system,
+        sft_boilerplate_min_sessions=a.sft_boilerplate_min_sessions,
     )
     audit = universal.build(cfg)
     share = audit["calibration"]["token_share"]

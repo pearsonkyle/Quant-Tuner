@@ -51,12 +51,20 @@ from __future__ import annotations
 import hashlib
 import json
 import sys
+from collections import Counter
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from quant_tuner.data import external, ingest, reasoning, refusals, split
+from quant_tuner.data import (
+    external,
+    ingest,
+    reasoning,
+    refusals,
+    split,
+    system_prompt,
+)
 
 REPO = Path(__file__).resolve().parents[3]
 
@@ -164,7 +172,17 @@ class UniversalConfig:
     # to whichever tokenizer this build used.
     write_sft: bool = True
     sft_token_counts: bool = False
+    # Strip agent-harness boilerplate from SFT system prompts, keeping any block grounded in
+    # a path this conversation actually touches (see data.system_prompt). Measured on these
+    # logs: 6.4M system-prompt chars -> 0.4M. The CALIBRATION corpus is left alone — the
+    # packer already stubs system prose to `system_prose_budget` after a quota, which is the
+    # right mechanism there.
+    sft_scrub_system: bool = True
+    sft_boilerplate_min_sessions: int = system_prompt.DEFAULT_MIN_SESSIONS
     require_tool_calls: bool = True       # fail if the built corpus has no tool-call markers
+    # Tokenize the finished corpus once more to report (and gate on) what AWQ's and
+    # GPTQ's strided token budgets actually sample out of it.
+    sampled_coverage_check: bool = True
     strict_template: bool = True          # fail on blocking chat-template checks
 
     sources: tuple[str, ...] = ALL_SOURCES
@@ -398,7 +416,9 @@ def write_jsonl_gz(path: Path, records: Iterable[dict]) -> tuple[int, int]:
     return n, path.stat().st_size
 
 
-def sft_record(session: dict, *, split_name: str, source: str, tok=None) -> dict:
+def sft_record(session: dict, *, split_name: str, source: str, tok=None,
+               boilerplate: set[str] | None = None,
+               generic_tokens: set[str] | None = None) -> dict:
     """One conversation as an SFT training row — **complete, nothing trimmed**.
 
     This is deliberately *not* the calibration view. The calibration corpus is windowed to
@@ -415,6 +435,10 @@ def sft_record(session: dict, *, split_name: str, source: str, tok=None) -> dict
     msgs = ingest.normalize_messages(session.get("messages") or [])
     ingest.coerce_tool_call_arguments(msgs)
     msgs = reasoning.apply_policy(msgs, "field")
+    scrub_stats: dict | None = None
+    if boilerplate:
+        msgs, scrub_stats = system_prompt.scrub_messages(
+            msgs, boilerplate=boilerplate, generic=generic_tokens)
 
     keep = ("role", "content", "reasoning_content", "tool_calls", "tool_call_id", "name")
     clean = [{k: m[k] for k in keep if m.get(k) not in (None, "")} for m in msgs]
@@ -436,6 +460,8 @@ def sft_record(session: dict, *, split_name: str, source: str, tok=None) -> dict
     }
     if session.get("meta"):
         rec["meta"] = session["meta"]
+    if scrub_stats and scrub_stats["dropped"]:
+        rec["system_scrub"] = scrub_stats
     if tok is not None:
         texts = [str(m.get("content") or "") for m in clean]
         texts += [str(m.get("reasoning_content") or "") for m in clean
@@ -448,6 +474,99 @@ def sft_record(session: dict, *, split_name: str, source: str, tok=None) -> dict
 # ------------------------------------------------------------------------------ marker scan
 def tool_call_marker_counts(text: str, markers: Iterable[str]) -> dict[str, int]:
     return {m: text.count(m) for m in markers if m in text}
+
+
+def scan_special_tokens(text: str, tok) -> dict[str, Any]:
+    """Which control/special tokens the corpus carries, and whether they survive tokenization.
+
+    Two stacks read this file and they do not agree by default:
+
+    * ``llama-imatrix`` is run with ``--parse-special`` on (see ``models.llama_cpp.imatrix``),
+      so ``<|im_start|>`` is one control token — matching inference.
+    * the HF-side calibrators (AWQ/GPTQ) tokenize the same bytes with ``transformers``, which
+      also encodes in-text specials as single ids **unless** ``split_special_tokens=True``.
+
+    If either stopped holding, the corpus would silently become a different distribution for
+    that calibrator — the markers would shatter into ordinary BPE pieces. So the check is on
+    the built corpus, not on a fixture: every special token actually present must round-trip
+    to exactly one id.
+    """
+    declared = list(getattr(tok, "all_special_tokens", None) or [])
+    declared += list(getattr(tok, "additional_special_tokens", None) or [])
+    from quant_tuner.data.template_check import (
+        KNOWN_TOOL_CALL_MARKERS,
+        KNOWN_TOOL_RESPONSE_MARKERS,
+    )
+    candidates = sorted({s for s in declared + list(KNOWN_TOOL_CALL_MARKERS)
+                         + list(KNOWN_TOOL_RESPONSE_MARKERS)
+                         if isinstance(s, str) and s.startswith("<") and s in text})
+    present: dict[str, int] = {}
+    multi_id: list[str] = []
+    for s in candidates:
+        present[s] = text.count(s)
+        if len(tok(s, add_special_tokens=False)["input_ids"]) != 1:
+            multi_id.append(s)
+    non_ascii = sum(1 for ch in text if ord(ch) > 127)
+    return {
+        "present": present,
+        "multi_id": multi_id,
+        "all_single_id": not multi_id,
+        "non_ascii_chars": non_ascii,
+        "non_ascii_share": round(non_ascii / max(1, len(text)), 6),
+        "has_carriage_returns": "\r" in text,
+    }
+
+
+def sampled_coverage(
+    chunks: list[str], sources: list[str], tok, budgets: dict[str, int], ctx: int = 512,
+) -> dict:
+    """What each HF-side calibrator's token budget actually sees of this corpus.
+
+    AWQ and GPTQ do not read the whole file: ``calibrate/_ingest.sample_chunks`` strides a
+    fixed budget across it (AWQ 65536 tokens, GPTQ 32768). A corpus can be beautifully
+    balanced overall and still hand GPTQ a 32k slice with no tool calls in it — that is the
+    failure this reports.
+
+    The stride is not re-implemented here; the production sampler is run over an *index*
+    tensor, so the reported windows are exactly the ones a calibrator would receive, and each
+    sampled token is attributed back to the source it came from.
+    """
+    import bisect
+
+    import torch
+
+    from quant_tuner.calibrate._ingest import sample_chunks
+
+    per_chunk = tok(chunks, add_special_tokens=False)["input_ids"]
+    starts: list[int] = []
+    flat: list[int] = []
+    for ids in per_chunk:
+        starts.append(len(flat))
+        flat.extend(ids)
+    ids_t = torch.tensor(flat, dtype=torch.long)
+    out: dict[str, Any] = {"corpus_tokens": int(ids_t.numel()), "ctx": ctx}
+
+    for name, budget in budgets.items():
+        picked = sample_chunks(torch.arange(ids_t.numel()), ctx, budget)
+        idx = torch.cat(picked) if picked else torch.empty(0, dtype=torch.long)
+        by_source: Counter = Counter()
+        for i in idx.tolist():
+            by_source[sources[bisect.bisect_right(starts, i) - 1]] += 1
+        sampled_text = tok.decode(ids_t[idx].tolist(), skip_special_tokens=False) \
+            if idx.numel() else ""
+        scan = _scan_tool_calls(sampled_text)
+        n = max(1, int(idx.numel()))
+        out[name] = {
+            "budget_tokens": budget,
+            "chunks": len(picked),
+            "sampled_tokens": int(idx.numel()),
+            "corpus_share": round(idx.numel() / max(1, ids_t.numel()), 4),
+            "source_share": {k: round(v / n, 4) for k, v in by_source.most_common()},
+            "sources_seen": len(by_source),
+            "tool_calls_in_sample": scan["tool_call_marker_total"],
+            "tool_results_in_sample": scan["tool_response_marker_total"],
+        }
+    return out
 
 
 def _scan_tool_calls(text: str) -> dict[str, Any]:
@@ -492,6 +611,38 @@ def _write_sft(
     """
     counter = tok if cfg.sft_token_counts else None
     by_source: dict[str, dict[str, int]] = {}
+    scrub_totals = {"conversations_scrubbed": 0, "blocks_dropped": 0,
+                    "system_chars_before": 0, "system_chars_after": 0}
+
+    # Boilerplate has to be known corpus-wide before the first record is written, so the log
+    # sessions are loaded once up front. Everything else streams.
+    log_sessions: list[dict] = []
+    boilerplate: set[str] = set()
+    generic: set[str] = set()
+    if cfg.enabled(SOURCE_LOGS):
+        log_sessions = ingest.filter_sessions(
+            ingest.load_all_sessions([ingest.resolve_log_path(p) for p in cfg.log_files]),
+            min_score=0.3, require_tools=False,
+        )
+    if cfg.sft_scrub_system and log_sessions:
+        norm = [ingest.normalize_messages(s.get("messages") or []) for s in log_sessions]
+        boilerplate = system_prompt.boilerplate_blocks(
+            [c for m in norm if (c := system_prompt.system_content_of(m))],
+            min_sessions=cfg.sft_boilerplate_min_sessions,
+        )
+        generic = system_prompt.generic_path_tokens(system_prompt.body_text(m) for m in norm)
+        print(f"  sft: {len(boilerplate)} boilerplate system blocks, "
+              f"{len(generic)} generic path tokens", file=sys.stderr)
+
+    def _rec(session: dict, *, split_name: str, source: str) -> dict:
+        rec = sft_record(session, split_name=split_name, source=source, tok=counter,
+                         boilerplate=boilerplate, generic_tokens=generic)
+        if (st := rec.get("system_scrub")):
+            scrub_totals["conversations_scrubbed"] += 1
+            scrub_totals["blocks_dropped"] += st["dropped"]
+            scrub_totals["system_chars_before"] += st["chars_before"]
+            scrub_totals["system_chars_after"] += st["chars_after"]
+        return _tally(by_source, rec)
 
     def records() -> Iterable[dict]:
         # logs: re-load (the packer's copies are clipped by now), then tag from the split
@@ -503,18 +654,13 @@ def _write_sft(
             str(s.get("id") or ingest.session_group(s)): name
             for name, sessions in log_splits.items() for s in sessions
         }
-        if split_of:
-            for s in ingest.filter_sessions(
-                ingest.load_all_sessions([ingest.resolve_log_path(p) for p in cfg.log_files]),
-                min_score=0.3, require_tools=False,
-            ):
-                name = split_of.get(str(s.get("id") or ingest.session_group(s)))
-                if name is None:
-                    continue
-                src = SOURCE_LOGS if not str(s.get("source", "")).startswith("agents:") \
-                    else "logs-agents"
-                yield _tally(by_source, sft_record(s, split_name=name, source=src,
-                                                   tok=counter))
+        for s in log_sessions:
+            name = split_of.get(str(s.get("id") or ingest.session_group(s)))
+            if name is None:
+                continue
+            src = "logs-agents" if str(s.get("source", "")).startswith("agents:") \
+                else SOURCE_LOGS
+            yield _rec(s, split_name=name, source=src)
 
         if swe_cal or swe_eval:
             for rows, name in ((swe_cal, "train"), (swe_eval, "holdout")):
@@ -525,14 +671,12 @@ def _write_sft(
                     s = {"id": r["instance_id"], "messages": r.get("messages") or [],
                          "tools": r.get("tools") or [],
                          "meta": {k: r.get(k) for k in ("repo", "resolved", "instance_id")}}
-                    yield _tally(by_source, sft_record(s, split_name=name,
-                                                       source=SOURCE_SWE, tok=counter))
+                    yield _rec(s, split_name=name, source=SOURCE_SWE)
 
         # red-team: the REFUSAL-substituted conversations, never the originals.
         for rows, name in ((redteam_cal, "train"), (redteam_eval, "holdout")):
             for s in rows:
-                yield _tally(by_source, sft_record(s, split_name=name,
-                                                   source=SOURCE_REDTEAM, tok=counter))
+                yield _rec(s, split_name=name, source=SOURCE_REDTEAM)
 
         # the supplement's instruction view — already prompt/response pairs
         for r in _hub_jsonl(BROAD_DATASET, "instruct", None):
@@ -541,9 +685,8 @@ def _write_sft(
                                                 "prompt_source")}}
             # `half` mirrors the calibration split: calib was seen by the imatrix, mtp
             # was not (it is reserved for draft-head training).
-            yield _tally(by_source, sft_record(
-                s, split_name="train" if r.get("half") == "calib" else "holdout",
-                source="broad-instruct", tok=counter))
+            yield _rec(s, split_name="train" if r.get("half") == "calib" else "holdout",
+                       source="broad-instruct")
 
     path = out / "sft.jsonl.gz"
     n, nbytes = write_jsonl_gz(path, records())
@@ -555,6 +698,17 @@ def _write_sft(
         "bytes_gz": nbytes,
         "per_source": by_source,
         "token_counts": cfg.sft_token_counts,
+        "system_scrub": {
+            "enabled": cfg.sft_scrub_system,
+            "min_sessions": cfg.sft_boilerplate_min_sessions,
+            "boilerplate_blocks": len(boilerplate),
+            "generic_path_tokens": len(generic),
+            **scrub_totals,
+            "note": "harness boilerplate dropped from system prompts; a repeated block is "
+                    "KEPT when it names a path/file this conversation actually touches "
+                    "(data.system_prompt). The calibration corpus is not scrubbed — the "
+                    "packer stubs system prose there instead.",
+        },
         "fields": ["id", "source", "split", "messages", "tools", "meta", "n_messages",
                    "n_tool_calls", "n_tool_results", "n_reasoning", "n_chars"]
                   + (["n_tokens"] if cfg.sft_token_counts else []),
@@ -850,7 +1004,10 @@ def build(cfg: UniversalConfig) -> dict:
         ({"i": i, "source": source_of.get(id(c), "?"), "n_chars": len(c), "text": c}
          for i, c in enumerate(ordered)),
     )
-    cal_text = cal_corpus.read_text()
+    # newline="" so the scan sees the bytes on disk: universal-newline translation
+    # rewrites the \r that agent tool output carries, and the audit would deny it exists.
+    with open(cal_corpus, newline="") as _fh:
+        cal_text = _fh.read()
     scan = _scan_tool_calls(cal_text)
     # Per-source too: a source that quietly stops carrying tool calls (a template change,
     # a schema-dedup regression) is invisible in the total, which the other chat source
@@ -896,6 +1053,33 @@ def build(cfg: UniversalConfig) -> dict:
                   file=sys.stderr)
     print(f"  calibration: {cal_corpus} ({scan['tool_call_marker_total']} tool-call "
           f"markers, {scan['tool_response_marker_total']} tool results)", file=sys.stderr)
+
+    # Special characters / control tokens, checked on the corpus rather than a fixture, and
+    # what each HF-side calibrator's strided budget actually samples out of it.
+    specials = scan_special_tokens(cal_text, tok)
+    audit["calibration"]["special_tokens"] = specials
+    if not specials["all_single_id"]:
+        raise RuntimeError(
+            "these control tokens present in the calibration corpus do NOT tokenize to a "
+            f"single id: {specials['multi_id']}. AWQ/GPTQ would calibrate on shattered BPE "
+            "pieces where inference sees one control token."
+        )
+    if cfg.sampled_coverage_check:
+        audit["calibration"]["sampled_coverage"] = sampled_coverage(
+            ordered, [source_of.get(id(c), "?") for c in ordered], tok,
+            {"awq": 65_536, "gptq": 32_768})
+        for name in ("awq", "gptq"):
+            cov = audit["calibration"]["sampled_coverage"][name]
+            print(f"  {name}: samples {cov['sampled_tokens']:,} tokens "
+                  f"({cov['corpus_share']:.1%} of corpus) from {cov['sources_seen']} sources "
+                  f"{cov['source_share']}, {cov['tool_calls_in_sample']} tool calls",
+                  file=sys.stderr)
+            if cfg.require_tool_calls and cov["tool_calls_in_sample"] == 0:
+                raise RuntimeError(
+                    f"{name}'s {cov['budget_tokens']}-token budget samples ZERO tool calls "
+                    "from this corpus — it would calibrate on the wrong distribution. "
+                    "Interleaving is what prevents this; check token_share in the audit."
+                )
 
     if cfg.require_tool_calls and scan["tool_call_marker_total"] == 0:
         raise RuntimeError(
@@ -1066,6 +1250,8 @@ __all__ = [
     "clip_tool_messages",
     "pack_raw_samples",
     "reasoning_windows",
+    "sampled_coverage",
+    "scan_special_tokens",
     "sft_record",
     "swe_sessions",
     "tool_call_marker_counts",

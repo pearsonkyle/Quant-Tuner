@@ -498,6 +498,24 @@ The OmniCoder reproduction is here; the CLI handles ad-hoc runs.
   4,291 available. `universal.reasoning_windows` is the fix: extra windows cut so a reasoning
   turn lands last (the only position that survives, and the context the model actually has
   while generating it). Coverage is reported per source in the audit.
+- `data/system_prompt.py` — **SFT-only** system-prompt scrubbing. 90% of system-prompt
+  characters in the logs are blocks repeated verbatim across sessions (tone, git etiquette,
+  worked examples). A repeated block is dropped **unless it names a path/file the same
+  conversation actually touches** — that grounding test is what separates repo context from
+  harness. Neither frequency nor keywords alone works: harness blocks say "repository" and
+  "file paths" constantly, and generic filenames (`package.json`, `CLAUDE.md`) plus library
+  names (`Node.js`) are filtered out by document frequency so they can't ground anything.
+  URLs are blanked first (a `github.com/...` link parses as an absolute path). 6.4M → 0.4M
+  chars. The calibration corpus is deliberately NOT scrubbed — the packer's
+  `system_prose_budget` stub is the right mechanism there.
+- **The corpus is verified for the quantizers that read it, not just built.**
+  `universal.scan_special_tokens` checks the bytes as written (`newline=""` — universal
+  newlines hide the `\r` in agent tool output) and hard-fails if any control token present
+  doesn't tokenize to exactly one id; `llama-imatrix --parse-special` and the HF-side
+  calibrators both depend on that. `universal.sampled_coverage` runs the **production**
+  sampler (`calibrate/_ingest.sample_chunks`) over an index tensor, so it reports the exact
+  slice AWQ (65k) and GPTQ (32k) receive, attributed per source — a build whose GPTQ slice
+  contains zero tool calls fails instead of shipping.
 - `data/refusals.py` — the red-team disclosures enter calibration as **attack prompts +
   generic refusals**: every assistant turn is replaced from a deterministic bank (varied, so
   a 22-turn crescendo isn't one sentence eleven times), and the targets' original completions
