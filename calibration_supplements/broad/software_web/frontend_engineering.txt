@@ -1,0 +1,341 @@
+================================================================================
+AREA: Software and Web Engineering
+SUBJECT: Frontend Engineering
+Subtopics: the browser rendering model, HTML semantics, CSS layout, JavaScript
+runtime, state management, performance, accessibility, tooling.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## The Browser Rendering Model
+
+A browser turns bytes into pixels through a pipeline whose stages explain nearly every
+frontend performance problem. HTML is parsed into the Document Object Model, a tree of
+nodes. CSS is parsed into the CSS Object Model and matched against those nodes to produce
+computed styles. The two combine into a render tree of visible elements. Layout — also
+called reflow — computes the geometry of every box. Paint fills in pixels. Composite
+assembles the painted layers into the final image, often on the GPU.
+
+The critical rendering path is what must complete before the user sees anything, and
+optimizing it means removing work from that path. Stylesheets are render-blocking by
+default, because rendering with unstyled content and then restyling would produce a flash
+of unstyled text. Synchronous scripts are parser-blocking, because a script may call
+document.write and alter the document structure, so the parser must stop and wait. The
+async attribute lets a script download in parallel and execute whenever it arrives; defer
+downloads in parallel and executes after parsing completes, in document order. For
+anything that does not need to run during parsing, defer is almost always correct and is
+underused.
+
+Layout thrashing is the most common self-inflicted performance problem. The browser
+batches style changes and performs layout once per frame when it can, but reading a
+geometric property — offsetHeight, getBoundingClientRect, scrollTop — forces it to flush
+pending changes and compute layout immediately in order to return an accurate value.
+Alternating writes and reads in a loop therefore forces a synchronous layout on every
+iteration, turning a linear operation into a quadratic one. The remedy is to batch all
+reads first, then all writes.
+
+Rendering pipeline stages and what triggers each:
+  style        changing a class or inline style; recomputes matched rules
+  layout       changing geometry — width, height, position, font-size, display;
+               the most expensive stage, affects descendants and often siblings
+  paint        changing appearance without geometry — color, background,
+               box-shadow, border-radius
+  composite    changing transform or opacity on a promoted layer; cheapest, can
+               run off the main thread entirely
+  key rule     animate transform and opacity, never width/height/top/left
+  promotion    will-change: transform, or a 3D transform, promotes an element to
+               its own layer; use sparingly, each layer costs memory
+
+The reason transform and opacity are the animation primitives is that they can be applied
+by the compositor without re-running layout or paint. Animating width forces layout on
+every frame for the element and everything affected by it; animating transform: scaleX()
+achieves a visually similar effect by manipulating an already-painted layer. The
+difference is routinely the gap between a smooth sixty frames per second and visible
+stutter.
+
+Q: An animation changes an element's `left` property each frame and stutters. The most
+effective fix is:
+A. Reduce the animation duration
+B. Use `transform: translateX()` instead
+C. Add more keyframes
+D. Increase the element's z-index
+Reasoning: Changing `left` triggers layout on every frame, and layout is the most
+expensive pipeline stage. `transform: translateX()` is handled by the compositor without
+layout or paint, so the animation can run off the main thread. This is the single most
+impactful frontend animation rule. Answer: B.
+
+## HTML Semantics and Accessibility
+
+Semantic HTML uses elements for their meaning rather than their default appearance, and
+the payoff is that a great deal of behaviour comes free. A `button` element is focusable,
+activates on both click and Enter and Space, announces itself as a button to assistive
+technology, and participates in form submission. A `div` with a click handler has none of
+these, and reproducing them requires a tabindex, a role, keyboard handlers, and
+disabled-state management — all of which will be done incompletely.
+
+Accessibility is not a separate concern layered on afterward; it is largely what semantic
+markup delivers. Screen readers navigate by heading structure, so headings must be
+hierarchical and must not skip levels for visual reasons — the size of a heading is a CSS
+decision and its level is a structural one. Landmark elements let users jump directly to
+navigation, main content, or search. Form inputs must have associated labels, since a
+placeholder disappears on focus and is not announced reliably. Images need alternative
+text that conveys their function, which for a decorative image is an empty alt attribute
+rather than a description.
+
+The first rule of ARIA is not to use ARIA: a native element with the right semantics is
+better than any element with a role attribute, because native elements bring behaviour as
+well as semantics. ARIA is for cases genuinely without a native equivalent — a tab
+interface, a combobox with custom filtering, a live region announcing asynchronous
+updates. When ARIA is used, the roles carry required states and keyboard interaction
+patterns, and implementing the role without the expected keyboard behaviour produces
+something that announces itself as a tablist and does not respond to arrow keys, which is
+worse than no role at all.
+
+Accessibility essentials:
+  semantic elements      button, a, nav, main, header, footer, article, section
+  heading hierarchy      one h1, no skipped levels; structure not size
+  labels                 every input has a label, explicitly associated
+  focus visibility       never remove the focus outline without replacing it
+  focus management       move focus into a modal on open, restore it on close,
+                         and trap it while open
+  keyboard operation     everything reachable and operable without a mouse
+  color contrast         4.5:1 for body text, 3:1 for large text and UI components
+  motion                 respect prefers-reduced-motion
+  live regions           aria-live for asynchronous updates the user must know about
+  alt text               functional description, or empty for decoration
+  testing                keyboard-only pass, screen reader pass, automated audit;
+                         automated tools catch roughly a third of real issues
+
+The focus outline deserves specific mention because removing it is one of the most
+common and most damaging accessibility errors. `outline: none` without a replacement
+makes an interface entirely unusable by keyboard, since the user cannot tell what is
+focused. If the default outline is aesthetically unacceptable, replace it with a custom
+visible indicator, and use `:focus-visible` so the indicator appears for keyboard
+navigation without appearing on mouse clicks.
+
+## CSS Layout and the Cascade
+
+The cascade resolves which declaration wins when several apply. Specificity is computed
+per selector as a tuple of inline styles, ID count, class and attribute and pseudo-class
+count, and element and pseudo-element count, compared left to right. Origin and
+importance sit above specificity, with author `!important` beating author normal, and
+source order breaks ties among equally specific rules. The practical guidance follows:
+keep specificity low and flat so that later rules can override earlier ones without
+escalation, because specificity wars end with `!important` everywhere and a stylesheet
+nobody can safely modify.
+
+Flexbox lays out content along a single axis and is the right tool for components — a
+navigation bar, a row of cards, a form field with a label and an input. The mental model
+that resolves most confusion is that flexbox has a main axis, set by flex-direction, and
+a cross axis perpendicular to it; `justify-content` distributes along the main axis and
+`align-items` along the cross axis, and these swap meaning when the direction changes
+from row to column.
+
+Grid lays out in two dimensions simultaneously and is the right tool for page-level
+structure and for any layout where rows and columns must align. Its distinguishing
+capability is that the layout is defined on the container rather than on the children, so
+items can be placed into named areas and rearranged without touching their markup — which
+makes responsive rearrangement far cleaner than the nested-flexbox alternative.
+
+Layout reference:
+  flexbox                one-dimensional; components, alignment, distribution
+  grid                   two-dimensional; page structure, aligned rows and columns
+  flex: 1                shorthand for grow 1, shrink 1, basis 0%; equal division
+  gap                    spacing between items; works in both flex and grid
+  minmax()               grid track sizing with a floor and ceiling
+  auto-fit / auto-fill   responsive column counts without media queries
+  clamp(min, pref, max)  fluid typography and spacing without breakpoints
+  aspect-ratio           reserves space, preventing layout shift on media
+  container queries      style based on the container's size rather than the
+                         viewport; what component-based design actually needed
+  logical properties     inline-start/block-end rather than left/top; correct
+                         under right-to-left and vertical writing modes
+  cascade layers         @layer; explicit ordering that removes specificity wars
+
+The box model is the source of persistent confusion resolved by one declaration. By
+default, `width` sets the content box, so padding and border add to the rendered size,
+making a 300-pixel-wide element with 20 pixels of padding actually 340 pixels wide.
+Setting `box-sizing: border-box` makes `width` include padding and border, which is what
+essentially everyone expects, and applying it universally in a reset is standard practice.
+
+Margin collapsing is the second recurring surprise: adjacent vertical margins collapse to
+the larger of the two rather than summing, and a parent's margin can collapse with its
+first or last child's, causing the parent to appear to move. It does not occur in flex or
+grid containers, or across a border, padding, or any content between them, which is why
+the behaviour seems to appear and disappear unpredictably. Modern layouts using flex and
+grid encounter it much less often.
+
+[user] My page has a Cumulative Layout Shift of 0.34 and I can't find what's moving.
+[assistant] tool_call web.cls_analysis({"url": "example", "cls": 0.34,
+"viewport": [1280, 800]})
+[tool] {"shifts": [{"element": "img.hero", "score": 0.19, "cause":
+"no_dimensions"}, {"element": "div.ad-slot", "score": 0.09, "cause":
+"late_injection_no_reserved_space"}, {"element": "body", "score": 0.06, "cause":
+"font_swap_metric_mismatch"}], "largest_shift_time_ms": 1840}
+[assistant] Three contributors, and the first two account for 82% of the score.
+
+The hero image has no width and height attributes, so the browser cannot reserve space
+before it loads and everything below jumps down when it arrives. Fix: set the intrinsic
+`width` and `height` attributes on the img element — not CSS dimensions, the HTML
+attributes — and the browser computes an aspect ratio and reserves the correct space
+immediately. Keep your CSS `width: 100%; height: auto` for responsiveness; the attributes
+and the CSS work together. This is the single highest-value fix and it is two attributes.
+
+The ad slot is injected after load with no reserved space. Reserve it in CSS with a fixed
+`min-height` matching the ad's dimensions, or `aspect-ratio` if the size is known. If the
+ad size is variable, reserve the largest expected size — an empty region is far better for
+the metric and for the reader than content that jumps.
+
+The font swap is subtler. Your web font has different metrics from the fallback, so text
+reflows when it loads. Two fixes: use `font-display: optional` so the browser skips the
+swap if the font is not ready quickly, or — better — use the `size-adjust`,
+`ascent-override`, and `descent-override` descriptors on an `@font-face` rule for the
+fallback so its metrics match the web font and the swap causes no reflow at all.
+
+Fixing the first two alone should bring you from 0.34 to about 0.06, comfortably under
+the 0.1 threshold. Verify with field data rather than lab data — CLS in particular varies
+a lot with real network conditions and with where users actually scroll.
+
+## JavaScript Runtime and Asynchrony
+
+JavaScript executes on a single thread with an event loop. Synchronous code runs to
+completion; asynchronous callbacks wait in queues and run when the stack empties. There
+are two queues with different priorities: the microtask queue, holding promise
+continuations and queueMicrotask callbacks, is drained completely after each task and
+between each callback; the macrotask queue, holding timers, I/O callbacks, and events,
+yields one task per loop iteration. This is why a promise resolved immediately runs
+before a setTimeout with zero delay, and why an infinite chain of microtasks starves the
+page entirely while an infinite chain of timers does not.
+
+The single-threaded model means any long synchronous computation blocks rendering, input
+handling, and everything else. A task exceeding roughly 50 milliseconds is perceptible as
+jank, and one exceeding a few hundred makes the page feel broken. The remedies are to
+break the work into chunks yielding to the event loop between them, to move it to a Web
+Worker which runs on a separate thread with message-passing communication, or to move it
+off the client entirely.
+
+Closures are the feature that most rewards precise understanding. A function retains
+access to the variables of the scope in which it was defined, for as long as the function
+exists. This is what makes callbacks, module patterns, and function factories work, and
+it is also how memory leaks happen in long-lived applications: a closure holding a
+reference to a large object keeps that object alive indefinitely, and an event listener
+never removed keeps its closure and everything it captured. Detached DOM nodes still
+referenced by a closure are the classic leak signature in a heap snapshot.
+
+JavaScript concepts that matter in practice:
+  event loop           call stack, microtasks drained fully, then one macrotask
+  promise              a value available now, later, or never; always returns a
+                       promise from .then, enabling chaining
+  async/await          syntactic sugar over promises; await yields to the event
+                       loop, it does not block the thread
+  Promise.all          fails fast on first rejection
+  Promise.allSettled   waits for all, reports each outcome; usually what is wanted
+  this binding         determined by call site for regular functions, lexically
+                       for arrow functions
+  prototype chain      property lookup walks up until found or null
+  equality             === compares without coercion; == has surprising rules
+  const                binds the reference, not the value; objects remain mutable
+  optional chaining    ?. and ?? for safe access and nullish defaults
+  structured cloning   structuredClone() for deep copies including cycles
+
+Error handling in asynchronous code is where correctness most often slips. An error
+thrown inside a promise chain without a catch produces an unhandled rejection, which in
+Node terminates the process by default and in browsers logs silently. An error thrown
+inside a setTimeout callback cannot be caught by a try/catch surrounding the setTimeout
+call, because the callback runs later on a different stack. And `await` inside a loop
+serializes operations that could have run concurrently — the fix being to build an array
+of promises and await Promise.all, though only when the operations are genuinely
+independent and the target can tolerate the concurrency.
+
+## State, Rendering, and Frameworks
+
+Modern frameworks share a core idea: the interface is a function of state, and the
+framework's job is to keep the rendered output synchronized with the state as it changes.
+This is a substantial improvement over imperative DOM manipulation because it removes the
+class of bug where the DOM and the application's model disagree — there is only one
+source of truth and the view is derived.
+
+The implementations differ in how they detect and apply changes. Virtual DOM approaches
+re-run the component function, produce a lightweight tree, diff it against the previous
+one, and apply the minimal set of DOM operations. Fine-grained reactivity tracks
+dependencies at the level of individual values, so changing one value updates exactly the
+DOM nodes that depend on it with no diffing at all. Compiled approaches analyze the
+component at build time and generate direct update code. Each trades runtime overhead
+against bundle size and mental model complexity, and for most applications the
+differences are smaller than the differences in ecosystem and team familiarity.
+
+State management is the perennial architectural question, and the useful discipline is to
+categorize state before choosing a tool. Server state — data fetched from an API — has
+caching, revalidation, and staleness concerns that general-purpose state containers
+handle badly, and dedicated data-fetching libraries handle well. URL state — filters,
+pagination, selected tab — belongs in the address bar so that pages are shareable and the
+back button works. Form state has its own libraries. Ephemeral UI state — is this dropdown
+open — belongs local to the component. What remains for a global store is usually far
+less than teams expect, and the common failure is putting server data into a global store
+and then hand-implementing caching and invalidation badly.
+
+State categorization:
+  server state     fetched, cached, revalidated; use a data-fetching library
+  URL state        filters, pagination, tabs; shareable and back-button correct
+  form state       inputs, validation, submission; use a form library
+  local UI state   open/closed, hover, focus; component-local
+  global UI state  theme, sidebar, auth session; small, a context or store
+  derived state    computed from other state; never stored, always computed
+  the rule         store the minimum; derive everything else
+
+Derived state stored rather than computed is the single most common source of
+inconsistency bugs. If a component stores both a list of items and its count, the two can
+disagree; if it stores the list and computes the count on render, they cannot. The same
+applies to filtered lists, totals, validity flags, and formatted values. The instinct to
+memoize should follow a measurement, not precede it — most derived computations are far
+cheaper than the bookkeeping required to cache them correctly.
+
+## Performance and Tooling
+
+Frontend performance is measured by what the user experiences, which is why the Core Web
+Vitals are defined the way they are. Largest Contentful Paint measures loading — when the
+biggest above-the-fold element renders — with a good threshold at 2.5 seconds.
+Interaction to Next Paint measures responsiveness — the latency from an interaction to
+the visual response — with a good threshold at 200 milliseconds. Cumulative Layout Shift
+measures visual stability, with a good threshold at 0.1. Each corresponds to a distinct
+user complaint: it is slow, it does not respond, it moves around while I read.
+
+JavaScript is usually the dominant cost, and the cost is not only download but parse,
+compile, and execute — the last of which is far more expensive per byte than images and
+occurs on the main thread. The levers are code splitting so that a route loads only what
+it needs, tree shaking so unused exports are eliminated, lazy loading below-the-fold
+components, and honest auditing of dependencies. A date formatting library that adds 70
+kilobytes to serve one format string is a real and common finding, and the platform's own
+Intl API replaces most of that use.
+
+Images typically dominate transferred bytes, and the fixes are well established: serve
+modern formats with fallbacks, size images to the layout rather than shipping originals,
+use responsive srcset so small screens receive small files, lazy-load anything below the
+fold, and always set dimensions to prevent layout shift. A single unoptimized hero
+photograph frequently outweighs the entire JavaScript bundle.
+
+Performance levers by typical impact:
+  reduce JavaScript      code split, tree shake, audit dependencies, lazy load
+  optimize images        modern formats, correct sizing, responsive srcset,
+                         lazy loading, explicit dimensions
+  eliminate blocking     defer scripts, inline critical CSS, preload key resources
+  cache aggressively     immutable hashed filenames with long max-age; a service
+                         worker for offline and repeat visits
+  reduce main-thread     break long tasks, use Web Workers, avoid layout thrash
+  server-side render     content visible before JavaScript loads; streaming SSR
+                         improves time to first byte further
+  measure in the field   lab metrics on a fast machine systematically understate
+                         real user experience; use real user monitoring
+
+The tooling layer has consolidated around a few patterns worth knowing. A bundler
+resolves the module graph and produces optimized output, with the current generation using
+native-speed languages and native ES modules in development for near-instant startup. A
+transpiler converts modern syntax for older targets, and the browserslist configuration
+should reflect actual user data rather than a defensive guess, since targeting obsolete
+browsers imposes a size penalty on everyone. Type checking catches a substantial class of
+errors before runtime and pays for itself in any codebase with more than one contributor.
+And the test pyramid applies as elsewhere: many fast unit tests over pure logic, fewer
+integration tests over component behaviour, and a small number of end-to-end tests over
+critical user journeys, with the middle layer testing what the user does rather than what
+the implementation is — queries by accessible role and label rather than by CSS class,
+which has the useful side effect of failing when the interface becomes inaccessible.

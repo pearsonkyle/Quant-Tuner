@@ -1,0 +1,236 @@
+================================================================================
+AREA: Generative and Creative Technology
+SUBJECT: Photography and Computational Imaging
+Subtopics: exposure and optics, sensors and noise, colour and raw processing,
+composition and light, computational photography, video, workflow and archiving.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Exposure, Optics, and the Triangle
+
+A photograph is a measurement of light integrated over time onto a sensor, and three parameters
+determine how much light arrives and what the image looks like. Aperture is the opening's diameter
+relative to focal length; shutter speed is the integration time; sensitivity is the gain applied to
+the sensor's output. Each also has a side effect independent of brightness, and those side effects
+are the reason the choice among equivalent exposures is a creative decision rather than an
+arithmetic one.
+
+Aperture controls depth of field, the range of distances rendered acceptably sharp. A wide aperture
+gives a shallow depth of field that isolates a subject from its background; a narrow one extends the
+range in focus and, past a point, begins to soften the whole image through diffraction. The
+diffraction limit is a physical bound rather than a lens defect, and on small sensors it becomes
+significant at apertures that would be unremarkable on large ones.
+
+Shutter speed controls motion rendering. Fast shutters freeze motion, slow ones accumulate it into
+blur, and the choice communicates something about the subject that no other parameter can. The
+reciprocal rule of thumb for handholding — shutter speed at least the reciprocal of the focal length
+— is a rough guide that stabilization has substantially relaxed for camera motion while leaving
+subject motion entirely unaffected, a distinction that catches people out constantly.
+
+Exposure and optics:
+  aperture             opening relative to focal length; controls depth of field
+  f-number             the ratio; smaller number means wider opening
+  depth of field       the acceptably sharp range; narrows with wider apertures,
+                       longer focal lengths, and closer subjects
+  diffraction          softening at narrow apertures; a physical limit
+  the sensor size interaction  small sensors hit diffraction at wider apertures
+  shutter speed        integration time; controls motion rendering
+  motion blur          subject motion; not addressed by stabilization
+  camera shake         addressed by stabilization
+  sensitivity          gain; increases noise rather than collecting more light
+  the equivalent exposures  many combinations give the same brightness with
+                       different rendering
+  focal length         angle of view and perspective compression
+  perspective          determined by camera position, not focal length; the
+                       compression effect is a consequence of standing further
+                       back
+  the common misconception  a long lens does not compress perspective by itself;
+                       the distance it lets you shoot from does
+
+Q: Two photographs of the same scene are taken at f/2.8 with 1/500 s and at f/8 with 1/60 s, both
+at the same sensitivity. They will differ in:
+A. Brightness
+B. Depth of field and motion rendering; the total light is the same, so overall brightness matches,
+   but the wide aperture gives shallower focus and the fast shutter freezes motion the slow one
+   would blur
+C. Colour balance
+D. Nothing
+Reasoning: Three stops wider aperture and three stops faster shutter cancel for exposure. What does
+not cancel is the side effects: depth of field from aperture and motion rendering from shutter
+time. Choosing between equivalent exposures is choosing between these. Answer: B.
+
+## Sensors, Noise, and Dynamic Range
+
+A digital sensor counts photons in wells, and the fundamental noise source is that photon arrival is
+a Poisson process — the count fluctuates with a standard deviation equal to the square root of the
+mean, regardless of how good the sensor is. This shot noise dominates in all but the darkest parts
+of an image, and it is why the signal-to-noise ratio improves with the square root of exposure and
+why there is no way to photograph in dim light without either more time, a wider aperture, or a
+larger sensor.
+
+Raising sensitivity does not collect more light. It amplifies the signal already collected, along
+with its noise, and the reason high-sensitivity images look noisy is that they were made from few
+photons, not that the amplification added noise. This distinction has a practical consequence:
+underexposing and brightening in processing is, on many modern sensors, nearly equivalent to
+raising sensitivity in camera, and the choice depends on where the remaining read noise sits in the
+chain.
+
+Dynamic range is the ratio between the largest signal a sensor can record without clipping and the
+noise floor. It determines how much of a high-contrast scene can be captured in one exposure, and
+it is the parameter that most distinguishes raw capture from processed output — a raw file
+routinely holds several stops of highlight and shadow information that a rendered image has
+discarded. Exposing to preserve highlights and recovering shadows in processing exploits this,
+because clipped highlights are unrecoverable while shadows contain noisy but real data.
+
+Sensors and noise:
+  photon counting      the sensor measures arrivals in wells
+  shot noise           Poisson; standard deviation is the square root of the count
+  the fundamental limit  no sensor design removes it
+  signal-to-noise      improves as the square root of exposure
+  read noise           added by the electronics; matters most in deep shadows
+  sensitivity is gain  it amplifies, it does not collect
+  the practical equivalence  underexpose and lift, or raise gain; similar on
+                       modern sensors
+  dynamic range        clipping level over noise floor
+  clipped highlights   unrecoverable; no information remains
+  lifted shadows       noisy but real; recoverable within limits
+  expose to the right  maximize signal without clipping
+  sensor size          larger area collects more photons for the same scene
+                       brightness; the main reason larger sensors perform better
+                       in low light
+  colour filter array  a mosaic of colour filters; each site records one channel
+  demosaicing          reconstructing full colour from the mosaic; the source of
+                       several characteristic artifacts
+  aliasing and moiré   fine repeating detail beating against the sensor grid
+
+## Colour, Raw Processing, and Rendering
+
+A raw file is sensor data, not an image. It holds per-site values in the sensor's native response
+with no white balance applied, no tone curve, no colour transformation, and no sharpening. Turning
+it into a viewable image is a chain of decisions, and understanding that the chain is a set of
+choices rather than a recovery of truth is what separates deliberate processing from guesswork.
+
+White balance is the first decision, and it exists because human vision adapts to the colour of the
+illumination while a sensor does not. Setting it correctly means choosing what should be neutral,
+which is a judgement about the scene rather than a measurement, and the correct answer is
+frequently not neutral — the warmth of late light is a property of the scene that a technically
+correct white balance removes.
+
+Tone mapping compresses the captured dynamic range into the display's much smaller range, and every
+image has undergone it whether or not the photographer chose the curve. The tradeoffs are between
+global contrast, which makes the image feel punchy, and local contrast, which preserves detail in
+shadows and highlights. Excessive local contrast produces the characteristic over-processed look —
+halos at edges and a flat, ungraded feel — because it has removed the global luminance relationships
+that communicate the light in the scene.
+
+Colour and processing:
+  raw is data          not an image; it requires a rendering chain
+  the chain            white balance, demosaic, colour transform, tone curve,
+                       sharpen, output transform
+  white balance        choosing what is neutral; a judgement, not a measurement
+  colour temperature   the illuminant's spectrum described by a blackbody
+                       equivalent
+  tint                 the perpendicular axis; needed for non-blackbody sources
+  colour space         the set of representable colours; sRGB is small, wider
+                       spaces hold more and require managed workflows
+  gamut mapping        what happens to colours outside the destination space
+  colour profile       the interpretation of the numbers; an untagged file is
+                       ambiguous
+  tone mapping         compressing captured range into display range
+  global contrast      the overall curve; communicates the light in the scene
+  local contrast       preserves detail; excessive amounts read as over-processed
+  halos                the visible artifact of aggressive local contrast
+  sharpening           edge contrast enhancement; capture, creative, and output
+                       stages have different purposes
+  noise reduction      trades detail for smoothness; the tradeoff is unavoidable
+                       and applying it last is usually wrong
+  the general principle  every step discards information, so order the chain to
+                       make the destructive steps last
+
+## Composition, Light, and Seeing
+
+Technical control produces a correct photograph; composition and light produce a good one. Light is
+the more important of the two and the less taught. Its qualities are direction, which creates form
+through shadow; hardness, which is set by the apparent size of the source and determines how
+abruptly shadows transition; colour, which sets mood and depends on the source; and intensity ratio
+between key and fill, which sets contrast.
+
+The single most useful practical fact about light is that softness depends on the source's size
+relative to the subject, not on its absolute size or its distance alone. A window is a soft source
+for a face nearby and a hard one for a landscape. Moving a subject closer to a source makes the
+light softer, which is counterintuitive until the geometry is clear, and it is the lever that most
+improves portrait lighting with no equipment at all.
+
+Composition organizes the frame so the viewer's attention goes where intended. The conventional
+guidelines — placing subjects off centre, using leading lines, framing with foreground elements,
+balancing visual weight — are descriptions of what tends to work rather than rules, and they are
+most useful as diagnostics for an image that is not working. The more fundamental skills are
+noticing what is in the frame that should not be, and understanding that what is excluded shapes the
+image as much as what is included.
+
+Light and composition:
+  direction            creates form through shadow
+  hardness             set by apparent source size; the key practical variable
+  the softness lever   move the subject closer to the source
+  colour of light      mood; and it mixes badly when sources differ
+  contrast ratio       key to fill; sets how dramatic the rendering is
+  golden hour          low sun, warm and directional, long shadows
+  blue hour            after sunset, soft and cool, low contrast
+  overcast             a very large soft source; flattering and flat
+  backlighting         separation and rim light; requires exposure judgement
+  the frame edges      what is excluded shapes the image
+  negative space       emptiness as a compositional element
+  visual weight        what draws the eye; brightness, contrast, faces, sharpness
+  leading lines        directing attention through the frame
+  layering             foreground, subject, background as depth
+  the diagnostic use   guidelines are most useful for fixing an image that is not
+                       working, not for constructing one
+  simplification       the most reliable improvement to most photographs is
+                       removing something
+
+## Computational Photography and Workflow
+
+Computational photography produces images that no single exposure could, by combining multiple
+captures or by using models of the scene. Exposure bracketing and merging extends dynamic range
+beyond the sensor's. Burst capture and alignment reduces noise by averaging, which is why phone
+cameras with tiny sensors produce usable low-light images. Focus stacking extends depth of field
+beyond the diffraction limit by combining exposures focused at different distances.
+
+Depth estimation, whether from multiple cameras, phase-detection sites, or a learned model,
+enables synthetic aperture effects — the background blur that a small sensor cannot produce
+optically. The characteristic failure is at the boundaries of the depth estimate, where hair, glass,
+and fine structures are misclassified, and recognizing these artifacts is how synthetic depth is
+distinguished from optical.
+
+Workflow and archiving are the least glamorous and most consequential part of the practice. Files
+accumulate faster than any manual organization scheme survives, and the strategies that work are
+the ones requiring no discipline: capture-time metadata, a consistent folder structure derived from
+the date, and a rating pass done immediately rather than eventually. Backup follows the standard
+rule of multiple copies on multiple media with one off-site, and the specific failure that destroys
+archives is a single copy on a single drive that is discovered to be corrupt only when it is needed.
+
+Computational photography and workflow:
+  exposure bracketing  multiple exposures merged for extended range
+  burst averaging      noise reduced by combining aligned frames; the basis of
+                       small-sensor low-light performance
+  alignment            required before combining; motion is the difficulty
+  focus stacking       extended depth of field beyond the diffraction limit
+  panorama stitching   extended field of view; projection choice matters
+  depth estimation     from stereo, phase detection, or a learned model
+  synthetic aperture   background blur computed rather than optical
+  the boundary artifact  hair, glass, and fine structure at depth
+                       discontinuities
+  semantic processing  region-aware adjustment; skies, skin, foliage treated
+                       differently
+  the aesthetic question  computational processing has a house style, and
+                       recognizing it is part of evaluating an image
+  raw plus processed   keep the raw; the rendering can be redone, the capture
+                       cannot
+  metadata             capture settings, location, and keywords; the only
+                       organization that scales
+  the rating pass      done immediately; deferred culling never happens
+  backup rule          multiple copies, multiple media, one off-site
+  verification         a backup that has never been restored from is a hypothesis
+                       rather than a backup, and the archive failure that matters
+                       is always the one discovered too late

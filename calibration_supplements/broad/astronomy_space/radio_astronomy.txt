@@ -1,0 +1,295 @@
+================================================================================
+AREA: Astronomy and Space
+SUBJECT: Radio Astronomy
+Subtopics: the radio sky, single dish observing, interferometry and aperture synthesis,
+receivers and calibration, spectral line work, pulsars and transients, interference,
+major facilities.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## The Radio Sky
+
+Radio astronomy observes wavelengths from roughly a millimetre to tens of metres, and the reason
+this window exists is that the atmosphere is transparent across it while being opaque to most of
+the spectrum. The window is bounded below by molecular absorption, particularly water vapour,
+which is why millimetre observatories are placed on high dry sites, and above by the ionosphere
+reflecting frequencies below its plasma frequency.
+
+What radiates at radio wavelengths differs fundamentally from what radiates optically, which is
+why the radio sky looks nothing like the optical one. Thermal emission from stars is negligible at
+these wavelengths because the blackbody spectrum falls steeply, so the bright radio sources are
+non-thermal: synchrotron emission from relativistic electrons in magnetic fields, which produces
+the power-law spectra characteristic of supernova remnants, radio galaxies, and the galactic
+plane. The sky's brightest radio sources are largely invisible optically and vice versa.
+
+Spectral lines provide a second and equally important category. The twenty-one centimetre line of
+neutral hydrogen arises from a hyperfine transition — a spin flip — which is enormously forbidden
+and therefore extremely weak per atom, and hydrogen is abundant enough that it is nonetheless the
+most important line in astronomy. It traces neutral gas throughout galaxies, its Doppler shift
+gives velocity, and it penetrates dust that blocks optical observation entirely, which is how the
+Milky Way's spiral structure was mapped.
+
+The radio sky and emission mechanisms:
+  atmospheric window   ~1 mm to tens of metres; bounded by molecular absorption
+                       below and the ionosphere above
+  synchrotron          relativistic electrons in magnetic fields; power law,
+                       polarized; the dominant continuum mechanism
+  free-free            thermal bremsstrahlung in ionized gas; HII regions
+  thermal dust         rises steeply at millimetre wavelengths; cold dust in star
+                       forming regions
+  cosmic microwave background  the relic radiation; a 2.725 K blackbody
+  21 cm line           neutral hydrogen hyperfine transition; extremely weak per
+                       atom and dominant because hydrogen is abundant
+  molecular lines      CO as the standard tracer of molecular gas, since molecular
+                       hydrogen itself is nearly unobservable
+  masers               naturally occurring coherent amplification; extremely
+                       bright and compact, and used as distance and dynamical
+                       probes
+  recombination lines  transitions between very high atomic levels; radio
+                       frequencies
+  dust penetration     radio passes through dust that blocks optical entirely;
+                       this is how the galactic centre and the spiral structure
+                       are studied
+  brightness temperature  the temperature of a blackbody producing the observed
+                       intensity; the conventional unit, and it can exceed any
+                       physical temperature for non-thermal emission
+
+Q: The 21 cm hydrogen line arises from an extremely forbidden transition with a spontaneous decay
+timescale of millions of years. It is nonetheless the most important line in radio astronomy
+because:
+A. The transition is actually common
+B. Hydrogen is so abundant that even an extraordinarily low per-atom rate produces a detectable
+   signal from the enormous number of atoms
+C. It is amplified by masing
+D. It is at a convenient frequency
+Reasoning: A single atom would take of order ten million years to make the transition, and a
+column of interstellar gas contains a vast number of atoms, so the aggregate emission is readily
+detectable. This is a general pattern in astrophysics: forbidden transitions are observable
+precisely because the low densities prevent collisional de-excitation and the path lengths are
+enormous. Answer: B.
+
+## Single Dish Observing and Sensitivity
+
+A radio telescope's angular resolution is set by diffraction, at approximately the wavelength
+divided by the aperture diameter, and because radio wavelengths are a million times longer than
+optical ones, a radio dish achieves resolution a million times worse than an optical telescope of
+the same size. A hundred-metre dish at twenty-one centimetres resolves about seven arcminutes,
+which is worse than the unaided human eye achieves optically. This is the central problem radio
+astronomy had to solve.
+
+Sensitivity, by contrast, is excellent and is governed by the radiometer equation. The noise in a
+measurement falls as the square root of the product of bandwidth and integration time, so a weak
+source is detected by observing longer and over a wider band. The system temperature, combining
+the receiver's noise with contributions from the sky, the ground, and the atmosphere, sets the
+starting point, and reducing it through cryogenic cooling of the front end is the single most
+valuable investment in a receiver.
+
+Antenna properties connect what arrives to what is measured. The effective area is the physical
+area times an efficiency accounting for illumination taper, surface accuracy, and blockage. The
+beam pattern has a main lobe whose width gives the resolution and sidelobes that admit radiation
+from other directions — including from the ground, which is warm and bright, so sidelobe
+suppression matters more than it would if the surroundings were cold.
+
+Single dish observing:
+  resolution           ~ wavelength over diameter; poor at radio wavelengths
+  radiometer equation  noise falls as one over the square root of bandwidth times
+                       time
+  system temperature   receiver plus sky plus ground plus atmosphere
+  cryogenic cooling    reduces receiver noise substantially; the highest-value
+                       receiver investment
+  effective area       physical area times efficiency
+  aperture efficiency  illumination, surface accuracy, blockage
+  surface accuracy     errors must be small compared to the wavelength; this is
+                       what limits a dish's usable frequency
+  beam pattern         main lobe plus sidelobes; sidelobes admit ground radiation
+  spillover            the feed seeing past the dish edge to the warm ground
+  pointing accuracy    a fraction of the beam width; harder at shorter wavelengths
+  gravitational deformation  a large dish deforms as it tilts; homologous designs
+                       deform into another paraboloid rather than losing focus
+  on-off switching     alternate between source and blank sky to remove the
+                       system's own contribution
+  focal plane arrays   several feeds mapping simultaneously; multiplies survey
+                       speed
+
+The surface accuracy requirement deserves emphasis because it determines a dish's frequency
+range. Reflector errors must be a small fraction of the wavelength — conventionally under a
+sixteenth — for the reflected wavefronts to add coherently, so a dish with a surface accurate to
+half a millimetre works to about a centimetre wavelength and no shorter. This is why millimetre
+telescopes are smaller than centimetre ones, why they are enclosed or placed at high altitude
+where thermal deformation is manageable, and why active surface control with hundreds of
+actuators is used on the largest millimetre dishes.
+
+## Interferometry and Aperture Synthesis
+
+Interferometry solves the resolution problem by combining signals from separated antennas. Two
+antennas separated by a baseline produce interference fringes whose pattern encodes information
+about the source at an angular scale set by the wavelength divided by the baseline length —
+so the resolution is determined by the separation rather than by the individual antenna size. A
+kilometre baseline achieves the resolution of a kilometre aperture.
+
+Each baseline measures a single Fourier component of the sky brightness distribution, and this
+correspondence is the theoretical foundation. The van Cittert-Zernike theorem establishes that the
+correlated signal between two antennas — the visibility — is the Fourier transform of the sky
+brightness at a spatial frequency set by the baseline. Measuring many baselines samples many
+Fourier components, and inverse transforming gives the image.
+
+Aperture synthesis exploits Earth's rotation to multiply the sampling. As the Earth turns, the
+projected baseline between a fixed pair of antennas changes orientation and length relative to the
+source, so one pair traces an arc through the Fourier plane over hours. An array of n antennas
+provides n times n minus one over two baselines simultaneously, each tracing its own arc, and the
+accumulated coverage after a full track approximates that of a filled aperture.
+
+Interferometry:
+  baseline             the separation between two antennas; sets the resolution
+  visibility           the correlated signal; a Fourier component of the sky
+  van Cittert-Zernike  visibility is the Fourier transform of the brightness
+                       distribution
+  uv plane             the spatial frequency plane sampled by the baselines
+  aperture synthesis   Earth rotation sweeps the baselines through the uv plane
+  n(n-1)/2 baselines   from n antennas simultaneously
+  short baselines      large angular scales; their absence means extended emission
+                       is not recovered
+  zero spacing problem  an interferometer cannot measure the total flux, since no
+                       baseline is zero; combining with single dish data fills it
+  long baselines       fine detail
+  configuration        compact for sensitivity to extended structure, extended for
+                       resolution
+  dirty image          the transform of incompletely sampled visibilities;
+                       convolved with the array's point spread function
+  CLEAN                iterative deconvolution assuming the sky is a collection of
+                       point sources; the standard algorithm
+  self-calibration     use the source itself to solve for antenna phase errors;
+                       transformed the achievable dynamic range
+  VLBI                 baselines across continents; microarcsecond resolution,
+                       with signals recorded and correlated afterward
+
+Self-calibration deserves particular emphasis because it changed what interferometry could
+achieve. Atmospheric fluctuations introduce phase errors that vary per antenna and per moment, and
+correcting them from an external calibrator is limited by how quickly the atmosphere changes and
+how far the calibrator is. Self-calibration uses the target itself, exploiting the fact that the
+number of unknown antenna phases is far smaller than the number of baselines, so the system is
+overdetermined and both the image and the phase errors can be solved for iteratively. The dynamic
+range achievable improved by orders of magnitude, and it is why modern radio images can show faint
+structure adjacent to bright sources.
+
+The zero spacing problem is worth understanding because it produces a characteristic artifact. No
+baseline is shorter than the physical separation of two antennas, so the largest angular scales
+are never measured, and smooth extended emission is therefore missing from the image. An
+interferometer image of an extended source shows its structure while systematically
+underrepresenting its total flux, sometimes producing negative regions around it. Combining
+interferometer data with single dish observations, which measure exactly the missing large scales,
+is the standard remedy.
+
+## Receivers, Calibration, and Interference
+
+A radio receiver amplifies an extraordinarily weak signal without adding much noise of its own,
+and the first amplifier dominates the whole chain's noise performance by the Friis relation.
+This is why the low-noise amplifier is cryogenically cooled to a few tens of kelvin or below, and
+why any loss ahead of it — a lossy cable, a poorly matched connection, a warm component — degrades
+the sensitivity directly and cannot be recovered afterward.
+
+The heterodyne architecture mixes the received signal with a local oscillator to shift it to a
+lower intermediate frequency where amplification, filtering, and digitization are easier. Direct
+sampling at the observing frequency is increasingly practical at lower frequencies as digitizers
+improve, and it eliminates a source of instability and spurious signals.
+
+Calibration converts the measured quantity into astronomical units and removes instrumental
+effects. Amplitude calibration typically injects a stable noise source of known temperature and
+references the measurement to it. Bandpass calibration removes the frequency-dependent response.
+Phase calibration for interferometers observes a nearby unresolved source periodically to track
+atmospheric and instrumental phase drift. Polarization calibration removes the instrument's own
+polarization response, which is essential since the astronomical signals of interest are
+frequently only a few percent polarized.
+
+Receivers, calibration, and interference:
+  Friis noise relation  the first stage dominates; losses before it are
+                       unrecoverable
+  cryogenic front end  a few tens of kelvin or below
+  heterodyne           mix to a lower intermediate frequency
+  direct sampling      digitize at the observing frequency; increasingly practical
+  noise diode          a stable injected reference for amplitude calibration
+  bandpass calibration  removes the frequency-dependent response
+  phase calibration    periodic observation of a nearby unresolved source
+  polarization calibration  removes the instrument's own response; essential for
+                       signals a few percent polarized
+  flux scale           tied to a small number of stable primary calibrators
+  radio frequency interference  transmitters, radar, satellites, and unintentional
+                       emitters; the field's dominant practical problem
+  RFI mitigation       flagging affected data, excision in time and frequency,
+                       spatial nulling, and shielding
+  radio quiet zones    legal protection around major observatories
+  protected bands      allocated to radio astronomy; increasingly encroached upon
+  satellite constellations  a growing and largely unmitigated problem, since the
+                       transmitters are above the telescopes and cannot be
+                       shielded against
+
+Radio frequency interference deserves the practical emphasis because it has become the field's
+limiting factor at many frequencies. A radio telescope is designed to detect signals many orders
+of magnitude below what any communications receiver handles, so a transmitter that is negligible
+by any other standard saturates it completely. The mitigations — flagging, excision, and spatial
+nulling — discard data and work only when the interference is intermittent or localized. Satellite
+constellations present a qualitatively harder problem because the sources are above the telescope,
+so terrestrial shielding and geographic isolation provide no protection, and the affected
+frequencies include bands allocated to radio astronomy.
+
+## Pulsars, Transients, and Facilities
+
+Pulsars are rotating neutron stars whose beamed emission sweeps across the line of sight,
+producing pulses of extraordinary regularity. Millisecond pulsars, spun up by accretion from a
+companion, rival atomic clocks in long-term stability, and this makes them precision instruments
+rather than merely interesting objects.
+
+Pulsar timing exploits that stability. Measuring pulse arrival times over years, and fitting a
+model accounting for the pulsar's rotation, its motion, the Earth's motion, and the propagation
+through the interstellar medium, achieves precision at which small effects become measurable. The
+orbital decay of a binary pulsar was the first evidence for gravitational waves, matching general
+relativity's prediction to better than a part in a thousand. And a pulsar timing array — many
+pulsars monitored simultaneously — is sensitive to nanohertz gravitational waves through the
+correlated timing residuals they induce, which is a detection technique using the galaxy as the
+instrument.
+
+Dispersion is the propagation effect that both complicates and informs. The interstellar medium is
+an ionized plasma whose refractive index depends on frequency, so lower frequencies arrive later.
+The delay is proportional to the integrated electron density along the path, so measuring it gives
+the dispersion measure — which serves as a distance estimate and, for fast radio bursts,
+established that they originate far outside the galaxy.
+
+Pulsars, transients, and facilities:
+  pulsar               a rotating beamed neutron star; extraordinary regularity
+  millisecond pulsar   spun up by accretion; rivals atomic clocks
+  pulsar timing        arrival times over years; precision instrument
+  binary pulsar        orbital decay matched gravitational wave emission to
+                       better than a part in a thousand
+  pulsar timing array  nanohertz gravitational waves from correlated residuals
+  dispersion measure   frequency-dependent delay; integrated electron density
+                       along the path
+  scintillation        interstellar turbulence causing intensity variation; the
+                       radio analogue of stellar twinkling
+  Faraday rotation     magnetized plasma rotating the polarization; measures the
+                       magnetic field along the path
+  fast radio burst     millisecond extragalactic transients; some repeat,
+                       magnetars are the leading source class, and the mechanism
+                       is open
+  transient searches   require rapid processing of enormous data rates; the
+                       computational load is the constraint
+  VLA                  a reconfigurable array; the workhorse centimetre instrument
+  ALMA                 millimetre and submillimetre on a high dry site; cold dust
+                       and molecular gas
+  VLBI networks        continental and global baselines; the horizon-scale black
+                       hole images
+  LOFAR and MWA        low frequency arrays; phased dipoles rather than dishes,
+                       with the beam formed computationally
+  SKA                  the next-generation array; the data rate rather than the
+                       collecting area is the defining engineering challenge
+
+The shift to computational beam forming deserves the closing note because it represents a change
+in what a telescope is. A traditional dish points mechanically and observes one direction. A
+phased array of simple fixed dipoles has no moving parts, and the beam is formed by combining the
+digitized signals with appropriate delays — which means the pointing is a computation, several
+beams can be formed simultaneously in different directions, and the whole sky can in principle be
+imaged at once. The instrument's capability becomes a function of the available computing rather
+than of the mechanical structure, and the constraint shifts from steel to data rate and processing
+throughput. For the next generation of arrays the data volume is the defining engineering problem
+rather than the collecting area, which inverts the relationship that held for the field's first
+seventy years.

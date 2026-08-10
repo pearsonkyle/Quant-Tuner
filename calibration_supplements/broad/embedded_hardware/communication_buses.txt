@@ -1,0 +1,335 @@
+================================================================================
+AREA: Embedded Systems and Hardware
+SUBJECT: Communication Buses and Protocols
+Subtopics: bus fundamentals, board-level buses, industrial and automotive buses,
+high-speed serial, wireless protocols, protocol design, debugging.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Bus Fundamentals
+
+A bus carries data between devices, and the design space is organized by a few orthogonal
+choices whose consequences propagate through everything else. Serial transmission sends bits
+sequentially over few conductors; parallel sends several simultaneously over many. Parallel was
+faster historically and lost decisively as speeds rose, because skew between conductors — the
+arrival time differences from unequal trace lengths and unequal propagation — becomes comparable
+to the bit period and cannot be economically controlled. Modern high-speed interconnect is
+serial, with parallelism achieved by multiple independent serial lanes rather than by
+bit-parallel buses.
+
+Synchronous buses transmit a clock alongside the data, so the receiver samples at known instants
+and no clock recovery is needed. This is simple and requires a conductor for the clock and limits
+the length over which the clock and data remain aligned. Asynchronous buses have no shared clock,
+so both ends must agree on the rate in advance and the receiver resynchronizes on each frame's
+start bit, which tolerates length and isolation at the cost of requiring clock accuracy on both
+sides.
+
+The topology determines how devices share the medium. Point-to-point connects exactly two
+devices, which permits the highest speeds because the signal path is controlled and unbranched.
+Multi-drop connects several devices to one shared medium, which is economical in conductors and
+introduces the problems of arbitration, addressing, and signal integrity from the stubs each
+device presents. Daisy chain passes through each device in turn, and a ring returns to the origin.
+
+Bus fundamentals:
+  serial               few conductors, sequential bits; wins at high speed
+  parallel             many conductors; skew limits the achievable rate
+  skew                 arrival time differences between conductors; why parallel
+                       buses stopped scaling
+  synchronous          a transmitted clock; simple, length-limited
+  asynchronous         agreed rate, per-frame resynchronization; tolerates length
+  source synchronous   the clock travels with the data over the same path, so
+                       skew is common to both
+  embedded clock       clock recovered from the data; requires transition density,
+                       which is what line coding guarantees
+  point to point       highest speed; two devices
+  multi-drop           shared medium; needs arbitration and addressing
+  master-slave         one initiator; simple and limits responsiveness
+  multi-master         several initiators; requires arbitration
+  arbitration          who transmits; by priority, by token, or by collision
+                       detection
+  full duplex          simultaneous both directions
+  half duplex          one direction at a time; a shared medium or a shared pair
+  single ended         one conductor referenced to ground; simple, noise-prone
+  differential         two conductors carrying opposite signals; common-mode noise
+                       cancels at the receiver, which is why every long or fast
+                       interface is differential
+
+Differential signalling deserves emphasis because it is the single technique making long or fast
+links practical. Noise coupling into a cable affects both conductors of a pair nearly equally, and
+the receiver responds to the difference between them, so the common-mode noise subtracts out. The
+same mechanism rejects ground potential differences between the two ends, which for a
+single-ended interface would appear directly as signal error. This is why RS-485, CAN, Ethernet,
+USB, and every multi-gigabit interface use differential pairs.
+
+Q: A parallel bus is upgraded from 50 MHz to 400 MHz and becomes unreliable despite adequate
+signal quality on each individual line. The most likely cause is:
+A. Insufficient drive strength
+B. Skew between the conductors is now comparable to the bit period, so bits from one transfer
+   arrive spread across the sampling window
+C. Crosstalk only
+D. Power supply noise
+Reasoning: At 400 MHz the bit period is 2.5 nanoseconds, and trace length differences of even a
+few centimetres produce delays that are a substantial fraction of that. Each line may look clean
+individually while the set does not arrive together. This is why parallel buses stopped scaling
+and why high-speed interfaces use independent serial lanes with per-lane clock recovery.
+Answer: B.
+
+## Board-Level Buses
+
+The three buses connecting components on a board — UART, SPI, and I2C — cover most embedded
+interconnect and differ in ways that determine which suits a given part.
+
+UART is asynchronous point-to-point with no clock, so both ends must be configured to the same
+rate and the receiver resynchronizes on each frame's start bit. The accumulated clock error over a
+frame must stay under about half a bit period, which bounds the tolerable mismatch at roughly two
+percent — which is why a device running from an imprecise internal oscillator communicates
+reliably at low rates and produces garbage at high ones. Its simplicity and the ubiquity of
+serial terminals make it the default debug interface.
+
+SPI is synchronous, full duplex, and fast, using four lines with a separate chip select per
+peripheral. The master provides the clock, so there is no rate agreement problem and tens of
+megahertz is routine. Its configuration trap is clock polarity and phase, which together give four
+modes, and a mismatch produces data that is shifted or sampled at the wrong edge — frequently
+producing plausible but consistently wrong values, which is harder to diagnose than outright
+garbage.
+
+I2C is synchronous, half duplex, and multi-drop, using two open-drain lines with pull-up
+resistors so any device can hold a line low. Addressing is seven bits, each byte is acknowledged,
+and slow devices may stretch the clock by holding it low. The economy of two wires for many
+devices is its advantage; the pull-up sizing, the limited bus capacitance, the address collisions
+between identical parts, and the bus hang when a device is reset mid-transaction are its
+practical costs.
+
+Board-level buses:
+  UART                 2 wires, async, point to point; ~2% clock tolerance
+  UART use             debug console, GPS modules, simple modules; the default
+                       serial interface
+  SPI                  4+ wires, sync, full duplex, tens of MHz, one chip select
+                       per device
+  SPI modes            CPOL and CPHA give four; a mismatch gives plausible wrong
+                       data
+  SPI weakness         no acknowledgement; errors are silent
+  I2C                  2 wires, sync, half duplex, 100k to 1M, 7-bit addressing,
+                       per-byte acknowledgement
+  pull-up sizing       4.7k at 100 kHz, 2.2k at 400 kHz; adjusted for bus
+                       capacitance
+  bus capacitance      under 400 pF total; the sum of every device and trace
+  clock stretching     a slow device holds the clock low; legal and handled poorly
+                       by some masters
+  bus hang             a device reset mid-transaction holds the data line low;
+                       recover by bit-banging up to nine clocks then a stop
+  address collision    identical parts share a fixed address; needs an address pin
+                       or a multiplexer
+  1-Wire               one conductor plus ground, parasitic power; very slow,
+                       sensor niche
+  I3C                  the successor to I2C; higher speed, in-band interrupts,
+                       dynamic addressing
+
+The I2C bus hang deserves specific attention because it is a failure mode with a specific
+recovery and no other. If a peripheral is reset or loses power partway through transmitting a
+byte, it may leave the data line held low waiting to complete, and the master cannot issue a start
+condition because the bus appears busy. No amount of resetting the master fixes it. The recovery
+is to reconfigure the pins as general-purpose outputs and manually clock up to nine pulses,
+allowing the peripheral to finish its byte, then issue a stop condition. Implementing this
+recovery routine costs little and is the difference between a field failure requiring a power
+cycle and one that self-corrects.
+
+## Industrial and Automotive Buses
+
+Industrial and automotive environments impose requirements that board-level buses do not meet:
+long cable runs, high electrical noise, safety-relevant reliability, and operation across
+temperature extremes for decades.
+
+CAN was designed for automotive use and its arbitration mechanism is elegant. The bus is
+differential with a dominant and a recessive state, where dominant overrides recessive, and nodes
+transmit their identifier while monitoring the bus. A node transmitting recessive that reads
+dominant has lost arbitration and stops, so the message with the numerically lowest identifier
+wins without any collision and without retransmission. Arbitration is therefore
+non-destructive and priority is inherent in the identifier.
+
+CAN's other characteristic properties follow from its design goals. It is message-oriented rather
+than address-oriented — a frame carries an identifier describing its content rather than a
+destination, and any node interested receives it, which suits broadcasting sensor values.
+Extensive error detection with automatic retransmission handles the electrical environment. And
+error confinement progressively disconnects a node producing errors, so a faulty node cannot
+disable the bus indefinitely.
+
+RS-485 is a physical layer rather than a protocol, providing differential multi-drop signalling
+over long distances — over a kilometre at low rates — with dozens of nodes. Modbus is the protocol
+most commonly layered on it and is simple, widely supported, and lacks any security. Industrial
+Ethernet variants add determinism to standard Ethernet through scheduling and hardware timestamping,
+which is the direction industrial networking has moved.
+
+Industrial and automotive:
+  CAN                  differential, multi-master, message oriented, 1 Mbit
+                       classic and higher with CAN FD
+  dominant and recessive  dominant overrides; the basis of arbitration
+  non-destructive arbitration  the lowest identifier wins without collision
+  message oriented     identifiers describe content, not destination
+  error confinement    a faulty node progressively disconnects itself
+  CAN FD               larger payloads and a faster data phase
+  LIN                  a cheap single-wire automotive subnetwork for low-speed
+                       functions
+  FlexRay              deterministic time-triggered automotive; safety-critical
+  automotive Ethernet  single twisted pair; the direction vehicle networking is
+                       moving as bandwidth demands rise
+  RS-485               differential multi-drop physical layer; over a kilometre,
+                       dozens of nodes
+  termination          required at both ends of a long bus; reflections otherwise
+  fail-safe biasing    resistors holding the idle state defined when no driver is
+                       active
+  Modbus               simple, ubiquitous, and has no security whatsoever
+  industrial Ethernet  determinism through scheduling and hardware timestamping
+  4-20 mA              analog current loop; noise immune, and a broken wire reads
+                       as zero rather than as a valid value, which is why it
+                       persists in safety contexts
+
+The 4-20 milliamp current loop deserves mention despite being analog and old, because its design
+property is one that digital systems frequently fail to match. The signal is a current rather than
+a voltage, so it is immune to voltage drop along the cable and to induced noise. The live zero at
+four milliamps means that a broken wire, a failed transmitter, or a lost supply reads as zero
+current, which is outside the valid range and is therefore detectable as a fault rather than being
+indistinguishable from a legitimate minimum reading. Designing so that a failure produces an
+invalid value rather than a plausible one is a principle worth carrying into digital protocol
+design.
+
+[user] My CAN bus works on the bench with two nodes and gives constant errors with all eight
+nodes connected in the vehicle.
+[assistant] tool_call bus.can_diagnose({"nodes": 8, "bus_length_m": 12,
+"bitrate_kbps": 500, "termination": "one_end_only", "stub_lengths_cm": [5, 8, 40, 12, 6, 30, 9],
+"error_type": "bit_and_form_errors", "bench_config": "2_nodes_short_cable"})
+[tool] {"issues": ["single_termination_causes_reflections", "two_long_stubs_exceed_guideline",
+"reflections_worse_with_more_nodes_and_length"], "guideline_stub_max_cm": 30,
+"recommendation": "terminate_both_ends_and_shorten_stubs"}
+[assistant] Two problems, and the termination is almost certainly the dominant one.
+
+You have termination at one end only. A CAN bus needs 120 ohms at each end of the trunk, and with
+only one the signal reflects off the unterminated end and returns, arriving during the bit period
+and corrupting the sampling. On the bench with two nodes and a short cable the round trip is fast
+enough that the reflection settles before the sample point, which is why it works there and not in
+the vehicle at twelve metres.
+
+Your stub lengths are the second issue. Two of them are 40 and 30 centimetres, and the guideline
+at 500 kbit is under 30. A stub is an unterminated branch, so it produces its own reflection, and
+several stubs of significant length compound. Shorten those two, or if the physical layout does
+not permit it, reduce the bitrate — at 250 kbit the bit period doubles and the same stubs become
+acceptable.
+
+Check three things while you are in there. Confirm you have exactly two 120 ohm terminators
+rather than one or several — measure the resistance across the bus with everything powered off,
+which should read 60 ohms for two in parallel. Confirm the stubs branch from the trunk rather than
+the trunk passing through each node, since a daisy chain through the nodes has no stubs at all and
+is the preferred topology. And confirm every node is configured for the same bitrate and sample
+point, since a sample point mismatch produces exactly this error pattern and is easy to get wrong
+when nodes use different microcontrollers with different bit timing calculations.
+
+One diagnostic that will settle it quickly: put an oscilloscope across the bus and look at the
+differential signal during a frame. Reflections appear as steps or ringing on the bit transitions,
+and if the waveform is clean the problem is timing rather than signal integrity.
+
+## High-Speed Serial and Wireless
+
+High-speed serial interfaces above roughly a gigabit share a common set of techniques regardless
+of the specific standard. Differential pairs with controlled impedance carry the signal. Line
+coding guarantees transition density so the receiver can recover a clock from the data itself,
+and it balances the direct-current content so the link can be capacitively coupled. Equalization
+compensates for the frequency-dependent loss of the channel, at the transmitter by
+pre-emphasizing the high frequencies and at the receiver by amplifying them. And a serializer and
+deserializer convert between the parallel internal representation and the serial link.
+
+Lane aggregation is how bandwidth scales beyond what one lane provides. Several independent serial
+lanes operate in parallel with per-lane clock recovery, and the receiver deskews them using
+periodic alignment markers rather than requiring them to arrive together. This is why modern
+interfaces are described by a lane count and a per-lane rate, and it is what avoids the skew
+problem that killed parallel buses.
+
+Wireless protocols for embedded use trade range, data rate, power, and topology, and the choice
+follows from which of those binds. Bluetooth Low Energy suits short-range, low-rate, battery-powered
+devices communicating with a phone. Wi-Fi suits high rate with mains power or frequent charging.
+Thread and Zigbee provide mesh networking so that range is extended by relaying. And the
+low-power wide-area technologies trade data rate for kilometres of range at very low power.
+
+High-speed serial and wireless:
+  differential pairs   controlled impedance, matched length within the pair
+  line coding          8b/10b, 64b/66b, or scrambling; transition density and DC
+                       balance
+  clock data recovery  extract the clock from the transitions
+  equalization         pre-emphasis at the transmitter, amplification at the
+                       receiver
+  SerDes               serializer and deserializer
+  lane aggregation     independent lanes with per-lane recovery and deskew
+  eye diagram          overlaid bit periods; the standard signal quality view, and
+                       the eye's opening is the margin
+  BER                  bit error rate; the specification, typically 1e-12
+  USB                  host-centric, enumeration, wide device class support
+  PCIe                 lanes, packet based, the standard internal high-speed
+                       interconnect
+  Ethernet             ubiquitous, well-tooled, and increasingly used in embedded
+                       and automotive
+  BLE                  short range, low rate, low power; phone connectivity
+  Wi-Fi                high rate, high power; mains or frequent charging
+  Thread and Zigbee    mesh; range through relaying
+  LoRa and NB-IoT      kilometres at very low rate and very low power
+  the choice           determined by which of range, rate, power, and topology
+                       binds
+
+## Protocol Design and Debugging
+
+Designing a protocol over any of these buses involves decisions that recur regardless of the
+physical layer, and getting them wrong produces systems that work in the lab and fail in the
+field.
+
+Framing establishes where a message begins and ends, and the options are a length prefix, a
+delimiter with escaping, or a fixed size. A length prefix is efficient and requires the length to
+be received correctly, so a corrupted length desynchronizes the stream until some recovery
+mechanism intervenes. A delimiter permits resynchronization by scanning for it and requires
+escaping the delimiter within the payload. Including both a start delimiter and a length gives
+efficient parsing with a resynchronization path.
+
+Error detection must match the error model. A checksum detects random single-bit errors poorly and
+is cheap. A cyclic redundancy check detects burst errors of up to its width and is what every
+serious protocol uses. A cryptographic authentication code detects deliberate modification, which
+a CRC does not — a CRC is an error detection code and provides no protection against an attacker
+who can recompute it.
+
+Debugging a bus problem benefits from working in a specific order. Establish that the physical
+layer is correct before examining the protocol: check the signal on an oscilloscope for levels,
+edges, ringing, and reflections. Then use a logic analyzer with protocol decoding to see the
+transactions. Only then examine the application logic. Working the other way — starting with the
+software — is how days are spent on a problem that a five-minute oscilloscope check would have
+localized.
+
+Protocol design and debugging:
+  framing              length prefix, delimiter with escaping, or fixed size
+  resynchronization    what happens after a corrupted frame; a length-only
+                       protocol has no recovery path
+  error detection      CRC for random and burst errors; a checksum is much weaker
+  authentication       a CRC provides no protection against deliberate
+                       modification
+  sequence numbers     detect loss and duplication
+  acknowledgement      and a retransmission timeout; and the timeout must exceed
+                       the worst-case processing time or spurious retransmissions
+                       compound the problem
+  idempotency          makes retransmission safe
+  versioning           a version field from the first release; retrofitting one is
+                       far harder
+  endianness           specify it; do not assume both ends match
+  alignment and padding  specify the exact wire format rather than casting a
+                       struct, since compilers pad differently
+  timeouts             on every wait; a protocol that can block forever will
+  state machine        write it explicitly, including the error transitions
+  oscilloscope first   levels, edges, ringing, reflections
+  logic analyzer       protocol decoding; transactions and timing
+  bus monitor          a passive third device recording everything; the only way
+                       to see what actually crossed the wire when both ends
+                       disagree
+
+The struct-casting pitfall deserves the closing emphasis because it is a portability failure that
+testing on one platform never reveals. Defining a message as a C structure and transmitting its
+bytes directly depends on the compiler's padding, alignment, and byte ordering, all of which differ
+between architectures and can change with compiler flags. A protocol between two identical devices
+works; the same protocol between a microcontroller and a host application on a different
+architecture produces misaligned fields and byte-swapped values. Specifying the wire format
+explicitly — field order, size, and byte order — and serializing to it field by field is more code
+and is the only approach that survives a platform change.

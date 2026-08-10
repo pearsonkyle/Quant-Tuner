@@ -1,0 +1,244 @@
+================================================================================
+AREA: Humanities and Business
+SUBJECT: Music Theory
+Subtopics: pitch and intervals, scales and modes, harmony and voice leading, rhythm and
+meter, form, timbre and acoustics, analysis beyond common practice.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Pitch, Intervals, and Tuning
+
+Pitch is perceived frequency, and the perceptual system organizes it logarithmically: equal ratios
+of frequency are heard as equal musical distances. Doubling the frequency gives the octave, and two
+pitches an octave apart are heard as so similar that most musical systems treat them as the same
+note class. This octave equivalence is close to a cross-cultural universal and it is the foundation
+on which everything else in pitch organization rests.
+
+Intervals are ratios, and the simplest ratios sound most consonant because their harmonic series
+overlap most. The perfect fifth is three to two, the perfect fourth four to three, the major third
+five to four. Their consonance is not a cultural convention but a consequence of how the auditory
+system processes coincident harmonics, though which intervals a musical culture privileges and how
+it treats dissonance certainly is cultural.
+
+Tuning systems exist because these simple ratios cannot all be satisfied simultaneously. Stacking
+twelve perfect fifths does not arrive exactly at seven octaves — it overshoots by a small interval
+called the Pythagorean comma — so any system with twelve fixed pitches must distribute that error
+somewhere. Equal temperament divides the octave into twelve identical steps, making every key
+equally usable and every interval except the octave slightly out of tune. Historical temperaments
+distributed the error unevenly, which made keys sound characteristically different, and that
+difference is what composers writing before equal temperament were exploiting.
+
+Pitch and tuning:
+  pitch perception     logarithmic; equal ratios are equal distances
+  octave               a two-to-one ratio; near-universal equivalence
+  harmonic series      the overtones of a vibrating body; the acoustic basis of
+                       consonance
+  perfect fifth        three to two
+  perfect fourth       four to three
+  major third          five to four
+  consonance           overlapping harmonics; acoustic in origin
+  dissonance treatment  the cultural part
+  the Pythagorean comma  twelve fifths overshoot seven octaves
+  the necessary compromise  no twelve-pitch system can be pure in every key
+  just intonation      pure ratios; excellent in one key, unusable in others
+  meantone temperament  thirds favoured at the expense of some fifths
+  well temperament     all keys usable, each with a distinct character
+  equal temperament    twelve identical steps; every key equal, nothing pure but
+                       the octave
+  key character        a real phenomenon under unequal temperaments and largely
+                       an association under equal temperament
+  cents                a logarithmic unit; one hundred per equal-tempered
+                       semitone, and the standard way to compare tunings
+
+Q: Why can a keyboard tuned in just intonation not modulate freely between keys?
+A. The instrument is defective
+B. Just intonation fixes pure ratios relative to one tonic; in a distant key those same fixed
+   pitches produce badly mistuned intervals, because pure ratios cannot be maintained
+   simultaneously for all keys with twelve fixed pitches
+C. Modulation was not invented
+D. The keys are too far apart
+Reasoning: Pure tuning is tonic-relative. A fixed-pitch instrument tuned pure for one key has
+intervals in other keys that deviate audibly, including the notorious wolf fifth. Temperament
+distributes that error so all keys are usable, which is the compromise that enabled freely
+modulating music. Answer: B.
+
+## Scales, Modes, and Tonality
+
+A scale is a selection of pitches from the available continuum, and the near-universal preference
+for five to seven notes per octave reflects a limit on how many distinct categories are usefully
+distinguishable. The specific pattern of steps determines the scale's character, and the same
+collection of pitches starting from different notes produces different modes with markedly different
+qualities.
+
+The major scale's characteristic feature is the half step between its seventh and eighth degrees,
+which creates a strong pull toward the tonic. That leading tone is much of what makes major-mode
+music feel directed, and the natural minor scale's lack of it is why the harmonic minor — which
+raises the seventh degree specifically to restore that pull — exists as a modification rather than
+as a scale in its own right.
+
+Tonality is the organization of music around a central pitch, established by emphasis, by the
+harmonic relationships that lead toward it, and by placement at structural points. It is a
+perceptual reality, not merely a theoretical construct: listeners without training reliably identify
+whether a melody has ended on its tonic. The extent to which a piece establishes, departs from, and
+returns to a tonal centre is much of what constitutes its large-scale structure.
+
+Scales and tonality:
+  scale                a selection from the pitch continuum
+  the size preference  five to seven notes per octave
+  step pattern         determines character
+  modes                the same collection from different starting notes
+  major                the pattern with a leading tone below the tonic
+  natural minor        no leading tone; less directed
+  harmonic minor       the seventh raised to restore the pull
+  melodic minor        raised sixth and seventh ascending; smooths the melodic
+                       line
+  pentatonic           five notes, no semitones; extremely widespread across
+                       unrelated musical cultures
+  blues scale          added chromatic degrees; the flattened notes are
+                       approximations of pitches between the tempered ones
+  church modes         the historical seven-mode system; each with a distinct
+                       character
+  tonic                the central pitch
+  leading tone         the strongest melodic pull
+  tonality             organization around a centre; perceptually real
+  modulation           moving the tonal centre; closely related keys share more
+                       pitches and move more smoothly
+  the circle of fifths  keys ordered by shared pitch content; the map of harmonic
+                       distance
+
+## Harmony and Voice Leading
+
+Harmony is the vertical dimension, and functional harmony organizes chords by their role relative
+to the tonic. The tonic function is stable, the dominant function is unstable and resolves to the
+tonic, and the predominant function prepares the dominant. Most common-practice harmonic motion is
+some elaboration of the progression from tonic through predominant to dominant and back, and
+recognizing that skeleton in a complicated passage is most of what harmonic analysis does.
+
+The dominant's pull comes from two elements. Its root lies a fifth above the tonic, the strongest
+root relationship, and it contains the leading tone that resolves upward by half step. Adding the
+seventh introduces a second tendency tone resolving downward, so a dominant seventh chord has two
+voices pulling toward specific destinations, which is why its resolution feels close to obligatory.
+
+Voice leading governs how individual lines move between chords, and its rules are descriptions of
+what produces independent-sounding parts rather than arbitrary prohibitions. Small motion, common
+tones retained, tendency tones resolved, and contrary motion between outer voices produce a texture
+where the parts are heard as separate lines. The prohibitions on parallel fifths and octaves exist
+because those intervals fuse perceptually, momentarily collapsing two independent voices into one —
+which is a defect only if independence is the goal, and is exactly why parallel motion is used
+deliberately in styles seeking a blended sound.
+
+Harmony and voice leading:
+  functional harmony   chords classified by role relative to the tonic
+  tonic function       stable
+  dominant function    unstable; resolves to the tonic
+  predominant function  prepares the dominant
+  the skeleton         tonic, predominant, dominant, tonic
+  root motion by fifth  the strongest progression
+  the leading tone     resolves upward by half step
+  the chordal seventh  resolves downward; two tendency tones make resolution feel
+                       obligatory
+  inversion            which chord member is in the bass; affects stability and
+                       bass line
+  seventh chords       added colour and increased tendency
+  secondary dominants  a dominant of a non-tonic chord; the primary tonicization
+                       device
+  modal mixture        borrowing from the parallel mode
+  chromatic harmony    altered chords increasing tension and expanding the
+                       harmonic vocabulary
+  voice leading        small motion, common tones, resolved tendencies
+  contrary motion      between outer voices; maximizes independence
+  parallel fifths and octaves  perceptual fusion of two voices into one
+  the reframing        the rules describe what produces independent lines, so
+                       they apply exactly when independence is wanted
+
+## Rhythm, Meter, and Form
+
+Rhythm is the temporal organization of events and meter is the framework of regularly recurring
+strong and weak beats against which rhythm is perceived. The distinction matters because a rhythmic
+figure derives its effect from its position in the metric framework — the same durations placed
+differently against the beat produce entirely different musical results.
+
+Syncopation is the deliberate contradiction of the metric framework, placing accents where the meter
+does not expect them. Its effect depends entirely on the listener holding the underlying meter, so a
+syncopated passage that destroys the sense of meter stops being syncopated and becomes merely
+irregular. This is why syncopation in practice is usually supported by another layer maintaining the
+pulse.
+
+Musical form is the organization of material in time, and the recurring devices are few: statement,
+repetition, variation, contrast, and return. Binary and ternary forms combine these at small scale.
+Sonata form organizes a large movement as an exposition establishing two key areas, a development
+destabilizing them, and a recapitulation returning with the tonal conflict resolved. Its logic is
+tonal rather than thematic, which is the point most often missed — the drama is in the key
+relationships and the themes are what makes it audible.
+
+Rhythm, meter, and form:
+  rhythm               the pattern of durations
+  meter                the framework of strong and weak beats
+  the interaction      the same durations differ by metric placement
+  simple and compound  beats divided in two or in three
+  tempo                the rate of the underlying pulse
+  syncopation          accents contradicting the meter
+  the requirement      the listener must retain the underlying meter
+  polyrhythm           two conflicting groupings simultaneously
+  hemiola              a temporary regrouping across the prevailing meter
+  rubato               expressive flexibility of tempo within a maintained
+                       framework
+  additive meter       grouping by unequal units; common outside the European
+                       tradition
+  phrase               the basic unit of musical syntax; antecedent and
+                       consequent
+  cadence              the phrase-ending harmonic formula; the punctuation of
+                       tonal music
+  binary and ternary   the small forms
+  theme and variations  one idea successively transformed
+  sonata form          exposition, development, recapitulation
+  the tonal reading    the form's drama is in the key relationships; the themes
+                       make it audible
+
+## Timbre, Acoustics, and Beyond Common Practice
+
+Timbre is what distinguishes two instruments playing the same pitch at the same loudness, and it is
+determined by the spectral content and, crucially, by the attack transient. The onset of a note
+carries much of the identifying information, which is demonstrable by removing it: recordings with
+attacks edited out become surprisingly difficult to identify by instrument.
+
+The physical acoustics of instruments explain their characteristic behaviour. A string or air column
+vibrating in a mode series produces harmonics at integer multiples of the fundamental, which is why
+such instruments have definite pitch. A struck plate or membrane produces inharmonic partials,
+which is why most percussion has indefinite pitch, and the exceptions — timpani, tuned percussion —
+are instruments whose shape has been engineered to bring some partials into harmonic relationships.
+
+Twentieth-century and later practice expanded beyond the common-practice framework in several
+directions, and the analytical tools followed. Extended tonality stretched functional harmony until
+its centre became ambiguous. Serial techniques organized pitch by ordered sets rather than by
+hierarchy, which required set-theoretic analysis rather than functional. Spectral approaches derived
+harmony from the acoustic spectrum itself. Popular and vernacular musics developed harmonic
+practices — modal progressions, loop-based structures, groove as the organizing principle — that
+functional analysis describes poorly and that need their own vocabulary rather than being treated as
+deficient versions of common practice.
+
+Timbre and beyond:
+  timbre               spectral content plus the attack transient
+  the attack           carries much of the identifying information
+  harmonic partials    integer multiples; definite pitch
+  inharmonic partials  struck plates and membranes; indefinite pitch
+  formants             resonances of a fixed body; why the voice and some
+                       instruments have consistent character across pitches
+  envelope             attack, decay, sustain, release
+  extended tonality    functional harmony stretched to ambiguity
+  atonality            no tonal centre; hierarchy replaced by other organization
+  serialism            ordered sets governing pitch and sometimes other parameters
+  set theory           the analytical tool for post-tonal pitch organization
+  spectralism          harmony derived from acoustic spectra
+  minimalism           process, repetition, and gradual change as structure
+  modal popular harmony  progressions organized by mode rather than by function
+  loop-based form      structure from layered repetition; needs its own analytic
+                       vocabulary
+  groove               the microtiming relationships that make a rhythm feel a
+                       particular way; measurable and largely absent from
+                       traditional notation
+  the analytic principle  choose the tool that matches how the music is organized,
+                       since applying functional analysis to music that is not
+                       functionally organized produces a description of what it
+                       is not doing rather than of what it is

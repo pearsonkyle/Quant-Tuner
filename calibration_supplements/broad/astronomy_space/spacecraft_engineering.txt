@@ -1,0 +1,313 @@
+================================================================================
+AREA: Astronomy and Space
+SUBJECT: Spacecraft Engineering
+Subtopics: mission design, structures and launch loads, power, thermal control,
+attitude determination and control, propulsion, communications, radiation and reliability.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Mission Design and System Engineering
+
+Spacecraft design is dominated by coupling. Mass, power, thermal, propulsion,
+communications, and attitude control are not independent subsystems that can be optimized
+separately — every kilogram added requires structure to support it, propellant to move it,
+power to run it, and radiator area to cool it, and each of those additions costs mass in
+turn. This mass spiral is why spacecraft engineering is fundamentally a systems discipline
+and why margins are managed at the system level rather than per subsystem.
+
+The mission concept drives everything downstream. Orbit selection determines eclipse
+duration and therefore battery sizing, determines communication geometry and therefore
+antenna and link budget, determines radiation exposure and therefore parts selection,
+determines thermal environment and therefore radiator area. Changing an orbit late in design
+is not a parameter adjustment; it invalidates most of the subsystem work.
+
+Margins exist because estimates are wrong in a predictable direction. Mass grows through
+development as details are resolved, historically by twenty to thirty percent from
+preliminary design to launch, so mass margin is held explicitly and released as the design
+matures. Power margin, data margin, link margin, propellant margin, and schedule margin are
+tracked the same way. A programme that consumes its margin early has, in effect, discovered
+that its design does not close, and the honest response is descope rather than optimism.
+
+Design drivers and their couplings:
+  orbit                eclipse fraction, radiation dose, thermal cycling, link
+                       geometry, delta-v requirements, deorbit obligations
+  mass                 launch cost, propellant, structure, and every other budget
+  power                array area, battery capacity, thermal dissipation
+  thermal              radiator area, coatings, heater power, component placement
+  pointing             sensor and actuator selection, structural stiffness,
+                       flexible mode interaction
+  data volume          downlink rate, contact time, onboard storage, compression
+  lifetime             propellant, radiation dose, component wear-out, redundancy
+  reliability          redundancy strategy, parts grade, test programme
+  cost and schedule    the constraints that actually terminate programmes
+
+Technology readiness level is the standard vocabulary for maturity, running from basic
+principles observed at level one through flight-proven at level nine. Its practical use is
+risk management: a mission whose critical path depends on a level-four technology is
+carrying schedule risk that a review board will identify, and the mitigation is either
+maturing the technology on a separate path or holding a conventional backup. The recurring
+programmatic failure is a design that depends on several immature technologies
+simultaneously, since their risks compound rather than average.
+
+Q: A spacecraft design adds 15 kg of instrument mass late in development. The most likely
+total system impact is:
+A. Exactly 15 kg
+B. Substantially more than 15 kg, because structure, power, propellant, and thermal all
+   grow in response
+C. Less than 15 kg, since margins absorb it
+D. None, if mass margin remains
+Reasoning: Added instrument mass requires structural support, likely additional power and
+therefore array and battery mass, additional propellant to achieve the same delta-v, and
+possibly additional radiator area. Historical growth factors for this mass spiral range from
+roughly 1.5 to 3 depending on how much propulsion is involved. Answer: B.
+
+## Structures and the Launch Environment
+
+The launch is the most severe mechanical environment the spacecraft ever experiences, and
+most structural design is driven by it rather than by anything encountered in orbit — where
+the vehicle is essentially weightless and loads are tiny.
+
+Quasi-static loads combine steady acceleration with low-frequency transients, reaching
+perhaps six to nine g axially depending on the vehicle. Acoustic loading during liftoff and
+transonic flight is intense broadband pressure, which couples most strongly into large
+lightweight panels such as solar arrays and antenna dishes. Random vibration transmitted
+through the structure is specified as a power spectral density and is what drives fatigue
+and connector failure. Shock from stage separation and fairing jettison is very high
+frequency and low duration, harmless to structures and destructive to relays, crystals, and
+brittle components.
+
+Stiffness requirements are usually more binding than strength. Launch vehicles specify
+minimum fundamental frequencies for the payload — typically tens of hertz laterally and
+somewhat higher axially — so that the spacecraft's modes do not couple with the vehicle's
+control system or structural dynamics. A design that meets its stress margins and fails its
+frequency requirement must be stiffened, which adds mass in a way that strength-driven sizing
+would not have.
+
+Structural and environment considerations:
+  quasi-static load     ~6-9 g axial; sizes primary structure
+  acoustic              ~140 dB overall; drives large lightweight surfaces
+  random vibration      PSD specification; fatigue and connector failure
+  pyroshock             thousands of g at high frequency; damages brittle parts
+  frequency requirement typically >35 Hz lateral, >25-100 Hz axial per vehicle
+  factor of safety      1.25-1.4 on yield for qualification hardware, higher for
+                        untested or brittle materials
+  materials             aluminium for cost and machinability, CFRP for stiffness
+                        and low CTE, titanium for fittings, invar for optical
+                        benches
+  outgassing            total mass loss <1%, volatile condensable <0.1%;
+                        contamination of optics and thermal surfaces
+  venting               trapped volumes must vent during ascent or burst
+  test programme        protoflight or qual + acceptance; test as you fly
+
+Thermal expansion is a structural problem in space in a way it rarely is on the ground.
+Temperature swings of a hundred degrees or more across an orbit, combined with materials of
+differing expansion coefficients, produce distortion and stress at every joint between
+dissimilar materials. Optical instruments requiring micron stability use low-expansion
+materials such as invar, ULE glass, or carefully laid-up carbon fibre, and are often
+kinematically mounted so that the mount does not transmit distortion from the supporting
+structure — three points defining position without over-constraint.
+
+## Power and Thermal Control
+
+Electrical power comes from solar arrays for anything inside roughly Jupiter's orbit,
+radioisotope generators beyond, and batteries for eclipse and peak loads. Solar array sizing
+starts from the solar constant at the mission's distance, multiplied by cell efficiency,
+packing factor, incidence angle losses, temperature derating, and end-of-life degradation
+from radiation. That last factor is substantial: arrays in the radiation belts can lose
+fifteen to thirty percent of their output over a multi-year mission, and the array must be
+sized for end of life rather than beginning, so it is oversized and dissipates the excess
+early in the mission.
+
+Batteries carry the spacecraft through eclipse and supply transient loads exceeding array
+capacity. Sizing depends on eclipse duration, load, and permitted depth of discharge, which
+is limited by cycle life — a low Earth orbit spacecraft experiences about 5,500 eclipse
+cycles per year, so depth of discharge must be shallow, typically twenty to thirty percent,
+to reach a multi-year life. A geostationary satellite has only two eclipse seasons per year
+with about ninety cycles, so much deeper discharge is acceptable, and the battery is
+correspondingly smaller relative to its load.
+
+Thermal control in vacuum has only one heat rejection mechanism: radiation. There is no
+convection and no conduction to an ambient medium, so every watt dissipated internally must
+leave as infrared emission from a surface with a view to space. Radiator area therefore
+scales with dissipated power divided by the fourth power of the achievable temperature,
+which is why high-power spacecraft have large radiators and why cryogenic instruments need
+enormous ones or active cooling.
+
+Power and thermal quantities:
+  solar constant        1361 W/m^2 at 1 AU; scales as 1/r^2
+  triple-junction cell  ~30% efficiency at beginning of life
+  array sizing          include packing, cosine loss, temperature, and EOL
+                        degradation; size for end of life
+  battery DOD           20-30% for LEO cycling, 60-80% for GEO seasonal
+  eclipse, LEO          up to ~36 min of a ~95 min orbit
+  radiative rejection   Q = eps sigma A (T^4 - T_space^4)
+  surface properties    alpha/eps ratio governs equilibrium temperature; a low
+                        ratio runs cold, a high ratio runs hot
+  MLI                   multilayer insulation; effective emittance ~0.01-0.03
+  heat pipe             moves heat isothermally without power; the workhorse
+  louvers               passive variable emittance
+  heaters               thermostatically controlled; a real and often
+                        underestimated power budget item
+  survival heaters      keep components above minimum temperature in safe mode
+
+The absorptivity-to-emissivity ratio is the key surface parameter and it is worth
+internalizing. Absorptivity governs how much sunlight a surface takes in; emissivity governs
+how well it radiates infrared out. A surface with low absorptivity and high emissivity — white
+paint, optical solar reflectors — runs cold and is used for radiators. High absorptivity and
+low emissivity — polished metal — runs hot. Both properties degrade in orbit through
+ultraviolet exposure and atomic oxygen erosion, generally in the direction of increasing
+absorptivity, so thermal designs must accommodate the end-of-life values, which means the
+spacecraft is too cold at the start and heaters make up the difference.
+
+[user] Sizing a radiator for a 400 W instrument that must stay below 20 C, in low Earth
+orbit.
+[assistant] tool_call thermal.radiator_sizing({"dissipation_w": 400, "t_max_c": 20,
+"orbit": "LEO_600km", "surface": "OSR", "alpha_bol": 0.09, "alpha_eol": 0.21,
+"emissivity": 0.80, "view_factor_space": 0.85})
+[tool] {"t_sink_effective_k": 255, "area_bol_m2": 1.42, "area_eol_m2": 2.06,
+"earth_ir_flux_w_m2": 237, "albedo_flux_w_m2": 120, "recommended_area_m2": 2.2,
+"note": "leo_environment_dominates_deep_space_assumption"}
+[assistant] You need about 2.2 square metres, and the reason it is that large is the low
+Earth orbit environment rather than the dissipation.
+
+In deep space a radiator sees a 4 K background and the sizing is straightforward. In a 600
+km orbit your radiator also sees Earth, which radiates about 237 W/m^2 of infrared and
+reflects roughly 120 W/m^2 of albedo when sunlit. Those are absorbed heat loads working
+against you, so the effective sink temperature is around 255 K rather than near zero, and the
+available temperature difference for rejection collapses.
+
+Two numbers to hold onto. At beginning of life with an optical solar reflector at
+absorptivity 0.09 you need 1.42 square metres. At end of life, with absorptivity degraded to
+0.21 by ultraviolet exposure and contamination, you need 2.06. Size for end of life — 2.2
+with margin — and accept that the radiator is oversized initially, which is handled with
+heaters or a variable-conductance heat pipe.
+
+Three design choices that will affect this substantially:
+
+Point the radiator away from Earth if you can. An anti-nadir or orbit-normal facing radiator
+sees far less Earth infrared and albedo, and can cut the required area by thirty to forty
+percent. This usually competes with instrument pointing and antenna placement, which is
+exactly the kind of system-level coupling that has to be resolved early.
+
+Use optical solar reflectors or second-surface mirrors rather than white paint. Paint
+degrades much faster in ultraviolet, so its end-of-life absorptivity is worse and the
+beginning-to-end-of-life spread is larger.
+
+Consider whether 20 C is a real requirement. Radiator area scales roughly with the inverse
+of the fourth power of the rejection temperature, so allowing 35 C instead of 20 would cut
+the area by nearly a quarter. If the limit is set by a component that could be thermally
+isolated and cooled separately, that is often a better trade than growing the radiator.
+
+Finally, budget the heater power. With a radiator sized for end of life you will need
+heaters early in the mission and during low-dissipation modes, and that load is frequently
+omitted from the power budget until late.
+
+## Attitude Determination and Control
+
+Attitude control orients the spacecraft, and the requirements span an enormous range — from
+a few degrees for a communications satellite pointing an antenna at Earth, to
+sub-arcsecond stability for an astronomical observatory. Cost and complexity scale steeply
+with that requirement.
+
+Determination requires measuring orientation against known references. Sun sensors are
+simple and coarse. Magnetometers work only in a planetary magnetic field and give moderate
+accuracy. Horizon sensors track the Earth's infrared limb. Star trackers image a field,
+identify the pattern against a catalogue, and deliver arcsecond-level attitude — the highest
+accuracy available and the standard for demanding missions. Gyroscopes measure angular rate
+with high bandwidth and drift over time, so they are always fused with an absolute reference,
+typically in a Kalman filter that uses the gyro for short-term propagation and the star
+tracker for long-term correction and gyro bias estimation.
+
+Control requires torque, and the available actuators differ in whether they consume
+propellant and in whether they can accumulate momentum. Reaction wheels exchange momentum
+with the spacecraft body and are the standard for precision pointing, consuming only
+electrical power. Their limitation is that external disturbance torques — gravity gradient,
+aerodynamic drag, solar pressure, magnetic — are secular, so the wheels spin up over time and
+eventually saturate, requiring momentum to be dumped to the environment using magnetic
+torquers or thrusters.
+
+Attitude subsystem components:
+  sun sensor           coarse, cheap, needs sunlight; ~0.1-1 degree
+  magnetometer         needs a planetary field; ~1 degree
+  horizon sensor       Earth limb; ~0.1 degree
+  star tracker         ~1-10 arcsec; the precision standard
+  gyroscope            high rate bandwidth, drifts; fused with absolute sensors
+  GPS receiver         position, time, and with multiple antennas, attitude
+  reaction wheel       fine torque, no propellant, saturates
+  control moment gyro  much higher torque than a wheel; complex, has singularities
+  magnetic torquer     no propellant, weak, needs a field; used for desaturation
+  thruster             high torque, consumes propellant, coarse
+  gravity gradient     passive stabilization to the local vertical; free, coarse
+  spin stabilization   passive gyroscopic stiffness; simple and constraining
+
+Disturbance torques determine the momentum accumulation rate and therefore the desaturation
+frequency and propellant budget. In low orbits aerodynamic drag dominates, acting on the
+offset between the centre of pressure and centre of mass. At higher altitudes solar radiation
+pressure takes over, acting on the same geometric offset with respect to the illuminated
+area. Gravity gradient torque acts on any non-spherical inertia distribution and is
+proportional to the inertia difference and the inverse cube of orbital radius. Magnetic
+torque acts on the spacecraft's residual dipole. Minimizing the offset between centre of
+pressure and centre of mass at design time directly reduces the propellant needed for
+attitude control over the mission.
+
+## Propulsion, Communications, and Reliability
+
+Propulsion is governed by the rocket equation, which makes specific impulse the dominant
+figure of merit because propellant mass fraction grows exponentially with required delta-v
+divided by exhaust velocity. Chemical systems provide high thrust and modest specific
+impulse, suitable for launch, for orbit insertion where a burn must complete quickly, and
+for attitude control. Electric propulsion provides very high specific impulse and very low
+thrust, so it takes months to accomplish what a chemical stage does in minutes, and it does
+so with a fraction of the propellant — a trade that is worthwhile whenever time is
+available.
+
+Propulsion options:
+  cold gas             Isp 50-70 s; simple, safe, low performance
+  monopropellant       hydrazine, Isp ~230 s; reliable, toxic, common for attitude
+                       control and small manoeuvres
+  bipropellant         Isp 300-450 s; the workhorse for orbit insertion
+  solid                Isp ~280 s; simple, high thrust, cannot be throttled or
+                       stopped
+  Hall thruster        Isp 1500-3000 s; the electric propulsion workhorse
+  ion engine           Isp 3000-5000 s; even lower thrust
+  green monoprop       reduced toxicity alternatives to hydrazine; simplifies
+                       ground handling substantially
+  electrothermal       resistojet or arcjet; modest improvement over monoprop
+  solar sail           no propellant at all; tiny thrust, unlimited duration
+
+Communications is governed by the link budget, which accounts for every gain and loss from
+transmitter to receiver in decibels. Transmit power and antenna gains add; free-space path
+loss, which grows as the square of both distance and frequency, dominates the losses;
+atmospheric and pointing losses subtract further. The result is compared against the
+receiver's noise floor to give a signal-to-noise ratio, and the link margin is what remains
+above the minimum required for the chosen modulation and coding.
+
+The path loss scaling with frequency is why deep space missions face such severe data
+constraints and why they nonetheless use high frequencies. Higher frequency increases path
+loss, and it increases achievable antenna gain for a fixed aperture by even more, since gain
+scales as the aperture area divided by wavelength squared. The net effect favours higher
+frequency when the aperture is fixed, which is why missions moved from S-band to X-band to
+Ka-band, and why optical communication — with wavelengths four orders of magnitude shorter —
+offers enormous gain at the cost of much tighter pointing requirements.
+
+Reliability engineering for spacecraft rests on the fact that repair is impossible. The
+techniques are redundancy, derating, parts screening, and testing. Redundancy may be
+cold-standby, saving power at the cost of switchover time, or hot, providing instant
+failover with continuous power. Cross-strapping allows either of two redundant units to
+connect to either of two downstream units, protecting against a failure that would otherwise
+take out a whole string. Single-point failures are catalogued explicitly and either
+eliminated or accepted with justification.
+
+The radiation environment drives parts selection and fault tolerance. Total ionizing dose
+accumulates and gradually degrades semiconductors until they fail, which sets mission
+lifetime for a given shielding. Displacement damage degrades solar cells and optical
+detectors. Single event effects are caused by individual energetic particles: an upset flips
+a memory bit and is corrected by error-correcting memory and periodic scrubbing; a latchup
+triggers a parasitic conducting path that destroys the part unless power is cycled quickly,
+which is why latchup protection circuits monitor current and remove power automatically; a
+burnout destroys a power device outright. Rad-hard parts tolerate far more and cost orders of
+magnitude more with generations-old performance, which is why many modern missions use
+commercial parts with architectural mitigation — redundant computation, watchdogs, frequent
+memory scrubbing, and a safe mode the spacecraft falls into whenever anything is
+inconsistent.

@@ -1,0 +1,309 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: Anomaly Detection
+Subtopics: problem framing, statistical methods, distance and density approaches,
+model-based methods, time series anomalies, evaluation, deployment, applications.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Problem Framing
+
+Anomaly detection identifies observations that differ from expected behaviour, and the framing
+problem is that "anomalous" is not a property of an observation but a relationship between an
+observation and a definition of normal. The same value may be routine in one context and alarming
+in another, so the first task is establishing what normal means and over what population.
+
+The available supervision determines the approach and is the most consequential distinction.
+Supervised detection has labelled examples of both classes and is simply an imbalanced
+classification problem, with all the standard techniques applying. Semi-supervised detection has
+labelled normal data and no labelled anomalies, so a model of normality is built and departures
+are flagged — which is the common situation, since normal behaviour is abundant and anomalies are
+rare and heterogeneous. Unsupervised detection has no labels and assumes anomalies are rare and
+different, identifying them by their statistical isolation.
+
+The critical asymmetry favouring semi-supervised and unsupervised methods is that anomalies are
+heterogeneous while normal behaviour is not. A supervised model learns the anomalies it was shown
+and generalizes poorly to novel failure modes, which is precisely the case that matters most — a
+new attack, an unprecedented equipment failure, a fraud technique not previously seen. Modelling
+normality and flagging departures catches novel anomalies by construction.
+
+Framing:
+  anomaly              relative to a definition of normal, not intrinsic
+  point anomaly        a single observation unusual in isolation
+  contextual anomaly   normal in general and unusual in its context; a temperature
+                       normal for July occurring in January
+  collective anomaly   a subsequence unusual as a group while each point is
+                       ordinary
+  supervised           labelled both classes; imbalanced classification
+  semi-supervised      labelled normal only; model normality, flag departures
+  unsupervised         no labels; assume anomalies are rare and different
+  novelty detection    identify data unlike the training distribution
+  outlier detection    identify unusual points within a contaminated dataset
+  the heterogeneity asymmetry  normal is coherent, anomalies are diverse; this
+                       favours modelling normality
+  novel failure modes  the case that matters most and that supervised methods
+                       generalize to worst
+  what happens next    the detection's purpose; determines the acceptable false
+                       positive rate and therefore the threshold
+
+Q: A supervised fraud model trained on historical labelled fraud performs well in backtesting and
+misses a new fraud technique entirely. This is:
+A. A model quality problem to be fixed by more training
+B. Expected, since a supervised model learns the anomaly types it was shown and novel types are
+   outside its training distribution
+C. A data leakage problem
+D. A threshold problem
+Reasoning: Supervised learning generalizes within the distribution it was trained on, and a novel
+technique is by definition outside it. Detecting novel anomalies requires modelling normality and
+flagging departures rather than modelling known anomalies. Production fraud systems combine both:
+supervised models for known patterns and unsupervised detection for novelty. Answer: B.
+
+## Statistical and Distance-Based Methods
+
+The simplest statistical approaches assume a distribution and flag observations in its tails.
+The three-sigma rule flags points more than three standard deviations from the mean, which is
+straightforward and rests on a normality assumption that real data frequently violates, and which
+is additionally corrupted by the anomalies themselves — the mean and standard deviation are
+computed from data containing the outliers, so extreme values inflate the standard deviation and
+mask themselves.
+
+Robust statistics address the masking problem by using estimators insensitive to outliers. The
+median and the median absolute deviation replace the mean and standard deviation, and because the
+median is unaffected by extreme values regardless of their magnitude, a few outliers do not
+distort the reference. This is a small change that substantially improves reliability and is
+underused relative to how simple it is.
+
+Distance-based methods define anomalies by isolation in the feature space, with the distance to
+the k-th nearest neighbour being the natural score. Their assumption is that normal points lie in
+dense regions and anomalies do not, and their limitation is that a global distance threshold
+performs badly when the data has regions of differing density — a point that is anomalous within a
+dense cluster may be closer to its neighbours than a normal point in a sparse region.
+
+Local outlier factor addresses this by comparing each point's local density to that of its
+neighbours rather than to a global standard. A point in a sparse region with neighbours in
+similarly sparse regions is normal; a point whose neighbours are much denser than its own
+neighbourhood is anomalous. This local normalization is what makes the method work on data with
+varying density, and it is the standard reference for distance-based detection.
+
+Statistical and distance methods:
+  three sigma          simple; assumes normality and is corrupted by the outliers
+                       it seeks
+  masking              outliers inflate the variance estimate and hide themselves
+  robust estimators    median and median absolute deviation; unaffected by extremes
+  modified z-score     using robust estimators; a drop-in improvement
+  interquartile range  the box plot rule; distribution-free
+  Grubbs and Dixon     formal tests for a single outlier; assume normality
+  Mahalanobis distance  accounts for covariance; the correct multivariate distance
+                       when the data is roughly elliptical
+  k-nearest neighbour  distance to the kth neighbour as the score; assumes uniform
+                       density
+  local outlier factor  compares local density to neighbours'; handles varying
+                       density
+  DBSCAN               density clustering; points not assigned to a cluster are
+                       noise, which is anomaly detection as a side effect
+  the curse of dimensionality  distances concentrate in high dimension so all
+                       points become equidistant; distance-based methods degrade
+                       and require dimensionality reduction first
+
+The curse of dimensionality deserves specific emphasis for this application because it undermines
+the premise. As dimension grows, the ratio between the nearest and farthest neighbour distances
+approaches one, so every point is approximately equidistant from every other and the notion of
+being distant loses discriminating power. Distance-based anomaly detection therefore degrades
+badly above a few dozen dimensions, and the remedies are feature selection, dimensionality
+reduction, or methods that do not rely on distance — which is part of why isolation-based and
+reconstruction-based approaches became prominent for high-dimensional data.
+
+## Model-Based Methods
+
+Isolation forest takes an approach that inverts the usual reasoning. Rather than profiling normal
+points and measuring departure, it isolates points by random partitioning, and the observation is
+that anomalies are isolated in fewer splits because they are few and different. The score is the
+average path length to isolation across many random trees. It has linear time complexity, needs no
+distance computation, handles high dimensions well, and requires no assumption about the
+distribution's shape — which together make it the strongest general-purpose default.
+
+Reconstruction-based methods learn to compress and reconstruct normal data, and use the
+reconstruction error as the anomaly score. An autoencoder trained on normal data learns a
+representation capturing its structure, so normal inputs reconstruct accurately and anomalous ones
+do not. Principal component analysis provides the linear version, where the reconstruction error
+from the leading components serves the same purpose.
+
+One-class support vector machines learn a boundary enclosing the normal data in a feature space,
+flagging points outside it. They are principled and require kernel and parameter selection that is
+difficult without labelled anomalies to validate against, which is the recurring difficulty in
+this field — the methods have hyperparameters and the data to tune them is exactly what is
+missing.
+
+Model-based methods:
+  isolation forest     random partitioning; anomalies isolate in fewer splits;
+                       linear time, high-dimensional, assumption-free
+  extended isolation forest  non-axis-parallel splits; removes an artifact of the
+                       original
+  autoencoder          reconstruct normal data; error is the score
+  variational autoencoder  a probabilistic version; gives a likelihood
+  PCA reconstruction   the linear case; cheap and effective when the structure is
+                       linear
+  one-class SVM        a boundary enclosing normal data; sensitive to parameters
+  Gaussian mixture     model the density; low-likelihood points are anomalous
+  kernel density       non-parametric density; bandwidth selection is the
+                       difficulty
+  normalizing flows    exact likelihood under a learned transformation; strong and
+                       computationally heavy
+  deep methods caution  frequently outperformed by isolation forest on tabular
+                       data, and the published comparisons are heavily affected by
+                       tuning on the test set given the absence of validation
+                       labels
+  ensembles            combine several detectors; robust to any one method's
+                       assumption failing, and the standard practical choice
+
+The caution about deep methods deserves stating because the literature is unusually unreliable
+here. Evaluating an unsupervised anomaly detector requires labels, and the labels used are the
+test labels, so hyperparameter selection frequently involves the test set — which inflates results
+in a way that is difficult to detect from the paper. Independent comparisons repeatedly find that
+isolation forest and simple statistical baselines match or exceed elaborate deep methods on
+tabular data, and the practical recommendation is to establish those baselines first and require a
+substantial margin before adopting something more complex.
+
+## Time Series Anomalies
+
+Time series anomaly detection differs because the temporal structure is itself informative. A
+value is not anomalous in isolation but relative to what the series' recent history and seasonal
+pattern predict, so the natural approach is to forecast and flag large residuals.
+
+That framing handles several anomaly types with one mechanism. A point anomaly produces a large
+one-step residual. A level shift produces a sustained sequence of same-signed residuals. A change
+in variance produces residuals whose magnitude changes. And a change in the seasonal pattern
+produces residuals correlated with the seasonal phase. Examining the residual structure rather
+than only its magnitude therefore identifies the anomaly type as well as its presence.
+
+The decomposition approach separates trend, seasonality, and remainder, and applies outlier
+detection to the remainder. Using robust estimation in the decomposition matters, because a
+non-robust decomposition absorbs the anomalies into the trend or seasonal components and they
+disappear from the residual — the anomaly hides itself in the model fitted to find it.
+
+Change point detection is the related task of identifying when the generating process changed
+rather than which individual points are unusual. Cumulative sum methods accumulate deviations and
+signal when the accumulation exceeds a threshold, which detects small persistent shifts far more
+efficiently than examining points individually. Bayesian change point methods give a posterior
+over change locations and handle multiple changes naturally.
+
+Time series methods:
+  forecast residuals   the general-purpose approach; large residuals are anomalies
+  residual structure   the pattern identifies the anomaly type, not only its
+                       presence
+  robust decomposition  seasonal-trend decomposition with robust fitting; a
+                       non-robust fit absorbs the anomalies
+  seasonal hybrid ESD  decompose then apply an outlier test; a common production
+                       choice
+  control charts       Shewhart for large shifts, CUSUM and EWMA for small
+                       persistent ones
+  CUSUM                accumulates deviation; detects small shifts efficiently
+  change point         when the process changed rather than which points are odd
+  matrix profile       subsequence similarity; finds discords and motifs without
+                       specifying what to look for
+  multivariate         correlated series; a single series within normal range while
+                       the correlation structure breaks is a common and important
+                       case
+  prediction interval  the threshold from the forecast's uncertainty rather than
+                       from a fixed value; adapts to periods of higher variance
+  seasonality          multiple periods are common; hourly, daily, weekly, and
+                       annual can all be present simultaneously
+  the retraining question  a model retrained on data containing the anomaly learns
+                       to expect it
+
+The multivariate case deserves emphasis because it catches failures that univariate monitoring
+cannot. In a system with correlated measurements, a fault frequently manifests as a break in the
+correlation rather than as any single series leaving its normal range — a pump's power draw and
+flow rate normally move together, and a blockage raises pressure while reducing flow with both
+remaining within their individual limits. Monitoring the residual from a model predicting each
+series from the others detects this, and monitoring each series independently does not.
+
+[user] Our infrastructure anomaly detector fires 200 alerts a day and the on-call team ignores it.
+[assistant] tool_call anomaly.alert_audit({"alerts_per_day": 200, "actioned_pct": 0.03,
+"method": "static_threshold_per_metric", "metrics_monitored": 1400,
+"seasonality_modelled": false, "correlation_grouping": false, "severity_tiers": 1})
+[tool] {"issues": ["static_thresholds_ignore_seasonality", "per_metric_alerts_not_grouped",
+"no_severity_differentiation", "threshold_not_tied_to_action"],
+"estimated_reducible": 0.9, "recommendation": "seasonal_baselines_plus_grouping_plus_tiering"}
+[assistant] A 3% action rate means the detector is not functioning as a detector — it has trained
+the team to ignore it, which is worse than having no alerting because it also masks the real
+signals. Four changes, and the first two remove most of the volume.
+
+Model the seasonality. Static thresholds on metrics with daily and weekly cycles fire every
+morning when traffic rises and every Monday when the week starts, and those are the normal
+pattern rather than anomalies. Replace fixed thresholds with a baseline predicted from the same
+time of day and day of week, and flag departures from that. This typically removes half to three
+quarters of the volume immediately because most of it is periodic.
+
+Group correlated alerts. One underlying incident produces alerts on every metric it touches —
+latency, error rate, queue depth, CPU, and downstream dependencies all fire together, and the team
+receives twenty alerts describing one problem. Grouping by time and by service topology into a
+single incident is what converts a wall of alerts into a comprehensible signal.
+
+Add severity tiers tied to what should happen. An alert that should wake someone, an alert that
+should be looked at during the working day, and an alert that should be recorded and reviewed
+weekly are three different things and currently all page. Deciding the response for each alert
+type before it fires is what makes the tier meaningful.
+
+Then tie the threshold to the action rather than to the statistics. The right false positive rate
+depends on the cost of investigating versus the cost of missing, and those differ by metric. A
+detector for data loss should be sensitive and a detector for a latency blip should not.
+
+One measurement to add: track the action rate per alert type, not just overall. That identifies
+which specific rules are producing the noise, and in most systems a small number of rules account
+for the large majority of the volume. Fixing or deleting those is a short piece of work with a
+large effect.
+
+## Evaluation, Deployment, and Applications
+
+Evaluating anomaly detection is difficult for a structural reason: labels are scarce because
+anomalies are rare, and the labels that exist are biased because they were found by whatever
+method was previously in use. A detector evaluated against labels produced by the incumbent system
+is rewarded for agreeing with it rather than for being better.
+
+The metrics require care because of the extreme imbalance. Accuracy is meaningless when anomalies
+are one in ten thousand. Precision and recall at the operating threshold are informative and
+depend on the threshold, so the full precision-recall curve and the average precision summarize
+better. Precision at a fixed alert budget — how many of the top hundred flagged are genuine — is
+frequently the most operationally meaningful measure, because the alert budget is what the team
+can actually investigate.
+
+Deployment concerns dominate whether a detector delivers value. The threshold determines the
+alert volume, and it should be set from the investigation capacity and the cost of a miss rather
+than from a statistical criterion. Alert fatigue is the failure mode that renders any detector
+useless, and it results from volume rather than from any individual alert being wrong. And drift
+means normal behaviour changes, so a static model degrades and a continuously retrained one
+gradually learns to accept the anomalies.
+
+Evaluation and deployment:
+  label scarcity       few labelled anomalies; and those that exist are biased by
+                       how they were found
+  incumbent bias       evaluating against the previous system's findings rewards
+                       agreement rather than improvement
+  accuracy is useless  at extreme imbalance
+  precision and recall  at the operating threshold; report both
+  average precision    summarizes the curve
+  precision at budget  how many of the top k are genuine; the operationally
+                       meaningful measure
+  threshold from capacity  set by what can be investigated and the cost of a miss
+  alert fatigue        the dominant failure mode; caused by volume
+  grouping             one incident should produce one alert
+  explanation          which feature or which series drove the score; without it,
+                       an alert is not actionable
+  feedback loop        record investigation outcomes; the only route to labels
+  drift                normal changes; static models degrade, continuously
+                       retrained ones learn to accept anomalies
+  retraining exclusion  exclude confirmed anomalies from the training window
+  human in the loop    the detector proposes and a person disposes; the realistic
+                       architecture for most applications
+
+The explanation requirement deserves the closing emphasis because it determines whether a
+detection is actionable. An alert stating that an observation is anomalous, with a score, gives an
+investigator nothing to start from — they must reconstruct why from scratch, which for a
+high-dimensional system is the bulk of the work. An alert identifying which features contributed
+most to the score, what their values were, and what was expected converts the investigation from
+open-ended to specific. For isolation forest this is available from which features were used in
+the short isolating paths; for reconstruction methods it is the per-feature reconstruction error;
+for forecast-based methods it is the residual per series. Providing it costs little and is the
+difference between a detector that is used and one that is switched off.

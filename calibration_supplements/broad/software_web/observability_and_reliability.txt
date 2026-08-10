@@ -1,0 +1,232 @@
+================================================================================
+AREA: Software and Web Engineering
+SUBJECT: Observability and Reliability Engineering
+Subtopics: signals and instrumentation, tracing, service level objectives, alerting,
+incident response, failure modes, capacity and resilience testing.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Signals and Instrumentation
+
+Observability is the property that a system's internal state can be inferred from its outputs, and
+it is distinguished from monitoring by the questions it supports. Monitoring answers questions
+prepared in advance — is the error rate above threshold, is the queue growing. Observability answers
+questions not anticipated, which requires that the emitted data carry enough dimensionality to slice
+along attributes nobody thought to create a dashboard for.
+
+The three primary signal types have different costs and different uses. Metrics are numeric
+aggregates over time, cheap to store and query at any retention, and limited by cardinality — every
+distinct combination of label values is a separate series, so a label containing user identifiers
+will destroy the metric system. Logs are discrete records with arbitrary content, expensive at
+volume, and irreplaceable for the specific detail of a single event. Traces record the path of a
+request across services with timing at each step, and they are what answers the question of where the
+latency actually went.
+
+Structured logging is the practice that makes logs usable at scale. A log line that is a formatted
+sentence must be parsed with regular expressions and breaks whenever the message changes; a log
+record with named fields can be queried, filtered, and aggregated directly. The cost is a small
+discipline at the call site, and the benefit is the difference between a searchable dataset and a
+haystack.
+
+Signals and instrumentation:
+  observability        inferring internal state from outputs
+  the distinction      unanticipated questions, not prepared ones
+  dimensionality       enough attributes to slice along
+  metrics              numeric aggregates; cheap, and cardinality-limited
+  cardinality explosion  high-uniqueness labels destroying the metric system
+  logs                 discrete records; expensive at volume, irreplaceable in
+                       detail
+  structured logging   named fields rather than formatted sentences
+  traces               request paths across services with per-step timing
+  the trace question   where the latency went
+  sampling             necessary at volume; head-based is cheap and tail-based
+                       keeps the interesting traces
+  correlation identifiers  a request identifier propagated through every signal;
+                       the single most valuable instrumentation decision
+  context propagation  carrying that identifier across service and queue
+                       boundaries
+  the asynchronous gap  work handed to a queue loses context unless it is
+                       explicitly carried, and this is where most tracing
+                       instrumentation is incomplete
+  cost management      observability data frequently exceeds the cost of the
+                       system it observes; sampling and retention policy are
+                       engineering decisions, not procurement ones
+
+Q: An engineer adds a metric label containing the customer identifier to make per-customer
+dashboards possible. What happens?
+A. Nothing; labels are free
+B. Cardinality explosion — each distinct label combination becomes a separate stored series, so a
+   high-uniqueness label multiplies storage and query cost by the number of customers and commonly
+   overwhelms the metrics backend
+C. The metric becomes more accurate
+D. Queries become faster
+Reasoning: Metrics systems store one time series per unique label combination. Unbounded label
+values are the standard way to take down a metrics backend. Per-entity detail belongs in logs or
+traces, which are queried differently and priced differently. Answer: B.
+
+## Service Level Objectives and Error Budgets
+
+A service level indicator is a measurement of some aspect of service quality — the fraction of
+requests served successfully, the fraction served within a latency threshold, the freshness of data.
+A service level objective is a target for that indicator over a window. Together they convert
+reliability from an aspiration into a number that can be measured, reasoned about, and traded
+against other goals.
+
+The objective should be set below one hundred percent deliberately, and the reasoning is important.
+Perfect reliability is not achievable and pursuing it consumes resources with diminishing returns
+while blocking every change that carries risk. Setting a target reflects a judgement about what
+users actually need, and the gap between the target and perfection is the error budget: the amount of
+unreliability the service is permitted to spend.
+
+The error budget makes the tension between velocity and stability explicit and resolvable. A team
+with budget remaining can ship risky changes; a team that has exhausted it stops feature work and
+addresses reliability until the budget recovers. This converts an argument between two groups with
+different incentives into a policy driven by measurement, which is its principal value — the numbers
+do not settle what the right target is, and they do settle what follows once it is agreed.
+
+Objectives and budgets:
+  indicator            a measurement of service quality
+  objective            a target for that indicator over a window
+  the good indicators  success rate, latency threshold fraction, freshness
+  user-centric measurement  measured where the user experiences it, not at the
+                       server
+  the target below perfection  deliberate, and the reasoning matters
+  diminishing returns  each additional nine costs disproportionately more
+  error budget         the permitted unreliability
+  budget policy        remaining budget permits risk, exhausted budget stops
+                       feature work
+  the value            an argument converted into a measured policy
+  what it does not settle  what the target should be; that is a product decision
+  latency objectives   stated as a percentile at a threshold, never as an average
+  the averages problem  a good average with a terrible tail is a bad service
+  multi-window alerting  fast burn and slow burn detected separately
+  dependency budgets   a service cannot be more reliable than its dependencies
+                       unless it is designed to degrade, which is an architectural
+                       requirement flowing directly from the target
+
+## Alerting and On-Call
+
+Alerting exists to bring a human's attention to something requiring it, and the failure mode is not
+missing alerts but too many. An alerting system that pages frequently for conditions that resolve
+themselves trains its recipients to ignore it, at which point it has negative value — the noise
+conceals the signal and the responders are exhausted.
+
+The discipline is that every page must be urgent, actionable, and important. Urgent means it cannot
+wait until business hours. Actionable means there is something the recipient can do. Important means
+the consequences of not acting are real. A condition failing any of these belongs in a ticket, a
+dashboard, or a report, not in a page, and applying this test to an existing alert set typically
+eliminates most of it.
+
+Symptom-based alerting is more robust than cause-based alerting. Alerting on high error rates or
+slow responses catches every cause including the ones not anticipated; alerting on a specific
+condition like disk usage catches only that cause and fires when the condition is present without
+consequences. The practical guidance is to page on symptoms the user experiences, and to use
+cause-level signals for diagnosis after the page rather than as page triggers themselves.
+
+Alerting practice:
+  the failure mode     too many alerts, not too few
+  alert fatigue        recipients trained to ignore; negative value
+  the three tests      urgent, actionable, important
+  where non-pages go   tickets, dashboards, reports
+  symptom-based        catches unanticipated causes
+  cause-based          catches only the anticipated one and fires without
+                       consequence
+  the guidance         page on symptoms, diagnose with causes
+  runbooks             what to check and what to do; linked from the alert
+  the runbook test     if the responder needs knowledge not in the runbook, the
+                       runbook is incomplete
+  alert review         periodic examination of what fired and whether it should
+                       have
+  on-call sustainability  the load must be humane or people leave and quality
+                       falls
+  handover             what is ongoing, what is degraded, what is being watched
+  escalation           clear paths and clear expectations
+  the follow-the-sun option  distributing on-call across time zones to avoid
+                       night pages, which is the single largest improvement to
+                       on-call quality of life where the organization is
+                       distributed enough to support it
+
+## Incident Response and Learning
+
+An incident is an unplanned disruption, and the response has two distinct goals in a strict order:
+restore service, then understand the cause. Conflating them lengthens outages, because diagnosis is
+slower than mitigation and the pressure to explain what is happening competes with the work of
+making it stop. Rolling back a recent change, failing over, shedding load, or disabling a feature
+restores service without understanding, and understanding can follow.
+
+Roles should be explicit during an incident. An incident commander coordinates and decides, without
+performing the technical work themselves; responders investigate and act; a communications role
+keeps stakeholders informed so that the responders are not interrupted. On a small incident one
+person holds several roles, and naming them prevents the common failure where everyone investigates
+and nobody coordinates or communicates.
+
+The post-incident review is where the value is captured, and it is worth only as much as its
+blamelessness. A review that identifies a person as the cause produces defensiveness and hiding; a
+review that treats human error as a symptom of a system that permitted it produces changes that
+prevent recurrence. The relevant question is never why someone did something but why the action
+seemed reasonable at the time and why the system allowed it to have that consequence.
+
+Incident response:
+  the strict ordering  restore first, understand second
+  mitigation options   roll back, fail over, shed load, disable a feature
+  the rollback default  the fastest mitigation for change-induced incidents,
+                       which are the majority
+  incident commander   coordinates and decides; does not investigate
+  responders           investigate and act
+  communications       stakeholders informed without interrupting responders
+  role naming          prevents everyone investigating and nobody coordinating
+  the timeline         recorded during, not reconstructed after
+  blameless review     human error as a symptom of the system
+  the right question   why the action seemed reasonable at the time
+  contributing factors  multiple, and the search for a single root cause is
+                       usually a search for a place to stop looking
+  action items         specific, owned, and tracked; a review producing none is a
+                       retelling
+  the prevention hierarchy  eliminate the possibility, detect it automatically,
+                       or document the manual step; they differ by an order of
+                       magnitude in effectiveness
+  near misses          incidents that did not happen; the cheapest learning
+                       available and almost never reviewed
+
+## Failure Modes, Capacity, and Resilience
+
+Distributed systems fail in characteristic ways worth recognizing on sight. Cascading failure occurs
+when one component's failure increases load on others until they fail too, and retries are the usual
+amplifier — a client retrying a failing service multiplies the load exactly when the service can
+least handle it. Exponential backoff with jitter, circuit breakers that stop calling a failing
+dependency, and bounded retry budgets are the standard defences.
+
+Thundering herds occur when many clients act simultaneously — a cache expiring, a scheduled job
+firing, a service restarting and every client reconnecting at once. Jitter is the general remedy:
+spreading actions over a window converts a spike into a manageable rate. Metastable failure is the
+subtler cousin, where a system enters a state that sustains itself after the trigger is removed,
+which is why simply restoring the original conditions does not always restore the system and why
+load shedding is sometimes necessary to break out.
+
+Capacity planning and resilience testing are the proactive counterparts. Load testing establishes
+where the limits are; the more informative test is finding the failure mode rather than the number,
+since how a system fails at its limit determines whether the failure is a graceful degradation or a
+collapse. Deliberately injecting failures in controlled conditions verifies that the redundancy and
+fallback mechanisms work, which is the only way to know, because an untested failover path has a
+high probability of not working when it is finally needed.
+
+Failure modes and resilience:
+  cascading failure    one failure increasing load until others fail
+  retry amplification  clients multiplying load on a struggling service
+  exponential backoff with jitter  the standard client-side defence
+  circuit breaker      stop calling a failing dependency; fail fast
+  retry budget         a bound on total retry load
+  thundering herd      many clients acting simultaneously
+  jitter               spreading actions over a window
+  metastable failure   a self-sustaining bad state after the trigger is gone
+  load shedding        dropping work deliberately to recover
+  graceful degradation  reduced function rather than none
+  backpressure         slowing intake rather than accepting unbounded work
+  timeouts             on every call; and they must be shorter at each layer
+                       going outward or the outer layer gives up while the inner
+                       one is still trying
+  load testing         the limit and, more usefully, the failure mode at it
+  failure injection    verifying redundancy in controlled conditions
+  the untested failover  has a high probability of not working when needed, which
+                       is why the exercise is the point rather than the report

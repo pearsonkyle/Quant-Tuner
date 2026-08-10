@@ -1,0 +1,326 @@
+================================================================================
+AREA: Mathematics
+SUBJECT: Optimization
+Subtopics: formulation, convexity, unconstrained methods, constrained optimization
+and duality, linear and integer programming, stochastic methods, global search.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Formulation and Convexity
+
+An optimization problem consists of an objective function to minimize or maximize, a set
+of decision variables, and constraints defining the feasible region. Formulation — writing
+the real problem in this form — is usually harder and more consequential than solving it,
+because a well-formulated problem in a tractable class solves in seconds while a poorly
+formulated equivalent may not solve at all.
+
+The single most important structural property is convexity. A set is convex if the
+segment between any two of its points lies entirely within it. A function is convex if the
+chord between any two points on its graph lies on or above the graph, equivalently if its
+Hessian is positive semidefinite where it exists. A convex optimization problem minimizes
+a convex function over a convex set, and it has a property no other class shares: every
+local minimum is a global minimum. This is what makes convex problems reliably solvable —
+a descent method that stops cannot be stuck in a suboptimal basin, because there are
+none.
+
+The practical dividing line in optimization is therefore not linear versus nonlinear but
+convex versus non-convex. Convex problems of enormous size solve routinely with
+guaranteed optimality and verifiable certificates. Non-convex problems of modest size may
+have exponentially many local minima and no way to certify that any solution is global.
+Recognizing convexity, or reformulating a problem to expose it, is the highest-leverage
+skill in the subject.
+
+Convexity-preserving operations, which is how convexity is recognized in practice:
+  nonnegative weighted sum      sum of convex functions is convex
+  composition with affine       f(Ax + b) is convex if f is
+  pointwise maximum             max of convex functions is convex
+  composition rules             g(f(x)) convex if g convex nondecreasing, f convex
+  partial minimization          inf over one variable of a jointly convex function
+  perspective                   t f(x/t) for t > 0
+  norms                         every norm is convex
+  indicator of a convex set     0 inside, infinity outside; how constraints enter
+  log-sum-exp                   convex; the smooth maximum
+  negative entropy, negative log  convex on the positive orthant
+
+Common convex functions worth recognizing: affine functions (both convex and concave),
+quadratics with positive semidefinite Hessian, exponentials, negative logarithms, all
+norms, the maximum eigenvalue of a symmetric matrix, and the log-determinant's negative on
+positive definite matrices. Common non-convex functions that trip people up: products of
+variables, the zero-norm counting nonzeros, most rank constraints, and anything involving
+an equality constraint that is not affine — a nonlinear equality constraint makes the
+feasible set non-convex almost automatically, which is why equality constraints are
+linearized when possible.
+
+Q: A problem minimizes a convex function subject to the constraint that a variable takes
+integer values. The problem is:
+A. Convex, since the objective is convex
+B. Non-convex, because the integer feasible set is not convex
+C. Convex if the objective is also linear
+D. Always solvable in polynomial time
+Reasoning: Convexity is a property of the problem, requiring both a convex objective and a
+convex feasible set. The integers are a discrete set and the segment between two integer
+points contains non-integer points, so the feasible set is not convex. This is why integer
+programming is NP-hard even with a linear objective. Answer: B.
+
+## Unconstrained Optimization
+
+Gradient descent moves against the gradient, which is the direction of steepest local
+decrease. Its convergence rate on a convex quadratic depends on the condition number of
+the Hessian — the ratio of largest to smallest eigenvalue — and degrades badly when that
+ratio is large, because the method oscillates across the narrow directions while creeping
+along the shallow ones. This is why preconditioning, feature scaling, and adaptive methods
+matter so much: they are all ways of improving the effective conditioning.
+
+Newton's method uses second-order information, solving the Newton system to obtain a step
+that accounts for curvature. Near a minimum it converges quadratically — the number of
+correct digits roughly doubles per iteration — which is dramatically faster than gradient
+descent's linear rate. The costs are that forming and factoring the Hessian is O(n^3) in
+the dimension, that the Hessian must be positive definite for the step to be a descent
+direction, and that far from the optimum the pure Newton step can be terrible. Practical
+implementations therefore modify the Hessian to ensure positive definiteness and use a
+line search or trust region to control the step.
+
+Quasi-Newton methods build an approximation to the Hessian inverse from successive
+gradients, obtaining superlinear convergence without ever computing second derivatives.
+BFGS is the standard choice and is the default in most general-purpose optimizers.
+Limited-memory BFGS stores only a handful of recent update vectors instead of the full
+matrix, reducing memory from O(n^2) to O(n), which makes it the workhorse for
+high-dimensional smooth problems.
+
+Method comparison:
+  gradient descent      O(n) per step, linear rate, sensitive to conditioning
+  momentum / heavy ball damps oscillation across steep directions
+  Nesterov acceleration optimal first-order rate for smooth convex problems
+  conjugate gradient    exact in n steps for a quadratic, no matrix storage
+  Newton                quadratic rate, O(n^3) per step, needs a positive definite
+                        Hessian
+  Gauss-Newton          for least squares; approximates the Hessian by J^T J,
+                        dropping the second-derivative term
+  Levenberg-Marquardt   Gauss-Newton with adaptive damping; interpolates toward
+                        gradient descent when the model is poor
+  BFGS                  superlinear, O(n^2) memory
+  L-BFGS                superlinear, O(n) memory; the default for large smooth
+                        problems
+  trust region          bounds the step where the local model is trusted; more
+                        robust than line search on badly behaved problems
+
+Line search and trust region are two answers to the same question of how far to move.
+Line search picks a direction then chooses a step length, typically requiring the Wolfe
+conditions: sufficient decrease in the objective, and sufficient decrease in the
+directional derivative so the step is not too short. Trust region picks a radius within
+which the quadratic model is believed accurate, minimizes the model within that radius,
+and adjusts the radius based on how well the model predicted the actual decrease. Trust
+region methods handle indefinite Hessians and highly nonlinear objectives more gracefully,
+which is why they dominate in derivative-free and noisy settings.
+
+Non-smooth problems require different tools. Subgradient methods generalize gradient
+descent to functions with kinks, converging slowly at a rate of one over the square root
+of the iteration count. Proximal methods split the objective into a smooth part handled by
+a gradient step and a non-smooth part handled by a proximal operator, which for the L1
+norm is soft thresholding — this is exactly the structure of the lasso and the reason
+proximal gradient methods are ubiquitous in sparse learning. The alternating direction
+method of multipliers decomposes problems with separable structure into subproblems that
+may each be easy, and is the standard approach for large distributed convex problems.
+
+## Constrained Optimization and Duality
+
+Constraints change the character of the problem. At an unconstrained minimum the gradient
+vanishes; at a constrained minimum it need not, and instead must be balanced by the
+constraint gradients. The Lagrangian formalizes this by adding each constraint multiplied
+by a multiplier to the objective, and stationarity of the Lagrangian gives the
+first-order conditions.
+
+The Karush-Kuhn-Tucker conditions extend Lagrange multipliers to inequality constraints
+and are the central first-order optimality conditions of the subject. Stationarity
+requires the objective gradient to be a nonnegative combination of the active constraint
+gradients. Primal feasibility requires the constraints to hold. Dual feasibility requires
+inequality multipliers to be nonnegative. Complementary slackness requires each
+multiplier to be zero unless its constraint is active — a constraint that is not binding
+exerts no force. For convex problems satisfying a constraint qualification, KKT is both
+necessary and sufficient for global optimality, which turns verification of a solution
+into an algebraic check.
+
+Duality is the deepest structural idea here. Every optimization problem has an associated
+dual whose variables are the multipliers of the primal constraints, and whose optimal
+value lower-bounds the primal minimum. This is weak duality and holds always. Strong
+duality — the two values being equal — holds for convex problems under mild conditions
+such as Slater's, and it is enormously useful: it provides a certificate of optimality,
+often a computationally easier problem to solve, and an economic interpretation where the
+multipliers are shadow prices measuring how much the optimum would improve per unit
+relaxation of each constraint.
+
+Constrained optimization concepts:
+  Lagrangian           L = f(x) + sum lambda_i g_i(x) + sum mu_j h_j(x)
+  KKT stationarity     grad_x L = 0
+  complementary slack  lambda_i g_i(x) = 0 for each inequality
+  dual function        inf over x of the Lagrangian; always concave, whatever the
+                       primal
+  weak duality         dual optimum <= primal optimum, always
+  strong duality       equality; holds for convex problems under Slater's condition
+  duality gap          the difference; zero certifies optimality
+  shadow price         the multiplier equals the rate of change of the optimum with
+                       respect to relaxing that constraint
+  active set           constraints holding with equality at the optimum
+  penalty method       add a penalty for violation, increase its weight
+  barrier / interior   add a term diverging at the boundary; the basis of modern
+                       interior-point solvers
+  augmented Lagrangian penalty plus multipliers; avoids the ill-conditioning that
+                       pure penalty methods suffer as the weight grows
+
+The shadow price interpretation is what makes duality practically valuable outside
+mathematics. In a production planning problem, the multiplier on a resource constraint is
+the marginal value of an additional unit of that resource, which tells you exactly how
+much it would be worth paying for more. A constraint with a zero multiplier is not
+binding and more of that resource is worthless. This turns the dual solution into
+directly actionable economic information, obtained for free alongside the primal answer.
+
+## Linear and Integer Programming
+
+Linear programming minimizes a linear objective subject to linear constraints. The
+feasible region is a polyhedron, the objective's level sets are hyperplanes, and the
+optimum — if one exists — is attained at a vertex. This geometric fact is the basis of the
+simplex method, which walks from vertex to adjacent vertex along improving edges until no
+improvement is available, at which point optimality is certified. Simplex has exponential
+worst-case complexity on contrived instances and is extremely fast in practice.
+Interior-point methods have polynomial worst-case complexity and traverse the interior;
+both are available in every serious solver, and which is faster depends on the problem's
+structure and size.
+
+Linear programming is remarkably expressive once a few modelling tricks are known.
+Minimizing a maximum is linearized by introducing an auxiliary variable bounded below by
+each term. Absolute values are linearized by splitting a variable into positive and
+negative parts, or by bounding an auxiliary variable above and below. Piecewise linear
+convex functions are represented as maxima of affine pieces. Ratios can sometimes be
+handled by the Charnes-Cooper transformation. Recognizing that a problem can be cast as an
+LP is often the difference between an instant solution and an intractable one.
+
+Integer programming adds the requirement that some variables take integer values, which
+is what allows modelling of discrete decisions — build or do not build, assign or do not
+assign, sequence in this order or that. This expressiveness comes at a cost: integer
+programming is NP-hard, and the feasible set is not convex, so the reliable machinery of
+convex optimization does not apply. Solvers use branch and bound, solving the continuous
+relaxation to obtain a bound, branching on a fractional variable, and pruning subtrees
+whose bound cannot beat the incumbent, augmented by cutting planes that tighten the
+relaxation and by heuristics that find good incumbents early.
+
+Modelling patterns with binary variables:
+  either-or             big-M constraints activated by a binary; keep M as tight as
+                        possible, since loose M produces weak relaxations and slow
+                        solves
+  fixed charge          a setup cost incurred only if production is positive
+  at most k of n        sum of binaries <= k
+  implication           x implies y becomes y >= x for binaries
+  logical and / or      products of binaries linearized with auxiliary variables
+  piecewise nonconvex   SOS2 constraints or explicit binary segment selection
+  assignment            one-to-one matching; the LP relaxation is integral, so
+                        this special case solves as an LP
+  network flow          totally unimodular constraint matrices give integral LP
+                        solutions automatically
+
+Total unimodularity is worth knowing because it identifies the integer problems that are
+secretly easy. When the constraint matrix is totally unimodular and the right-hand side is
+integral, every vertex of the polyhedron is integral, so solving the linear relaxation
+already yields an integer solution. Network flow problems, assignment problems, and
+bipartite matching all have this structure, which is why they are solvable in polynomial
+time while general integer programming is not.
+
+[user] My production scheduling MIP has been running for six hours and the gap is still
+14%. What can I do?
+[assistant] tool_call opt.mip_diagnostics({"vars": 48000, "binaries": 12000,
+"constraints": 61000, "runtime_h": 6, "gap_pct": 14, "nodes_explored": 1840000,
+"incumbent_found_at_h": 0.3, "lp_relaxation_gap_pct": 19, "big_m_max": 1000000})
+[tool] {"bottleneck": "weak_relaxation", "signals": ["big_m_excessive",
+"root_gap_19pct", "bound_barely_improving", "incumbent_good_early"],
+"suggestions": ["tighten_big_m", "add_symmetry_breaking", "set_mip_gap_tolerance"]}
+[assistant] The problem is the bound, not the solution. You found a good incumbent in the
+first eighteen minutes and have spent five and a half hours failing to prove it is good.
+That is a weak-relaxation problem, and the diagnostics point to a specific cause.
+
+Your largest big-M value is one million. Big-M constraints with loose M produce very weak
+LP relaxations — the relaxation can satisfy the constraint by setting the binary to a tiny
+fractional value, so it carries almost no information, and branch and bound has nothing to
+prune with. Tightening M to the smallest value that is still valid is usually the single
+highest-impact change to a MIP model. Compute a genuine upper bound for each constrained
+quantity from the data rather than using a safe round number. A reduction from 1e6 to a
+realistic bound frequently cuts the root gap by more than half.
+
+Second, scheduling models are usually riddled with symmetry — interchangeable machines,
+identical time slots, equivalent job orderings. Symmetric solutions mean branch and bound
+explores many equivalent subtrees, each of which must be separately excluded. Adding
+symmetry-breaking constraints (lexicographic ordering on identical resources, for example)
+prunes those duplicates. Most solvers detect some symmetry automatically, and explicit
+constraints usually do better.
+
+Third, and worth doing immediately regardless: set a MIP gap tolerance. If a 2% gap is
+acceptable for the business decision, setting that tolerance lets the solver stop when it
+reaches it instead of chasing proof of optimality that has no operational value. Six hours
+of compute to close a gap nobody will act on is not a good trade.
+
+Two more if those are insufficient. Provide your known-good incumbent as a warm start so
+the solver begins with a strong bound. And check whether a reformulation exists — many
+scheduling problems have a time-indexed formulation and an alternative
+sequence-based or flow-based one with much tighter relaxations, and switching formulation
+often beats any amount of solver tuning.
+
+## Stochastic and Global Optimization
+
+Stochastic gradient descent replaces the full gradient with an unbiased estimate from a
+random subset of the data. Each step is far cheaper, and the noise it introduces is not
+purely harmful: it helps escape saddle points, which dominate high-dimensional non-convex
+landscapes, and it acts as an implicit regularizer. Convergence requires the step size to
+decrease appropriately — the Robbins-Monro conditions require the step sizes to sum to
+infinity while their squares sum to a finite value, which is why a constant step size
+converges only to a neighbourhood of the optimum rather than to the optimum itself.
+
+Adaptive methods scale the step per coordinate using accumulated gradient statistics.
+AdaGrad divides by the square root of the accumulated squared gradients, which handles
+sparse features well and monotonically shrinks the effective step until learning stalls.
+RMSProp replaces the accumulation with an exponential moving average, fixing that decay.
+Adam adds momentum and bias correction and is the practical default for non-convex deep
+learning, though on convex problems well-tuned SGD with momentum often generalizes
+slightly better.
+
+Global optimization confronts problems with many local minima and no structural
+guarantees. There is no method that both finds the global optimum and terminates quickly
+in general — the difficulty is fundamental rather than a gap in current technique. The
+practical approaches trade guarantees for usefulness.
+
+Global and derivative-free methods:
+  multi-start local     run a local method from many random starts; simple, often
+                        surprisingly effective, embarrassingly parallel
+  simulated annealing   accept worsening moves with a temperature-dependent
+                        probability, cooling over time; converges in theory under
+                        impractically slow cooling schedules
+  genetic algorithms    population, selection, crossover, mutation; general and
+                        usually outperformed by problem-specific methods
+  particle swarm        population following personal and global bests
+  CMA-ES                adapts a covariance matrix of the search distribution; the
+                        strongest general-purpose derivative-free method for
+                        continuous problems of moderate dimension
+  Bayesian optimization builds a surrogate (usually a Gaussian process) and
+                        selects the next evaluation by an acquisition function
+                        balancing exploration and exploitation; the right choice
+                        when each evaluation is very expensive
+  Nelder-Mead           simplex reflection and contraction; no theory, widely used
+                        for low-dimensional smooth problems
+  branch and bound      exact global optimality for problems with computable bounds
+
+Bayesian optimization deserves particular note because it targets a specific and common
+situation: the objective is expensive to evaluate, has no derivatives, and the budget is
+perhaps fifty to a few hundred evaluations. Hyperparameter tuning, physical experiment
+design, and simulation-based engineering all fit. The surrogate model captures both the
+predicted value and the uncertainty, and the acquisition function — expected improvement
+being the standard choice — decides where to sample next by weighing likely improvement
+against the value of reducing uncertainty. Under a few hundred evaluations it
+substantially outperforms random search; beyond a few thousand the surrogate's own cost
+and the curse of dimensionality erode its advantage, and random or evolutionary search
+becomes competitive again.
+
+The recurring practical advice across all of these is to spend effort on formulation
+before algorithm selection. Reformulating a non-convex problem into a convex one,
+tightening a relaxation, exploiting separable structure, reducing dimensionality, or
+finding a special structure like total unimodularity typically yields improvements of
+orders of magnitude, while switching between comparable algorithms yields factors of two
+or three. The most common cause of an intractable optimization problem is a formulation
+that discarded structure the problem actually had.

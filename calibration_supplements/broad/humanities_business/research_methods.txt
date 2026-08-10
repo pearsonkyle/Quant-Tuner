@@ -1,0 +1,230 @@
+================================================================================
+AREA: Humanities and Business
+SUBJECT: Research Methods and Scientific Practice
+Subtopics: question formulation, design choices, measurement, inference and error,
+replication and publication, literature synthesis, communication and integrity.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Question Formulation and Design
+
+Research begins with a question, and the quality of the question bounds the quality of everything
+after it. A well-formed research question is specific enough to be answerable with available
+methods, sufficiently important that the answer matters, and open enough that both outcomes are
+informative. A question whose answer is already known, or whose only interesting answer is one
+particular result, is not research so much as demonstration.
+
+The design follows from the question and from what can be manipulated. An experiment assigns the
+condition of interest at random, which is what licenses causal conclusions, because randomization
+makes the groups comparable on everything including factors nobody thought to measure. An
+observational study takes conditions as they occur and must argue that the compared groups are
+comparable, which is always weaker and is sometimes the only option available.
+
+The distinction between exploratory and confirmatory work is the one most often blurred, and blurring
+it is the source of a large fraction of unreliable published findings. Exploratory analysis generates
+hypotheses by examining data flexibly; confirmatory analysis tests a pre-specified hypothesis with a
+pre-specified procedure. Both are legitimate and they produce different kinds of evidence, and
+presenting an exploratory finding as though it were confirmatory overstates it by a large and
+unquantified amount.
+
+Questions and design:
+  the question bounds everything  no method rescues a poorly formed one
+  answerable           with available methods and data
+  informative either way  both outcomes should teach something
+  experiment           random assignment of the condition
+  what randomization buys  comparability on measured and unmeasured factors
+  observational study  conditions as they occur; comparability must be argued
+  natural experiment   arbitrary variation approximating assignment
+  exploratory analysis  flexible examination generating hypotheses
+  confirmatory analysis  a pre-specified test of a pre-specified hypothesis
+  the blurring         presenting exploratory findings as confirmatory
+  pre-registration     the design and analysis recorded before data collection
+  what it protects against  the flexibility that turns noise into findings
+  power analysis       the sample size needed to detect an effect of the size
+                       expected
+  the underpowered study  cannot support a negative conclusion and inflates the
+                       effect sizes of the positive ones it does find
+
+Q: A study explores a dataset, finds an unexpected relationship, and reports it with a significance
+test. What is wrong?
+A. Nothing, if the test is correctly computed
+B. The test assumes the hypothesis was specified before seeing the data; a relationship found by
+   searching the data has a much higher chance of being noise, and the reported significance
+   overstates the evidence by an amount that depends on how many comparisons were implicitly made
+C. Exploratory analysis is invalid
+D. The dataset is too small
+Reasoning: The reference distribution for a significance test is the distribution of results under
+the null for a pre-specified comparison. Searching a dataset makes many implicit comparisons, so the
+most striking one is expected to look significant even under the null. The finding is a hypothesis
+worth testing on new data, which is a legitimate and much weaker claim. Answer: B.
+
+## Measurement
+
+Measurement converts a concept into a number, and the gap between the concept and the number is
+where most research error lives. Construct validity asks whether the measure captures the concept it
+is meant to. Reliability asks whether repeated measurement gives consistent results. A measure can be
+highly reliable and measure the wrong thing, which is the more dangerous combination because the
+consistency inspires confidence.
+
+Operationalization is the act of choosing the specific measure, and the choice constrains every
+conclusion. A study of well-being measured by a survey instrument has studied responses to that
+instrument, and generalizing to well-being requires an argument that the instrument tracks it.
+Multiple measures of the same construct, showing consistent results, are much stronger evidence than
+any single measure however carefully validated.
+
+Measurement error attenuates relationships. Noise in a measured variable biases estimated
+associations toward zero, so an observed weak relationship is compatible with a strong underlying
+one measured badly. This means a null result from a noisy measure is much weaker evidence of absence
+than the same result from a precise one, and reporting the measure's reliability is what allows a
+reader to judge which situation they are in.
+
+Measurement:
+  the gap              between concept and number
+  construct validity   does the measure capture the concept
+  reliability          consistency across repeated measurement
+  the dangerous combination  reliable and invalid; consistency inspiring
+                       misplaced confidence
+  operationalization   the specific measure chosen
+  what it constrains   every conclusion drawn
+  convergent evidence  multiple measures agreeing
+  measurement error    noise in the measured variable
+  attenuation          associations biased toward zero
+  the null result implication  much weaker evidence from a noisy measure
+  reporting reliability  what lets a reader judge
+  selection into measurement  who is measured determines what the measure
+                       describes; a survey of respondents describes respondents
+  proxy variables      standing in for what cannot be measured; the substitution
+                       should be stated rather than assumed away
+  the units question   what a one-unit change means substantively, which is the
+                       difference between a statistically detectable effect and an
+                       important one
+
+## Inference, Error, and Interpretation
+
+Statistical inference generalizes from a sample to a population, and the machinery quantifies
+uncertainty from sampling and from nothing else. Bias from selection, from measurement, from
+attrition, and from analysis flexibility is not represented in a confidence interval at all, which
+means a narrow interval indicates a large sample rather than a reliable result.
+
+The errors of interpretation recur across fields and are worth naming explicitly. Statistical
+significance is not practical importance; with a large enough sample, a trivial effect is
+detectable. A non-significant result is not evidence of no effect, particularly when power was low.
+Correlation supports causation only with a design that rules out the alternatives. And an effect
+estimated in one population does not automatically apply to another, since the same intervention can
+work differently where the context differs.
+
+Multiplicity deserves particular attention because it is pervasive and easy to overlook. Examining
+many outcomes, many subgroups, or many model specifications produces significant results by chance
+at a rate proportional to the number examined, and the examination frequently happens informally
+without being counted. The defences are pre-specification, correction for the comparisons actually
+made, and reporting the full set examined rather than the subset that reached significance.
+
+Inference and error:
+  what uncertainty is quantified  sampling variation and nothing else
+  what is not          selection, measurement, attrition, and analysis bias
+  the narrow interval  indicates a large sample, not a reliable result
+  significance and importance  a trivial effect is detectable at scale
+  effect size          what should be reported and interpreted
+  the non-significant result  not evidence of absence, especially at low power
+  equivalence testing  the design that can support a claim of no meaningful
+                       effect
+  correlation and causation  the design rules out alternatives, not the statistic
+  confounding          a common cause of both variables
+  external validity    an effect in one population need not transfer
+  multiplicity         significant results by chance in proportion to comparisons
+  the informal version  comparisons made and not counted
+  the defences         pre-specification, correction, and full reporting
+  the garden of forking paths  analysis choices made in response to the data
+                       without any explicit multiple testing, which inflates false
+                       positives just as surely and is much harder to detect
+
+## Replication, Publication, and Synthesis
+
+A single study is weak evidence regardless of its quality, because any one study can be wrong
+through chance, through an undetected flaw, or through a context-specific result that does not
+generalize. Replication is what converts a finding into knowledge, and the systematic replication
+efforts in several fields have found that a substantial fraction of published findings do not
+reproduce, which is a finding about the publication process rather than about the underlying
+science.
+
+Publication bias is the primary mechanism. Positive findings are more likely to be submitted, more
+likely to be accepted, and more likely to be cited than null findings, so the published literature
+overstates effects systematically. The magnitude can be large enough that a well-established effect
+in the literature is absent when unpublished work is included, which is why registries of planned
+studies and journals accepting results-blind submissions address the problem at its source rather
+than correcting for it afterward.
+
+Synthesis combines evidence across studies. A systematic review specifies its search and inclusion
+criteria in advance so that the selection is reproducible rather than curated. Meta-analysis pools
+effect estimates quantitatively, weighting by precision, and it inherits every bias in its inputs —
+pooling biased studies produces a precise biased estimate, which is worse than an imprecise one
+because it looks authoritative. Assessing publication bias and study quality is therefore part of
+the method rather than an optional appendix.
+
+Replication and synthesis:
+  a single study       weak evidence regardless of quality
+  the failure modes    chance, undetected flaw, context specificity
+  replication          what converts a finding into knowledge
+  direct and conceptual  repeating the procedure against testing the same idea
+                       differently
+  the replication findings  a substantial fraction of published results do not
+                       reproduce
+  what that indicates  a publication process problem more than a science problem
+  publication bias     positive findings preferentially submitted, accepted, and
+                       cited
+  the magnitude        large enough to create effects that do not exist
+  registered reports   accepted on the design before results are known
+  study registries     planned studies recorded so unpublished ones are visible
+  systematic review    search and inclusion criteria specified in advance
+  meta-analysis        pooled estimates weighted by precision
+  bias inheritance     pooled biased studies give a precise biased estimate
+  the authority hazard  a precise wrong answer is worse than an imprecise one
+  heterogeneity        variation across studies; large heterogeneity means the
+                       pooled estimate describes no particular context
+
+## Communication and Integrity
+
+Writing up research is part of the research rather than a report of it, because the discipline of
+stating clearly what was done, what was found, and what follows exposes gaps that were invisible
+while working. The structure that works is conventional for good reason: what question, what was
+done, what was found, what it means, and what its limits are, in that order, with the limits stated
+by the authors rather than left for readers to discover.
+
+Reporting completeness is what makes work evaluable and reusable. The methods should permit
+replication, which means stating what was actually done including the decisions made during the
+work rather than the idealized procedure. Data and analysis code shared where possible remove
+ambiguity entirely. Negative and unexpected results reported alongside the positive ones are what
+prevent the literature from being a curated selection.
+
+Research integrity spans a spectrum from fabrication at one end through selective reporting in the
+middle to ordinary sloppiness at the other, and the middle is where most of the damage occurs
+because it is common, rarely deliberate, and frequently not recognized as misconduct by those doing
+it. Reporting the analysis that worked without mentioning the ones that did not, dropping
+inconvenient observations for defensible-sounding reasons, and adjusting a hypothesis to match the
+result are each individually explicable and collectively responsible for a literature less reliable
+than it appears. The practices that prevent them are procedural — pre-specification, complete
+reporting, and independent scrutiny — because relying on individual judgement under the incentives
+that exist has been tried and has not worked.
+
+Communication and integrity:
+  writing as part of the research  it exposes gaps invisible while working
+  the structure        question, method, findings, meaning, limits
+  limits stated by authors  rather than discovered by readers
+  methods completeness  what was actually done, including in-flight decisions
+  data and code sharing  removes ambiguity that prose cannot
+  negative results     reported alongside positive ones
+  the integrity spectrum  fabrication, selective reporting, sloppiness
+  where the damage is  the middle, because it is common and rarely recognized
+  selective analysis reporting  the analysis that worked, without the others
+  data exclusion       for reasons that sound defensible after the fact
+  hypothesis adjustment  matched to the result and presented as prior
+  the individual explicability  each is defensible alone and corrosive together
+  procedural prevention  pre-specification, complete reporting, independent
+                       scrutiny
+  why procedures rather than judgement  relying on individual judgement under the
+                       existing incentives has been tried at scale and the
+                       replication findings are the result
+  authorship and credit  stated contributions rather than a conventional ordering
+                       whose meaning varies by field and is opaque to everyone
+                       outside it

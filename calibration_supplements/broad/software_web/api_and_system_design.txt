@@ -1,0 +1,314 @@
+================================================================================
+AREA: Software and Web Engineering
+SUBJECT: API and System Design
+Subtopics: requirements and estimation, high-level architecture, data modelling and
+storage choice, caching and consistency, scaling patterns, reliability, interface design,
+tradeoff reasoning.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Requirements and Estimation
+
+System design begins with establishing what is actually required, and the most common failure is
+proceeding to architecture before the requirements are pinned down. Functional requirements state
+what the system does. Non-functional requirements — throughput, latency, availability, durability,
+consistency, and cost — determine nearly every architectural decision, and they are frequently
+left implicit until a decision forces them into the open.
+
+The requirements that matter most are the ones with sharp thresholds. A latency requirement of
+under a hundred milliseconds at the ninety-ninth percentile rules out architectures that a
+five-hundred-millisecond requirement permits. A durability requirement of no acknowledged write
+ever lost rules out asynchronous replication. An availability requirement determines whether a
+single-region deployment is acceptable. Stating these explicitly, with the percentile and the
+measurement point, converts vague aspirations into design constraints.
+
+Estimation establishes the scale, and the value is in the order of magnitude rather than the
+precision. A system handling a hundred requests per second and one handling a hundred thousand are
+different systems, while the difference between eighty thousand and a hundred and twenty thousand
+rarely changes any decision. Working from the user count through the activity per user to the
+request rate, and from the data per event to the storage growth, identifies which resource binds
+first.
+
+Requirements and estimation:
+  functional           what it does
+  non-functional       throughput, latency, availability, durability, consistency,
+                       cost; these drive the architecture
+  state the percentile  a latency requirement without one is not a requirement
+  read to write ratio  determines whether caching and replication help; a
+                       hundred-to-one read-heavy system is a different problem from
+                       a write-heavy one
+  peak to average      capacity is sized for the peak; a ten-to-one ratio means
+                       most capacity is idle most of the time
+  growth rate          determines whether today's design survives the year
+  data retention       how long, and what can be tiered or deleted
+  back of the envelope  order of magnitude; precision beyond that changes nothing
+  useful constants     a day is ~86,400 seconds; a million per day is ~12 per
+                       second; a billion requests per month is ~380 per second
+  storage estimation   events per day times bytes per event times retention;
+                       add indexes and replication
+  bandwidth            request rate times payload size; frequently the binding
+                       constraint for media
+  the binding resource  identify which of compute, memory, storage, bandwidth, or
+                       connections limits first; design around that one
+
+Q: A system serves 100 million requests per day with a 10:1 peak-to-average ratio. The capacity
+that must be provisioned is closest to:
+A. 1,200 requests per second
+B. 12,000 requests per second
+C. 100 million per second
+D. 1,200 per minute
+Reasoning: 100 million per day divided by 86,400 seconds is about 1,160 per second on average.
+The peak is ten times that, roughly 12,000 per second, and capacity must handle the peak rather
+than the average. The gap between them is why utilization at a system designed for peak is low,
+and why elastic scaling is valuable when the peak is predictable and brief. Answer: B.
+
+## High-Level Architecture
+
+Architecture allocates responsibilities to components and defines how they communicate, and the
+first decision is how much to separate. A single deployable application is simpler to develop,
+test, deploy, and debug, and it constrains scaling and independent deployment. Separate services
+permit independent scaling and deployment and impose network latency, partial failure, and
+distributed debugging on every interaction that was previously a function call.
+
+The defensible default is a well-structured single application with clear internal module
+boundaries, extracting services when a specific pressure justifies it. The pressures that justify
+extraction are a component needing to scale independently because its resource profile differs, a
+team needing to deploy independently because coordination is costing more than the separation
+would, and a workload with genuinely different requirements such as a batch pipeline alongside a
+request-serving path.
+
+The layers that recur across most systems are worth knowing as a starting structure. A client
+talks to an edge layer providing termination, routing, and protection. The edge routes to
+application services implementing the logic. Those services use data stores for persistence and
+caches for speed. Asynchronous work is queued for background workers. And observability spans all
+of it.
+
+Architectural elements:
+  monolith             simplest; constrained independent scaling and deployment
+  modular monolith     clear internal boundaries; the extraction path stays open
+  services             independent scaling and deployment; network latency, partial
+                       failure, distributed debugging
+  the extraction trigger  a specific pressure, not a general preference
+  edge layer           TLS termination, routing, rate limiting, DDoS protection,
+                       static caching
+  load balancer        distributes; L4 by address and port, L7 by content
+  application tier     stateless where possible, so instances are interchangeable
+                       and scaling is trivial
+  stateless services   the single most valuable architectural property; externalize
+                       session, cache, and file state
+  data tier            the hardest to scale and the hardest to change
+  cache tier           the largest single latency and load improvement available
+  queue                decouple producers from consumers; absorb spikes; enable
+                       retries
+  worker tier          background processing; scales independently of the request
+                       path
+  CDN                  geographic proximity; the only way to beat the speed of
+                       light
+  the request path     minimize what must happen before a response; everything
+                       else goes to a queue
+
+Statelessness deserves the strongest emphasis of these because so much follows from it. A
+stateless service instance holds no data that another instance lacks, so any request can go to any
+instance, an instance can be added or removed at any moment, a failure loses nothing, and
+deployment is a matter of replacing instances. Achieving it requires externalizing session state
+to a shared store, uploaded files to object storage, and any in-memory cache to a shared cache or
+accepting that each instance has its own. The cost is a network hop for what was a memory access,
+and it buys the ability to scale horizontally without coordination.
+
+## Data Modelling and Storage
+
+Storage selection follows from the access patterns rather than from the data's shape, and the
+useful discipline is enumerating the queries the system must serve before choosing. A store
+excellent at one access pattern is frequently poor at another, and the pattern that matters is the
+one on the critical path at the highest volume.
+
+Relational databases should be the default and are frequently displaced without justification.
+They provide transactions, flexible querying including queries nobody anticipated, mature
+operational tooling, and strong consistency, and a single well-provisioned instance handles
+throughput that most systems never reach. The specific limits that justify moving away are write
+throughput exceeding what one node can sustain, data volume exceeding practical single-node
+management, or an access pattern the relational model serves badly.
+
+Polyglot persistence — using several stores each suited to its workload — is standard at scale and
+carries a cost worth stating. Each store is a separate operational burden with its own failure
+modes, backup requirements, upgrade path, and expertise. Data spanning stores cannot be
+transactionally consistent, so consistency must be handled at the application level. The right
+number of distinct storage technologies is the smallest that serves the requirements.
+
+Storage selection:
+  enumerate the queries  before choosing; the access pattern determines the fit
+  relational default   transactions, flexible querying, mature tooling; displace it
+                       for a stated reason
+  key-value            highest throughput, simplest access; sessions, caches,
+                       feature flags
+  document             aggregate-oriented access; schema flexibility that is
+                       genuinely useful and genuinely dangerous
+  wide-column          massive writes with a known partition key
+  search index         relevance ranking, faceting, fuzzy matching; a secondary
+                       index rather than a system of record
+  time series          metrics; compression and retention policies built in
+  graph                deep traversal; a many-hop relational join is where this
+                       pays
+  object storage       large immutable blobs; cheap, durable, and not a filesystem
+  data warehouse       analytical queries over large scans; columnar
+  normalization        eliminates update anomalies; the default for the system of
+                       record
+  denormalization      avoids joins on a hot read path; requires maintaining
+                       consistency explicitly
+  materialized view    a maintained denormalized projection; the principled form
+                       of denormalization
+  polyglot cost        each store is an operational burden; use the fewest that
+                       serve the requirements
+
+## Caching, Consistency, and Scaling
+
+Caching is the highest-leverage performance intervention and the most common source of
+correctness bugs, because a cache is a second copy of data and two copies can disagree. The design
+question is not how to eliminate staleness but how much staleness is acceptable and where.
+
+Cache placement determines what it can help with. A browser cache eliminates the request
+entirely. A content delivery network serves from geographic proximity. An application-level cache
+avoids the database query. A database's own buffer cache avoids the disk read. Each removes work
+from everything below it, so caching as far up as correctness permits is the general principle.
+
+The invalidation strategies each fail differently and none is free. A time-to-live is simple and
+serves stale data for up to its duration. Write-through updates the cache on write and can leave
+them inconsistent if the two writes are not atomic. Explicit invalidation is precise and misses
+paths the author did not anticipate. Versioned keys, where the key incorporates a version that
+changes on write, sidestep invalidation entirely by making stale entries unreachable, at the cost
+of accumulating garbage.
+
+Scaling proceeds through a sequence, and the ordering matters because each step is
+substantially more expensive than the last. Optimize what exists first, since a query taking a
+hundred milliseconds that should take five is a fivefold capacity increase at no infrastructure
+cost. Cache next. Scale vertically after that, since a larger machine requires no application
+change. Then scale horizontally by adding stateless application instances. Then add read replicas.
+Then, only when writes genuinely exceed one node, partition.
+
+Caching and scaling:
+  cache placement      browser, CDN, application, database; higher is better
+  TTL                  simple; bounded staleness
+  write-through        update both; ordering matters
+  explicit invalidation  precise; misses unanticipated paths
+  versioned keys       stale entries become unreachable; no invalidation needed
+  cache stampede       a hot key expiring causes concurrent recomputation;
+                       single-flight or probabilistic early refresh
+  negative caching     cache misses too, or a lookup for a nonexistent key hits
+                       the database every time
+  hit rate             the metric; a low hit rate means the cache costs latency
+                       and provides nothing
+  scaling order        optimize, cache, scale up, scale out, replicate, partition
+  read replicas        read-heavy workloads; introduces replication lag and the
+                       read-your-writes problem
+  partitioning         the last resort; the shard key choice is effectively
+                       irreversible
+  shard key            distributes evenly and keeps related data together; a
+                       monotonic key concentrates all current writes on one shard
+  hot partitions       a celebrity or a popular item; no partitioning scheme fixes
+                       a single hot key
+  cross-shard queries  scatter-gather; loses joins and transactions
+
+The scaling order deserves emphasis because teams frequently skip to the end. Partitioning is
+where most of the complexity lives — irreversible key choice, lost cross-shard transactions,
+scatter-gather queries, rebalancing — and it is warranted only when write throughput genuinely
+exceeds a single node's capacity. A great many systems partition prematurely and carry that
+complexity for years while operating at a scale a single well-tuned database would have served
+comfortably.
+
+[user] Design a URL shortener handling 100 million new links per month and 10 billion redirects
+per month.
+[assistant] tool_call design.estimate({"writes_per_month": 1e8, "reads_per_month": 1e10,
+"retention_years": 5, "url_avg_bytes": 100, "peak_factor": 3})
+[tool] {"write_rps_avg": 38, "read_rps_avg": 3858, "read_write_ratio": 100,
+"peak_read_rps": 11574, "total_links_5yr": 6e9, "storage_gb": 780,
+"characterization": "read_heavy_small_dataset_low_write_rate"}
+[assistant] The numbers characterize the problem, and they point somewhere less complicated than
+the request sounds.
+
+Writes are 38 per second on average, which is trivial. Reads are about 3,900 per second average
+and 11,600 at peak, with a hundred-to-one read-to-write ratio. Total storage after five years is
+roughly 780 GB including the URLs and metadata, which is a single machine's worth of data.
+
+That characterization drives the design. This is a read-heavy, small-dataset, low-write-rate
+problem, which means caching solves most of it and the write path barely matters.
+
+For the key generation, use a counter encoded in base62 rather than hashing the URL. A hash needs
+collision handling and produces no ordering; an incrementing counter gives a guaranteed-unique
+short key of seven characters for 3.5 trillion values, and distributing counter ranges to each
+application instance in blocks removes the coordination from the request path entirely. If
+sequential keys are undesirable because they let someone enumerate links, apply a reversible
+permutation to the counter before encoding, which preserves uniqueness and removes the ordering.
+
+For storage, a single relational database with a read replica handles this comfortably. The
+access pattern is a primary key lookup, which is the cheapest query there is, and 780 GB is well
+within single-node range. A key-value store is also appropriate and is not necessary.
+
+The cache is where the design's leverage is. Link popularity is heavily skewed — a small fraction
+of links receive most of the traffic — so an in-memory cache holding the hot set will serve the
+large majority of redirects without touching the database. At a 95% hit rate your database sees
+under 600 reads per second, which is nothing.
+
+Put a CDN in front for the redirect itself if the latency matters geographically, since a
+redirect is a small cacheable response and serving it from the edge removes the round trip to your
+region entirely.
+
+Two things worth deciding explicitly. Analytics on click counts is a separate write path at 3,900
+per second, and doing it synchronously would make the write rate a hundred times the link creation
+rate — queue it and aggregate asynchronously. And decide the expiry policy early, because it
+determines whether storage grows without bound and whether the key space needs to be reclaimed.
+
+## Reliability and Interface Design
+
+Reliability is designed rather than achieved by care, and the techniques are structural. Redundancy
+eliminates single points of failure, and identifying them requires tracing every dependency
+including the ones that are easy to forget — DNS, the certificate authority, the deployment
+pipeline, the configuration store. Isolation limits blast radius so that one component's failure
+does not cascade. Graceful degradation maintains partial function when a dependency fails, which
+requires deciding in advance what can be dropped.
+
+The failure modes that matter are frequently not total failure. A dependency that is slow rather
+than down is more damaging, because callers wait rather than failing fast, and their resources
+exhaust while the health check passes. Timeouts on every call, circuit breakers that stop calling a
+failing dependency, and bulkheads isolating resources per dependency are what convert a slow
+dependency into a fast local failure.
+
+Interface design determines how well a system can evolve, and the governing property is
+backward compatibility. Adding an optional field is safe; adding a required one, removing a field,
+renaming, or changing a type or a meaning are all breaking. The discipline is to add rather than
+modify, to version when a breaking change is unavoidable, and to run both versions during a
+deprecation period long enough for consumers to migrate.
+
+Reliability and interfaces:
+  single point of failure  trace every dependency including DNS, certificates,
+                       config, and the deployment path
+  redundancy           N+1 or N+2; and verify failover actually works, since an
+                       untested failover is a hypothesis
+  isolation            bulkheads per dependency; a thread pool exhausted by one
+                       slow downstream must not starve calls to healthy ones
+  graceful degradation  decide in advance what can be dropped
+  timeouts             on every outbound call; a missing timeout is a bug
+  circuit breaker      stop calling a failing dependency; fail fast locally
+  retries with jitter  and only for idempotent operations
+  backpressure         bound queues; unbounded queues convert overload into
+                       unbounded latency
+  load shedding        reject excess at the edge cheaply rather than accepting
+                       work that will time out
+  idempotency          client-supplied keys; makes retries safe
+  backward compatibility  add rather than modify; the property that permits
+                       independent deployment
+  versioning           when a breaking change is unavoidable; run both during
+                       deprecation
+  pagination           on any collection that can grow; cursor-based for
+                       stability at depth
+  the health check     must exercise the real dependency path, and liveness must
+                       differ from readiness
+
+The distinction between liveness and readiness deserves the closing note because confusing them
+turns a degraded dependency into a total outage. A liveness check answers whether the process
+should be restarted, and it must therefore check only the process itself. A readiness check
+answers whether the instance should receive traffic, and it may check dependencies. If a liveness
+check tests a downstream dependency, then a slow dependency causes every instance to be restarted
+simultaneously, which removes all capacity at exactly the moment it is most needed and converts a
+partial degradation into a complete failure. This is a specific and common misconfiguration whose
+consequences are severe and whose fix is a two-line change.

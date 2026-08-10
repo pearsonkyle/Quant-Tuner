@@ -1,0 +1,233 @@
+================================================================================
+AREA: Physics
+SUBJECT: Geophysics
+Subtopics: seismology and Earth structure, gravity and geodesy, geomagnetism,
+heat flow and mantle dynamics, exploration methods, hazards, inversion and modelling.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Seismology and the Structure of the Earth
+
+Nearly everything known about the Earth's deep interior comes from seismic waves, because no direct
+sample exists from below a few kilometres. An earthquake radiates elastic waves that travel through
+the planet, refract and reflect at boundaries where properties change, and arrive at instruments
+worldwide with travel times and amplitudes that encode the structure along their paths.
+
+Two body wave types propagate through the volume. Compressional waves travel fastest, involve motion
+parallel to propagation, and pass through liquids. Shear waves travel more slowly, involve
+perpendicular motion, and cannot propagate in a liquid at all. That last fact is the single most
+consequential observation in the history of the field: a shadow zone where shear waves do not arrive
+on the far side of the Earth demonstrates a liquid outer core, and the shape of the compressional
+wave shadow gives its size.
+
+Surface waves travel along the boundary, decay with depth, and carry most of the destructive energy
+in a large earthquake. Their dispersion — the dependence of velocity on period, since longer periods
+sample deeper — allows the shallow velocity structure to be inverted from a single record, which is
+why surface wave analysis dominates crustal and upper mantle imaging. The layered picture of crust,
+mantle, outer core, and inner core, with the discontinuities between them, was built entirely from
+these observations before any other technique could address the question.
+
+Seismology and structure:
+  body waves           compressional and shear, travelling through the volume
+  compressional waves  fastest, parallel motion, propagate in liquids
+  shear waves          slower, perpendicular motion, do not propagate in liquids
+  the shear shadow     the demonstration of a liquid outer core
+  surface waves        along the boundary, decaying with depth, most destructive
+  dispersion           velocity varying with period; longer periods sample deeper
+  crust-mantle boundary  a sharp velocity increase at shallow depth
+  transition zone      phase changes producing discontinuities in the upper mantle
+  core-mantle boundary  the largest property contrast in the planet
+  inner core           solid, detected from waves that traverse it
+  tomography           three-dimensional velocity structure from many crossing
+                       paths; the same principle as medical imaging
+  anisotropy           direction-dependent velocity from aligned minerals; a probe
+                       of flow direction in the mantle
+  attenuation          amplitude loss; sensitive to temperature and partial melt
+  magnitude scales     logarithmic; moment magnitude is the physically meaningful
+                       one and relates directly to the energy released
+  the energy relation  one unit of magnitude corresponds to roughly thirty times
+                       the energy, which is why the distinction between a large
+                       and a very large event is far greater than the numbers
+                       suggest
+
+Q: Shear waves are not detected on the side of the Earth opposite a large earthquake. This shows:
+A. The waves were absorbed by rock
+B. There is a liquid layer in the interior, because shear waves cannot propagate through a liquid
+   and are therefore blocked entirely rather than merely attenuated
+C. The instruments failed
+D. The earthquake was too small
+Reasoning: A liquid has no shear strength, so shear waves cannot exist in it. The complete absence
+of shear arrivals across a well-defined shadow zone, rather than a reduction in amplitude, is
+diagnostic of a liquid layer and was the discovery of the outer core. Answer: B.
+
+## Gravity, Geodesy, and the Shape of the Earth
+
+The Earth's gravity field varies from place to place because mass is not uniformly distributed, and
+measuring those variations maps subsurface density. A gravity survey measures the field with an
+instrument sensitive to parts in a billion, and the interpretation requires removing the predictable
+components — latitude, elevation, the mass of the intervening topography, and the tidal effect of
+the Sun and Moon — before the residual anomaly reflects the geology.
+
+Isostasy is the principle that the crust floats on a denser mantle in approximate buoyant
+equilibrium, so mountain ranges have deep low-density roots supporting them. It explains why the
+observed gravity over a mountain range is far less than the topography alone would produce: the
+excess mass above sea level is compensated by a deficit below. Departures from isostatic
+equilibrium indicate that something is actively supporting or depressing the surface, which is how
+dynamic support by mantle flow and glacial rebound are identified.
+
+Satellite geodesy transformed the field by making global measurement continuous. Satellite pairs
+measuring their separation to micron precision detect mass redistribution, which has produced direct
+measurements of ice sheet loss, groundwater depletion, and the seasonal cycling of water between
+land and ocean. Precise satellite positioning measures crustal deformation at the millimetre level,
+which is how plate motion, strain accumulation on faults, and volcanic inflation are now routinely
+monitored.
+
+Gravity and geodesy:
+  gravity anomaly      the residual after removing predictable components
+  free-air correction  for elevation above the reference surface
+  Bouguer correction   for the mass of the intervening topography
+  terrain correction   for the surrounding relief
+  isostasy             crustal blocks floating in buoyant equilibrium
+  mountain roots       low-density material compensating the topography
+  the compensation observation  gravity over mountains is far less than the
+                       topography implies
+  isostatic anomaly    what remains after compensation is accounted for
+  dynamic topography   surface elevation supported by mantle flow
+  glacial rebound      crust still rising from removed ice load; a direct probe of
+                       mantle viscosity
+  the geoid            the equipotential surface; the true reference for elevation
+  satellite gravimetry  mass redistribution measured from orbit
+  what it measures     ice loss, groundwater depletion, seasonal water cycling
+  satellite positioning  millimetre crustal deformation
+  interferometric radar  surface displacement mapped over wide areas; volcanic
+                       inflation, subsidence, and coseismic slip
+
+## Geomagnetism and the Core
+
+The Earth's magnetic field is generated by convection in the liquid iron outer core, a self-
+sustaining dynamo in which fluid motion through a magnetic field generates currents that maintain
+the field. The energy source is a combination of cooling and the buoyancy released as the inner core
+solidifies, and the rotation of the planet organizes the flow into the pattern that produces a
+predominantly dipolar field.
+
+The field is not static. It drifts, its intensity varies, and at irregular intervals averaging
+hundreds of thousands of years it reverses polarity entirely, with a transition taking a few
+thousand years during which the field is weak and complex. The record of these reversals is
+preserved in rocks that cooled through their magnetic blocking temperature, locking in the field
+direction at that time, and reading that record from the ocean floor provided the decisive evidence
+for seafloor spreading.
+
+That evidence deserves emphasis because of how conclusive it was. Magnetic surveys of the ocean floor
+revealed stripes of alternating polarity, symmetric about mid-ocean ridges, with the same sequence
+on both sides. The only sensible explanation is that new crust forms at the ridge, records the field
+direction as it cools, and spreads outward in both directions — which is seafloor spreading, and
+which converted continental drift from a disputed hypothesis into the foundation of plate tectonics.
+
+Geomagnetism:
+  the dynamo           convection in the liquid iron core sustaining the field
+  the energy source    cooling plus buoyancy from inner core solidification
+  dipole dominance     the field is mostly but not purely dipolar
+  secular variation    drift and intensity change on decadal timescales
+  reversals            irregular, averaging hundreds of thousands of years apart
+  the transition       a few thousand years of weak complex field
+  remanent magnetization  the field direction locked in as rock cools
+  blocking temperature  below which magnetization is fixed
+  magnetic stripes     alternating polarity, symmetric about ridges
+  the decisive evidence  the same sequence on both sides of a ridge
+  seafloor spreading   new crust forming and moving outward
+  apparent polar wander  the pole's apparent path differing between continents;
+                       resolved by the continents having moved, not the pole
+  magnetostratigraphy  dating sequences by their reversal pattern
+  the magnetosphere    the field's interaction with the solar wind; deflects
+                       charged particles and is why the field matters for
+                       habitability
+
+## Heat Flow, Mantle Dynamics, and Plate Tectonics
+
+The Earth's internal heat drives everything geologically active, and it comes from two sources:
+radioactive decay of long-lived isotopes in the mantle and crust, and heat left over from accretion
+and core formation. The total output is modest compared with solar input at the surface — a fraction
+of a watt per square metre — but it is the entire budget for mantle convection, plate motion,
+volcanism, and the dynamo.
+
+Mantle convection is solid-state creep over geological time. The mantle is crystalline rock that
+deforms by diffusion and dislocation mechanisms at rates of centimetres per year, which over
+hundreds of millions of years is enough for large-scale overturn. Plates are the cold upper thermal
+boundary layer of this convection, and the driving forces are dominated by the negative buoyancy of
+subducting slabs pulling the plate behind them rather than by drag from below — which is why the
+fastest plates are those with the largest subducting margins.
+
+The plate boundary types organize most surface geology. Divergent boundaries create new crust at
+ridges. Convergent boundaries destroy it in subduction zones, producing the deepest earthquakes,
+explosive volcanism, and mountain building. Transform boundaries slide past each other, producing
+shallow earthquakes without volcanism. Recognizing which type is present tells you what hazards to
+expect and what rocks to find.
+
+Heat and dynamics:
+  heat sources         radioactive decay and primordial heat
+  the surface flux     a fraction of a watt per square metre
+  the budget           all internal geological activity comes from it
+  mantle convection    solid-state creep at centimetres per year
+  deformation mechanisms  diffusion and dislocation creep
+  plates               the cold upper thermal boundary layer
+  slab pull            the dominant driving force
+  ridge push           secondary; gravitational sliding from elevated ridges
+  basal drag           smaller than long assumed
+  the speed correlation  plates with large subducting margins move fastest
+  divergent boundaries  new crust at ridges
+  convergent boundaries  subduction; deep earthquakes, explosive volcanism,
+                       mountain building
+  transform boundaries  lateral sliding; shallow earthquakes, no volcanism
+  hotspots             volcanism away from boundaries; the plume hypothesis and
+                       its ongoing debate
+  the age-depth relation  ocean floor subsides predictably as it cools, one of
+                       the cleanest quantitative relationships in the field
+
+## Exploration Methods, Hazards, and Inversion
+
+Applied geophysics images the shallow subsurface for resources, engineering, groundwater, and
+archaeology, using the same physics at smaller scale. Seismic reflection sends controlled energy
+into the ground and records the echoes from layer boundaries; it is the highest-resolution method
+and the most expensive. Electrical and electromagnetic methods measure conductivity, which responds
+strongly to water content and to certain ores. Ground-penetrating radar images the top few metres in
+resistive material and fails entirely in clay.
+
+Hazard assessment turns this understanding into estimates of what may happen and how often.
+Earthquake hazard combines the locations and slip rates of faults, the recurrence statistics of
+earthquake magnitudes, and models of how ground shaking attenuates with distance and amplifies in
+soft sediment. Local site conditions frequently dominate — the same earthquake produces very
+different shaking on rock and on soft basin fill, and the amplification factor can exceed a factor
+of several.
+
+The unifying methodological problem across all of this is inversion: inferring subsurface properties
+from surface measurements. It is inherently non-unique, because different structures can produce
+identical observations, and every result therefore depends on the regularization or prior imposed to
+select among the possibilities. A geophysical image is a model consistent with the data, not a
+photograph, and its resolution varies with depth and position in ways that a rendered image does not
+communicate. Reading the resolution analysis alongside the image is what separates competent
+interpretation from over-reading.
+
+Exploration and inversion:
+  seismic reflection   controlled energy and layer echoes; highest resolution
+  seismic refraction   velocity structure from head waves; cheaper, coarser
+  electrical resistivity  conductivity; responds to water and to ores
+  electromagnetic methods  including airborne survey over large areas
+  ground-penetrating radar  the top few metres; defeated by clay
+  magnetics            buried magnetic bodies; fast and cheap reconnaissance
+  gravity              density contrast; regional structure
+  borehole logging     direct measurement along a well; the ground truth for
+                       everything else
+  seismic hazard       fault slip rates, recurrence statistics, attenuation
+  site amplification   soft sediment amplifying shaking substantially
+  liquefaction         saturated loose sediment losing strength during shaking
+  tsunami generation   from seafloor displacement, not from shaking
+  early warning        detecting the fast compressional wave to warn before the
+                       slower destructive waves arrive; seconds to tens of
+                       seconds, which is enough to stop trains and halt surgery
+  the inversion problem  non-unique by nature
+  regularization       the assumption selecting among consistent models
+  resolution analysis  what the data can and cannot constrain
+  the interpretive discipline  an image is a model consistent with the data, and
+                       reading structure into poorly resolved regions is the most
+                       common error in the field

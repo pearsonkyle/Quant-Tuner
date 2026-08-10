@@ -1,0 +1,250 @@
+================================================================================
+AREA: Mathematics
+SUBJECT: Statistical Theory
+Subtopics: estimation and its properties, likelihood, sufficiency and information,
+hypothesis testing theory, asymptotics, decision theory, nonparametrics and resampling.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Estimation and the Properties of Estimators
+
+Statistical theory studies procedures for drawing conclusions from data under a probability model,
+and its central objects are estimators — functions of the data used to infer something about the
+model. The theory's value is that it says which estimators are good, in what sense, and under what
+conditions, which converts a menu of plausible-seeming procedures into an ordered comparison.
+
+The basic properties are stated relative to repeated sampling from the model. An estimator is
+unbiased when its expected value equals the quantity estimated. It is consistent when it converges
+to that quantity as the sample grows. It is efficient when its variance is as small as achievable
+among a class. These are distinct and none implies the others: an unbiased estimator can be
+inconsistent, a consistent estimator can be badly biased in small samples, and the estimator with
+the smallest mean squared error is frequently biased.
+
+That last point deserves emphasis because it contradicts a widespread intuition. Mean squared error
+decomposes into squared bias plus variance, so accepting some bias in exchange for a larger variance
+reduction lowers the total error. Shrinkage estimators exploit this deliberately, and the striking
+theoretical result is that in three or more dimensions the obvious unbiased estimator of a normal
+mean vector is inadmissible — a shrunken estimator has smaller risk everywhere. Unbiasedness is a
+property, not a virtue.
+
+Estimation properties:
+  estimator            a function of the data used to infer a quantity
+  bias                 the difference between expectation and truth
+  consistency          convergence to the truth as the sample grows
+  efficiency           minimal variance within a class
+  the independence     none of these implies the others
+  mean squared error   squared bias plus variance
+  the bias-variance tradeoff  accepting bias to reduce variance lowers total error
+  shrinkage            deliberately biased toward a target; often better
+  the inadmissibility result  in three or more dimensions, the obvious unbiased
+                       estimator of a normal mean is dominated everywhere
+  the lesson           unbiasedness is a property to be traded, not preserved
+  standard error       the estimator's own standard deviation
+  robustness           sensitivity to model misspecification and to outliers
+  breakdown point      the fraction of contaminated data an estimator tolerates;
+                       the mean has zero, the median has one half
+  influence function   how much a single observation can move the estimate
+
+Q: An estimator with small bias and large variance is compared with one having moderate bias and
+very small variance. The second has lower mean squared error. The correct conclusion is:
+A. The first estimator is better because it is less biased
+B. The second is better for this criterion; mean squared error combines squared bias and variance,
+   and reducing variance can more than compensate for added bias
+C. Bias makes an estimator invalid
+D. They cannot be compared
+Reasoning: Unbiasedness is one desirable property among several and it is not the objective unless
+the loss function makes it so. Under squared error loss, the decomposition makes the tradeoff
+explicit, and shrinkage methods exploit it systematically. Answer: B.
+
+## Likelihood, Sufficiency, and Information
+
+The likelihood function is the probability of the observed data viewed as a function of the
+parameter, and it is the central object of parametric inference. It is not a probability
+distribution over the parameter — it does not integrate to one in general — and treating it as one
+is the most common conceptual error in the area. What it does is rank parameter values by how well
+they explain the data.
+
+Maximum likelihood estimation selects the parameter maximizing this function, and it has excellent
+properties under regularity conditions: consistency, asymptotic normality, asymptotic efficiency,
+and invariance to reparameterization. The regularity conditions matter and are frequently violated
+in practice — at boundary values, when the parameter count grows with the sample, and when the
+support depends on the parameter — and in those cases the standard asymptotic results simply do not
+apply.
+
+Sufficiency identifies when a statistic captures all the information in the data about a parameter.
+A sufficient statistic is one such that the conditional distribution of the data given it does not
+depend on the parameter, so nothing further can be learned from the raw data once it is known. The
+factorization criterion makes sufficiency checkable directly from the likelihood's form, and the
+exponential family is precisely the class where a sufficient statistic of fixed dimension exists
+regardless of sample size, which is why that family recurs throughout the theory.
+
+Likelihood and information:
+  likelihood           the data's probability as a function of the parameter
+  not a distribution over parameters  the standard conceptual error
+  maximum likelihood   the maximizing parameter value
+  the good properties  consistency, asymptotic normality and efficiency,
+                       invariance
+  regularity conditions  interior optimum, fixed dimension, support independent
+                       of the parameter
+  the failure cases    boundaries, growing dimension, parameter-dependent support
+  score function       the derivative of the log likelihood; zero at the maximum
+  Fisher information   the expected curvature; how sharply the data distinguishes
+                       parameter values
+  Cramér-Rao bound     a lower bound on unbiased estimator variance, given by the
+                       inverse information
+  observed information  the curvature at the estimate; often preferred for
+                       standard errors in practice
+  sufficiency          a statistic capturing all parameter information
+  factorization criterion  sufficiency checkable from the likelihood's form
+  minimal sufficiency  the coarsest sufficient statistic
+  exponential family   fixed-dimension sufficiency at any sample size
+  ancillarity          a statistic whose distribution does not depend on the
+                       parameter; conditioning on it is often the right thing and
+                       the theory of when is genuinely subtle
+
+## Hypothesis Testing Theory
+
+A hypothesis test partitions the sample space into regions where a null hypothesis is rejected and
+where it is not, and the theory characterizes which partitions are good. The two error types are
+asymmetric by construction: type one is rejecting a true null, controlled at a chosen level; type
+two is failing to reject a false null, whose complement is power. The asymmetry encodes a decision
+that false positives and false negatives have different costs, which is a modelling choice rather
+than a mathematical necessity.
+
+The Neyman-Pearson lemma establishes that for testing one simple hypothesis against another, the
+likelihood ratio test is most powerful at any level. This is the theoretical anchor of the subject —
+it says the optimal test is determined, not chosen — and extending it to composite hypotheses is
+what most of testing theory is about. Uniformly most powerful tests exist for some families with
+monotone likelihood ratios and frequently do not exist at all, in which case restricted optimality
+criteria such as unbiasedness or invariance are imposed to select a test.
+
+The p-value is the probability, under the null, of a test statistic at least as extreme as the one
+observed. It is not the probability that the null is true, it is not the probability the result
+occurred by chance, and it does not measure effect size. Its correct use requires that the test was
+specified before seeing the data, since selecting a hypothesis after examining the data invalidates
+the calculation entirely — the sampling distribution being referred to is not the one that was
+actually sampled from.
+
+Testing theory:
+  null and alternative  the partition being tested
+  type one error       rejecting a true null; controlled at a chosen level
+  type two error       failing to reject a false null
+  power                one minus the type two error rate
+  the asymmetry        a decision about relative costs, not a mathematical fact
+  Neyman-Pearson lemma  the likelihood ratio test is most powerful for simple
+                       hypotheses
+  uniformly most powerful  optimal across the whole alternative; exists only
+                       sometimes
+  monotone likelihood ratio  the condition under which it does
+  restricted optimality  unbiasedness or invariance imposed when no uniform
+                       optimum exists
+  likelihood ratio test  the general-purpose construction
+  Wald and score tests  asymptotically equivalent alternatives with different
+                       computational and finite-sample behaviour
+  p-value              the null probability of a result at least as extreme
+  what it is not       the probability the null is true, or that the result was
+                       chance, or a measure of effect size
+  the pre-specification requirement  selecting the hypothesis after seeing the
+                       data invalidates the reference distribution
+  multiple testing     the error rate across a family; family-wise control versus
+                       false discovery rate control, which answer different
+                       questions and should be chosen deliberately
+  confidence interval  the set of parameter values not rejected; the duality with
+                       testing is exact and is the clearest way to understand it
+
+## Asymptotics and Large Sample Theory
+
+Exact finite-sample distributions are available only for a few models, so most inference relies on
+approximations that become accurate as the sample grows. Asymptotic theory characterizes these
+approximations and, importantly, indicates when they fail, which is the part most often neglected in
+application.
+
+The two foundational results carry most of the weight. The law of large numbers says sample averages
+converge to expectations, which justifies estimating population quantities by their sample analogues.
+The central limit theorem says the standardized sample mean converges to a normal distribution
+regardless of the underlying distribution's shape, provided the variance is finite, which is why
+normal-based procedures apply so broadly.
+
+The finite-variance condition is essential and its violation is not exotic. Heavy-tailed
+distributions with infinite variance do not satisfy the central limit theorem, and their sample
+means converge to stable distributions with entirely different behaviour — including the property
+that averaging more observations does not reduce variability in the usual way. Financial returns,
+network traffic, and city sizes are all commonly modelled with such distributions, and applying
+normal-based inference to them produces confidence intervals that are far too narrow.
+
+Asymptotic theory:
+  the motivation       exact distributions exist for few models
+  law of large numbers  sample averages converge to expectations
+  central limit theorem  the standardized mean converges to normal
+  the finite variance requirement  essential, and violated in real applications
+  heavy tails          convergence to stable laws instead; averaging does not
+                       help as expected
+  the practical consequence  normal-based intervals are far too narrow for such
+                       data
+  delta method         the asymptotic distribution of a smooth function of an
+                       estimator
+  continuous mapping   limits pass through continuous functions
+  Slutsky's theorem    combining convergence in distribution and in probability
+  rates of convergence  the standard root-n rate and the situations that are
+                       slower
+  the convergence speed question  asymptotic validity says nothing about the
+                       sample size needed, which depends on skewness and tail
+                       weight and can be far larger than the usual rules of thumb
+  Edgeworth expansion  higher-order corrections quantifying the approximation
+                       error
+  contiguity and local alternatives  the framework for comparing tests'
+                       asymptotic power meaningfully
+
+## Decision Theory, Bayes, and Resampling
+
+Decision theory frames inference as choosing an action under uncertainty with a specified loss
+function, and it unifies estimation and testing as special cases. Risk is expected loss, and the
+comparison of procedures by risk clarifies what optimality means. A procedure is admissible when no
+other has risk at least as low everywhere and lower somewhere, and inadmissible procedures can be
+discarded — though admissibility is a weak criterion, since many poor procedures are admissible for
+trivial reasons.
+
+The Bayesian formulation places a prior distribution on the parameter and computes the posterior by
+conditioning on the data. It yields direct probability statements about parameters, incorporates
+prior information explicitly, and handles nuisance parameters by integration rather than by
+approximation. Its costs are that the prior must be specified and affects the answer, and that
+computation was historically prohibitive — the latter largely resolved by simulation methods. The
+theoretical connection is that Bayes procedures are essentially the complete class of admissible
+procedures, which means good frequentist procedures are Bayes procedures for some prior whether or
+not they were derived that way.
+
+Resampling methods estimate sampling distributions computationally rather than analytically. The
+bootstrap resamples the data with replacement and treats the variability across resamples as an
+estimate of the estimator's sampling variability, which works because the empirical distribution
+approximates the true one. It applies where analytical results are unavailable and it is not
+universal — it fails for estimators that are not smooth functionals of the distribution, including
+the sample maximum, and for dependent data unless the resampling scheme is adapted to preserve the
+dependence.
+
+Decision theory and computation:
+  loss function        the cost of an action given the truth
+  risk                 expected loss over the sampling distribution
+  admissibility        not dominated everywhere by another procedure
+  the weakness         many poor procedures are admissible
+  minimax              minimizing the worst-case risk; conservative
+  Bayes risk           expected risk averaged over a prior
+  the complete class result  admissible procedures are essentially Bayes
+                       procedures
+  posterior            the prior updated by the likelihood
+  the direct interpretation  probability statements about parameters
+  prior sensitivity    the answer depends on the prior; report how much
+  conjugacy            priors giving closed-form posteriors
+  simulation methods   Markov chain sampling; what made general Bayesian
+                       computation feasible
+  bootstrap            resample with replacement; sampling distribution by
+                       computation
+  when it works        smooth functionals of the distribution
+  when it fails        extremes, boundaries, and dependent data without an adapted
+                       scheme
+  permutation tests    exact under exchangeability; the cleanest nonparametric
+                       tests available
+  cross-validation     out-of-sample error by data splitting; a resampling method
+                       for model assessment rather than for inference, and the
+                       distinction matters because cross-validated error estimates
+                       have their own variability that is easy to ignore

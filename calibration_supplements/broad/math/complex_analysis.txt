@@ -1,0 +1,278 @@
+================================================================================
+AREA: Mathematics
+SUBJECT: Complex Analysis
+Subtopics: complex numbers, analytic functions, contour integration, series and
+singularities, residues, conformal mapping, transforms, applications.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Complex Numbers and Analytic Functions
+
+Complex numbers extend the reals by adjoining a square root of minus one, and the resulting
+field is algebraically closed — every non-constant polynomial has a root, which the reals do not
+provide. That closure is the fundamental theorem of algebra, and it is the first indication that
+the complex numbers are a more natural setting than the reals for many questions, including
+questions whose statement mentions only real quantities.
+
+The geometric interpretation is what makes complex arithmetic intuitive. A complex number is a
+point in the plane, addition is vector addition, and multiplication scales by the modulus and
+rotates by the argument. Euler's formula connects the exponential to the trigonometric functions,
+so the exponential of an imaginary argument traces the unit circle, and multiplication by a
+complex number of unit modulus is exactly a rotation. This is why complex numbers are the natural
+language for anything involving rotation, oscillation, or phase.
+
+Complex differentiability is far more restrictive than real differentiability, and this
+restriction is the source of the subject's power. The derivative is defined as a limit of a
+difference quotient as in the real case, and the limit must be the same along every direction of
+approach in the plane. Requiring this yields the Cauchy-Riemann equations relating the partial
+derivatives of the real and imaginary parts, and a function satisfying them with continuous
+partials is analytic.
+
+Complex numbers and analyticity:
+  algebraic closure    every non-constant polynomial has a root
+  modulus and argument  magnitude and angle; multiplication multiplies moduli and
+                       adds arguments
+  Euler's formula      e^(i theta) = cos theta + i sin theta
+  de Moivre            powers and roots by multiplying the argument
+  complex conjugate    reflection across the real axis
+  analytic             complex differentiable in a neighbourhood
+  Cauchy-Riemann       the partial derivative conditions; necessary, and
+                       sufficient with continuous partials
+  harmonic             the real and imaginary parts of an analytic function each
+                       satisfy Laplace's equation
+  harmonic conjugate   the imaginary part determined by the real up to a constant
+  entire               analytic on the whole plane
+  branch cut           where a multivalued function is made single-valued; the
+                       logarithm and fractional powers require one
+  branch point         where the cut must terminate; the ambiguity is intrinsic
+                       rather than a choice
+
+The consequences of analyticity are extraordinary and have no real-variable analogue. An analytic
+function is infinitely differentiable automatically, whereas a real function can be differentiable
+once and not twice. It equals its Taylor series in any disc where it is analytic, whereas a real
+infinitely differentiable function need not. It is determined on an entire connected region by its
+values on any set with a limit point, so knowing it on a tiny arc determines it everywhere —
+analytic continuation. And it cannot attain a maximum modulus in the interior of a region unless
+it is constant.
+
+Q: A function is complex differentiable at every point of an open disc. What follows about its
+higher derivatives?
+A. Nothing; differentiability once does not imply more
+B. It is infinitely differentiable and equals its Taylor series throughout the disc
+C. It is twice differentiable
+D. Only that the second derivative exists
+Reasoning: Complex differentiability in a neighbourhood is far stronger than the real analogue,
+and Cauchy's integral formula expresses all derivatives as contour integrals of the function
+itself, establishing that they all exist and are analytic. Convergence of the Taylor series
+throughout the disc follows. This is the property that makes complex analysis so rigid.
+Answer: B.
+
+## Contour Integration and Cauchy's Theorems
+
+Integration in the complex plane is along a path rather than over an interval, and the value
+depends on the path in general. For analytic functions it does not, and that independence is
+Cauchy's theorem: the integral of an analytic function around any closed contour in a simply
+connected domain is zero. The consequence is that the integral between two points depends only on
+the endpoints, so analytic functions have antiderivatives and the fundamental theorem of calculus
+carries over.
+
+Simple connectivity is the essential hypothesis and its failure is where the subject becomes
+interesting. In a domain with a hole — the plane minus a point, for instance — a contour
+enclosing the hole cannot be shrunk to a point within the domain, and the integral around it need
+not vanish. The integral of one over z around a circle enclosing the origin is two pi i,
+independent of the circle's radius, and this single computation underlies everything that follows.
+
+Cauchy's integral formula expresses an analytic function's value at an interior point as a
+contour integral of its values on the boundary. This is a remarkable statement: the values on a
+closed curve determine the values everywhere inside. Differentiating under the integral gives the
+same for all derivatives, which is how the infinite differentiability is established, and it
+yields bounds on the derivatives in terms of the function's size on the boundary.
+
+Contour integration:
+  contour integral     along a path; parameterize and integrate
+  path independence    for analytic functions in a simply connected domain
+  Cauchy's theorem     the integral around a closed contour vanishes
+  simply connected     no holes; every loop contracts to a point
+  the key computation  the integral of 1/z around a circle enclosing the origin is
+                       2 pi i, independent of radius
+  Cauchy integral formula  boundary values determine interior values
+  derivative formula   all derivatives as contour integrals; establishes infinite
+                       differentiability
+  Cauchy estimates     bounds on derivatives from the function's size on a circle
+  Liouville's theorem  a bounded entire function is constant
+  fundamental theorem of algebra  follows immediately from Liouville
+  maximum modulus      an analytic function attains its maximum modulus on the
+                       boundary, never in the interior unless constant
+  Morera's theorem     the converse of Cauchy; vanishing integrals imply analytic
+  deformation          a contour may be deformed within the domain of analyticity
+                       without changing the integral
+
+Liouville's theorem deserves emphasis because of how much it delivers from how little. A
+function analytic on the entire plane and bounded must be constant, which follows from the
+derivative bound: the estimate on the derivative involves the maximum modulus divided by the
+radius, and letting the radius grow with the modulus bounded forces the derivative to zero
+everywhere. The fundamental theorem of algebra follows in three lines — if a polynomial had no
+root, its reciprocal would be entire and bounded, hence constant, hence the polynomial is
+constant. A theorem about real polynomials is proved by a detour through complex analysis, which
+is the pattern the subject repeats.
+
+## Series, Singularities, and Residues
+
+An analytic function has a Taylor series converging in the largest disc within which it is
+analytic, so the radius of convergence is the distance to the nearest singularity. This explains
+a phenomenon that is inexplicable from the real perspective: the function one over one plus x
+squared is perfectly well behaved on the entire real line, and its Taylor series about zero
+diverges beyond a radius of one. The reason is the singularities at plus and minus i, which are
+invisible from the real axis and which nonetheless control the convergence.
+
+Laurent series extend Taylor series to include negative powers, which permits expansion about a
+singularity in an annulus. The coefficient of the inverse first power is the residue, and it is
+the single most useful number in the subject because the entire contour integral reduces to it.
+
+Singularities classify by the Laurent expansion. A removable singularity has no negative powers
+and the function extends analytically. A pole of order n has finitely many negative powers with
+the lowest being the inverse nth, and the function grows without bound as the point is
+approached. An essential singularity has infinitely many negative powers, and the behaviour near
+it is wild — Picard's theorem states that in any neighbourhood the function takes every complex
+value, with at most one exception, infinitely often.
+
+The residue theorem states that the integral around a closed contour is two pi i times the sum
+of the residues at the enclosed singularities. This converts contour integration into a
+computation of residues, which for poles is a matter of differentiation and limits rather than of
+integration at all. It is the subject's central computational tool.
+
+Series and residues:
+  Taylor series        radius of convergence is the distance to the nearest
+                       singularity, including complex ones
+  Laurent series       includes negative powers; expansion in an annulus
+  residue              the coefficient of the inverse first power
+  removable            no negative powers; extends analytically
+  pole of order n      lowest power is the inverse nth; magnitude diverges
+  simple pole          order one; residue is the limit of the function times the
+                       displacement
+  essential            infinitely many negative powers; Picard's wild behaviour
+  residue theorem      the contour integral is 2 pi i times the sum of enclosed
+                       residues
+  argument principle   a contour integral counts zeros minus poles inside
+  Rouche's theorem     compare two functions on a contour to count zeros; the
+                       standard tool for locating roots
+  analytic continuation  extend a function beyond its original domain; the
+                       extension is unique where it exists
+  Riemann surface      the natural domain of a multivalued function, on which it
+                       becomes single valued
+
+The argument principle deserves note because it turns a counting problem into an integral. The
+integral of the logarithmic derivative around a contour equals two pi i times the number of zeros
+minus the number of poles inside, counted with multiplicity. This is what underlies the Nyquist
+stability criterion in control theory: plotting the open-loop transfer function around a contour
+enclosing the right half plane and counting encirclements of a critical point determines the
+number of unstable closed-loop poles, without computing any of them.
+
+## Conformal Mapping and Transforms
+
+An analytic function with nonvanishing derivative is conformal, meaning it preserves angles
+between curves. The reason is that near a point it acts as multiplication by the derivative,
+which is a rotation and a scaling, and both preserve angles. This makes analytic functions the
+natural tool for transforming geometric regions while preserving the structure of the equations
+defined on them.
+
+The application follows from harmonicity being preserved. The real and imaginary parts of an
+analytic function satisfy Laplace's equation, and composing a harmonic function with a conformal
+map yields another harmonic function. A boundary value problem on a complicated region can
+therefore be transformed to the same problem on a simple region — a disc or a half plane — solved
+there, and mapped back. This was the primary method for two-dimensional potential problems before
+numerical computation and remains a source of exact solutions.
+
+The Riemann mapping theorem establishes when this is possible and its strength is striking: any
+simply connected proper subset of the plane can be conformally mapped onto the unit disc, and the
+map is unique given normalizing conditions. Whatever the region's shape, provided it is simply
+connected and not the whole plane, a conformal map to the disc exists. The theorem is
+non-constructive, and specific maps for specific regions are catalogued or computed numerically.
+
+Conformal mapping and transforms:
+  conformal            preserves angles; analytic with nonvanishing derivative
+  harmonic preservation  a harmonic function composed with a conformal map stays
+                       harmonic
+  Möbius transformation  ratio of linear functions; maps circles and lines to
+                       circles and lines, and is the automorphism group of the disc
+  Riemann mapping theorem  any simply connected proper subset maps conformally
+                       onto the disc
+  Schwarz-Christoffel  maps the half plane onto a polygon; explicit and useful for
+                       polygonal regions
+  Joukowski transform  maps a circle to an aerofoil shape; the classical route to
+                       two-dimensional aerofoil theory
+  Laplace transform    a complex integral transform; converts differential
+                       equations to algebraic ones
+  region of convergence  determines which time function a transform corresponds to
+                       and whether the system is stable and causal
+  inverse transform    a contour integral; evaluated by residues
+  Fourier transform    the Laplace transform on the imaginary axis
+  z-transform          the discrete-time analogue; poles inside the unit circle
+                       for stability
+  poles and stability  the location of the transfer function's poles determines
+                       whether a system is stable; the entire framework of linear
+                       system analysis
+
+The connection between pole locations and stability is the subject's most widely applied
+consequence. A linear time-invariant system's response is determined by its transfer function,
+whose poles correspond to the natural modes. A pole in the left half plane corresponds to a
+decaying mode and a pole in the right half plane to a growing one, so stability is precisely the
+condition that all poles have negative real part. The discrete analogue places them inside the
+unit circle. Every technique in classical control — root locus, Nyquist, Bode — is a method for
+reasoning about where the poles are and how feedback moves them.
+
+## Applications
+
+The applications of complex analysis extend well beyond mathematics, and they share a common
+form: a real problem is embedded in the complex plane, solved using tools available only there,
+and the answer read back.
+
+Definite integrals over the real line that resist elementary methods frequently yield to contour
+integration. Closing the real axis with a large semicircular arc in the upper half plane, showing
+that the arc's contribution vanishes as its radius grows, and applying the residue theorem
+evaluates the integral by summing residues in the upper half plane. Integrals of rational
+functions, of rational functions times trigonometric functions, and of many other classes are
+handled this way.
+
+Two-dimensional potential theory is where conformal mapping earns its place. Electrostatic
+potential, steady heat flow, and incompressible irrotational fluid flow all satisfy Laplace's
+equation in two dimensions, so a single complex potential describes both the potential and its
+conjugate — the streamlines in fluid flow, the field lines in electrostatics. Solving a flow
+around a complicated shape reduces to finding a conformal map from a simple shape, and the
+Joukowski transform mapping a circle to an aerofoil is the classical demonstration.
+
+Applications:
+  real integrals       close the contour and sum residues; evaluates integrals
+                       that resist elementary methods
+  potential theory     two-dimensional Laplace problems; one complex potential
+                       gives both the potential and the streamlines
+  fluid dynamics       incompressible irrotational two-dimensional flow; the
+                       Joukowski aerofoil
+  electrostatics       field lines and equipotentials as conjugate families
+  control theory       pole locations determine stability; Nyquist counts
+                       encirclements by the argument principle
+  signal processing    the z-transform; filter design places poles and zeros
+  quantum mechanics    the wavefunction is complex, and analytic structure of
+                       scattering amplitudes encodes physical constraints
+  the Riemann zeta function  analytic continuation defines it beyond the region
+                       where the series converges; its zeros encode the
+                       distribution of primes
+  Riemann hypothesis   the location of those zeros; the most famous open problem
+                       in mathematics, and equivalent to a precise statement about
+                       the distribution of primes
+  asymptotics          saddle point and stationary phase methods; deform a contour
+                       to where the integrand concentrates
+  conformal field theory  two-dimensional physics where conformal symmetry is
+                       infinite-dimensional; only in two dimensions
+
+The Riemann zeta function deserves the closing note because it illustrates analytic continuation
+at its most consequential. The function is defined by a series converging only where the real part
+of the argument exceeds one, and analytic continuation extends it uniquely to the whole plane
+apart from a single pole. That extension is not a formal manoeuvre — it is the unique analytic
+function agreeing with the series where the series converges, and it encodes genuine information.
+Its zeros determine the error term in the prime counting function, and the conjecture that all
+non-trivial zeros lie on a single vertical line is equivalent to the sharpest possible statement
+about how primes are distributed. A question about integers is answered by the analytic
+properties of a function on the complex plane, which is the subject's deepest instance of the
+pattern it repeats throughout.

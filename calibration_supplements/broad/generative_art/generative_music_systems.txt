@@ -1,0 +1,231 @@
+================================================================================
+AREA: Generative and Creative Technology
+SUBJECT: Generative and Algorithmic Music
+Subtopics: rule-based composition, stochastic and grammar methods, live coding,
+machine learning for music, MIDI and control, interactive systems, evaluation.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Rule-Based and Deterministic Composition
+
+Algorithmic composition specifies a process that produces music rather than specifying the music
+itself, and the composer's work moves from writing notes to designing the process and choosing its
+parameters. This shift is older than computers — canon, isorhythm, and serial technique are all
+processes producing music from rules — and computation made the space of expressible processes much
+larger.
+
+Deterministic processes produce the same output every run, which makes them repeatable and
+inspectable. Cellular automata evolve a grid of states by local rules and map the resulting patterns
+to pitch and rhythm, producing structures that are neither random nor predictable. L-systems rewrite
+symbols recursively according to production rules and generate self-similar structures well suited to
+hierarchical musical form. Iterated function systems and fractal mappings produce material with
+statistical self-similarity across timescales, which resembles a property that has been measured in
+composed music.
+
+The central design problem in all of these is the mapping from the generative structure to musical
+parameters. The process produces numbers; the mapping decides whether those numbers become pitches
+in a scale, rhythmic durations, dynamics, timbral parameters, or structural boundaries. Two composers
+using an identical generator and different mappings produce entirely unrelated music, which means
+the mapping rather than the algorithm is where most of the aesthetic decisions live.
+
+Rule-based composition:
+  process over product  specify how, not what
+  the historical precedent  canon, isorhythm, and serial technique are processes
+  determinism          repeatable and inspectable output
+  cellular automata    local rules on a grid; structured and unpredictable
+  L-systems            recursive symbol rewriting; hierarchical self-similar form
+  fractal mappings     statistical self-similarity across timescales
+  constraint systems   generate material satisfying stated conditions; the
+                       approach that expresses voice-leading rules directly
+  the mapping problem  numbers to musical parameters
+  where the aesthetics live  the mapping more than the generator
+  quantization to a scale  the simplest and most consequential mapping decision
+  rhythmic mapping     durations, onsets, or subdivision patterns
+  parameter ranges     a generator's output range must be matched to a musically
+                       useful range, which is unglamorous and determines whether
+                       the result is listenable
+  the evaluation difficulty  a process that is interesting to describe frequently
+                       produces music that is not interesting to hear, and only
+                       listening settles it
+
+Q: Two composers implement the same cellular automaton and produce completely different-sounding
+pieces. This is because:
+A. One implementation is incorrect
+B. The generator produces abstract state sequences; the mapping from those states to pitch, rhythm,
+   dynamics, and timbre is a separate set of decisions and is where most of the musical character
+   is determined
+C. Cellular automata are random
+D. The parameters differ
+Reasoning: An algorithmic generator is a source of structured sequences with no inherent musical
+meaning. The mapping layer assigns that meaning, and it involves scale choice, rhythmic
+interpretation, register, orchestration, and formal segmentation. Identical generators with
+different mappings are effectively different instruments. Answer: B.
+
+## Stochastic Methods and Grammars
+
+Introducing randomness makes each realization different while preserving statistical character, and
+the design question becomes what to constrain and what to leave free. Uniform random choice produces
+music that sounds arbitrary because it has no structure at any timescale. Weighted choice from a
+distribution shaped by musical considerations produces material with recognizable character while
+remaining unpredictable in detail.
+
+Markov models are the standard tool. A first-order model chooses the next note based on the current
+one; higher orders condition on more history. The tradeoff is sharp and instructive: low orders
+produce material that is locally plausible and globally aimless, while high orders trained on a
+corpus increasingly reproduce fragments of the training material verbatim. The interesting range is
+narrow, and the model's order is effectively a dial between incoherence and plagiarism.
+
+Grammar-based approaches address the structural weakness directly by generating hierarchically. A
+grammar expands a start symbol into a phrase structure, then into subphrases, then into notes, so
+the output has organized structure at every level by construction rather than by chance. This is
+what Markov chains fundamentally cannot do, since their memory extends only as far as their order,
+and combining a grammar for structure with a stochastic model for surface detail is a common and
+effective architecture.
+
+Stochastic and grammatical methods:
+  uniform randomness   arbitrary; no structure at any scale
+  weighted distributions  character preserved, detail unpredictable
+  Markov models        next event conditioned on recent history
+  first order          locally plausible, globally aimless
+  high order           increasingly verbatim reproduction of training material
+  the narrow useful range  order as a dial between incoherence and copying
+  variable order models  adapting context length to the available statistics
+  the structural weakness  no memory beyond the order; no long-range form
+  generative grammars  hierarchical expansion from a start symbol
+  structure by construction  organized at every level rather than by chance
+  the effective combination  grammar for form, stochastic model for surface
+  probabilistic grammars  weighted production rules
+  constrained randomness  random within a set of hard rules; the practical
+                       compromise most systems use
+  seeding              a reproducible random sequence, so a good realization can
+                       be recovered rather than lost, which matters more in
+                       practice than it sounds
+
+## Live Coding and Real-Time Systems
+
+Live coding performs music by writing and modifying code while it runs, with the audience typically
+seeing the code projected. It requires a system where the program can be changed without stopping the
+sound, which is a specific technical demand: state must persist across redefinitions, and changes
+must take effect at musically sensible moments rather than immediately.
+
+Temporal recursion is the pattern most live coding environments are built on. A function schedules
+its own next invocation at a future time, so the schedule is expressed in the code itself and
+redefining the function changes what happens from the next invocation onward. Combined with a
+quantization scheme that aligns changes to the beat or the bar, this produces a system where edits
+take effect musically rather than abruptly.
+
+Pattern languages provide a higher-level layer, expressing repeating structures as concise notation
+that can be transformed by operators — reversal, rotation, stretching, layering, conditional
+substitution. This is what makes live coding practical as a performance activity, since typing note
+lists in real time is not, and the expressiveness of the pattern language substantially determines
+what a performer can reach for under time pressure.
+
+Live coding and real time:
+  code as the instrument  the program modified while it runs
+  the technical demand  state persists across redefinition
+  temporal recursion   a function scheduling its own next invocation
+  the redefinition effect  changes apply from the next invocation
+  quantization         changes aligned to beat or bar boundaries
+  pattern languages    concise notation for repeating structure
+  pattern operators    reverse, rotate, stretch, layer, substitute
+  the performance constraint  what can be reached for under time pressure
+  latency              scheduling ahead of the audio output to absorb jitter
+  the scheduling principle  compute early, sound on time
+  audio thread discipline  no allocation, no locks, no unbounded work in the
+                       callback; a glitch is audible and unrecoverable
+  the projected screen  the code as part of the performance; a convention with
+                       aesthetic and pedagogical motivations
+  failure in performance  a syntax error silences nothing if the previous
+                       definition remains active, which is a deliberate design
+                       property rather than an accident
+
+## Machine Learning for Music
+
+Learned models generate music by fitting a distribution to a corpus and sampling from it, and the
+representation choice determines what the model can learn. Symbolic representations — note events
+with pitch, timing, duration, and velocity — are compact and let the model learn musical structure
+directly, at the cost of discarding everything about performance and timbre. Audio representations
+capture everything and require the model to learn signal structure before it can learn musical
+structure, which is a far larger task.
+
+Sequence models over symbolic music learn local style convincingly and struggle with long-range
+structure for the same reason Markov models do, though at a much longer horizon. A generated passage
+sounds stylistically right phrase by phrase and frequently lacks the sense of an arc — a beginning,
+a development, a destination — that composed music has. Conditioning on an explicit structural plan,
+or generating hierarchically, are the approaches that address this.
+
+Control is the practical requirement that distinguishes a useful tool from a demonstration. A
+generator producing plausible music with no way to steer it is not usable in a creative workflow.
+Conditioning on chord progressions, on a melody to harmonize, on a style descriptor, on a target
+instrumentation, or on a partially completed score is what makes these systems tools, and
+infilling — generating material to fit between fixed surrounding context — is the interaction that
+composers reach for most.
+
+Machine learning for music:
+  symbolic representation  note events; compact, structurally learnable
+  what it discards     performance nuance and timbre
+  audio representation  everything, and signal structure must be learned first
+  piano roll and event sequences  the two common symbolic encodings
+  sequence models      convincing local style
+  the long-range weakness  stylistically right phrases without an overall arc
+  hierarchical generation  structure planned before surface
+  conditioning         chords, melody, style, instrumentation, partial score
+  infilling            generating between fixed context; the most requested
+                       interaction
+  the control requirement  an unsteerable generator is a demonstration, not a
+                       tool
+  evaluation difficulty  no agreed automatic metric correlates well with musical
+                       quality
+  listening tests      still the standard, and expensive
+  the memorization concern  models reproducing training material; a legal and
+                       artistic issue requiring explicit testing
+  training data provenance  an active question in the field, and the practical
+                       position is that a tool's usability depends partly on
+                       whether its output can be used without dispute
+
+## Interactive Systems and Practice
+
+An interactive music system responds to a performer, and the design question is what relationship it
+embodies. An instrument responds deterministically to control, so the performer is fully
+responsible. A partner responds with its own agency, contributing material the performer did not
+determine. A mirror analyses and reflects the performer's material transformed. Each demands a
+different interaction design and a different rehearsal practice, and confusion about which is
+intended produces systems that satisfy nobody.
+
+The analysis side determines what the system can respond to. Onset detection finds note beginnings.
+Pitch tracking follows a monophonic line reliably and a polyphonic texture unreliably. Beat tracking
+locates the pulse and is difficult for rubato and for music without a steady beat. Higher-level
+analysis — key, harmony, phrase boundaries, gesture — is progressively less reliable, and a system
+depending on a fragile analysis fails in performance in ways that are hard to recover from.
+
+The practical wisdom in this area is that latency and reliability matter far more than
+sophistication. A simple system responding in a few milliseconds feels alive; a sophisticated one
+responding in two hundred feels dead, regardless of the quality of its response. Musicians detect
+timing deviations at scales far below conscious perception, and any system in a performance chain
+must treat its latency budget the way a real-time engineer would rather than the way an application
+developer would.
+
+Interactive systems:
+  instrument           deterministic response; the performer is responsible
+  partner              its own agency; contributes undetermined material
+  mirror               reflects the performer's material transformed
+  the design clarity   which relationship is intended
+  onset detection      note beginnings; reliable
+  pitch tracking       monophonic reliable, polyphonic much less so
+  beat tracking        difficult with rubato and with non-metric music
+  higher-level analysis  key, harmony, phrase, gesture; progressively less
+                       reliable
+  fragile analysis     fails in performance and is hard to recover from
+  the fallback design   what the system does when the analysis is wrong
+  latency budget       a few milliseconds feels alive, a couple of hundred feels
+                       dead
+  perceptual timing sensitivity  musicians detect deviations far below conscious
+                       report
+  the priority ordering  latency and reliability before sophistication
+  rehearsal            interactive systems require it as much as any ensemble
+                       member, and a system that has not been rehearsed with is
+                       a hazard rather than a collaborator
+  documentation of state  a performer needs to know what the system is doing,
+                       which is an interface problem that generative systems
+                       consistently neglect

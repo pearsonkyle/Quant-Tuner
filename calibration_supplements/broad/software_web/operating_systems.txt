@@ -1,0 +1,307 @@
+================================================================================
+AREA: Software and Web Engineering
+SUBJECT: Operating Systems
+Subtopics: kernel structure and system calls, processes and threads, scheduling,
+memory management, filesystems and I/O, synchronization, virtualization and containers,
+observability.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Kernel Structure and System Calls
+
+An operating system manages hardware resources and provides abstractions that let programs
+run without knowing the hardware's details. The abstractions are the substance: a process is
+the abstraction of a running program with its own memory, a file is the abstraction of
+persistent storage, a socket is the abstraction of a network connection, and each hides an
+enormous amount of device-specific complexity behind a uniform interface.
+
+The kernel runs in a privileged processor mode with direct hardware access, and user programs
+run unprivileged. This separation is enforced by hardware, and it is what prevents a buggy or
+malicious program from corrupting the kernel or another process. Crossing the boundary requires
+a controlled transition — a system call — which switches to kernel mode at a fixed entry point
+rather than at an address the caller chooses.
+
+System calls cost more than function calls, which is why the interface is designed around
+batching. The transition saves and restores state, switches address space mappings on some
+architectures, and defeats some processor optimizations. The cost was historically hundreds of
+cycles and rose substantially with the mitigations for speculative execution vulnerabilities,
+which is why interfaces that transfer many items per call and mechanisms that avoid the
+transition entirely — memory-mapped I/O, shared ring buffers, and kernel-bypass networking —
+matter for high-throughput work.
+
+Kernel structure:
+  user mode            unprivileged; the hardware enforces the restriction
+  kernel mode          full hardware access
+  system call          the controlled transition; fixed entry points
+  monolithic kernel    services in kernel space; fast, and a driver bug can crash
+                       the system
+  microkernel          minimal kernel with services in user space; robust,
+                       with message-passing overhead
+  hybrid               the practical middle; most production kernels
+  loadable modules     extend a monolithic kernel at runtime
+  interrupt            hardware signals an event; the handler runs immediately
+  top and bottom half  minimal work in the interrupt handler, deferred work
+                       afterward; keeps interrupts short
+  device driver        the hardware-specific layer behind the uniform interface
+  virtual filesystem   one interface over many filesystem implementations
+  everything is a file  the abstraction that unifies devices, pipes, and sockets
+                       behind read and write
+
+Q: A program makes ten million small write system calls and performs poorly, while writing the
+same total data in ten thousand larger calls is far faster. The dominant cost is:
+A. Disk bandwidth
+B. The per-call user-to-kernel transition overhead, incurred ten million times
+C. Memory allocation
+D. Filesystem fragmentation
+Reasoning: The data volume is identical, so bandwidth is not the difference. Each system call
+costs a mode transition of hundreds to thousands of cycles regardless of how little data it
+carries, so ten million calls spend most of their time in transitions. Buffering in user space
+and writing in larger units is the standard remedy, which is what standard library buffered I/O
+does by default. Answer: B.
+
+## Processes, Threads, and Scheduling
+
+A process is an executing program with its own address space, file descriptors, and
+privileges. A thread is a unit of execution within a process, sharing the address space with its
+siblings. The distinction determines both the isolation and the communication cost: separate
+processes cannot corrupt each other's memory and must communicate through explicit channels,
+while threads share memory directly and can corrupt each other freely.
+
+That tradeoff drives architectural choices. A browser isolating each tab in a process accepts
+higher memory use and inter-process communication cost in exchange for a crash or compromise in
+one tab not affecting others. A server using threads accepts shared-memory hazards in exchange
+for cheap communication and lower per-connection cost. Neither is generally correct, and the
+question is whether isolation or communication cost dominates.
+
+Scheduling decides which runnable thread executes next, and the objectives conflict. Throughput
+maximizes work completed, fairness gives each task a proportional share, latency minimizes
+response time for interactive tasks, and predictability bounds the worst case for real-time
+work. A scheduler optimizing throughput runs long uninterrupted slices to minimize context
+switching, which is exactly what makes an interactive task feel unresponsive.
+
+Processes, threads, and scheduling:
+  process              own address space; isolated, expensive to create
+  thread               shared address space; cheap, unprotected
+  context switch       save and restore state; costs directly, and costs far more
+                       indirectly by evicting cache and TLB contents
+  process states       new, ready, running, blocked, terminated
+  fork and exec        the classical creation model; copy-on-write makes fork
+                       cheap by deferring the copy until a write occurs
+  zombie process       terminated and not yet reaped; holds its exit status
+  round robin          fixed time slices; simple, fair, ignores priority
+  priority scheduling  higher priority first; starvation unless aged
+  multilevel feedback  demote CPU-bound tasks, promote I/O-bound ones;
+                       approximates shortest-job-first without knowing job lengths
+  completely fair      track virtual runtime, run the least-advanced task
+  real-time            rate monotonic and earliest deadline first; provable
+                       schedulability bounds
+  priority inversion   a high-priority task blocked by a low-priority lock holder;
+                       priority inheritance is the standard remedy
+  CPU affinity         pin a thread to a core to preserve cache warmth
+  NUMA                 memory attached to a remote socket costs substantially
+                       more; schedule threads near their memory
+
+The indirect cost of context switching is worth emphasizing because it exceeds the direct cost
+substantially. Saving and restoring registers takes perhaps a microsecond. The evicted cache
+contents and translation lookaside buffer entries must be refilled from memory when the thread
+resumes, which can cost far more, and the effect is invisible in any measurement of the switch
+itself. This is why oversubscribing cores with many more threads than cores degrades throughput,
+and why thread pools sized near the core count outperform thread-per-request for CPU-bound work.
+
+## Memory Management
+
+Virtual memory gives each process a private address space, translated to physical addresses by
+hardware. The benefits are isolation, since a process cannot name another's memory;
+simplification, since every program sees a uniform layout regardless of what else is running;
+and the ability to use more address space than physical memory by paging to storage.
+
+Translation proceeds through page tables, and because a table walk requires several memory
+accesses, the translation lookaside buffer caches recent translations. A TLB miss is expensive
+and a TLB that is thrashing — because the working set spans more pages than the TLB can hold —
+degrades everything. Huge pages address this by covering more memory per entry, typically two
+megabytes rather than four kilobytes, which reduces TLB pressure by a factor of five hundred for
+large working sets and is why databases and virtual machines routinely enable them.
+
+Demand paging loads pages only when accessed, which makes program startup fast and memory use
+proportional to what is touched rather than what is allocated. When physical memory is
+exhausted, a page must be evicted, and the replacement policy determines which. The theoretical
+optimum evicts the page whose next use is furthest in the future, which requires knowing the
+future; least-recently-used approximates it on the assumption that recent use predicts imminent
+use, and clock algorithms approximate LRU cheaply.
+
+Memory management:
+  virtual address space  private per process; hardware-translated
+  page table           the translation structure; multi-level to stay compact
+  TLB                  caches translations; misses are expensive
+  huge pages           2 MB or 1 GB; large TLB reach for large working sets
+  demand paging        load on access; fast startup, memory proportional to use
+  copy on write        share pages until written; makes fork cheap
+  page fault           a reference to an unmapped page; minor faults resolve from
+                       memory, major faults require I/O
+  thrashing            the working set exceeds physical memory, so the system
+                       spends its time paging and makes no progress
+  page replacement     LRU approximations; clock and second-chance
+  memory mapped files  map a file into the address space; the kernel handles
+                       paging, and avoids the copy that read and write require
+  overcommit           allocate more than exists on the assumption that not all
+                       will be used; the OOM killer resolves the shortfall
+  fragmentation        external between allocations, internal within them
+  allocator            slab and buddy in the kernel; malloc implementations in
+                       user space vary substantially in fragmentation and
+                       multithreaded scalability
+
+Thrashing deserves specific mention because its failure mode is distinctive. When the combined
+working set exceeds physical memory, every process's pages are evicted before they are reused,
+so each access faults, and the system spends nearly all its time paging while accomplishing
+almost nothing. Throughput collapses non-linearly rather than degrading gracefully, and the
+system may become unresponsive enough that intervention is difficult. The remedies are reducing
+the working set, adding memory, or admission control refusing new work — and adding more
+concurrency, which intuition suggests when throughput drops, makes it strictly worse.
+
+## Filesystems, I/O, and Synchronization
+
+A filesystem organizes persistent storage into files and directories, mapping names to data
+through metadata structures. The inode holds a file's metadata and the pointers to its data
+blocks, while the directory entry maps a name to an inode — which is why a file can have several
+names through hard links, why deleting a name does not delete the file until the last link is
+gone, and why an open file descriptor keeps data alive after every name is removed.
+
+Crash consistency is the filesystem's hardest problem. A write may be interrupted at any point,
+and the filesystem must not be left in a state where its metadata is inconsistent — a block
+marked allocated but not referenced, or referenced by two files. Journalling writes intended
+changes to a log before applying them, so recovery replays or discards the log to reach a
+consistent state. Copy-on-write filesystems never overwrite live data, writing new blocks and
+atomically updating a pointer, which gives consistency by construction and enables cheap
+snapshots.
+
+The buffer cache holds recently accessed file data in memory, which is why repeated reads are
+fast and why writes return before reaching storage. That last point is a correctness concern:
+data acknowledged by a write call is in memory and will be lost in a power failure until it is
+flushed. Durability requires an explicit sync, and databases and any application making
+durability guarantees must call it and must handle its failure — a sync that returns an error
+may mean data was lost, and the correct handling of that case has been gotten wrong in
+widely used software.
+
+Filesystems, I/O, and synchronization:
+  inode                metadata and block pointers
+  directory entry      name to inode; hard links are multiple names
+  journalling          log intended changes before applying; recovery replays
+  copy on write        never overwrite live data; consistency and cheap snapshots
+  buffer cache         data in memory; reads fast, writes deferred
+  fsync                the durability boundary; must be called and its error
+                       handled
+  write barriers       ordering guarantees through caches that reorder
+  blocking I/O         simple; the thread waits
+  non-blocking         returns immediately; the caller polls or is notified
+  I/O multiplexing     epoll and kqueue; scale to many descriptors with one thread
+  asynchronous I/O     submit and complete; io_uring provides a shared ring buffer
+                       avoiding a system call per operation
+  zero copy            sendfile and splice; avoid copying between user and kernel
+                       buffers
+  race condition       outcome depends on timing
+  critical section     code requiring exclusive access
+  mutex, semaphore     exclusion and counted resources
+  condition variable   wait for a predicate; always re-check it in a loop, since
+                       spurious wakeups occur
+  deadlock             the four Coffman conditions; break any one to prevent
+  lock ordering        a consistent global order prevents circular wait, which is
+                       the most practical prevention technique
+
+The condition variable loop is worth stating precisely because the correct usage is
+counterintuitive. A thread waiting on a condition must re-check the predicate after waking
+rather than assuming it holds, because a wakeup may be spurious, because another thread may have
+consumed the condition between the signal and the wake, and because a broadcast wakes all
+waiters when only one can proceed. Writing the wait as an if rather than a while is a bug that
+manifests rarely and is extremely difficult to diagnose.
+
+[user] Our service handles 50k concurrent connections and we're seeing high CPU with low
+throughput. It uses a thread per connection.
+[assistant] tool_call os.concurrency_profile({"connections": 50000, "model":
+"thread_per_connection", "cores": 16, "cpu_pct": 94, "throughput_rps": 8200,
+"context_switches_per_sec": 1.4e6, "thread_stack_mb": 8, "workload": "io_bound"})
+[tool] {"threads": 50000, "stack_memory_gb": 390, "switches_per_request": 171,
+"bottleneck": "context_switching_and_scheduler_overhead",
+"recommendation": "event_loop_or_lightweight_threads", "expected_rps": 45000}
+[assistant] You have fifty thousand threads on sixteen cores, and the system is spending its
+CPU on scheduling rather than on your work. 1.4 million context switches per second against
+8,200 requests per second is 171 switches per request, which is almost entirely overhead.
+
+Two costs compound. Each switch has a direct cost of saving and restoring state, and a much
+larger indirect cost of evicting cache and TLB contents that must be refetched when the thread
+resumes. And with 8 MB of stack reserved per thread you have nominally 390 GB of address space
+committed, which even with lazy allocation puts substantial pressure on the memory subsystem
+and the TLB.
+
+For an I/O-bound workload the right model is either an event loop with I/O multiplexing or
+lightweight threads. An event loop uses epoll or kqueue to wait on all fifty thousand
+descriptors from a handful of OS threads, so a waiting connection costs a small structure rather
+than a stack and there is no switch when it becomes ready — the loop simply processes it.
+Lightweight threads give the same efficiency with blocking-style code, since the runtime
+multiplexes many logical threads onto few OS threads and yields at blocking points.
+
+Either should take you to roughly 45,000 requests per second on this hardware, since the actual
+work per request appears small and you are currently spending five sixths of your CPU on
+scheduling.
+
+If rewriting the concurrency model is not immediately feasible, two changes will help
+meaningfully in the meantime. Reduce the thread stack size — 8 MB is the default and is far
+larger than a connection handler needs; 256 KB is usually ample and cuts the memory pressure
+by a factor of thirty. And put a bounded thread pool in front with a queue, so the number of
+threads is near the core count and connections wait in the queue rather than each holding a
+thread. That alone typically doubles or triples throughput and is a configuration change.
+
+## Virtualization, Containers, and Observability
+
+Virtualization runs multiple operating systems on one machine, with a hypervisor mediating
+hardware access. Type 1 hypervisors run directly on hardware, and type 2 run as a program under
+a host operating system. Hardware virtualization extensions make the guest's privileged
+instructions trap efficiently, which is what made virtualization performant enough to underpin
+cloud computing.
+
+Containers provide isolation without a separate kernel, using namespaces to restrict what a
+process can see and control groups to restrict what it can consume. This is far lighter than a
+virtual machine — startup in milliseconds rather than seconds, and no duplicated kernel and
+operating system per instance — and the isolation is weaker, because all containers share the
+host kernel and a kernel vulnerability crosses the boundary. The security consequence is that
+mutually untrusted workloads on shared infrastructure use virtual machines or specialized
+sandboxes rather than plain containers.
+
+The distinction is worth stating precisely because containers are frequently described as
+lightweight virtual machines, which misleads about both their cost and their isolation. A
+container is a process with a restricted view, not a virtualized machine. It shares the kernel,
+it appears in the host's process table, and its isolation is a set of kernel features rather
+than a hardware boundary.
+
+Virtualization and observability:
+  hypervisor           mediates hardware; type 1 bare metal, type 2 hosted
+  hardware extensions  efficient trapping of privileged guest instructions
+  paravirtualization   the guest cooperates; faster I/O
+  namespaces           restrict what a process sees; PID, network, mount, user,
+                       IPC, UTS
+  cgroups              restrict what a process consumes; CPU, memory, I/O, PIDs
+  container            a process with restricted view and resources; shares the
+                       kernel
+  isolation strength   VM boundary is hardware-enforced; container boundary is
+                       kernel-enforced
+  microVM              lightweight VMs combining container startup with VM
+                       isolation
+  strace / ltrace      trace system and library calls
+  perf                 hardware counters and sampling profiles
+  eBPF                 programmable in-kernel tracing and filtering with verified
+                       safety; the foundation of modern observability tooling
+  vmstat, iostat        system-level resource views
+  /proc and /sys        kernel-exposed state
+  core dump            process memory at crash; the primary post-mortem artifact
+  the first question   is the process running, blocked, or spinning; the answer
+                       determines which tool to reach for next
+
+eBPF deserves the closing note because it changed what is observable in production. It permits
+running verified programs in the kernel attached to tracepoints, function entries, and network
+paths, gathering data with very low overhead and without modifying the kernel or the application.
+This makes it possible to answer questions that previously required either static
+instrumentation decided in advance or overhead that production could not tolerate — which
+function is slow, which process is issuing the I/O, what the latency distribution of a specific
+syscall is, per-container and in real time. The verifier is what makes it safe: a program is
+rejected unless it provably terminates and accesses only permitted memory, so a tracing bug
+cannot crash the kernel.

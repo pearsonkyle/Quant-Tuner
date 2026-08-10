@@ -1,0 +1,364 @@
+================================================================================
+AREA: Physics
+SUBJECT: Metrology and Measurement Science
+Subtopics: units and the SI, uncertainty, calibration and traceability, precision
+measurement techniques, time and frequency, statistical treatment, instrumentation practice.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Units and the Redefined SI
+
+Measurement requires a unit, and the question of what defines a unit has a history worth knowing
+because the modern answer is structurally different from the historical one. A unit defined by an
+artifact — a particular metal bar, a particular cylinder — is only as stable as the artifact, and
+comparing against it requires physical access to it or to a copy whose relationship to it is
+uncertain.
+
+The 2019 redefinition completed a shift begun with the metre: every base unit is now defined by
+fixing the numerical value of a fundamental constant. The second is defined by fixing a caesium
+transition frequency, the metre by fixing the speed of light, the kilogram by fixing the Planck
+constant, the ampere by fixing the elementary charge, the kelvin by fixing the Boltzmann constant,
+the mole by fixing the Avogadro constant, and the candela by fixing a luminous efficacy.
+
+The consequences are practical rather than philosophical. A definition based on a constant can be
+realized anywhere by anyone with adequate apparatus rather than requiring comparison against a
+unique object. It cannot drift, since the constant is fixed by definition rather than measured.
+And the realization can improve without redefining the unit — a better experiment produces a more
+accurate realization of the same definition, where previously an improved measurement of the
+artifact changed what the unit meant.
+
+Units and the SI:
+  artifact definition  only as stable as the object; comparison requires access
+  constant definition  realizable anywhere, cannot drift, and improves without
+                       redefinition
+  second               a fixed caesium hyperfine transition frequency
+  metre                a fixed speed of light; defined via the second
+  kilogram             a fixed Planck constant; realized by the Kibble balance and
+                       by the silicon sphere route
+  ampere               a fixed elementary charge
+  kelvin               a fixed Boltzmann constant
+  mole                 a fixed Avogadro constant; now independent of the kilogram
+  candela              a fixed luminous efficacy; the only base unit incorporating
+                       human perception
+  derived units        combinations; newton, joule, watt, volt, ohm
+  dimensional analysis  check that both sides of an equation have the same
+                       dimensions; catches a large fraction of algebra errors
+  the hierarchy        the second is the most accurately realized, and units
+                       defined through it inherit that accuracy
+
+Q: A unit defined by fixing a fundamental constant rather than by an artifact has the advantage
+that:
+A. It is easier to understand
+B. It can be realized independently anywhere, cannot drift, and its realization can improve
+   without changing the definition
+C. It requires no apparatus
+D. It is more precise by definition
+Reasoning: An artifact definition makes the unit whatever that object is, so the unit drifts if the
+object does and improving the measurement changes the unit. Fixing a constant separates the
+definition from any realization, so better apparatus produces a better realization of an unchanged
+unit and any laboratory with adequate equipment can realize it. Answer: B.
+
+## Uncertainty
+
+Every measurement has uncertainty, and a measurement reported without it is incomplete rather
+than merely undocumented. The uncertainty states the range within which the true value is believed
+to lie, together with the confidence attached, and it is what permits two measurements to be
+compared or a measurement to be compared against a specification.
+
+The distinction between error and uncertainty is worth keeping precise. Error is the difference
+between the measured and the true value, which is unknown since the true value is unknown.
+Uncertainty is the quantified doubt about the result, which is what can be stated. A known error is
+corrected rather than reported; what remains after correction is uncertainty.
+
+Uncertainty components are classified by how they are evaluated rather than by their nature. Type A
+evaluation uses statistical analysis of repeated observations, giving the standard deviation of the
+mean. Type B evaluation uses any other means — calibration certificates, manufacturer
+specifications, physical reasoning, prior experience — converted to a standard uncertainty by
+assuming a distribution. The classification is by method rather than by whether the component is
+random or systematic, which is a common confusion.
+
+Uncertainty:
+  error                measured minus true; unknown, and corrected when known
+  uncertainty          quantified doubt about the result; what is reported
+  type A               evaluated statistically from repeated observations
+  type B               evaluated by other means; converted assuming a distribution
+  the classification   by method, not by random versus systematic
+  standard uncertainty  expressed as a standard deviation
+  combined uncertainty  components combined in quadrature when independent
+  correlated components  do not combine in quadrature; the covariance term matters
+                       and is frequently omitted
+  expanded uncertainty  multiplied by a coverage factor; k = 2 for approximately
+                       95% coverage
+  coverage factor      state it, or the interval's meaning is undefined
+  degrees of freedom   how well the uncertainty itself is known; few repeats give
+                       a poorly known uncertainty
+  sensitivity coefficient  how much the result changes per unit change in an input
+  propagation          combine input uncertainties weighted by their sensitivity
+                       coefficients
+  significant figures  a crude uncertainty statement; report the uncertainty
+                       explicitly instead
+  the dominant term    identify it; reducing a component that is not dominant
+                       accomplishes nothing
+
+The quadrature combination deserves emphasis because it determines where effort is worth
+spending. Independent uncertainty components combine as the square root of the sum of squares, so
+a component half the size of the dominant one contributes only about ten percent to the total, and
+one a third the size contributes about five percent. Effort spent reducing a minor component is
+therefore nearly wasted, and identifying the dominant term before optimizing is what makes
+measurement improvement efficient.
+
+## Calibration and Traceability
+
+Calibration establishes the relationship between an instrument's indication and the corresponding
+value of the measurand, and it is what converts a reading into a measurement. An uncalibrated
+instrument produces numbers whose relationship to reality is unknown, however precise and
+repeatable those numbers are.
+
+Traceability is the property that a measurement result can be related to a reference through a
+documented unbroken chain of calibrations, each contributing to the uncertainty. This is what makes
+measurements made in different places comparable — two laboratories whose instruments are traceable
+to the same reference are measuring the same thing, and two whose instruments are not have no basis
+for comparing their results.
+
+The distinction between accuracy and precision is the one most often confused and it has direct
+practical consequences. Precision is repeatability — how much the readings scatter. Accuracy is
+closeness to the true value. An instrument can be precise and inaccurate, producing consistently
+wrong readings, and this is the dangerous case because the consistency inspires confidence. It is
+corrected by calibration; scatter is reduced by averaging, and no amount of averaging corrects an
+offset.
+
+Calibration and traceability:
+  calibration          establishes the relationship between indication and value
+  traceability         an unbroken documented chain to a reference
+  the chain            each link adds uncertainty; the total accumulates
+  primary standard     realizes the unit directly
+  transfer standard    carries the value between laboratories
+  working standard     used routinely; calibrated against a higher standard
+  accuracy             closeness to the true value; corrected by calibration
+  precision            repeatability; reduced by averaging
+  the dangerous case   precise and inaccurate; consistency inspires confidence
+  bias                 systematic offset; averaging does not remove it
+  drift                change over time; sets the calibration interval
+  calibration interval  from the observed drift, not from convention
+  test uncertainty ratio  the standard's uncertainty relative to the tolerance
+                       being verified; 4:1 is the conventional minimum
+  guard banding        tightening the acceptance limit by the measurement
+                       uncertainty; required when the uncertainty is not negligible
+                       relative to the tolerance
+  as-found and as-left  the readings before and after adjustment; the as-found
+                       data is what tells you whether previous measurements were
+                       valid
+
+The as-found reading deserves emphasis because it is what makes calibration retrospectively
+useful. An instrument found out of tolerance at calibration was presumably out of tolerance for
+some period before, which calls into question every measurement made with it since the last
+calibration. Recording the as-found value permits assessing how far out it was and therefore what
+the consequences are, and discarding it in favour of only recording the adjusted state destroys
+exactly the information needed to determine whether any previous result was affected.
+
+## Precision Measurement Techniques
+
+Precision measurement techniques share a set of strategies for defeating the noise and drift that
+limit ordinary measurement, and understanding the strategies transfers across specific
+applications.
+
+Null methods compare the unknown against a reference and adjust until the difference is zero,
+which means the detector's accuracy does not matter — only its ability to detect zero. A bridge
+circuit measuring resistance by balancing against known resistances is accurate to the standards'
+accuracy rather than to the detector's, which is why bridges dominated precision electrical
+measurement.
+
+Differential measurement measures the difference between two similar quantities rather than each
+separately, which cancels whatever affects both. Two adjacent sensors in the same thermal and
+electromagnetic environment share their disturbances, so the difference is far cleaner than either
+signal.
+
+Modulation moves the measurement to a frequency where the noise is lower. Low-frequency noise
+grows as frequency falls — the ubiquitous flicker noise — so measuring a slowly varying quantity
+directly puts the signal exactly where the noise is worst. Chopping the signal at a chosen
+frequency and detecting synchronously at that frequency, which is what a lock-in amplifier does,
+recovers signals far below the broadband noise floor.
+
+Precision techniques:
+  null method          balance against a reference; the detector needs only to
+                       detect zero
+  bridge circuit       the electrical null method
+  substitution         replace the unknown with a known that produces the same
+                       indication; eliminates the instrument's nonlinearity
+  differential         measure the difference; cancels common disturbances
+  ratio measurement    ratios are frequently measurable far more accurately than
+                       absolute values
+  modulation           move the signal away from low-frequency noise
+  lock-in detection    synchronous detection at the modulation frequency; extracts
+                       signals far below the noise
+  averaging            random noise falls as the square root of the count;
+                       systematic error does not fall at all
+  interferometry       measure displacement in wavelengths; the standard for
+                       length at high precision
+  frequency comparison  frequencies are measurable more accurately than any other
+                       quantity, so converting a measurement into a frequency
+                       measurement is a recurring strategy
+  temperature control  the dominant systematic in most precision work
+  vibration isolation  and acoustic isolation; the second dominant systematic
+  Abbe error           an offset between the measurement axis and the axis of
+                       interest turns an angular error into a linear one
+  cosine error         a misaligned measurement axis reads short by the cosine of
+                       the angle
+
+The strategy of converting a measurement into a frequency measurement deserves emphasis because
+it explains a great deal of precision instrument design. Frequency is measurable to parts in ten to
+the eighteenth, better than any other physical quantity by many orders of magnitude, because
+counting cycles over a long interval accumulates precision. A quantity converted into a frequency
+shift — a resonator whose frequency depends on the measurand, an interferometer whose fringe rate
+depends on velocity, an atomic transition whose frequency depends on a field — inherits that
+precision. This is why quartz crystal microbalances, optical frequency combs, and atomic
+magnetometers are built the way they are.
+
+[user] My temperature measurement is repeatable to 0.01 C but disagrees with the reference
+thermometer by 0.4 C. What does that tell me?
+[assistant] tool_call metrology.diagnose({"repeatability_c": 0.01, "offset_vs_reference_c": 0.4,
+"sensor": "platinum_rtd", "excitation_ma": 1.0, "wire_config": "two_wire",
+"lead_resistance_ohm": 0.8, "calibrated": false})
+[tool] {"issue": "systematic_offset_not_random_error",
+"lead_resistance_contribution_c": 0.21, "self_heating_estimate_c": 0.06,
+"uncalibrated_sensor_tolerance_c": 0.3, "conclusion": "precise_but_inaccurate",
+"remedies": ["four_wire_connection", "reduce_excitation", "calibrate"]}
+[assistant] You have excellent precision and a systematic error, which are independent properties
+and require different remedies. Averaging more readings will not help at all.
+
+Two identifiable contributions and one residual.
+
+Your two-wire connection puts the lead resistance in series with the sensor, and the instrument
+cannot distinguish it from the sensor's own resistance. At 0.8 ohms of lead resistance with a
+platinum RTD, that is about 0.21 degrees of offset, always in the same direction. A four-wire
+connection carries the excitation current on one pair and senses the voltage on another that
+carries no current, so the lead resistance drops out entirely. This is the single largest and most
+straightforward fix.
+
+Self-heating from the excitation current contributes about 0.06 degrees. One milliamp through the
+sensor dissipates power that raises its own temperature above the medium's, and the magnitude
+depends on the thermal coupling — worse in still air, better in flowing liquid. Reducing the
+excitation reduces the heating quadratically and reduces the signal linearly, so there is an
+optimum. Measuring at two excitation levels and extrapolating to zero is the standard way to
+quantify it.
+
+The remainder is the sensor's own uncalibrated tolerance, which for a standard-grade element is a
+few tenths of a degree. No wiring change addresses it; it requires calibration against a reference,
+which gives you a correction to apply.
+
+The general point worth taking from this: your repeatability of 0.01 degrees tells you what your
+resolution and noise permit, and it says nothing whatever about accuracy. The two are independent,
+and a highly repeatable instrument that is consistently wrong is the more dangerous situation
+because the consistency reads as reliability. Comparing against a traceable reference is the only
+thing that establishes accuracy, and it is what converts your readings from relative to absolute.
+
+## Time, Frequency, and Statistical Treatment
+
+Time and frequency are the most accurately realized quantities, and their accuracy propagates to
+everything defined through them. A caesium standard realizes the second to parts in ten to the
+sixteenth, and optical clocks based on transitions at far higher frequency reach parts in ten to
+the eighteenth — accurate enough that the gravitational redshift over a centimetre of height
+difference is measurable.
+
+Frequency stability is characterized differently from other measurements because the noise is not
+white. The Allan deviation, computed from the differences between successive averages, is used
+instead of the standard deviation because the standard deviation of a signal with drift does not
+converge as the averaging time grows. Plotting the Allan deviation against the averaging time
+reveals the noise types present: white noise falls as the inverse square root of the averaging
+time, flicker noise is flat, and drift rises — so the plot identifies the optimum averaging time
+where the falling and rising contributions cross.
+
+Statistical treatment of measurement data has requirements that general statistics does not
+emphasize. The distinction between repeatability — the same operator, instrument, and conditions
+over a short interval — and reproducibility — different operators, instruments, or laboratories —
+matters because they differ substantially and quoting one when the other is meant misstates the
+uncertainty by a large factor.
+
+Time, frequency, and statistics:
+  caesium standard     realizes the second; parts in 10^16
+  optical clocks       parts in 10^18; sensitive to a centimetre of height
+  frequency stability  characterized by Allan deviation, not standard deviation
+  why not standard deviation  it does not converge for signals with drift
+  Allan deviation plot  identifies the noise types and the optimum averaging time
+  white noise          falls as the inverse square root of averaging time
+  flicker noise        flat; averaging longer does not help
+  drift                rises; averaging longer makes it worse
+  the optimum          where the falling and rising contributions cross
+  repeatability        same operator, instrument, and conditions, short interval
+  reproducibility      different operators, instruments, or laboratories;
+                       substantially larger
+  outlier treatment    a documented criterion decided in advance; discarding
+                       points that disagree is how systematic errors are
+                       concealed
+  regression uncertainty  the fit parameters have uncertainties and covariances;
+                       propagating them requires the covariance rather than only
+                       the variances
+  round only at the end  intermediate rounding accumulates
+  round the uncertainty first  then match the result's precision to it
+
+The Allan deviation deserves the technical emphasis because it answers a question the standard
+deviation cannot. For a stationary signal with white noise, averaging longer always improves the
+estimate and the standard deviation is the right measure. For a real oscillator with flicker noise
+and drift, averaging longer helps up to a point and then makes things worse, and the standard
+deviation grows without bound as more data is included — which is the opposite of what a statistic
+should do. The Allan deviation is constructed to converge for these signals and to identify which
+noise process dominates at each timescale, which is exactly the information needed to choose an
+averaging time.
+
+## Instrumentation Practice
+
+Practical measurement has a set of considerations that determine whether the theoretical accuracy
+is achieved, and most measurement failures arise here rather than in the instrument.
+
+Loading is the measurement disturbing what it measures. A voltmeter draws current, an ammeter drops
+voltage, a thermometer conducts heat, a pressure sensor occupies volume, a flow sensor obstructs.
+The disturbance is negligible when the instrument's impedance is far from the source's — high input
+impedance for a voltage measurement, low for a current — and it is substantial when they are
+comparable, which is exactly the case where the measurement seemed straightforward.
+
+Grounding and shielding determine the noise floor of any sensitive electrical measurement. Ground
+loops, where two points nominally at ground are connected by two paths, admit circulating current
+that appears as noise. Single-point grounding at low frequency and a continuous reference plane at
+high frequency are the standard responses, and the transition between them is a source of
+persistent confusion.
+
+Environmental effects are the systematic errors that appear when the measurement moves from the
+laboratory. Temperature affects almost every sensor and most instruments. Humidity affects
+capacitive sensors and insulation resistance. Vibration affects anything mechanical. Ambient light
+affects optical measurements. Electromagnetic interference affects everything electrical. Each is
+characterizable and each is more easily controlled than corrected.
+
+Instrumentation practice:
+  loading              the measurement disturbs the measurand
+  input impedance      far from the source impedance, in the appropriate direction
+  four-wire            separates excitation from sensing; eliminates lead
+                       resistance
+  guarding             drive a shield to the signal potential; eliminates leakage
+                       currents in high-impedance measurement
+  ground loop          two ground paths admitting circulating current
+  single-point ground  at low frequency; a continuous plane at high frequency
+  isolation            breaks the loop; optical, transformer, or capacitive
+  shielding            electrostatic shields need a single ground connection;
+                       magnetic shielding requires high-permeability material
+  thermal EMF          junctions of dissimilar metals generate voltages at the
+                       microvolt level; a dominant error in low-level DC
+                       measurement, addressed by keeping junctions isothermal
+  settling time        allow it; a reading taken before settling is a
+                       reproducible wrong answer
+  warm-up              instruments drift until thermally stable; specifications
+                       assume warm-up
+  environmental control  cheaper than correction
+  document the conditions  a measurement without its conditions cannot be
+                       reproduced or compared
+
+Thermal electromotive force deserves the closing emphasis because it dominates precision
+low-voltage measurement and is invisible to anyone not looking for it. Any junction between
+dissimilar metals generates a voltage proportional to its temperature, typically microvolts per
+degree, and a measurement circuit contains many such junctions — connectors, solder joints,
+switch contacts, the transition from copper wire to a component lead. If the junctions are at
+different temperatures the voltages do not cancel, and the resulting offset is comparable to or
+larger than the signal in any measurement below the millivolt level. The remedies are keeping
+junction pairs isothermal, using low-thermal-EMF connectors and solder, allowing thermal
+equilibration, and reversing the measurement polarity and averaging — which cancels the offset
+because it does not reverse with the signal.

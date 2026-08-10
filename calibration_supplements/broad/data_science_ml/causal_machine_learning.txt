@@ -1,0 +1,316 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: Causal Machine Learning
+Subtopics: why prediction is insufficient, causal graphs, identification, estimation,
+heterogeneous effects, policy learning, sensitivity, practice.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Why Prediction Is Insufficient
+
+Predictive models answer what will happen given what is observed; causal questions ask what would
+happen if something were changed. These are different questions with different answers, and a
+model that predicts excellently can be entirely misleading as a guide to action — which is the
+central point and the one that most often needs establishing.
+
+The canonical illustration is a model predicting hospital mortality that learns asthmatic
+patients with pneumonia have lower mortality. The prediction is accurate: asthmatic patients were
+admitted directly to intensive care because they were considered high risk, and the intensive
+treatment produced better outcomes. Acting on the model — deprioritizing asthmatic patients
+because they are predicted to do well — would remove the treatment producing the prediction. The
+model correctly captured the association in the data and the association was produced by the
+policy it would be used to change.
+
+This is the general structure rather than an anomaly. Any model trained on observational data
+learns associations shaped by the decisions that generated the data, and using the model to change
+those decisions invalidates the associations it learned. Prediction is adequate when the goal is
+forecasting under an unchanged policy and inadequate whenever the goal is choosing an action.
+
+Prediction versus causation:
+  prediction           what will happen given observation
+  causation            what would happen under intervention
+  the asthma example   the association was produced by the policy the model would
+                       change
+  observational data   shaped by the decisions that generated it
+  policy invariance    predictions hold only while the decision process is
+                       unchanged
+  when prediction suffices  forecasting under an unchanged policy
+  when it does not     any question of the form "what should we do"
+  correlation          symmetric; consistent with either direction or a common
+                       cause
+  intervention         setting a variable rather than observing it; the do
+                       operator distinguishes them notationally
+  counterfactual       what would have happened to this unit under a different
+                       treatment; unobservable, which is the fundamental problem
+  the fundamental problem  only one potential outcome is ever observed per unit
+  ladder of causation  association, intervention, counterfactual; each level
+                       requires assumptions the level below cannot supply
+
+Q: A model predicting customer churn identifies that customers who contact support are more
+likely to churn. Acting on this by reducing support contact would:
+A. Reduce churn
+B. Likely worsen it, since support contact is a symptom of dissatisfaction rather than a cause of
+   churn, and removing the support removes an intervention that may be reducing churn
+C. Have no effect
+D. Reduce costs without affecting churn
+Reasoning: The association arises because dissatisfied customers contact support and dissatisfied
+customers churn. Support contact is downstream of the cause rather than being the cause, and it
+may be reducing churn relative to what would occur without it. This is the prediction-intervention
+gap: the model captured a real association that does not support the intervention. Answer: B.
+
+## Causal Graphs and Identification
+
+A causal graph represents assumed causal relationships as directed edges, and its value is that
+it makes the assumptions explicit and mechanically determines what can be estimated. The graph is
+not derived from the data — several graphs are compatible with any dataset — so it encodes domain
+knowledge, and stating it is what permits the analysis to be criticized.
+
+Three structures determine how association flows and they must be distinguished because the
+correct handling of each is different. A chain, where one variable causes a second which causes a
+third, transmits association, and conditioning on the middle variable blocks it. A fork, where one
+variable causes two others, transmits association between the two effects, and conditioning on
+the common cause blocks it — this is confounding, and the common cause is the confounder. A
+collider, where two variables both cause a third, transmits no association, and conditioning on
+the common effect creates one.
+
+The collider case is where intuition fails most severely. Adjusting for additional variables is
+widely believed to be conservative, and it is not: conditioning on a common effect of the
+treatment and the outcome induces a spurious association where none existed. Selection into the
+sample is a form of conditioning, so a sample selected on a variable affected by both the treatment
+and the outcome produces collider bias regardless of what is adjusted for in the analysis.
+
+Graphs and identification:
+  directed edge        an assumed causal relationship
+  the graph is an assumption  several are compatible with any data; stating it
+                       makes it criticizable
+  chain                A to B to C; transmits association, blocked by conditioning
+                       on B
+  fork                 B causes A and C; confounding, blocked by conditioning on B
+  collider             A and C both cause B; blocked by default, opened by
+                       conditioning on B
+  d-separation         the graphical criterion for conditional independence
+  back-door criterion  a set blocking all back-door paths identifies the effect by
+                       adjustment
+  front-door criterion  identification through a mediator when unmeasured
+                       confounding blocks the back door
+  instrumental variable  affects treatment, and the outcome only through it
+  adjusting for a mediator  removes the effect being estimated
+  adjusting for a collider  creates bias where none existed
+  selection bias       selection on a collider; unfixable by adjustment because
+                       the conditioning already occurred
+  M-bias               adjusting for a variable that is not a confounder can open
+                       a path; more adjustment is not safer
+  positivity           every unit must have a nonzero probability of each
+                       treatment; without it the effect is not identified in that
+                       region
+
+Positivity deserves emphasis because it is frequently violated silently. Estimating the effect of
+a treatment requires that units with the relevant covariates could have received either treatment
+level, and if some region of covariate space deterministically receives one treatment, no data
+informs the counterfactual there. A model will nonetheless produce an estimate by extrapolating,
+and the extrapolation is unconstrained by data. Checking the overlap of covariate distributions
+between treatment groups is the diagnostic, and restricting the analysis to the region of common
+support is the honest response.
+
+## Estimation
+
+Given identification — an argument that the effect is estimable from the available data under
+stated assumptions — estimation is the statistical task of computing it. Machine learning
+contributes here because the adjustment frequently requires modelling high-dimensional
+relationships that parametric models handle poorly.
+
+Naively plugging a machine learning model into a causal estimator produces bias, and the reason
+is instructive. Machine learning methods are regularized to minimize prediction error, which
+introduces bias to reduce variance, and that bias does not vanish at the rate required for valid
+inference about a causal parameter. The resulting estimate has a bias term that dominates the
+standard error, so confidence intervals have incorrect coverage.
+
+Double machine learning addresses this with two devices. Orthogonalization constructs an
+estimating equation insensitive to first-order errors in the nuisance models, so that errors in
+estimating the treatment assignment or the outcome model do not propagate directly into the
+causal estimate. Cross-fitting estimates the nuisance models on one part of the data and the
+causal parameter on another, which removes the overfitting bias that arises when the same
+observations inform both. Together they permit flexible machine learning for the nuisance
+components while retaining valid inference.
+
+Estimation approaches:
+  regression adjustment  model the outcome given treatment and covariates
+  propensity score     the probability of treatment given covariates
+  matching             pair treated and control units with similar propensity or
+                       covariates
+  inverse propensity weighting  weight by the inverse probability of the observed
+                       treatment; unstable when propensities approach zero or one
+  doubly robust        consistent if either the outcome model or the propensity
+                       model is correct; the practical default
+  double machine learning  orthogonalization plus cross-fitting; valid inference
+                       with flexible nuisance models
+  orthogonalization    the estimating equation is insensitive to first-order
+                       nuisance errors
+  cross-fitting        nuisance and parameter estimated on different folds
+  the regularization problem  machine learning bias does not vanish fast enough
+                       for naive plug-in inference
+  difference in differences  compare changes over time across groups; requires
+                       parallel trends
+  synthetic control    a weighted combination of untreated units matching the
+                       pre-period; for a single treated unit
+  regression discontinuity  compare units just above and below a threshold; strong
+                       internal validity, local to the threshold
+  instrumental variables  identification through an instrument; the exclusion
+                       restriction is untestable and usually the weak point
+
+The doubly robust property is worth understanding because it explains why these estimators are
+preferred. An estimator combining an outcome model and a propensity model is consistent if either
+one is correctly specified, which is a genuinely useful guarantee — it does not require getting
+both right, and it means two independent attempts at modelling provide protection that either
+alone does not. The property does not survive both being wrong, and in high dimensions both are
+approximations, which is why the combination with cross-fitting and orthogonalization matters
+rather than the doubly robust property alone.
+
+## Heterogeneous Effects and Policy Learning
+
+An average treatment effect answers whether a treatment helps on average, and it frequently
+conceals that it helps some units substantially and harms others. Estimating how the effect varies
+with covariates — the conditional average treatment effect — is what permits targeting, and it is
+where machine learning contributes most directly to causal inference.
+
+The estimation problem is harder than prediction because the target is never observed. For a
+predictive model, each observation has a label and the error is measurable. For an effect estimate,
+each unit's individual treatment effect is the difference between two potential outcomes and only
+one is observed, so there is no label to compare against and standard model selection does not
+apply. This is why methods designed for the purpose exist rather than applying a regression to
+the difference.
+
+Causal forests adapt random forests to this task by splitting to maximize heterogeneity in the
+treatment effect rather than in the outcome, and by using separate samples for splitting and
+estimation so that the estimates within a leaf are honest. Meta-learners construct the effect
+estimate from standard predictive models in various arrangements, and which arrangement performs
+better depends on the structure — whether the baseline outcome or the effect is the more complex
+function.
+
+Heterogeneous effects and policy:
+  average treatment effect  the population average; conceals heterogeneity
+  conditional average effect  how the effect varies with covariates
+  individual effect    never observed; the fundamental problem
+  no ground truth      standard model selection does not apply
+  causal forest        splits to maximize effect heterogeneity; honest estimation
+                       with sample splitting
+  meta-learners        S, T, X, and R learners; construct effects from predictive
+                       models
+  which learner        depends on whether the baseline or the effect is more
+                       complex, and on the treatment balance
+  policy learning      derive a treatment assignment rule from estimated effects
+  policy value         the expected outcome under a policy; the quantity to
+                       maximize
+  uplift modelling     the marketing term for the same problem
+  the four quadrants   persuadables, sure things, lost causes, and those harmed by
+                       treatment; targeting only the persuadables is the point
+  off-policy evaluation  estimate a new policy's value from data collected under
+                       another; requires overlap
+  constraints          budget, fairness, and capacity turn policy learning into a
+                       constrained optimization
+
+The four-quadrant framing deserves emphasis because it clarifies what targeting achieves. Under
+any treatment, some units would have the desired outcome regardless, some would not regardless,
+some are influenced positively, and some are influenced negatively. A predictive model identifies
+who will have the outcome, which mixes the first group with the third. An effect model identifies
+who is influenced, which is the only group where treatment changes anything. Targeting by
+predicted outcome therefore spends the budget substantially on units whose behaviour is unchanged,
+and the difference between predictive and causal targeting is frequently large enough to determine
+whether a campaign is profitable.
+
+[user] Our marketing team targets discount offers at customers with the highest predicted churn
+probability. Is that right?
+[assistant] tool_call causal.targeting_audit({"current_policy": "target_highest_predicted_churn",
+"model": "churn_classifier", "treatment": "discount_offer",
+"available": ["historical_randomized_holdout"], "budget_constrained": true})
+[tool] {"issue": "targeting_by_outcome_not_by_effect",
+"quadrant_analysis": {"sure_things_targeted": true, "lost_causes_targeted": true,
+"sleeping_dogs_risk": true}, "recommendation": "estimate_conditional_treatment_effect",
+"data_available": "randomized_holdout_permits_uplift_estimation"}
+[assistant] No — you are targeting by predicted outcome and you want to target by predicted
+effect, and those select substantially different customers.
+
+Your highest-churn-probability customers divide into two groups that the model cannot
+distinguish. Some are churning for reasons a discount addresses, and treating them changes the
+outcome. Others are churning for reasons a discount does not touch — they have moved, their needs
+changed, a competitor offers something you do not — and treating them costs money and changes
+nothing. The model ranks both identically because both have high churn probability.
+
+The group you are missing entirely is customers with moderate churn probability who are highly
+responsive to a discount. They rank low on your list and they are where the budget produces the
+most retained revenue per pound.
+
+There is also a group worth actively excluding. Some customers would have stayed and, on
+receiving an unsolicited discount offer, are prompted to reconsider the relationship or to expect
+discounts thereafter — the sleeping dogs. Targeting them is worse than doing nothing, and a
+predictive model cannot identify them because their predicted churn is low and their effect is
+negative.
+
+You have a randomized holdout, which is what makes the fix straightforward. Use it to estimate
+the conditional average treatment effect — how much the discount changes churn probability as a
+function of customer covariates — with a causal forest or an X-learner. Then rank by estimated
+effect rather than by predicted churn and target the top of that ranking within your budget.
+
+Two practical points. Validate the uplift model with a Qini or uplift curve on held-out
+randomized data rather than with a standard classification metric, since the target is
+unobservable and ordinary metrics do not measure what you need. And run the new policy against the
+old one as an experiment rather than switching outright — the uplift estimate is itself uncertain,
+and the comparison is what establishes the gain.
+
+Expect the targeted set to overlap with your current one by substantially less than intuition
+suggests, frequently under half, which is the practical measure of how different the two questions
+are.
+
+## Sensitivity and Practice
+
+Causal conclusions from observational data rest on untestable assumptions, and the honest
+treatment is to state them and to quantify how much violation would overturn the conclusion rather
+than to assert that they hold. Sensitivity analysis does this: it asks how strong an unmeasured
+confounder would need to be, in its association with both treatment and outcome, to explain away
+the estimated effect.
+
+The E-value expresses this in an interpretable form — the minimum strength of association an
+unmeasured confounder would need with both the exposure and the outcome to account for the
+observed effect. An E-value of 1.3 means a modest unmeasured confounder suffices and the finding is
+fragile; an E-value of 5 means an implausibly strong one would be required. This converts an
+untestable assumption into a quantified statement about how much would have to be wrong.
+
+The practical workflow that produces defensible causal analysis has a consistent shape. State the
+causal question precisely, including the population, the treatment, the comparison, and the
+outcome. Draw the assumed causal graph and state what is assumed. Determine identification from
+the graph — which is where the analysis frequently ends, because the effect is not identified with
+the available data and no estimation method rescues it. Then estimate, check the assumptions that
+are checkable, and conduct sensitivity analysis on the ones that are not.
+
+Sensitivity and practice:
+  untestable assumptions  no unmeasured confounding, positivity, the exclusion
+                       restriction; state them
+  sensitivity analysis  how much violation would overturn the conclusion
+  E-value              the minimum confounder strength required to explain the
+                       effect away
+  negative controls    an outcome the treatment could not affect; an effect there
+                       indicates residual confounding
+  placebo tests        apply the method where no effect should exist
+  pre-period tests     for difference-in-differences, check that trends were
+                       parallel before treatment
+  falsification        find a prediction the causal claim makes that the
+                       association-only explanation does not
+  triangulation        several designs with different assumptions; agreement is
+                       far stronger than any single estimate
+  the identification first  determine what is estimable before estimating; many
+                       analyses fail here and proceed regardless
+  state the population  an effect estimated on one population need not transfer
+  transportability     whether an effect generalizes to another population; a
+                       separate question requiring separate assumptions
+  experiments where possible  randomization eliminates the assumptions that
+                       observational analysis must defend
+
+Triangulation deserves the closing emphasis because it is the strongest available response to the
+untestability problem. Any single observational design rests on assumptions that cannot be
+verified, so a single estimate however carefully produced carries that exposure. Several designs
+with different and largely unrelated assumptions — an instrumental variable analysis, a
+difference-in-differences, a regression discontinuity, and a natural experiment — that agree
+provide evidence far stronger than the sum of their individual strengths, because the assumptions
+would all have to fail in a coordinated way to produce agreement. Where designs disagree, that is
+informative too, and it identifies which assumption is doing the work.

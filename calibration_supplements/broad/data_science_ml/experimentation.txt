@@ -1,0 +1,298 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: Experimentation and Causal Inference in Practice
+Subtopics: experiment design, metrics, variance reduction, sequential testing,
+interference, quasi-experimental methods, organizational practice.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Why Experiments and What They Measure
+
+Online controlled experiments are the most reliable tool available for establishing that a
+change caused an outcome, and their reliability comes entirely from randomization. Random
+assignment makes treatment and control groups equivalent in expectation on every attribute —
+those measured, those unmeasured, and those nobody thought of — so the difference in outcomes
+estimates the causal effect without requiring a model of what else might differ. No
+observational adjustment achieves this, because adjustment handles only the confounders you
+measured.
+
+The consistent empirical finding across large experimentation programmes is humbling: most
+changes have no detectable effect, a substantial minority are harmful, and a small fraction
+produce the gains. Published figures from several large technology companies converge on
+roughly a third of changes being positive, a third neutral, and a third negative. This is the
+strongest argument for experimenting: teams cannot reliably predict which of their changes
+work, and the ones that seem most obviously beneficial include a meaningful share of the
+harmful ones.
+
+The unit of randomization must be chosen deliberately. Randomizing by user gives a consistent
+experience and captures cumulative effects, and it is the default for anything a user might
+notice. Randomizing by session or request gives more units and therefore more power, and it
+breaks down when the treatment produces a visibly inconsistent experience or when effects
+accumulate across sessions. Randomizing by cluster — geography, account, or social group — is
+required when interference between units is present, at a substantial cost in effective
+sample size.
+
+Experiment design essentials:
+  randomization unit    user > session > request; choose where interference stops
+  hash-based assignment deterministic from user ID and experiment ID; stable across
+                        sessions and independent between experiments
+  A/A test              run before launch; validates the assignment and the
+                        analysis pipeline, and should show no effect
+  sample ratio check    the highest-value diagnostic; a mismatch invalidates
+                        everything downstream
+  fixed sample size     computed in advance from the minimum detectable effect
+  minimum detectable effect  the smallest change that would alter a decision;
+                        driven by business value, not by statistical convenience
+  randomization seed    independent across experiments to avoid carryover
+  exposure logging      log when a user actually encountered the change, not when
+                        they were assigned; analysing on assignment dilutes the
+                        effect with users who never saw it
+
+The distinction between assignment and exposure deserves emphasis because it produces a
+consistent bias. If a change appears on a page only ten percent of users visit, analysing all
+assigned users dilutes the effect by a factor of ten and may render a real effect
+undetectable. Analysing only exposed users introduces a different problem, since exposure may
+itself be affected by the treatment — a change making a page load faster increases the number
+of users who reach it, so the exposed populations differ. The clean approach is to trigger
+the analysis on the first point where treatment and control users are still equivalent and
+where the treatment becomes relevant, which requires logging that trigger explicitly.
+
+Q: An experiment shows a 2% lift in the primary metric with p = 0.03, and the team wants to
+ship. The most important thing to check first is:
+A. Whether the effect is larger in any segment
+B. Sample ratio mismatch and whether the analysis was pre-specified
+C. Whether the p-value would survive a Bonferroni correction
+D. The confidence interval width
+Reasoning: A sample ratio mismatch means the groups are not comparable and no effect estimate
+from the experiment is trustworthy, regardless of significance. Pre-specification matters
+because a result selected from many metrics or many analysis choices has a much higher false
+positive rate than the nominal p-value suggests. Both are threshold questions that determine
+whether the other analyses mean anything. Answer: B.
+
+## Metrics
+
+Metric selection determines what an experimentation programme optimizes toward, and choosing
+badly produces a system that reliably improves the wrong thing. The primary metric should be
+a single measure directly reflecting the hypothesis, decided before the experiment runs.
+Secondary metrics explain the mechanism. Guardrail metrics detect harm the primary metric
+would not reveal, and they should be monitored on every experiment regardless of hypothesis.
+
+The tension between short-term and long-term metrics is the central difficulty. Metrics
+measurable within an experiment's duration — clicks, sessions, immediate conversion — are
+often poor proxies for what the business cares about, which is retention and lifetime value
+over months. A change that increases clicks by making content more sensational may reduce
+long-term retention, and an experiment lasting two weeks cannot see that. Approaches include
+holdback groups maintained for months, surrogate metrics validated against long-term outcomes
+on historical data, and explicit degradation experiments that establish the sensitivity of
+long-term metrics to short-term ones.
+
+Metric properties worth checking:
+  sensitivity          moves enough to detect realistic effects at feasible sample
+                       sizes; an insensitive metric is unusable regardless of its
+                       relevance
+  directionality       an improvement is unambiguously good; metrics where an
+                       increase can be good or bad are not decision metrics
+  low variance         high variance metrics require enormous samples; the ratio
+                       of variance to effect size determines feasibility
+  not easily gamed     a metric optimized directly diverges from what it proxied
+  computable quickly   available within the experiment window
+  guardrails           latency, error rate, unsubscribes, complaints, support
+                       contacts; catch harm outside the hypothesis
+  count vs ratio       ratio metrics have delta-method variance and cannot be
+                       treated as simple means
+  capping / winsorizing  heavy-tailed metrics like revenue per user are dominated
+                       by outliers; capping reduces variance greatly at a small
+                       bias cost
+
+Ratio metrics deserve specific mention because they are analysed incorrectly often. A metric
+such as clicks per session, computed as total clicks divided by total sessions, is a ratio of
+two random quantities rather than an average over independent units. Treating it as a simple
+mean and computing a standard error accordingly understates the variance and produces
+false positives. The delta method gives the correct variance, accounting for the covariance
+between numerator and denominator, and this correction matters most exactly when the treatment
+affects the denominator — which is common, since many changes affect session counts.
+
+Overall evaluation criteria combine several metrics into a single decision quantity by
+weighting them. The value is that it forces the tradeoffs to be made explicitly and in advance
+rather than argued after results arrive, when the arguing is contaminated by knowing which
+metrics moved. The difficulty is agreeing the weights, which is a business decision rather
+than a statistical one and is best made by the people who own the outcome.
+
+## Power and Variance Reduction
+
+Statistical power is the probability of detecting an effect that exists, and underpowered
+experiments are the most common defect in practice. An underpowered experiment usually fails
+to detect a real effect, and worse, on the occasions it does reach significance it
+necessarily overstates the magnitude, because only large observed effects clear the threshold
+at small sample sizes. Both failures are costly: real improvements are discarded, and the ones
+that ship carry inflated expectations.
+
+Sample size is determined by the minimum detectable effect, the metric's variance, the
+significance level, and the desired power. The relationship worth internalizing is that
+required sample size scales with the inverse square of the detectable effect: halving the
+effect you wish to detect requires four times the sample. This is why detecting small effects
+is so expensive and why the minimum detectable effect should be set by what would change a
+decision rather than by optimism.
+
+Variance reduction is the highest-leverage technique available, because reducing variance is
+equivalent to increasing sample size at no cost in traffic or time. The most effective method
+is CUPED — using pre-experiment data as a covariate. Each user's outcome is adjusted by their
+pre-period behaviour, removing the component of variance attributable to users simply being
+heavy or light users, which is typically the dominant source of variance in engagement
+metrics.
+
+Power and variance techniques:
+  sample size          scales as 1/MDE^2; halving the target effect quadruples
+                       the requirement
+  CUPED                regress out a pre-experiment covariate; commonly 30-50%
+                       variance reduction on engagement metrics, sometimes more
+  stratification       block on strong predictors before randomization
+  post-stratification  adjust after the fact; nearly as effective and simpler
+  capping              limit the influence of extreme values on heavy-tailed
+                       metrics
+  variance-weighted    weight units by their pre-period variance
+  paired designs       where applicable, comparing a unit to itself removes
+                       between-unit variance entirely
+  longer duration      increases sample but also introduces novelty decay and
+                       seasonality
+  more traffic         the expensive option; exhaust the others first
+
+Novelty and primacy effects complicate duration decisions. A visible change may show an
+inflated effect initially because users notice it and explore, or a depressed effect because
+they must relearn a familiar interface. Both decay over days to weeks. Running an experiment
+only until significance is reached therefore risks measuring the transient rather than the
+steady state, and the diagnostic is to plot the effect over time: an effect trending toward
+zero or reversing indicates novelty, and an effect that is flat indicates the measurement is
+stable.
+
+[user] We want to detect a 0.5% change in conversion. Baseline is 4%, we have 200k users per
+week. How long do we run?
+[assistant] tool_call exp.power_analysis({"baseline_rate": 0.04,
+"relative_mde": 0.005, "weekly_users": 200000, "alpha": 0.05, "power": 0.80,
+"variance_reduction": 0.0})
+[tool] {"absolute_mde": 0.0002, "required_n_per_arm": 15400000,
+"total_required": 30800000, "weeks_required": 154, "with_cuped_40pct": 92,
+"verdict": "infeasible_as_specified"}
+[assistant] Not feasible as specified. A 0.5% relative change on a 4% baseline is an absolute
+change of 0.02 percentage points, and detecting that at 80% power needs about 15.4 million
+users per arm — roughly three years of your traffic.
+
+The binding constraint is that sample size scales with the inverse square of the effect size,
+so small relative effects on small baselines are extraordinarily expensive. Even a 40%
+variance reduction from CUPED only brings this to about 92 weeks.
+
+Three ways forward, and I would push hardest on the first.
+
+Reconsider the minimum detectable effect. The right question is not what change you hope for
+but what change would alter your decision. If a 0.5% relative lift would not by itself justify
+shipping and maintaining the feature, you do not need to detect it. A 3% relative effect needs
+about 4 weeks; a 5% needs about 1.5 weeks. Ask what lift would make this worth doing and size
+for that.
+
+Apply variance reduction regardless. CUPED on a pre-period conversion covariate is close to
+free and typically gives 30-50% here. Also check whether capping or a more sensitive proxy
+metric is available — sometimes a leading indicator with lower variance detects the same
+underlying change far more cheaply, provided you have validated that it tracks conversion.
+
+Consider whether conversion is the right primary metric. If the change affects a specific step
+in a funnel, measuring that step directly is far more sensitive than measuring end-to-end
+conversion, because the intermediate metric has less noise from everything downstream. You
+lose the direct business interpretation and gain the ability to detect the effect at all,
+which is usually the better trade for an iteration decision.
+
+One thing not to do: run it until it happens to be significant. With a fixed sample size not
+reached, peeking inflates your false positive rate substantially — repeatedly checking at
+p < 0.05 reaches significance eventually on pure noise. If you need to monitor as it runs,
+use sequential testing with always-valid p-values or an alpha-spending schedule.
+
+## Sequential Testing, Interference, and Pitfalls
+
+The peeking problem is that repeatedly testing accumulating data at a fixed threshold
+inflates the false positive rate dramatically. A fixed-sample test at the 5 percent level
+assumes a single analysis at a predetermined sample size; checking daily and stopping when
+significance appears can push the actual false positive rate above 30 percent, because random
+walks cross a threshold eventually.
+
+Sequential methods solve this properly. Group sequential designs pre-specify a small number
+of interim analyses with adjusted thresholds via an alpha-spending function. Always-valid
+inference — sequential probability ratio tests, mixture sequential tests, confidence sequences
+— provides bounds valid at every moment, so a practitioner may look continuously and stop
+whenever the result is conclusive, at the cost of requiring somewhat more data than a fixed
+design for the same power. For an organization where stakeholders will look at dashboards
+daily regardless of instruction, always-valid methods are the honest choice.
+
+Interference violates the assumption that one unit's treatment does not affect another's
+outcome, and it breaks experiments in specific settings. Marketplace experiments are the
+clearest case: giving treated sellers better placement necessarily takes impressions from
+control sellers, so the measured difference overstates the effect that would occur if the
+change were applied to everyone. Social networks have the same problem through direct
+interaction. Shared resources — a cache, a recommendation model trained on both arms, a
+fixed inventory or budget — create it too.
+
+Interference and its mitigations:
+  marketplace           treated and control compete for the same demand or supply
+  network               social interaction between arms
+  shared model          a model trained on pooled data learns from both arms
+  shared inventory      a fixed pool depleted by both arms
+  cluster randomization randomize groups within which interference occurs
+  switchback            alternate treatment for the whole system over time
+                        intervals; handles marketplace interference at the cost
+                        of temporal confounding
+  budget-split          allocate separate resource pools per arm
+  two-sided designs     randomize both supply and demand
+  bias direction        interference usually inflates the measured effect, so a
+                        naive result is an upper bound
+
+Several other pitfalls recur often enough to name. Multiple comparisons across many metrics
+inflate false positives, and the remedy is pre-specifying a primary metric and applying
+false discovery rate control to the rest. Segment mining after the fact — searching
+subgroups until one shows an effect — has no error control at all and should be treated as
+hypothesis generation requiring a fresh test. Survivorship in the analysis population,
+where the treatment affects who appears in the data, breaks comparability. And carryover
+between sequential experiments on the same users, particularly when a prior experiment
+changed behaviour persistently, contaminates the next.
+
+## Quasi-Experimental Methods and Practice
+
+When randomization is impossible — a change that must apply to everyone, a market-level
+intervention, a policy already implemented — quasi-experimental designs exploit structure to
+approximate it, with weaker guarantees that must be stated honestly.
+
+Difference-in-differences compares the change over time in a treated group against the change
+in an untreated one, differencing out both fixed group differences and common time shocks. It
+rests on the parallel trends assumption — that the groups would have moved together absent
+treatment — which is untestable for the treatment period and should be supported by showing
+parallel pre-period trends. Regression discontinuity exploits a threshold rule, comparing
+units just above and below a cutoff, which are plausibly similar in everything but treatment;
+it has strong internal validity and applies only near the threshold. Synthetic control
+constructs a weighted combination of untreated units matching the treated unit's pre-period
+trajectory and is the standard approach for a single treated market. Instrumental variables
+use a source of variation affecting treatment but not the outcome directly, and the exclusion
+restriction is untestable and usually the weak point.
+
+Practice and organization:
+  experiment platform    self-service assignment, logging, and analysis; the
+                         infrastructure determines the volume of experimentation
+  guardrails by default  every experiment monitors latency, errors, and harm
+                         metrics without the team opting in
+  automated SRM check    run on every experiment; block analysis on failure
+  pre-registration       hypothesis, primary metric, sample size, and analysis
+                         plan before launch
+  standard analysis      one implementation everyone uses; ad-hoc analysis
+                         introduces inconsistent methods and unreviewed choices
+  institutional memory   a searchable record of past experiments and outcomes;
+                         prevents repeating tests and preserves negative results
+  negative results       record them; they are the majority and they are the most
+                         useful part of the archive
+  effect size culture    report intervals and magnitudes, not binary verdicts
+  ship criteria          agreed before results; who decides and on what basis
+
+The organizational point that matters most is that trust in the experimentation system is
+its main asset and is easily lost. A platform that produces a result someone can plausibly
+dispute — because the sample ratio was off, because the metric definition was ambiguous,
+because the analysis was done differently than last time — invites relitigation of every
+result, and once teams believe they can argue with the data they will argue with the results
+they dislike and accept the ones they like. Automated checks, a single standard analysis, and
+pre-specification are what make the output credible enough to act on, and their value is
+organizational as much as statistical.

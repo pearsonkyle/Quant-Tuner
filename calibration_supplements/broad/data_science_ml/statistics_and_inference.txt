@@ -1,0 +1,568 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: Statistics and Statistical Inference
+Subtopics: probability foundations, estimation, hypothesis testing, regression,
+Bayesian inference, experimental design, causal inference, resampling.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Probability Foundations
+
+A probability space is a triple (Omega, F, P): a sample space of outcomes, a
+sigma-algebra of measurable events, and a measure assigning each event a number in
+[0, 1] with P(Omega) = 1 and countable additivity over disjoint events. Most applied
+work never touches the measure-theoretic scaffolding directly, but it is what makes
+conditional expectation well defined for continuous variables, and it is why a
+"probability zero" event is not the same as an impossible one — a continuous random
+variable takes any particular value with probability zero, yet it takes some value
+every time you sample it.
+
+A random variable is a measurable function from the sample space to the reals. Its
+distribution is fully described by the cumulative distribution function F(x) = P(X <=
+x), which is right-continuous and non-decreasing with limits 0 and 1 at minus and
+plus infinity. Discrete variables have a probability mass function; continuous ones
+have a density f(x) = dF/dx. The density is not a probability — it can exceed 1 — and
+only its integral over an interval is one. Mixed distributions, common in practice
+(a spend variable that is exactly zero for non-purchasers and continuous above), have
+neither a pure pmf nor a pure density, and modelling them as if they did is a
+frequent source of bad likelihoods.
+
+Expectation is the Lebesgue integral E[X] = integral x dF(x), linear in its argument
+regardless of dependence: E[aX + bY] = aE[X] + bE[Y] always, even for correlated X
+and Y. Variance is not linear; Var(aX + b) = a^2 Var(X), and Var(X + Y) = Var(X) +
+Var(Y) + 2Cov(X, Y), with the covariance term vanishing only under uncorrelatedness.
+Independence implies zero correlation, but the converse fails: if X is standard
+normal and Y = X^2, then Cov(X, Y) = E[X^3] = 0 while Y is a deterministic function
+of X. Correlation measures linear association only, and forgetting that is how
+analysts declare "no relationship" in the presence of a perfect parabola.
+
+The law of large numbers and the central limit theorem are the two pillars that make
+statistics work. The weak LLN says the sample mean converges in probability to the
+population mean; the strong LLN upgrades this to almost-sure convergence. The CLT
+says that for iid variables with finite variance sigma^2, sqrt(n)(Xbar - mu)
+converges in distribution to Normal(0, sigma^2), regardless of the shape of the
+underlying distribution. The practical consequences are enormous: it is why standard
+errors shrink as 1/sqrt(n), why doubling precision costs four times the data, and why
+normal-theory confidence intervals work for means of decidedly non-normal data at
+moderate sample sizes. It is also routinely over-applied — the CLT says nothing
+useful about the sample mean of a Cauchy distribution (infinite variance, the sample
+mean has the same distribution as a single observation no matter how much data you
+collect), and its convergence is slow in the tails, which is exactly where risk
+calculations live.
+
+Conditional probability is defined as P(A | B) = P(A and B) / P(B) for P(B) > 0, and
+Bayes' theorem simply rearranges it: P(A | B) = P(B | A) P(A) / P(B). The theorem is
+arithmetically trivial and conceptually the most misused result in the field, because
+P(A | B) and P(B | A) feel interchangeable and are not. The probability that a test
+is positive given disease is a property of the test; the probability of disease given
+a positive test depends on how common the disease is. For a test with 99%
+sensitivity and 99% specificity applied to a disease with 0.1% prevalence, a positive
+result carries only about a 9% chance of disease, because the false positives drawn
+from the enormous healthy population swamp the true positives from the tiny sick one.
+
+Key discrete distributions and what generates them:
+  Bernoulli(p)          single binary trial; mean p, variance p(1-p)
+  Binomial(n, p)        count of successes in n independent trials; mean np,
+                        variance np(1-p)
+  Poisson(lambda)       count of events in fixed time at constant rate; mean =
+                        variance = lambda (equidispersion; real count data is
+                        usually overdispersed, motivating negative binomial)
+  Geometric(p)          trials until first success; memoryless
+  NegBinomial(r, p)     trials until r-th success; Poisson-Gamma mixture, the
+                        standard overdispersed count model
+  Multinomial(n, p_vec) categorical counts across k cells
+
+Key continuous distributions:
+  Uniform(a, b)         maximum entropy on a bounded interval
+  Normal(mu, sigma^2)   maximum entropy for fixed mean and variance; CLT limit
+  Exponential(lambda)   waiting time at constant hazard; memoryless
+  Gamma(k, theta)       sum of k exponentials; conjugate prior for Poisson rate
+  Beta(a, b)            distribution on [0,1]; conjugate prior for a proportion
+  ChiSquare(k)          sum of k squared standard normals; sampling distribution
+                        of variance
+  Student-t(nu)         normal with estimated variance; heavier tails, converging
+                        to normal as nu grows
+  Cauchy                t with nu = 1; undefined mean, infinite variance
+
+Q: X and Y are random variables with Var(X) = 4, Var(Y) = 9, and Corr(X, Y) = 0.5.
+What is Var(X - Y)?
+A. 13   B. 7   C. 19   D. 5
+Reasoning: Cov(X, Y) = Corr * sd(X) * sd(Y) = 0.5 * 2 * 3 = 3. Var(X - Y) = Var(X) +
+Var(Y) - 2Cov(X, Y) = 4 + 9 - 6 = 7. The sign flip on the covariance term is what
+separates this from Var(X + Y) = 19. Answer: B.
+
+Q: A screening test has 95% sensitivity and 90% specificity. Disease prevalence is
+2%. A patient tests positive. The probability they have the disease is closest to:
+A. 95%   B. 62%   C. 16%   D. 2%
+Reasoning: Out of 10,000 people, 200 have the disease and 9,800 do not. True
+positives: 0.95 * 200 = 190. False positives: 0.10 * 9,800 = 980. Positive predictive
+value = 190 / (190 + 980) = 190 / 1170 = 16.2%. The specificity looks high but is
+applied to a base 49 times larger, so false positives dominate. Answer: C.
+
+## Estimation
+
+An estimator is a function of the data used to infer a population parameter. Its
+quality is judged on bias (does its expectation equal the truth?), variance (how much
+does it move across samples?), and consistency (does it converge to the truth as n
+grows?). Mean squared error decomposes exactly as MSE = bias^2 + variance, and this
+decomposition is the single most useful idea transferred from statistics into machine
+learning, where it becomes the bias-variance tradeoff. An unbiased estimator is not
+automatically preferable: the James-Stein estimator is biased and dominates the
+unbiased sample mean in three or more dimensions, and ridge regression deliberately
+accepts bias to buy a larger reduction in variance.
+
+Maximum likelihood estimation picks the parameter value maximizing the probability of
+the observed data. Under regularity conditions the MLE is consistent, asymptotically
+normal, and asymptotically efficient — it attains the Cramer-Rao lower bound, so no
+unbiased estimator has smaller asymptotic variance. Its asymptotic covariance is the
+inverse Fisher information, which is why the inverse Hessian of the negative
+log-likelihood at the optimum gives standard errors. The regularity conditions matter:
+MLE misbehaves when the parameter is on a boundary (a variance component estimated at
+exactly zero), when the support depends on the parameter (the MLE for the upper limit
+of a uniform is the sample maximum, which is biased and not asymptotically normal),
+and when the number of parameters grows with n.
+
+The method of moments equates sample moments to population moments and solves. It is
+usually less efficient than MLE but often has a closed form where MLE requires
+numerical optimization, and it provides good starting values. Generalized method of
+moments extends this to more moment conditions than parameters, weighting them
+optimally, and is the workhorse of econometrics where a full likelihood is often
+unavailable or untrustworthy.
+
+A confidence interval is a procedure, not a statement about a particular interval. A
+95% CI means that the procedure, applied repeatedly to fresh samples, produces
+intervals containing the true parameter 95% of the time. Once computed, a specific
+interval either contains the parameter or does not; there is no probability left. The
+Bayesian credible interval is the object people usually intend — given the data and a
+prior, there is a 95% posterior probability the parameter lies inside. The two often
+coincide numerically with flat priors and large samples, which lets the distinction be
+ignored right up until it matters.
+
+Standard error formulas worth having memorized:
+  mean, known sigma            SE = sigma / sqrt(n)
+  mean, estimated sigma        SE = s / sqrt(n), use t with n-1 df
+  proportion                   SE = sqrt(p(1-p)/n)
+  difference of means          SE = sqrt(s1^2/n1 + s2^2/n2)  (Welch, unequal var)
+  difference of proportions    SE = sqrt(p1(1-p1)/n1 + p2(1-p2)/n2)
+  regression slope             SE = s_resid / (s_x * sqrt(n-1))
+  correlation (Fisher z)       z = atanh(r), SE = 1/sqrt(n-3)
+
+The bootstrap replaces analytic standard errors with resampling. Draw B samples of
+size n with replacement from the observed data, recompute the statistic on each, and
+use the spread of the resulting distribution as the sampling distribution. It works
+for statistics with no tractable analytic error — medians, trimmed means, ratios,
+the difference between two AUCs — and requires only that the statistic be a smooth
+functional of the empirical distribution. It fails at the boundary: bootstrapping the
+sample maximum does not work, because resampling can never produce a value above the
+observed maximum. For dependent data the naive bootstrap destroys the dependence
+structure and understates uncertainty; the block bootstrap resamples contiguous
+blocks to preserve it.
+
+[user] I have conversion rates from two variants: A converted 340 of 4,821 and B
+converted 401 of 4,776. Give me the lift with a confidence interval.
+[assistant] tool_call stats.prop_test({"x": [340, 401], "n": [4821, 4776], "conf": 0.95})
+[tool] {"p1": 0.07053, "p2": 0.08396, "diff": 0.01343, "ci": [0.00292, 0.02394],
+"z": 2.505, "p_value": 0.01224}
+[assistant] Variant B converts at 8.40% versus A at 7.05% — an absolute lift of 1.34
+percentage points, 95% CI [0.29, 2.39] pp. That is a relative lift of about 19%, and
+the interval excludes zero (p = 0.012), so the difference is statistically
+significant at the conventional threshold.
+
+Two cautions before you act on it. First, the relative-lift interval is much wider
+than the absolute one — dividing by a small baseline amplifies uncertainty, so the
+plausible range on "19% better" runs roughly from 4% to 34%. Second, this test assumes
+these were the only comparison you made and the sample size was fixed in advance. If
+you have been peeking at the results daily, or this is one of several metrics you
+checked, the nominal p-value understates your false-positive rate and you need a
+sequential or multiplicity correction.
+
+## Hypothesis Testing
+
+A hypothesis test fixes a null hypothesis, computes a statistic whose distribution
+under that null is known, and reports how extreme the observed value is. The p-value
+is the probability, under the null, of a result at least as extreme as the one
+observed. It is not the probability the null is true, not the probability the result
+was due to chance, and not a measure of effect size. A p-value of 0.001 from a huge
+sample can accompany a completely trivial effect, and a p-value of 0.2 from a small
+one can hide a large effect the study lacked power to detect.
+
+The two error types trade off. A Type I error rejects a true null (rate alpha, set by
+convention at 0.05); a Type II error fails to reject a false null (rate beta). Power
+is 1 - beta, the probability of detecting an effect that is really there. Power
+increases with sample size, effect size, and alpha, and decreases with variance. The
+standard rule of thumb for a two-sample comparison of means is that detecting an
+effect of d standard deviations at 80% power and alpha 0.05 requires roughly 16/d^2
+observations per group — so d = 0.5 needs about 64 per group, d = 0.2 needs about
+400. Running an underpowered study is worse than running none, because it not only
+usually misses the effect but, on the occasions it does reach significance,
+necessarily overstates the magnitude (the winner's curse, or Type M error).
+
+Common tests and when each applies:
+  one-sample t          mean vs a fixed value, roughly normal or large n
+  two-sample t (Welch)  two independent means, unequal variances (the default;
+                        Student's pooled version needs equal variance and buys
+                        very little)
+  paired t              same units measured twice; tests mean difference, far more
+                        powerful than the unpaired version when pairing is real
+  Mann-Whitney U        two independent samples, ordinal or non-normal; tests
+                        stochastic dominance, not means
+  Wilcoxon signed-rank  paired nonparametric analogue
+  chi-square            association in a contingency table, expected counts >= 5
+  Fisher exact          same, valid for small counts
+  ANOVA / F-test        3+ group means; significance says only "not all equal"
+  Kruskal-Wallis        nonparametric ANOVA analogue
+  Kolmogorov-Smirnov    whole-distribution comparison
+
+Multiple comparisons destroy naive error control. Running 20 independent tests at
+alpha = 0.05 gives roughly a 64% chance of at least one false positive (1 - 0.95^20).
+Bonferroni divides alpha by the number of tests: simple, valid under any dependence,
+and very conservative. Holm-Bonferroni is uniformly more powerful and equally valid.
+Benjamini-Hochberg controls the false discovery rate — the expected proportion of
+rejections that are false — rather than the family-wise error rate, and is the right
+choice for screening contexts like genomics or feature selection where you expect
+many true effects and can tolerate some false ones.
+
+Q: A study with 80% power at alpha = 0.05 fails to reject the null. The correct
+interpretation is:
+A. The null hypothesis is true
+B. There is a 20% chance the null is true
+C. The data are consistent with the null, but effects smaller than the study was
+   powered to detect remain plausible
+D. The study should be repeated until significance is reached
+Reasoning: Failing to reject is not evidence of absence; it means the data did not
+provide enough evidence against the null at the chosen threshold. The 80% power was
+computed for a specific alternative effect size, so smaller effects were always
+likely to be missed. Option D describes p-hacking, which invalidates error control.
+The honest report pairs the non-significant test with a confidence interval showing
+which effect sizes remain compatible with the data. Answer: C.
+
+Q: You run 40 independent hypothesis tests at alpha = 0.05 and obtain 4 significant
+results. Under Benjamini-Hochberg at FDR = 0.05, roughly how many of your rejections
+would you expect to be false, if all 4 survive the procedure?
+A. 4   B. 2   C. 0.2   D. 0
+Reasoning: FDR control at 0.05 bounds the expected proportion of false discoveries
+among rejections at 5%. With 4 rejections, the expected number of false ones is at
+most 0.05 * 4 = 0.2. Note this is an expectation over repeated experiments, not a
+guarantee about this particular set. Answer: C.
+
+## Regression
+
+Ordinary least squares fits y = X beta + epsilon by minimizing the sum of squared
+residuals, giving the closed form beta_hat = (X'X)^{-1} X'y. It is the best linear
+unbiased estimator under the Gauss-Markov conditions: linearity in parameters, random
+sampling, no perfect collinearity, zero conditional mean of the errors, and
+homoskedasticity. Normality of errors is not required for unbiasedness or for the
+Gauss-Markov result — it is required only for exact small-sample t and F
+distributions, and the CLT covers that asymptotically.
+
+Each condition fails in a characteristic way. Heteroskedasticity leaves the
+coefficients unbiased but breaks the standard errors, fixed by using
+heteroskedasticity-consistent (White / HC3) errors, which cost nothing and should
+arguably be the default. Correlated errors — time series, repeated measures, clustered
+sampling — likewise leave coefficients unbiased but badly understate standard errors;
+cluster-robust errors or an explicit mixed model are the remedies, and ignoring
+clustering is probably the most common inference error in applied work. Endogeneity,
+where a regressor correlates with the error because of omitted variables, simultaneity,
+or measurement error, biases the coefficients themselves and no standard-error fix
+touches it; instrumental variables, fixed effects, or a design change are required.
+
+Multicollinearity inflates standard errors without biasing coefficients. The variance
+inflation factor VIF_j = 1/(1 - R_j^2), where R_j^2 comes from regressing predictor j
+on all the others, quantifies it; values above 5 or 10 are conventional warning
+thresholds. The important nuance is that multicollinearity is not a problem for
+prediction at all — the fitted values are fine — it only makes individual coefficients
+unstable and hard to interpret. If the goal is forecasting, high VIF can be ignored;
+if the goal is attributing effect to a specific variable, it is fatal.
+
+Diagnostics and what they reveal:
+  residuals vs fitted        nonlinearity (curvature), heteroskedasticity (funnel)
+  Q-Q plot of residuals      tail behaviour, outliers
+  scale-location             heteroskedasticity more clearly than resid-vs-fitted
+  Cook's distance            influential points; > 4/n warrants a look
+  leverage (hat values)      unusual predictor combinations; > 2p/n is high
+  Durbin-Watson              first-order autocorrelation; ~2 is clean
+  VIF                        collinearity
+  partial residual plots     the functional form for one predictor, others held
+
+Generalized linear models extend OLS by pairing a distribution from the exponential
+family with a link function connecting the linear predictor to the mean. Logistic
+regression uses a binomial family with a logit link, so coefficients are log odds
+ratios: exponentiating gives the multiplicative change in odds per unit predictor.
+Poisson regression uses a log link, so coefficients are log rate ratios; because real
+count data is almost always overdispersed, the Poisson standard errors are typically
+too small and quasi-Poisson or negative binomial is the safer default. GLMs are fit by
+iteratively reweighted least squares maximizing the likelihood, and their residuals
+(deviance, Pearson) need care — the raw response residuals are not interpretable the
+way OLS residuals are.
+
+Regularization adds a penalty to the loss. Ridge (L2) shrinks coefficients smoothly
+toward zero, never reaching it, and handles collinearity gracefully by splitting the
+effect among correlated predictors. Lasso (L1) drives coefficients exactly to zero,
+performing selection, but among a group of correlated predictors it arbitrarily keeps
+one and discards the rest, making the selected set unstable across resamples. Elastic
+net mixes both and recovers grouped selection. All three require standardized
+predictors, because the penalty is scale-dependent, and none of them produce valid
+conventional standard errors — post-selection inference is a genuinely hard problem
+and the naive p-values from a lasso-selected model are meaningless.
+
+[user] My logistic regression has a coefficient of 0.83 for a binary treatment
+variable and the model has an AUC of 0.71. Explain both numbers to a product manager.
+[assistant] tool_call stats.glm_summary({"model": "logit", "term": "treatment"})
+[tool] {"estimate": 0.83, "std_error": 0.19, "z": 4.37, "p_value": 1.2e-05,
+"odds_ratio": 2.293, "ci_or": [1.581, 3.326], "auc": 0.71, "n": 4200}
+[assistant] Two different things, and it is worth keeping them apart.
+
+The coefficient 0.83 is on the log-odds scale. Exponentiating gives an odds ratio of
+2.29, with a 95% CI of [1.58, 3.33]. Plain language: treated users have roughly 2.3
+times the odds of converting compared to untreated, and the data are consistent with
+anything from about 1.6x to 3.3x. Note that odds ratios are not risk ratios — if the
+baseline conversion rate is low, say 3%, an odds ratio of 2.3 corresponds to a risk
+ratio near 2.2 and they are close; but at a 40% baseline the same odds ratio is only
+about a 1.5x risk ratio. Always translate to absolute percentage points before
+anyone makes a business decision on it.
+
+The AUC of 0.71 is about ranking, not effect size. It says that given one converter
+and one non-converter at random, the model scores the converter higher 71% of the
+time. 0.5 is a coin flip and 1.0 is perfect. These two numbers are independent in a
+useful sense: a single strong predictor can produce a large, highly significant odds
+ratio while the model as a whole still ranks individuals only moderately well,
+because conversion depends on much more than this one variable. A significant
+treatment effect and a mediocre AUC together are exactly what you would expect from a
+real but partial driver of behaviour.
+
+## Bayesian Inference
+
+Bayesian inference treats parameters as random variables with distributions
+expressing uncertainty. Bayes' theorem updates a prior into a posterior:
+posterior proportional to likelihood times prior. Everything follows from that single
+mechanic. Where frequentist inference asks "how would this procedure behave over
+repeated samples?", Bayesian inference asks "given the data I actually have, what
+should I believe?" — which is the question most practitioners think they are asking
+anyway.
+
+Conjugate priors make the posterior analytically tractable by staying in the same
+family as the prior. Beta-Binomial is the canonical example: with a Beta(a, b) prior
+on a probability and s successes in n trials, the posterior is Beta(a + s, b + n - s).
+The prior parameters read as pseudo-counts, which makes prior specification concrete —
+Beta(1, 1) is uniform and worth one observation of each outcome, Beta(30, 70) encodes
+a belief centred at 0.3 with the strength of 100 prior observations. Other conjugate
+pairs: Gamma-Poisson for rates, Normal-Normal for a mean with known variance,
+Normal-Inverse-Gamma for a mean and variance jointly, Dirichlet-Multinomial for
+category probabilities.
+
+For non-conjugate models the posterior has no closed form and is approximated.
+Markov chain Monte Carlo constructs a chain whose stationary distribution is the
+posterior; Metropolis-Hastings and Gibbs sampling are the classical algorithms, and
+Hamiltonian Monte Carlo with the No-U-Turn Sampler (Stan, PyMC, NumPyro) is the modern
+default because it exploits gradients to move efficiently through high-dimensional
+correlated posteriors. Convergence must be checked, not assumed: R-hat should be below
+1.01, effective sample size should be in the hundreds at minimum, trace plots should
+look like white noise rather than wandering, and divergent transitions in HMC signal
+geometry the sampler cannot navigate — usually a funnel that calls for a
+non-centred reparameterization. Variational inference replaces sampling with
+optimization over a simpler family, trading exactness for speed; it typically
+underestimates posterior variance because the reverse-KL objective is mode-seeking.
+
+Hierarchical models are where the Bayesian machinery earns its keep. When you have
+many related groups — stores, users, experiments, sensors — a hierarchical model
+estimates each group's parameter while shrinking it toward the population mean, with
+the amount of shrinkage determined by the data rather than by fiat. Groups with
+little data shrink heavily toward the global estimate; groups with abundant data
+barely move. This partial pooling sits between the two bad extremes of complete
+pooling (one estimate for everyone, ignoring real heterogeneity) and no pooling
+(separate estimates, wildly noisy for small groups) and it is the principled answer
+to the ubiquitous problem of ranking entities with unequal sample sizes.
+
+Model comparison in the Bayesian world uses different tools. The Bayes factor is the
+ratio of marginal likelihoods and directly compares evidence for two models, but it is
+notoriously sensitive to prior specification even where the posterior is not.
+Information criteria approximate out-of-sample predictive accuracy: WAIC and PSIS-LOO
+are the modern choices, both estimating leave-one-out predictive density with a
+complexity penalty, and PSIS-LOO helpfully reports Pareto k diagnostics flagging
+observations that dominate the estimate. Posterior predictive checks — simulating
+datasets from the fitted model and comparing them to the real one on chosen summary
+statistics — are the most practically informative check of all, because they reveal
+what the model cannot reproduce.
+
+Q: A Beta(2, 8) prior is updated with 15 successes in 30 trials. The posterior mean
+is closest to:
+A. 0.50   B. 0.425   C. 0.20   D. 0.475
+Reasoning: The posterior is Beta(2 + 15, 8 + 15) = Beta(17, 23). The mean of a
+Beta(a, b) is a/(a+b) = 17/40 = 0.425. It sits between the prior mean of 0.2 and the
+data's 0.5, pulled toward the data because 30 observations outweigh the prior's 10
+pseudo-counts. Answer: B.
+
+Q: An HMC run reports R-hat = 1.34 and 180 divergent transitions. The correct next
+step is:
+A. Report the posterior means, since the chains did run
+B. Increase the number of samples until R-hat falls
+C. Diagnose the model geometry — likely reparameterize — before trusting anything
+D. Switch to variational inference for speed
+Reasoning: R-hat of 1.34 means the chains have not mixed and are exploring different
+regions; the posterior summaries are meaningless. Divergences indicate the sampler is
+failing in a region of high curvature, classically a hierarchical funnel, and simply
+drawing more samples does not fix biased exploration. The standard remedy is a
+non-centred parameterization, tighter priors, or both. Answer: C.
+
+## Experimental Design and Causal Inference
+
+Randomization is what licenses causal claims. By assigning treatment independently of
+everything else, it makes the treated and control groups exchangeable in expectation
+on every covariate — observed and unobserved alike — so the difference in outcomes
+estimates the average treatment effect without a model of the confounding. No
+observational adjustment achieves this, because adjustment can only handle the
+confounders you measured and thought of.
+
+The potential outcomes framework makes this precise. Each unit has outcomes Y(1) and
+Y(0) under treatment and control; the individual effect is their difference, and the
+fundamental problem of causal inference is that only one is ever observed. Randomized
+assignment makes the observed group means unbiased for E[Y(1)] and E[Y(0)], so their
+difference estimates the average treatment effect. The SUTVA assumption is doing
+quiet work here: no interference between units, and only one version of the
+treatment. Interference breaks A/B tests in marketplaces and social networks, where
+treating one user changes the experience of untreated ones — a supply-side test that
+gives some sellers better placement necessarily takes impressions from the control
+sellers, so the naive comparison overstates the effect. Cluster randomization or
+switchback designs are the usual mitigations.
+
+Practical experiment design decisions:
+  unit of randomization   user > session > request; randomize at the level where
+                          interference stops and where the metric is measured
+  sample size             fix in advance from a power calculation on the minimum
+                          detectable effect that would change a decision
+  stratification          block on strong pre-treatment predictors to cut variance
+  CUPED                   regress out a pre-period covariate; typically 30-50%
+                          variance reduction on engagement metrics for free
+  guardrail metrics       monitor for harm even when not the primary hypothesis
+  sequential testing      always-valid p-values or alpha spending if you will peek
+  SRM check               sample ratio mismatch flags assignment bugs before any
+                          effect is interpreted
+
+Sample ratio mismatch deserves particular emphasis because it is the highest-yield
+diagnostic in industrial experimentation. If a 50/50 split delivers 49.2% / 50.8% on
+two million users, a chi-square test rejects overwhelmingly, and that means the
+randomization or the logging is broken — bot filtering that correlates with treatment,
+a redirect that drops slow clients, a bug where errors default to control. Any effect
+estimate from an experiment with SRM is untrustworthy no matter how significant,
+because the groups are no longer comparable.
+
+When randomization is impossible, quasi-experimental designs exploit structure.
+Difference-in-differences compares the change over time in a treated group to the
+change in an untreated one, differencing out both time-invariant group differences
+and common time shocks; it stands or falls on the parallel trends assumption, which
+should be supported by pre-period data. Regression discontinuity exploits a threshold
+rule — a scholarship awarded above a test-score cutoff — and compares units just above
+and just below, giving a locally randomized comparison with strong internal validity
+but limited external validity. Instrumental variables use a source of variation that
+affects treatment but influences the outcome only through it; the exclusion
+restriction is untestable and usually the weak point. Synthetic control constructs a
+weighted combination of untreated units matching the treated unit's pre-period
+trajectory, and is the standard tool for a single treated unit like a state or market.
+
+Confounding, colliders, and mediators all bias estimates, but only confounders are
+fixed by adjustment. A confounder causes both treatment and outcome and must be
+controlled. A collider is caused by both, and controlling for it induces spurious
+association between them — this is why conditioning on hospitalization creates
+correlations between unrelated diseases (Berkson's paradox), and why "controlling for
+everything available" is not a conservative strategy but an active source of bias. A
+mediator lies on the causal path; controlling for it removes the very effect you
+wanted to measure. Directed acyclic graphs turn these distinctions into a mechanical
+procedure: draw the assumed causal structure, and the back-door criterion tells you
+exactly which set of variables to adjust for.
+
+[user] Our A/B test shows a 3% lift in revenue per user but the control group has
+51.4% of the traffic out of 1.8M users. Should I ship it?
+[assistant] tool_call stats.srm_check({"observed": [925200, 874800], "expected_ratio":
+[0.5, 0.5]})
+[tool] {"chi_square": 1428.0, "p_value": 4.2e-313, "observed_split": [0.514, 0.486],
+"verdict": "sample ratio mismatch"}
+[assistant] No — do not ship, and do not interpret the 3% lift at all yet.
+
+You have a sample ratio mismatch. A 51.4/48.6 split on 1.8M users under an intended
+50/50 assignment has a p-value on the order of 1e-313. That is not sampling noise; a
+50/50 randomizer on this sample size should stay within roughly plus or minus 0.15
+percentage points. Something is systematically excluding users from one arm.
+
+The practical implication is that your two groups are no longer exchangeable, so the
+3% revenue difference could be entirely composition rather than treatment. The usual
+culprits are worth checking in this order: bot or fraud filtering applied
+post-assignment and correlated with the treatment, client-side assignment where the
+treatment variant loads more slowly and drops users before the exposure event fires,
+redirect-based implementations that lose a slice of traffic, and logging joins that
+silently drop rows.
+
+Fix the assignment mechanism, verify a clean split on an A/A test, then rerun. If
+there is schedule pressure, the one salvageable analysis is to check whether the SRM
+is confined to an identifiable segment and whether the effect holds within strata
+that show a clean split — but treat that as a hypothesis to re-test, not a result.
+
+## Resampling and Model Validation
+
+Cross-validation estimates out-of-sample performance by partitioning the data,
+training on all but one fold and evaluating on the held-out fold, then rotating.
+K-fold with k = 5 or 10 is standard; leave-one-out is nearly unbiased but has high
+variance and is expensive, and for most models the k = 10 compromise dominates. The
+estimate is of the performance of the *procedure*, not of any particular fitted
+model, and the folds' scores are not independent, so their standard deviation
+understates true uncertainty.
+
+The dominant failure mode in applied cross-validation is leakage: any information
+flowing from the validation fold into training. Standardizing features on the full
+dataset before splitting leaks the validation set's mean and variance. Imputing
+missing values globally leaks. Selecting features by their correlation with the target
+on all the data, then cross-validating only the model fit, produces spectacularly
+optimistic estimates — this is the classic error that yields 95% accuracy on pure
+noise. The rule is that every data-dependent step, including preprocessing and
+feature selection, must sit inside the cross-validation loop, which is precisely what
+scikit-learn pipelines exist to enforce.
+
+Structured data needs structured splitting. Time series require forward-chaining
+validation: train on the past, test on the future, never the reverse, because random
+folds let the model see the future and any temporal autocorrelation converts to
+inflated scores. Grouped data — multiple rows per patient, per user, per device —
+require group-aware splits keeping all of an entity's rows on one side, or the model
+memorizes the entity rather than the signal. Rare-outcome data benefits from
+stratified folds preserving class balance, without which small folds can end up with
+zero positives and undefined metrics.
+
+Choosing a metric matters more than choosing a model in imbalanced settings. With 1%
+positives, a model predicting "negative" always achieves 99% accuracy and is useless.
+Precision-recall curves and average precision are far more informative than ROC-AUC
+when the positive class is rare, because ROC's false-positive-rate axis is normalized
+by a huge negative population and stays flattering. For probabilistic forecasts, use
+a proper scoring rule — log loss or Brier score — since these are minimized only by
+the true probabilities, and follow up with a calibration plot, since a model can rank
+perfectly (AUC 1.0) while its probabilities are systematically wrong by a factor of
+three.
+
+Metric selection quick reference:
+  balanced classification, ranking matters      ROC-AUC
+  rare positives, ranking matters               PR-AUC / average precision
+  probabilities used downstream                 log loss + calibration curve
+  fixed decision threshold, costs asymmetric    expected cost, or F-beta
+  regression, outliers meaningful               RMSE
+  regression, outliers are noise                MAE, or Huber
+  regression, relative error matters            MAPE (breaks near zero), or
+                                                RMSLE
+  forecasting vs a naive baseline               MASE
+
+Q: A model is trained with feature selection performed on the full dataset before a
+10-fold cross-validation of the model fit alone. The resulting CV accuracy is:
+A. An unbiased estimate of test performance
+B. Optimistically biased, potentially severely
+C. Pessimistically biased
+D. Unbiased if the number of features is small
+Reasoning: The selection step saw every fold's labels, so each validation fold
+influenced which features exist. The subsequent CV therefore evaluates on data already
+used, and the bias can be extreme — the canonical demonstration selects features from
+pure noise and obtains high apparent accuracy. Only nesting the selection inside each
+training fold gives an honest estimate. Answer: B.
+
+Q: For a fraud model where positives are 0.2% of transactions, the least informative
+headline metric is:
+A. Precision at the operating threshold   B. Recall at the operating threshold
+C. Overall accuracy   D. Average precision
+Reasoning: Predicting "not fraud" for everything yields 99.8% accuracy while catching
+zero fraud, so accuracy carries almost no information at this base rate. The other
+three all speak directly to performance on the rare class. Answer: C.

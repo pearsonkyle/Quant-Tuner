@@ -19,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import json
 import time
+from collections import Counter
 from pathlib import Path
 
 from quant_tuner.datasets.registry import DatasetSpec
@@ -70,16 +71,27 @@ def build(spec: DatasetSpec) -> dict:
 
     for split in spec.splits:
         out = data_dir / f"{split.name}.jsonl"
-        n_rows = 0
-        n_resolved = 0
-        n_tool_calls = 0
+        n_rows = n_resolved = n_tool_calls = est_tokens = 0
+        # Corpus-shaped datasets are described by distributions, not by pass/fail counts:
+        # which topics, which registers, and which disjoint half each row belongs to.
+        tally: dict[str, Counter[str]] = {
+            k: Counter() for k in ("area", "register", "half", "prompt_source")}
+        area_tokens: Counter[str] = Counter()
+        area_subjects: dict[str, set[str]] = {}
         with out.open("w") as fh:
             for rec in split.builder():
                 fh.write(json.dumps(rec) + "\n")
                 n_rows += 1
                 n_resolved += bool(rec.get("resolved"))
                 n_tool_calls += int(rec.get("n_tool_calls") or 0)
-        splits[split.name] = {
+                est_tokens += (tokens := int(rec.get("est_tokens") or 0))
+                for key, counter in tally.items():
+                    if rec.get(key):
+                        counter[rec[key]] += 1
+                if area := rec.get("area"):
+                    area_tokens[area] += tokens
+                    area_subjects.setdefault(area, set()).add(rec.get("subject", ""))
+        stats = {
             "file": f"data/{split.name}.jsonl",
             "description": split.description,
             "publish": split.publish,
@@ -89,6 +101,16 @@ def build(spec: DatasetSpec) -> dict:
             "bytes": out.stat().st_size,
             "sha256": _sha256(out),
         }
+        if est_tokens:
+            stats["est_tokens"] = est_tokens
+        stats |= {f"by_{k}": dict(c.most_common()) for k, c in tally.items() if c}
+        if area_tokens:
+            stats["areas"] = {
+                a: {"rows": tally["area"][a], "subjects": len(area_subjects[a]),
+                    "est_tokens": tok}
+                for a, tok in area_tokens.most_common()
+            }
+        splits[split.name] = stats
         print(f"[dataset] {spec.name}:{split.name}  {n_rows} rows  "
               f"({splits[split.name]['bytes'] / 1024**2:.1f} MB)"
               f"{'' if split.publish else '   [local only, not published]'}", flush=True)
@@ -123,28 +145,78 @@ def render_card(spec: DatasetSpec, manifest: dict) -> str:
         "",
     ]
 
-    rows = ["| split | rows | verified (tests pass) | mean tool calls | size |",
-            "| --- | ---: | ---: | ---: | ---: |"]
-    for name, i in splits.items():
-        rows.append(f"| `{name}` | {i['rows']} | {i['resolved_rows']} | "
-                    f"{i['mean_tool_calls']} | {i['bytes'] / 1024**2:.1f} MB |")
+    def _table(header: list[str], body_rows: list[list],
+               left: tuple[str, ...] = ()) -> list[str]:
+        """A GFM table whose separator is derived from the header (first column left,
+        the rest right-aligned) so the cell count can never drift out of sync.
 
-    schema = [
-        "## Row schema",
-        "",
-        "| field | meaning |",
-        "| --- | --- |",
-        "| `instance_id`, `repo` | the upstream issue and its repository |",
-        "| `messages` | the full session in chat format (`system`/`user`/`assistant`+`tool_calls`/`tool`) |",
-        "| `tools` | tool schema the agent was given (`bash(command)`) |",
-        "| `submission` | the final `git diff` the agent produced |",
-        "| `resolved` | **true = the hidden tests passed** (verified solution) |",
-        "| `patch_produced`, `patch_chars` | whether a non-empty patch was submitted, and its size |",
-        "| `n_messages`, `n_tool_calls`, `tools_used`, `tool_errors` | session shape |",
-        "| `n_fail_to_pass[_passed]`, `n_pass_to_pass[_passed]` | grading detail |",
-        "| `prompt_tokens`, `completion_tokens`, `total_tokens`, `wall_sec` | cost |",
-        "| `exit_status` | how the agent loop ended (`completed` / `max_turns` / …) |",
-    ]
+        ``left`` names extra columns to left-align — a prose column like a description
+        reads badly flushed right against the numbers.
+        """
+        sep = ["---" if i == 0 or h in left else "---:" for i, h in enumerate(header)]
+        out = ["| " + " | ".join(header) + " |", "| " + " | ".join(sep) + " |"]
+        return out + ["| " + " | ".join(str(c) for c in r) + " |" for r in body_rows]
+
+    # Corpus-shaped datasets have no pass/fail notion: the useful summary is coverage —
+    # rows and tokens per split, then how those tokens fall across topics and registers.
+    if any(i.get("areas") for i in splits.values()):
+        rows = _table(
+            ["split", "rows", "tokens~", "size", "contents"],
+            [[f"`{name}`", f"{i['rows']:,}", f"{i.get('est_tokens', 0):,}",
+              f"{i['bytes'] / 1024**2:.1f} MB", i.get("description", "")]
+             for name, i in splits.items()],
+            left=("contents",),
+        )
+        ref = next(i for i in splits.values() if i.get("areas"))
+        areas, total_tok = ref["areas"], max(1, ref.get("est_tokens", 0))
+        rows += ["", "### Topic distribution", ""]
+        rows += _table(
+            ["area", "subjects", "samples", "tokens~", "share"],
+            [[f"`{a}`", d["subjects"], f"{d['rows']:,}", f"{d['est_tokens']:,}",
+              f"{100 * d['est_tokens'] / total_tok:.1f}%"] for a, d in areas.items()]
+            + [["**total**", sum(d["subjects"] for d in areas.values()),
+                f"**{ref['rows']:,}**", f"**{ref.get('est_tokens', 0):,}**", "100%"]],
+        )
+        if by_reg := ref.get("by_register"):
+            rows += ["", "### Sample registers", ""]
+            rows += _table(
+                ["register", "samples", "share"],
+                [[f"`{k}`", f"{v:,}", f"{100 * v / max(1, ref['rows']):.1f}%"]
+                 for k, v in by_reg.items()],
+            )
+        if by_half := ref.get("by_half"):
+            rows += ["", "### Disjoint halves", "",
+                     "Every row carries `half`, a **deterministic, non-overlapping** "
+                     "assignment (see below). Filter on it; do not re-split.", ""]
+            rows += _table(
+                ["half", "samples", "intended use"],
+                [[f"`{k}`", f"{by_half.get(k, 0):,}", u] for k, u in
+                 (("calib", "quantization calibration (imatrix / AWQ / GPTQ)"),
+                  ("mtp", "MTP draft-head training"))],
+                left=("intended use",),
+            )
+    else:
+        rows = _table(
+            ["split", "rows", "verified (tests pass)", "mean tool calls", "size"],
+            [[f"`{name}`", i["rows"], i["resolved_rows"], i["mean_tool_calls"],
+              f"{i['bytes'] / 1024**2:.1f} MB"] for name, i in splits.items()],
+        )
+
+    _SWE_SCHEMA = (
+        "| field | meaning |\n"
+        "| --- | --- |\n"
+        "| `instance_id`, `repo` | the upstream issue and its repository |\n"
+        "| `messages` | the full session in chat format (`system`/`user`/`assistant`+`tool_calls`/`tool`) |\n"
+        "| `tools` | tool schema the agent was given (`bash(command)`) |\n"
+        "| `submission` | the final `git diff` the agent produced |\n"
+        "| `resolved` | **true = the hidden tests passed** (verified solution) |\n"
+        "| `patch_produced`, `patch_chars` | whether a non-empty patch was submitted, and its size |\n"
+        "| `n_messages`, `n_tool_calls`, `tools_used`, `tool_errors` | session shape |\n"
+        "| `n_fail_to_pass[_passed]`, `n_pass_to_pass[_passed]` | grading detail |\n"
+        "| `prompt_tokens`, `completion_tokens`, `total_tokens`, `wall_sec` | cost |\n"
+        "| `exit_status` | how the agent loop ended (`completed` / `max_turns` / …) |"
+    )
+    schema = ["## Row schema", "", spec.schema_md.strip() or _SWE_SCHEMA]
 
     return "\n".join([
         *fm,
@@ -188,8 +260,14 @@ def write_card(spec: DatasetSpec, manifest: dict) -> Path:
 def append_changelog(spec: DatasetSpec, version: str, manifest: dict, note: str) -> None:
     p = spec.stage_dir / CHANGELOG
     head = f"# Changelog — {spec.name}\n" if not p.exists() else ""
+    def _detail(i: dict) -> str:
+        # corpus-shaped splits have no pass/fail notion; report tokens instead of
+        # "0 verified", which reads as a failure rather than as not-applicable
+        return f"~{i['est_tokens']:,} tokens" if i.get("est_tokens") else \
+               f"{i['resolved_rows']} verified"
+
     rows = "\n".join(
-        f"- `{n}`: {i['rows']} rows ({i['resolved_rows']} verified), {i['bytes'] / 1024**2:.1f} MB"
+        f"- `{n}`: {i['rows']} rows ({_detail(i)}), {i['bytes'] / 1024**2:.1f} MB"
         for n, i in manifest.get("splits", {}).items())
     entry = (f"\n## v{version} — {time.strftime('%Y-%m-%d')}\n\n"
              f"{note.strip() or 'Dataset refresh.'}\n\n{rows}\n")

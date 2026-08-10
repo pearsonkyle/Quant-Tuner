@@ -1,0 +1,325 @@
+================================================================================
+AREA: Physics
+SUBJECT: Thermodynamics and Statistical Mechanics
+Subtopics: temperature and the laws, processes and cycles, entropy, free energy,
+kinetic theory, ensembles, phase transitions, transport and heat transfer.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Temperature and the Laws of Thermodynamics
+
+Thermodynamics began as an engineering science concerned with converting heat into work
+and became one of the deepest frameworks in physics, because its laws constrain every
+possible process regardless of the underlying mechanism. That generality is its
+distinguishing feature: a thermodynamic argument does not care whether the working
+substance is a gas, a magnet, a black hole, or an information-processing system.
+
+The zeroth law establishes that thermal equilibrium is transitive — if A is in
+equilibrium with C and B is in equilibrium with C, then A and B are in equilibrium with
+each other. This is what makes temperature a well-defined property rather than a
+pairwise relation, and it is why a thermometer works at all. It was named the zeroth law
+because its necessity was recognized after the first and second had been numbered.
+
+The first law is conservation of energy applied to thermal systems: the change in
+internal energy equals heat added minus work done by the system. Its content beyond
+ordinary energy conservation is the recognition that heat is a form of energy transfer
+rather than a substance, which was not obvious and took the better part of a century to
+establish. Internal energy is a state function, depending only on the current state,
+while heat and work are path functions describing transfers — which is why one writes a
+change in U but not a change in Q, and why the same change of state can be accomplished
+by different combinations of heat and work.
+
+The second law has many equivalent statements, and their variety reflects how many
+different-seeming impossibilities turn out to be the same one. Clausius: heat does not
+flow spontaneously from cold to hot. Kelvin-Planck: no cyclic process converts heat
+entirely into work with no other effect. Entropy: the entropy of an isolated system never
+decreases. The equivalence of these is a genuine theorem, and the second law is the only
+fundamental law of physics that distinguishes past from future, which is why the
+arrow of time is a thermodynamic rather than a mechanical concept.
+
+The four laws:
+  zeroth   thermal equilibrium is transitive; temperature is well defined
+  first    dU = Q - W;  energy conservation, U a state function
+  second   dS_universe >= 0;  no process decreases total entropy
+  third    entropy approaches a constant (zero for a perfect crystal) as T -> 0;
+           absolute zero is unattainable in finitely many steps
+
+The third law has a practical consequence beyond its statement: heat capacities must
+vanish as temperature approaches zero, since otherwise entropy would diverge. This is
+observed, and explaining the low-temperature heat capacity of solids — the Debye T^3 law
+— was one of the early successes of quantum theory, because the classical equipartition
+prediction of a constant heat capacity fails badly at low temperature.
+
+Q: A gas expands adiabatically and reversibly. Which quantity is unchanged?
+A. Temperature   B. Internal energy   C. Entropy   D. Pressure
+Reasoning: Adiabatic means no heat exchange, and reversible means no entropy generation,
+so the entropy change is zero — the process is isentropic. The gas does work on its
+surroundings, so internal energy falls and temperature drops; pressure falls with the
+expansion. Answer: C.
+
+## Processes, Cycles, and Efficiency
+
+Thermodynamic processes are classified by what is held constant, and each has a
+characteristic relation between the state variables. Isothermal processes hold
+temperature fixed, so for an ideal gas the internal energy is unchanged and all heat
+added is converted to work. Adiabatic processes exchange no heat, so all work comes at
+the expense of internal energy and the temperature changes. Isobaric processes hold
+pressure fixed, which is the ordinary condition for chemistry in an open vessel and is
+why enthalpy is the natural energy function there. Isochoric processes hold volume fixed,
+so no work is done and all heat goes into internal energy.
+
+Reversibility is an idealization worth understanding precisely because it sets the limit
+every real process falls short of. A reversible process proceeds through a continuous
+sequence of equilibrium states, so it can be reversed by an infinitesimal change in
+conditions, and it generates no entropy. Real processes involve finite gradients — finite
+temperature differences driving heat flow, finite pressure differences driving expansion,
+friction — and each generates entropy. The practical consequence is a universal tradeoff:
+approaching reversibility requires proceeding infinitely slowly, so maximum efficiency is
+achieved at zero power output, and every real machine trades efficiency for rate.
+
+The Carnot cycle — two isothermal and two adiabatic steps operating between reservoirs at
+T_hot and T_cold — is the most efficient possible cycle between two temperatures, and its
+efficiency is 1 - T_cold/T_hot. That this depends only on the reservoir temperatures and
+not at all on the working substance is a remarkable result and follows directly from the
+second law: a more efficient engine could be combined with a reversed Carnot engine to
+move heat from cold to hot with no other effect, which is forbidden.
+
+Cycles and their figures of merit:
+  Carnot        eta = 1 - T_c/T_h;  the upper bound for any heat engine
+  Otto          spark ignition; eta = 1 - r^(1-gamma), r the compression ratio
+  Diesel        compression ignition; higher compression ratio, higher efficiency
+  Brayton       gas turbine; continuous flow, jet engines and power generation
+  Rankine       steam cycle with phase change; most thermal power plants
+  Stirling      external combustion, regenerative; theoretically Carnot-efficient
+  refrigerator  COP = Q_c / W;  reversed cycle, COP = T_c/(T_h - T_c) at best
+  heat pump     COP = Q_h / W = 1 + COP_refrigerator;  always exceeds 1
+
+The heat pump's coefficient of performance exceeding one is not a violation of anything
+and is the single most useful practical consequence of thermodynamics. A heat pump does
+not create energy; it moves energy from a cold reservoir to a warm one, and the work
+required is only the difference. A pump moving heat from 0 C outside to 20 C inside has
+an ideal COP around 14, and real units achieve 3 to 5, meaning three to five units of
+heat delivered per unit of electricity. Resistive heating has a COP of exactly one, which
+is why replacing it with a heat pump is one of the largest available efficiency gains in
+building energy use.
+
+Real engine efficiencies fall well below Carnot for identifiable reasons. Heat transfer
+across a finite temperature difference is irreversible and unavoidable if the process is
+to run at finite rate — the Curzon-Ahlborn analysis gives the efficiency at maximum power
+as 1 - sqrt(T_c/T_h), which is much closer to observed values than the Carnot bound.
+Friction, turbulence, incomplete combustion, and heat leakage each add losses. Quoting
+Carnot efficiency as a target for a real machine is therefore misleading; it is a bound
+rather than a goal.
+
+## Entropy and Free Energy
+
+Entropy has two definitions that turn out to be the same thing. The thermodynamic
+definition, from Clausius, is that the entropy change equals reversible heat divided by
+temperature. The statistical definition, from Boltzmann, is that entropy is k_B times the
+logarithm of the number of microstates consistent with the macrostate. The reconciliation
+of these — showing that a quantity defined by heat flow measures the multiplicity of
+microscopic arrangements — is one of the great achievements of nineteenth-century
+physics and is the foundation of statistical mechanics.
+
+The statistical reading dissolves several confusions. Entropy increases not because of a
+force driving it up but because there are overwhelmingly more high-entropy microstates
+than low-entropy ones, so a system exploring its accessible states will be found in a
+high-entropy macrostate with probability approaching certainty. The second law is
+therefore statistical rather than absolute — entropy decreases are not forbidden but are
+so improbable at macroscopic scale that the distinction is irrelevant. For a mole of gas,
+the probability of a spontaneous fluctuation to a noticeably lower-entropy state is
+smaller than any number that arises in physics.
+
+"Entropy is disorder" is a serviceable slogan and misleads in specific cases. Entropy
+counts accessible microstates, and that need not correspond to visual disorder. Hard
+spheres at high density crystallize spontaneously because the ordered packing gives each
+sphere more room to rattle, increasing the total number of accessible configurations
+despite the apparent order. Similarly, the hydrophobic effect drives protein folding not
+because the folded state is disordered but because releasing structured water from around
+exposed nonpolar surfaces increases the water's entropy more than the protein's decreases.
+
+Free energy combines energy and entropy into a criterion applicable to a system rather
+than the universe. Helmholtz free energy F = U - TS governs processes at constant
+temperature and volume; Gibbs free energy G = H - TS governs constant temperature and
+pressure, which is the ordinary laboratory and biological condition. A process is
+spontaneous when the relevant free energy decreases, and the free energy change also
+gives the maximum useful work extractable.
+
+Entropy and free energy relations:
+  Clausius            dS = Q_rev / T
+  Boltzmann           S = k_B ln(Omega)
+  Gibbs               S = -k_B sum p_i ln p_i
+  Helmholtz           F = U - TS;  constant T and V
+  Gibbs free energy   G = H - TS;  constant T and P
+  spontaneity         dG < 0 at constant T, P
+  maximum work        -dG is the maximum non-expansion work available
+  chemical potential  mu = dG/dn;  the driving force for particle transfer
+  equilibrium         dG = 0;  and dG0 = -RT ln K
+  entropy of mixing   dS = -nR sum x_i ln x_i;  always positive, drives dissolution
+
+The Gibbs entropy formula, involving a sum over probabilities, is worth noticing because
+it is identical in form to Shannon's information entropy. This is not a coincidence or an
+analogy: thermodynamic entropy measures the information required to specify the
+microstate given the macrostate, and the connection is made quantitative by Landauer's
+principle, which states that erasing one bit of information necessarily dissipates at
+least k_B T ln 2 of energy as heat. This resolves Maxwell's demon — the demon must
+eventually erase its records, and the entropy cost of that erasure exactly compensates
+the entropy it appeared to remove — and it establishes a fundamental thermodynamic cost
+for computation, though present-day processors dissipate many orders of magnitude more
+than the Landauer bound.
+
+## Kinetic Theory and Statistical Ensembles
+
+Kinetic theory derives macroscopic thermodynamics from mechanical assumptions about
+molecules: that a gas consists of many small particles in constant random motion, that
+collisions are elastic, and that intermolecular forces are negligible except during
+collision. From these, pressure emerges as the momentum transfer from molecular impacts
+on the walls, and temperature emerges as proportional to the average translational
+kinetic energy — three-halves k_B T per molecule, one-half per degree of freedom.
+
+The equipartition theorem generalizes this: each quadratic degree of freedom in the
+energy carries an average of one-half k_B T at equilibrium. A monatomic gas has three
+translational degrees of freedom and thus a molar heat capacity of three-halves R. A
+diatomic gas adds two rotational degrees at ordinary temperature, giving five-halves R,
+and would add two vibrational degrees at high temperature. That the vibrational
+contribution is absent at room temperature was a classical mystery, resolved by quantum
+mechanics: modes whose energy spacing greatly exceeds k_B T are frozen out, unable to be
+excited, which is why heat capacities rise in steps as temperature increases.
+
+The Maxwell-Boltzmann distribution gives the distribution of molecular speeds, and its
+shape matters for chemistry and for atmospheric science. It is asymmetric with a long
+high-speed tail, so the mean speed exceeds the most probable speed and the
+root-mean-square speed exceeds both. Reaction rates depend on the fraction of molecules
+exceeding an activation energy, which lies far out in that tail, and because the tail is
+exponential a small temperature rise produces a large fractional increase in that
+population — the microscopic origin of the Arrhenius rate law and of the rule of thumb
+that reaction rates roughly double per ten degrees.
+
+Kinetic theory results:
+  pressure              P = (1/3) n m <v^2>
+  temperature           (3/2) k_B T = (1/2) m <v^2> per molecule
+  equipartition         (1/2) k_B T per quadratic degree of freedom
+  rms speed             v_rms = sqrt(3 k_B T / m)
+  mean speed            v_avg = sqrt(8 k_B T / (pi m))
+  most probable         v_p = sqrt(2 k_B T / m)
+  mean free path        lambda = 1 / (sqrt(2) n sigma)
+  effusion (Graham)     rate proportional to 1/sqrt(M)
+  heat capacity ratio   gamma = C_p/C_v;  5/3 monatomic, 7/5 diatomic
+
+Statistical mechanics formalizes this with ensembles, each appropriate to different
+constraints. The microcanonical ensemble describes an isolated system with fixed energy,
+particle number, and volume, and assigns equal probability to every accessible
+microstate. The canonical ensemble describes a system in thermal contact with a
+reservoir at fixed temperature, and assigns probability proportional to exp(-E/k_B T) —
+the Boltzmann factor, the single most important expression in the subject. The grand
+canonical ensemble allows particle exchange as well, adding a chemical potential term.
+
+The partition function, the sum of Boltzmann factors over all states, is the central
+object: every thermodynamic quantity is obtained from it by differentiation. Helmholtz
+free energy is -k_B T times its logarithm; internal energy, entropy, pressure, and heat
+capacity all follow. Computing a partition function is therefore equivalent to solving
+the thermodynamics of a system completely, which is why so much of statistical mechanics
+consists of evaluating or approximating partition functions for particular models.
+
+[user] Sizing a heat sink for a 45 W device that must stay under 85 C in a 40 C ambient,
+natural convection only.
+[assistant] tool_call thermal.heatsink({"power_w": 45, "t_max_c": 85, "t_ambient_c": 40,
+"cooling": "natural_convection", "junction_to_case_c_per_w": 0.4,
+"interface_c_per_w": 0.3})
+[tool] {"total_budget_c_per_w": 1.0, "remaining_for_sink_c_per_w": 0.3,
+"typical_natural_convection_min_c_per_w": 0.5, "feasible": false,
+"required_with_fan_c_per_w": 0.3, "note": "natural_convection_insufficient"}
+[assistant] Natural convection will not work at this power density. Here is the budget.
+
+Your total allowable thermal resistance from junction to ambient is (85 - 40) / 45 = 1.0
+C/W. Of that, the device's junction-to-case resistance consumes 0.4 and the thermal
+interface material consumes 0.3, leaving only 0.3 C/W for the heat sink itself.
+
+A natural-convection heat sink of 0.3 C/W does not practically exist in a reasonable
+volume — natural convection bottoms out around 0.5 C/W even for large finned extrusions,
+because the air movement is driven only by buoyancy and the heat transfer coefficient is
+correspondingly low, on the order of 5-10 W/(m^2 K). You would need an impractically
+large surface area.
+
+Three ways forward, in order of how much they buy you:
+
+Add forced convection. A modest fan raises the heat transfer coefficient by an order of
+magnitude, and 0.3 C/W is routine for a small fan-cooled sink. This is the direct
+solution if a fan is acceptable.
+
+Reduce the interface resistance. 0.3 C/W is high for a thermal interface — that suggests
+a thick pad. A thin layer of good thermal grease or a phase-change material typically
+achieves 0.05-0.1 C/W, which would free up 0.2 C/W and bring the sink requirement to 0.5
+C/W. That is at the edge of natural convection feasibility with a large sink.
+
+Reconsider the constraints. Is 85 C a hard junction limit or a conservative one? Many
+devices are rated to 125 C, and relaxing to 105 C would double your budget to 1.44 C/W
+and make this comfortable. Alternatively, is the 45 W continuous or peak? A duty-cycled
+load with adequate thermal mass has a much lower average.
+
+If a fan is genuinely impossible, the combination worth pursuing is a low-resistance
+interface, a large sink with vertically oriented fins (natural convection is
+orientation-sensitive — horizontal fins trap air and perform far worse), unobstructed
+airflow above and below, and a heat spreader or heat pipe to move the heat away from the
+device before dissipating it over a larger area.
+
+## Phase Transitions and Heat Transfer
+
+A phase transition is a discontinuous change in the state of matter as a parameter is
+varied. First-order transitions — melting, boiling, most crystal structure changes —
+involve a latent heat, absorbed or released at constant temperature while the phases
+coexist. This is why a pot of boiling water stays at 100 C regardless of how much heat is
+supplied: the energy goes into the phase change rather than into raising the temperature.
+Second-order or continuous transitions have no latent heat and involve a divergence in
+some susceptibility — the ferromagnetic Curie point, the superfluid transition, the
+liquid-gas critical point.
+
+Phase diagrams map the stable phase as a function of pressure and temperature.
+Coexistence curves separate the regions, and the Clausius-Clapeyron relation gives their
+slope in terms of the latent heat and volume change. The triple point is where all three
+phases coexist, unique to each substance and reproducible enough that the triple point of
+water served as a defining fixed point of the temperature scale. The critical point
+terminates the liquid-gas coexistence curve, and beyond it the distinction between liquid
+and gas disappears entirely — a supercritical fluid can be taken continuously from
+liquid-like to gas-like density with no transition, which is exploited in supercritical
+CO2 extraction and in supercritical water oxidation.
+
+Water's phase diagram is anomalous in a way with enormous consequences: its solid-liquid
+coexistence curve slopes backward, because ice is less dense than liquid water. Applying
+pressure to ice therefore melts it, and the underlying cause is the open hydrogen-bonded
+tetrahedral structure of ice, which is less densely packed than the liquid. That ice
+floats is why bodies of water freeze from the top down, insulating the liquid below and
+allowing aquatic life to survive winters — a property so consequential for terrestrial
+life that it is regularly cited in discussions of planetary habitability.
+
+Critical phenomena display universality, which is one of the deeper results in physics.
+Near a continuous transition, quantities diverge as power laws with exponents that depend
+only on the dimensionality of space and the symmetry of the order parameter — not on the
+microscopic details. A magnet, a fluid at its critical point, and a binary alloy share
+critical exponents despite having nothing in common microscopically. The renormalization
+group explains this: as the correlation length diverges, microscopic details become
+irrelevant and only symmetry and dimension survive the coarse-graining, an idea that has
+since propagated into quantum field theory and into the analysis of complex systems
+generally.
+
+Heat transfer occurs by three mechanisms with different scaling:
+  conduction     through a material by molecular and electron transport;
+                 Q/t = k A dT / L;  metals high k, insulators low
+  convection     by bulk fluid motion; Q/t = h A dT;  h depends strongly on
+                 whether flow is natural (buoyancy, h ~ 5-25 W/m^2K) or forced
+                 (h ~ 25-250 for air, far higher for liquids)
+  radiation      by electromagnetic emission; Q/t = eps sigma A (T^4 - T_s^4);
+                 dominant at high temperature and the only mechanism in vacuum
+  thermal resistance   R = L/(kA) for conduction, 1/(hA) for convection;
+                 resistances in series add, which is how thermal budgets work
+  time constant  tau = mc/(hA);  how fast a body approaches ambient
+
+The fourth-power dependence in radiation is what makes it negligible at room temperature
+and dominant at high temperature. A surface at 300 K radiates about 460 W/m^2; at 600 K
+it radiates sixteen times as much. This is why incandescent lamps and furnaces lose heat
+predominantly by radiation while an electronics enclosure loses it predominantly by
+convection, and why spacecraft thermal control is entirely a radiation problem — with no
+surrounding fluid, radiators are the only way to reject heat, which is why they are large
+and why their emissivity and view factor to deep space are the governing design
+parameters.

@@ -1,0 +1,359 @@
+================================================================================
+AREA: Software and Web Engineering
+SUBJECT: Distributed Systems
+Subtopics: failure models, consistency, consensus, replication, partitioning,
+time and ordering, messaging, caching, observability, resilience patterns.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Failure Models and the Fallacies
+
+A distributed system is one in which the failure of a computer you did not know
+existed can render your own computer unusable. That definition, Leslie Lamport's, is
+the whole subject in one sentence: the difficulty is not computation but partial
+failure. A single machine either works or does not; a distributed system is
+perpetually in a state where some fraction of it is broken, and the code must be
+correct anyway.
+
+The eight fallacies of distributed computing enumerate the assumptions that seem
+harmless and are not: the network is reliable, latency is zero, bandwidth is infinite,
+the network is secure, topology does not change, there is one administrator, transport
+cost is zero, and the network is homogeneous. Each has a corresponding class of
+production incident. Assuming reliability produces code with no timeout and no retry
+that hangs forever. Assuming zero latency produces the chatty interface that makes
+sixty sequential calls to render one page and works fine in development where
+everything is on localhost. Assuming infinite bandwidth produces the endpoint that
+returns the entire table because pagination seemed like premature optimization.
+
+Failure models are ordered by severity, and the model you assume determines which
+algorithms are available. Crash-stop failures mean a node halts and stays halted —
+the simplest model and the one most practical systems target. Crash-recovery allows
+the node to return, possibly having lost in-memory state, which is why durable write-
+ahead logs exist. Omission failures drop messages. Byzantine failures allow arbitrary
+behaviour including malicious lying, which requires 3f + 1 nodes to tolerate f faults
+rather than the 2f + 1 sufficient for crashes, and is why Byzantine-tolerant protocols
+are reserved for adversarial settings like blockchains rather than for a datacentre
+where the machines are yours.
+
+The hardest failure is the one that is not a failure: the partial or gray failure. A
+node that responds slowly rather than not at all, a disk that returns corrupted data
+without an error, a network link that drops 3% of packets, a process that accepts
+connections but has deadlocked its worker pool. These defeat naive health checks
+because the node passes a liveness probe while doing no useful work. This is why
+health checks should exercise the actual dependency path, why timeouts must be
+treated as failures rather than as conditions to wait out, and why request hedging —
+sending a duplicate request to a second replica after a delay — is worth its cost at
+the tail.
+
+Timeout and retry discipline:
+  every remote call has a timeout        no exceptions; a missing timeout is a bug
+  timeout budgets are hierarchical       a caller's budget bounds all its callees
+  retry only idempotent operations       or carry an idempotency key
+  exponential backoff with jitter        without jitter, retries synchronize into
+                                         a thundering herd that prevents recovery
+  cap total retries and total time       infinite retry converts a blip into an
+                                         outage by saturating the recovering node
+  circuit breaker on sustained failure   stop calling a dead dependency; fail fast
+  distinguish retryable from terminal    a 400 will fail identically forever
+
+Jitter deserves its own emphasis because its absence causes a specific and severe
+failure mode. When a service becomes briefly unavailable, every client fails at
+approximately the same moment. With deterministic backoff they all retry at the same
+moment, producing a synchronized load spike that knocks the service down again just as
+it recovers, repeating indefinitely. Adding uniform random jitter — full jitter, where
+the delay is uniform on [0, backoff], is the standard recommendation — spreads the
+retries and lets the service recover. This is a one-line change that repeatedly
+determines whether an incident lasts two minutes or two hours.
+
+Q: A service adds retries with exponential backoff to improve reliability, and its
+availability during dependency blips gets worse. The most likely cause is:
+A. The backoff multiplier is too large
+B. Retries without jitter synchronize clients into a thundering herd
+C. The timeout is too long
+D. Retries are not idempotent
+Reasoning: Synchronized retries concentrate load at the exact moments the dependency
+is attempting to recover, amplifying rather than absorbing the failure. Full jitter
+spreads them. Option D is a real hazard but produces incorrect data rather than reduced
+availability. Answer: B.
+
+## Consistency Models
+
+The CAP theorem states that a system experiencing a network partition must choose
+between consistency and availability. It is widely cited and widely misread. The
+choice only applies *during a partition*: a system is not obliged to sacrifice
+anything when the network is healthy, so "CP" and "AP" describe partition behaviour
+rather than steady-state properties. Nor is availability binary — real systems
+degrade specific operations rather than going wholly down. PACELC extends the
+statement usefully: during a partition, choose availability or consistency; else, in
+normal operation, choose latency or consistency. That second clause is the one that
+governs day-to-day design, because the cost of strong consistency is paid on every
+request, not only during rare partitions.
+
+Consistency models form a hierarchy from strongest to weakest. Linearizability, the
+strongest, means every operation appears to take effect instantaneously at some point
+between its invocation and its response, and all clients observe a single consistent
+order consistent with real time. Sequential consistency drops the real-time constraint:
+all clients see the same order, but it need not match wall-clock ordering. Causal
+consistency guarantees only that causally related operations are seen in order, while
+concurrent operations may be seen differently by different observers. Eventual
+consistency promises only that replicas converge if updates stop, saying nothing about
+what is observed meanwhile.
+
+The weaker models are not merely compromises; they buy availability and latency that
+strong models cannot offer, and many applications genuinely do not need more. A social
+feed, a view counter, a DNS record, a product catalogue — all tolerate stale reads.
+Account balances, inventory decrements, and unique-username registration do not. The
+design skill is identifying which operations in a system need which guarantee, since
+applying the strictest requirement uniformly is expensive and applying the loosest
+uniformly is incorrect.
+
+Consistency guarantees and typical mechanisms:
+  linearizable            consensus (Raft/Paxos), single leader, quorum reads
+  sequential              total order broadcast
+  causal                  vector clocks, version vectors, dependency tracking
+  read-your-writes        session stickiness, or read from the primary after write
+  monotonic reads         pin a session to one replica
+  bounded staleness       replica lag threshold with fallback to the primary
+  eventual                asynchronous replication, anti-entropy, CRDTs
+
+Session guarantees are the pragmatic middle ground and are underused. Read-your-writes
+means a user who posts a comment sees it immediately, even if other users do not for a
+second — which is almost always what "consistency" means to a product manager.
+Implementing it by routing a user's reads to the primary for a few seconds after their
+write, or by passing a version token the replica waits for, delivers the perceptible
+benefit of strong consistency at a small fraction of the cost.
+
+Conflict-free replicated data types sidestep coordination entirely by constraining the
+data structure so that concurrent updates merge deterministically. A grow-only counter,
+an add-only set, a last-writer-wins register, an observed-remove set: each defines a
+merge operation that is commutative, associative, and idempotent, so replicas
+converge regardless of message order or duplication. The cost is expressiveness — not
+every operation can be phrased this way, and metadata can grow — but for collaborative
+editing, presence, and distributed counters they eliminate coordination completely.
+
+## Consensus and Replication
+
+Consensus is the problem of getting a set of nodes to agree on a single value despite
+failures, and it is the foundation on which linearizable systems are built. The FLP
+impossibility result proves that in a fully asynchronous system with even one faulty
+process, no deterministic algorithm guarantees consensus — there is always a schedule
+that prevents termination. Practical systems evade this with partial synchrony
+assumptions and randomized timeouts: they guarantee safety always and liveness only
+during periods when the network behaves, which is the right trade because an
+occasional extra election is tolerable and disagreement is not.
+
+Raft is the consensus algorithm most commonly implemented because it was explicitly
+designed for understandability. It elects a single leader by randomized timeout, and
+the leader accepts all writes, appends them to a replicated log, and commits an entry
+once a majority have persisted it. Terms provide logical time, so a stale leader
+returning after a partition discovers a higher term and steps down. Safety rests on the
+majority-overlap property: any two majorities of an odd-sized cluster share at least
+one member, so a newly elected leader necessarily has every committed entry.
+
+Cluster sizing follows directly from majority quorums. A cluster of 2f + 1 nodes
+tolerates f failures, so three nodes tolerate one and five tolerate two. Even-sized
+clusters are strictly worse than the odd size below them: four nodes still need a
+majority of three, tolerating only one failure while adding a machine that can fail.
+Larger clusters improve fault tolerance and worsen write latency, since every commit
+waits for a majority, which is why production clusters are almost always three or five
+and scale is achieved by partitioning across many such groups rather than by growing
+one.
+
+Replication topologies:
+  single leader        all writes to one node, reads from any; simple, the default
+                       for relational databases; failover is the hard part
+  multi-leader         writes accepted at several nodes; needed for multi-region
+                       write locality and offline clients; conflicts are inevitable
+                       and must be resolved explicitly
+  leaderless (Dynamo)  clients write to W and read from R of N replicas; strong
+                       consistency when R + W > N; sloppy quorums and hinted
+                       handoff trade consistency for availability
+  chain replication    writes at the head, reads at the tail; strong consistency
+                       with high throughput, poor tail latency during failures
+
+Replication lag is where correctness bugs concentrate in single-leader systems. A user
+writes to the leader and immediately reads from a replica that has not yet applied the
+change, and their own update appears to have vanished. The fixes are read-your-writes
+routing, monotonic-read session pinning so a user never moves to a more stale replica,
+and explicit lag monitoring with automatic removal of replicas beyond a threshold. The
+failure is intermittent and load-dependent, which makes it hard to reproduce and easy
+to dismiss as a client bug.
+
+Split-brain is the corresponding hazard in failover. A leader that is merely slow, not
+dead, may be declared failed and replaced, leaving two nodes believing they are the
+leader and accepting conflicting writes. Fencing tokens are the standard remedy: every
+leader receives a monotonically increasing token, and the storage layer rejects any
+write bearing a token lower than the highest it has seen, so the deposed leader's
+writes are refused even if it never learns it was deposed. Systems that rely on a lease
+timing out without a fencing mechanism are relying on clocks, which is exactly what
+distributed systems cannot do.
+
+[user] Our Postgres read replicas are 4-8 seconds behind under load and users report
+their profile edits disappearing on refresh.
+[assistant] tool_call db.replication_status({"cluster": "prod-primary",
+"replicas": 3, "metric_window": "1h"})
+[tool] {"max_lag_seconds": 8.4, "mean_lag_seconds": 4.1, "wal_generation_mb_s": 42,
+"replica_apply_mb_s": 38, "longest_query_on_replica_s": 61,
+"conflicts": 0, "verdict": "apply_bound_plus_long_queries"}
+[assistant] Two separate problems, and the user-visible one has a fast fix.
+
+The disappearing edits are a read-your-writes violation, not data loss. The user
+writes to the primary, is redirected to a replica for the subsequent read, and the
+replica has not applied the change yet. Nothing is lost — it appears a few seconds
+later. Fix this at the routing layer rather than by chasing the lag: after a write,
+pin that user's session to the primary for a window longer than your worst observed
+lag, say 15 seconds. The more precise version is to capture the primary's WAL LSN at
+write time, pass it back to the client, and have the replica wait until it has applied
+that LSN before serving the read — Postgres exposes this well and it gives correctness
+rather than a heuristic timeout.
+
+Separately, the lag itself is real and worth fixing. Your primary generates 42 MB/s of
+WAL and replicas apply at 38 MB/s, so they cannot keep up and lag grows monotonically
+under sustained load. Compounding it, you have a 61-second query running on a replica;
+recovery conflicts with long read queries either pause apply or cancel the query
+depending on your `max_standby_streaming_delay` setting, and pausing apply is what
+turns a 4-second lag into an 8-second one.
+
+In priority order: move that long analytical query off the serving replicas onto a
+dedicated one with a permissive delay setting, then reduce WAL volume at the source —
+the usual culprits are unbatched small writes, an over-indexed hot table, and full-page
+writes after checkpoints, so check `pg_stat_statements` for write amplification. If WAL
+volume is genuinely required, you need to partition the write load rather than tune it.
+
+## Time, Ordering, and Idempotence
+
+Physical clocks cannot be trusted for ordering. NTP-synchronized clocks in a datacentre
+typically agree within a few milliseconds but can diverge by far more during network
+disruption, and clocks jump backward when corrected — which is why comparing wall-clock
+timestamps to determine which of two events happened first is unsound, and why
+measuring elapsed time requires a monotonic clock rather than a wall clock. Last-writer-
+wins conflict resolution based on wall-clock timestamps silently discards writes when
+clocks are skewed, and the discarded write is the one from the node whose clock is
+behind, which is not a property anyone intended.
+
+Logical clocks order events by causality instead. A Lamport clock is a counter
+incremented on each local event and advanced to max(local, received) + 1 on message
+receipt; it guarantees that if A causally precedes B then clock(A) < clock(B), but not
+the converse, so it cannot distinguish causality from coincidence. Vector clocks carry
+one counter per node and can distinguish causally related from concurrent events
+exactly, at the cost of size linear in the number of nodes. Hybrid logical clocks
+combine a physical timestamp with a logical counter, giving causally consistent
+ordering that also stays close to wall-clock time, which makes them practical for
+systems that need both.
+
+Google's Spanner takes the opposite approach with TrueTime: rather than avoiding
+physical clocks, it bounds their uncertainty using GPS and atomic clocks, exposing an
+interval rather than an instant. A transaction commits by waiting out the uncertainty
+window, typically a few milliseconds, guaranteeing that its timestamp is genuinely in
+the past for every observer. This buys externally consistent distributed transactions
+at the cost of specialized hardware and a deliberate commit-wait latency — an explicit
+purchase of consistency with latency, exactly as PACELC describes.
+
+Exactly-once delivery does not exist at the transport layer; exactly-once *processing*
+is achievable and is what systems actually mean. The construction is at-least-once
+delivery plus idempotent handling. Idempotence is obtained by carrying a unique key
+with each request and having the receiver record processed keys, rejecting duplicates;
+by making the operation naturally idempotent (set balance to X rather than add Y); or
+by transactionally coupling the side effect with the record of having performed it.
+
+Messaging delivery semantics:
+  at-most-once      fire and forget; fast, loses messages on failure
+  at-least-once     retry until acknowledged; duplicates are guaranteed eventually
+  exactly-once      at-least-once plus consumer-side idempotence or a transactional
+                    write; not a transport property
+  ordered           per-partition ordering is achievable; global ordering across
+                    partitions is not, and demanding it eliminates parallelism
+  dead-letter queue where poison messages go after N failures, so one bad message
+                    cannot block a partition indefinitely
+
+The dual-write problem is the most common source of inconsistency in service
+architectures: a handler writes to its database and then publishes an event, and the
+process crashes between the two. The database is updated and no event exists, or the
+event is published and the transaction rolls back. There is no ordering of the two
+writes that fixes this. The correct solutions couple them atomically — the transactional
+outbox, where the event is written to a table in the same transaction and a separate
+relay publishes it, or change data capture, where the event stream is derived from the
+database's replication log so it cannot diverge by construction.
+
+Q: A payment service uses at-least-once delivery and processes each message by charging
+a card. To achieve exactly-once semantics it should:
+A. Switch the broker to exactly-once mode
+B. Deduplicate by an idempotency key recorded transactionally with the charge
+C. Use at-most-once delivery instead
+D. Add a longer visibility timeout
+Reasoning: No broker configuration makes end-to-end exactly-once possible, because the
+acknowledgement itself can be lost after the side effect. The receiver must make
+processing idempotent, and the deduplication record must commit atomically with the
+charge — recording it separately reintroduces the same crash window. Answer: B.
+
+Q: Two nodes' wall clocks differ by 300 ms. A last-writer-wins store resolves a
+conflict between concurrent writes. The outcome is:
+A. The genuinely later write is kept
+B. The write from the node with the faster clock is kept, regardless of real order
+C. Both writes are preserved
+D. The write is rejected
+Reasoning: LWW compares timestamps, so it selects whichever node reported a larger
+number. With 300 ms of skew, a write that really happened later on the slow-clocked
+node loses and is silently discarded. This is why LWW needs either bounded clock
+uncertainty or logical clocks. Answer: B.
+
+## Partitioning, Caching, and Resilience
+
+Partitioning splits data across nodes so that capacity scales horizontally. Range
+partitioning keeps keys in sorted order, which makes range scans efficient and creates
+hotspots when the access pattern is skewed toward recent keys — timestamps as the
+leading component of a partition key is the classic mistake, funnelling all current
+writes to one partition. Hash partitioning distributes uniformly and destroys range
+locality. Consistent hashing places nodes and keys on a ring so that adding or
+removing a node relocates only 1/n of keys rather than remapping everything, and
+virtual nodes smooth the imbalance that arises from placing few nodes on the ring.
+
+Hot keys defeat any partitioning scheme, because a single key cannot be split by
+definition. A celebrity account, a viral product, a global configuration row: all
+concentrate load on one partition regardless of how well the rest is distributed. The
+mitigations are read replicas for that key, key salting where the key is split into N
+sub-keys that are aggregated on read (which trades write simplicity for read
+complexity), or a dedicated cache layer in front of the hot subset.
+
+Caching is the highest-leverage and most bug-prone optimization in the field. The core
+tension is that a cache is a second copy of data, and two copies can disagree. Cache
+invalidation strategies each fail differently: TTL-only is simple and serves stale data
+for up to the TTL; write-through updates the cache on write and can leave it
+inconsistent if the two writes are not atomic; write-behind buffers writes and risks
+loss; explicit invalidation is precise and misses cases that the code did not
+anticipate. There is no strategy without a failure mode, so the design question is
+which staleness is acceptable rather than how to eliminate it.
+
+Three cache failure patterns worth naming:
+  cache stampede      an expired hot key causes every concurrent request to miss and
+                      recompute simultaneously. Fix with a mutex or single-flight so
+                      one request recomputes while others wait, or probabilistic early
+                      expiry so refreshes spread out before the TTL.
+  cache penetration   requests for keys that do not exist bypass the cache every time
+                      and hit the database. Fix by caching negative results, or with a
+                      Bloom filter over existing keys.
+  cache avalanche     many keys expire at once, typically because they were populated
+                      together at deploy or restart. Fix with randomized TTL jitter.
+
+Resilience patterns compose into a defensive posture. The circuit breaker tracks the
+failure rate of a dependency and, above a threshold, stops issuing calls entirely for a
+cooldown period, then admits a trial trickle before closing — converting a slow cascade
+into fast local failures and giving the dependency room to recover. Bulkheads isolate
+resources per dependency, so a thread pool exhausted by one slow downstream cannot
+starve calls to healthy ones. Load shedding rejects excess requests at the edge with a
+cheap error rather than accepting work that will time out anyway, which keeps latency
+bounded for the requests that are served. Backpressure propagates capacity limits
+upstream instead of allowing unbounded queues, since an unbounded queue converts an
+overload into an unbounded latency increase and eventually an out-of-memory failure.
+
+Observability is what makes all of this operable. The three signals are complementary:
+metrics are cheap aggregates good for alerting and trends but cannot explain a single
+request; logs are detailed and expensive and answer questions about specific events;
+distributed traces follow one request across service boundaries and are the only signal
+that answers "where did the latency go" in a system of thirty services. Percentiles
+matter far more than averages, because the mean is dominated by the common case while
+users experience the tail — and in a request that fans out to a hundred backends, the
+overall latency is governed by the slowest of the hundred, so a p99 backend latency
+becomes a near-certainty at the fan-out level. Tail tolerance, not average
+optimization, is what makes large systems feel fast.

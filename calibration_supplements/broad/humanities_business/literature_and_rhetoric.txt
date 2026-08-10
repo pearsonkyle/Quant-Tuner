@@ -1,0 +1,276 @@
+================================================================================
+AREA: Humanities, Business, and Social Science
+SUBJECT: Literature and Rhetoric
+Subtopics: close reading, narrative craft, poetics, genre and form, critical
+approaches, rhetoric and argument, style and clarity, writing practice.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Close Reading and Interpretation
+
+Close reading attends to the specific choices a text makes rather than to its summarizable
+content, on the premise that meaning resides in how something is said as much as in what is
+said. The practice is to notice what is there — a repeated word, an abrupt shift in register, a
+sentence whose length breaks a pattern, an image that returns — and to ask what work it is
+doing, before deciding what the text means.
+
+The most useful discipline is separating observation from interpretation. Observation is what
+can be pointed to: this passage uses nine consecutive monosyllables, this narrator refers to
+the protagonist by surname until chapter twelve and by first name thereafter, this poem's rhyme
+scheme breaks in its final couplet. Interpretation is the argument about significance, and it
+is only as strong as the observations supporting it. Criticism that begins with a thesis and
+gathers illustrations tends to find what it sought; criticism that begins with anomalies and
+asks what would explain them tends to discover things.
+
+Ambiguity in literature is frequently constitutive rather than a defect to be resolved. A text
+that sustains two incompatible readings, both fully supported, may be doing so deliberately,
+and flattening it to one reading discards the effect. The productive question in such cases is
+not which reading is correct but what the text achieves by permitting both — which is a
+different and usually more interesting question.
+
+Close reading vocabulary:
+  diction             word choice; register, connotation, etymology, precision
+  syntax              sentence construction; length, subordination, inversion,
+                      fragments
+  imagery             sensory detail; note which senses and how concentrated
+  figurative language  metaphor, simile, metonymy, synecdoche, personification
+  tone                the attitude toward subject and audience
+  register            the level of formality; shifts are always significant
+  point of view       first, second, third limited, third omniscient; and how
+                      reliable
+  free indirect style  third person that adopts a character's idiom and
+                      perception without quotation; the dominant technique of the
+                      modern novel
+  irony               verbal, situational, dramatic; a gap between statement and
+                      meaning, or expectation and outcome
+  motif               a recurring element; repetition is the signal
+  structure           the arrangement of parts; what is withheld and when
+  intertextuality     reference to and dependence on other texts
+
+Free indirect style deserves particular attention because it is so pervasive and so easy to
+miss. The narration is third person, and the language, judgments, and blind spots belong to the
+character rather than to the narrator, without any quotation marks or attributive tag to mark
+the transition. This lets a text simultaneously present a character's view and permit the reader
+to see past it, which is how irony operates in most nineteenth and twentieth century fiction.
+Recognizing when the prose has slipped into a character's idiom is the single most useful
+reading skill for the novel.
+
+Q: A third-person narrative describes a wedding as "the most brilliant match anyone could have
+hoped for," with no quotation marks and no attribution. This most likely indicates:
+A. The narrator's own judgment
+B. Free indirect style, presenting a character's or a community's view in language the narrator
+   does not endorse
+C. A factual statement about the marriage
+D. An error in punctuation
+Reasoning: The evaluative superlative and the vague "anyone" belong to a social idiom rather
+than to a narrating voice establishing facts. This is the signature of free indirect style, and
+it typically sets up an ironic gap between what the community believes and what the narrative
+will show. Answer: B.
+
+## Narrative Craft
+
+Narrative organizes events into a form that produces meaning, and the distinction between
+story and plot is where analysis begins. Story is the events in chronological order; plot is
+the arrangement in which they are presented, including what is withheld, reordered, compressed,
+or expanded. A detective novel's story begins with the murder and its plot begins with the
+discovery of the body, and nearly all of the genre's effect comes from that difference.
+
+Character is revealed through action, speech, thought, and the response of others, and the
+craft principle that follows is to dramatize rather than to assert. Telling the reader that a
+character is cruel establishes it weakly; showing an act of cruelty establishes it and lets the
+reader reach the judgment themselves, which makes it theirs. The corresponding caution is that
+the injunction to show rather than tell is a heuristic rather than a rule — summary is what
+allows a narrative to cover years in a paragraph, and a story that dramatizes everything is
+interminable.
+
+Point of view determines what can be known and is therefore the most consequential structural
+decision. First person gives immediacy and voice and confines the narrative to what one person
+can perceive and is willing to say. Third limited gives similar confinement with more
+flexibility of distance. Third omniscient permits access to any mind and to information no
+character has, which is powerful and diffuses intimacy. Each restricts as much as it enables,
+and the restriction is usually where the interest lies.
+
+Narrative elements:
+  story and plot       chronology versus arrangement
+  exposition           necessary background; the craft problem is delivering it
+                       without stopping the narrative
+  in medias res        beginning in the middle; the standard solution to exposition
+  scene and summary    dramatized moment versus compressed passage; alternating
+                       them controls pace
+  conflict             external, internal, or against circumstance; without it,
+                       events are a sequence rather than a story
+  stakes               what is risked; the reader's investment is proportional
+  causality            events connected by consequence rather than sequence; the
+                       difference between plot and chronicle
+  reversal and recognition  the classical mechanisms of dramatic turn
+  unreliable narrator  the reader must read past the narration; requires evidence
+                       within the text of the discrepancy
+  foreshadowing        preparing a later development so it satisfies rather than
+                       surprises arbitrarily
+  Chekhov's gun        prominent elements create expectations; unfired guns are
+                       felt as broken promises
+  frame narrative      a story within a story; establishes distance and raises
+                       questions about transmission
+
+The distinction between chronicle and plot repays attention because it explains why some
+narratives feel inert despite eventful content. A chronicle is a sequence of things that
+happened; a plot is a sequence in which each event follows from the preceding one. The
+difference is causality, and it is what makes a narrative feel like it is going somewhere. A
+draft in which scenes could be reordered without loss is usually a chronicle, and the revision
+is to establish consequence between them.
+
+## Poetics and Form
+
+Poetry organizes language by additional constraints beyond those of prose, and the constraints
+are the source of the effects rather than obstacles to them. Metre imposes a pattern of stressed
+and unstressed syllables; rhyme imposes sound correspondence at line ends; form imposes overall
+structure. What makes these productive is the tension between the pattern and its variations —
+a perfectly regular metre becomes monotonous, and the meaning frequently lives in the departure.
+
+The line is poetry's distinguishing unit, and where a line ends is a decision with effects.
+An end-stopped line completes a syntactic unit and produces closure. An enjambed line breaks
+mid-phrase, creating a momentary reading that the next line revises, which produces suspension
+and can generate a double meaning as the eye moves. The caesura, a pause within a line, works
+similarly at smaller scale.
+
+Sound patterning operates below conscious attention and is where much of poetry's effect
+resides. Alliteration, assonance, and consonance create cohesion and emphasis. Vowel length and
+consonant hardness affect pace — long vowels and liquid consonants slow a line, short vowels and
+plosives quicken it. These effects are real and are frequently over-interpreted, since the
+claim that a particular sound intrinsically conveys a particular meaning does not survive
+cross-linguistic examination; what sound does reliably is control pace, emphasis, and cohesion.
+
+Poetic elements:
+  metre                iambic, trochaic, anapestic, dactylic; the foot pattern
+  iambic pentameter    five iambs; the dominant English line, close to the rhythm
+                       of speech
+  substitution         a varied foot within a pattern; where the emphasis falls
+  enjambment           the line breaks mid-syntax; suspension and double reading
+  caesura              a pause within the line
+  free verse           no regular metre; rhythm and line breaks still deliberate
+  rhyme scheme         the pattern of end sounds
+  slant rhyme          approximate; less closure, more unease
+  sonnet               fourteen lines; the Petrarchan turns at line nine, the
+                       Shakespearean at the final couplet
+  villanelle           nineteen lines with two refrains; obsessive recurrence
+  ghazal               autonomous couplets with a repeated refrain
+  haiku                brevity, image, seasonal reference, juxtaposition
+  blank verse          unrhymed iambic pentameter; the metre of English drama
+  concrete             visual arrangement carries meaning
+
+Form and content relate in a way worth stating carefully. A form does not have an intrinsic
+meaning, and a form does establish expectations that a poem can satisfy or violate to effect.
+The villanelle's compulsory returning refrains suit obsession, grief, and inevitability, which
+is why the best-known examples treat those subjects — not because the form means them but
+because its structural insistence enacts them. Reading a poem's form as a claim about content
+is a mistake; reading it as a set of expectations the poem is working with is not.
+
+## Critical Approaches and Rhetoric
+
+Critical approaches ask different questions of the same text and are complementary rather than
+competing. Formalist criticism attends to the text's internal workings and treats external
+context as secondary. Historicist criticism situates the text in its moment and reads it as
+participating in the concerns of that moment. Psychoanalytic criticism reads for unconscious
+structures. Marxist criticism attends to class, labour, and material conditions. Feminist and
+gender criticism attends to how gender is constructed and represented. Postcolonial criticism
+attends to empire and its aftermath. Reader-response criticism locates meaning in the encounter
+between text and reader rather than in the text alone.
+
+Each is a lens that reveals some features and occludes others, and the practical skill is
+knowing which question a given approach is equipped to answer. Asking a formalist analysis to
+explain a text's political effects, or a historicist one to account for why a sentence is
+beautiful, produces poor results not because the approaches are wrong but because they were
+built for other questions.
+
+Rhetoric is the study of persuasion and predates literary criticism by millennia. The classical
+appeals are ethos, the speaker's credibility; pathos, emotional engagement; and logos, logical
+argument. Effective persuasion generally uses all three, and the balance is determined by
+audience and occasion rather than by any hierarchy among them. The common assumption that
+logos is legitimate and pathos manipulative does not survive examination — an argument about
+suffering that produces no emotional response has failed to communicate its subject.
+
+Critical and rhetorical concepts:
+  formalist            the text's internal workings
+  historicist          the text within its historical moment
+  psychoanalytic       unconscious structures and desire
+  Marxist              class, labour, material conditions
+  feminist / gender    the construction and representation of gender
+  postcolonial         empire, hybridity, the position of the speaking subject
+  reader-response      meaning in the encounter rather than in the text alone
+  ethos                credibility of the speaker
+  pathos               emotional engagement
+  logos                logical argument
+  kairos               the opportune moment; timing as a rhetorical resource
+  audience             every rhetorical choice depends on it
+  arrangement          the order of an argument; the classical parts
+  concession           granting a point; increases credibility and disarms
+                       objection
+  rhetorical question  asserts by implying the answer
+  anaphora             repetition at the start of successive clauses; builds
+                       cumulative force
+
+Logical fallacies are worth knowing as tools of analysis and are frequently over-applied. Ad
+hominem is fallacious when it substitutes for engaging an argument, and it is legitimate when
+credibility is genuinely at issue, as in evaluating testimony. An appeal to authority is
+fallacious when the authority is irrelevant and reasonable when the authority is a
+well-functioning expert consensus in the relevant domain. A slippery slope is fallacious when
+the chain is asserted and legitimate when the mechanism connecting the steps is argued. Naming
+a fallacy is not itself a refutation, and treating it as one is its own error.
+
+## Style, Clarity, and Practice
+
+Clear prose is achieved through a small number of transferable techniques, and the largest
+single gain comes from putting the actor and the action into the subject and verb. Prose that
+buries the action in an abstract noun and connects it with a weak verb requires the reader to
+reconstruct who is doing what: compare a sentence stating that the implementation of the policy
+resulted in a reduction in errors with one stating that the policy reduced errors. The second
+is shorter, clearer, and identifies the agent.
+
+Sentence variety controls pace and emphasis. A run of similar-length sentences becomes
+monotonous regardless of their individual quality, and a short sentence following several long
+ones lands with force. Placing the most important element at the end of a sentence gives it
+emphasis, since the end is the position of natural stress, and this is why the periodic
+sentence — withholding the main clause until the end — creates suspension.
+
+Cohesion is what makes a paragraph read as connected rather than as a list. The most reliable
+technique is beginning sentences with information the reader already has and ending with what
+is new, so that each sentence's end becomes the next one's beginning. This produces flow
+without any explicit connectives, and its absence is why prose composed of individually clear
+sentences can nonetheless be hard to follow.
+
+Style and practice:
+  actor and action     put them in the subject and verb
+  avoid nominalization  a verb turned into a noun hides the action
+  active voice default  passive is correct when the agent is unknown, irrelevant,
+                       or deliberately obscured; it is not an error
+  concrete over abstract  specific detail is more persuasive and more memorable
+  vary sentence length  monotony is a failure regardless of individual quality
+  end weight           the most important element goes last
+  old before new       begin with the known, end with the new; this creates flow
+  cut qualifiers       "very", "quite", "rather" usually weaken rather than modify
+  prefer the short word  when it does the same work
+  parallel structure   items in a series should share grammatical form
+  read aloud           catches rhythm problems, awkward constructions, and
+                       accidental repetition that silent reading misses
+  revision             the substance of writing; a first draft is material rather
+                       than a product
+  audience             every choice about diction, structure, and evidence follows
+                       from who is reading and why
+
+The advice against passive voice is worth stating precisely because it is so often given as an
+absolute. The passive is the correct construction when the agent is unknown, when the agent is
+irrelevant, when the object is the topic under discussion, or when the sequence of information
+requires the object first. Scientific writing uses it appropriately to keep the focus on the
+procedure rather than the experimenter. Its misuse is as a device for concealing agency —
+stating that mistakes were made rather than naming who made them — and that is a rhetorical
+choice rather than a grammatical error, which is exactly why it deserves attention.
+
+Revision is where writing happens, and the useful discipline is separating its kinds.
+Structural revision asks whether the argument or narrative is in the right order and whether
+anything is missing or unnecessary, and it may require discarding a great deal. Paragraph-level
+revision asks whether each paragraph does one thing and connects to its neighbours.
+Sentence-level revision addresses clarity and rhythm. Proofreading catches errors. Attempting
+these simultaneously is inefficient, because polishing sentences in a section that structural
+revision will delete is wasted effort, and the order in which they are performed should follow
+the order in which their conclusions constrain each other.

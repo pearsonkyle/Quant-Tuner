@@ -1,0 +1,228 @@
+================================================================================
+AREA: Humanities and Business
+SUBJECT: Product Management
+Subtopics: problem definition, discovery and research, prioritization, roadmaps and
+strategy, metrics, launch and iteration, stakeholders and communication.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Problem Definition
+
+Product work fails most often at the beginning, by solving a problem nobody has or by solving the
+wrong version of a real one. The discipline that prevents this is separating the problem statement
+from the solution and holding it separate long enough to examine it, which is difficult because
+solutions are concrete and satisfying while problems are abstract and uncomfortable.
+
+A well-formed problem statement identifies who has the problem, what they are trying to accomplish,
+what currently prevents it, what they do instead, and what it costs them. The last two elements are
+the ones most often missing and the most diagnostic. If there is no current workaround, the problem
+may not be real enough for anyone to act on. If the workaround is cheap, the solution must be very
+good to displace it, and the relevant comparison is against that workaround rather than against
+nothing.
+
+Requests are not problems, and translating between them is a core skill. A user asking for a
+specific feature has already performed a solution step, and the underlying need may be better served
+another way — or may be served adequately by something that already exists. The question that
+recovers the problem is what they were trying to do and what happened when they tried, asked about a
+specific recent instance rather than in general, because specific recollection is far more reliable
+than generalization.
+
+Problem definition:
+  the common failure   solving a problem nobody has, or the wrong version
+  separate problem from solution  and hold it separate
+  the difficulty       solutions are concrete, problems are abstract
+  the five elements    who, what goal, what blocks it, what they do instead, what
+                       it costs
+  the workaround       its existence indicates the problem is real
+  the workaround cost  determines how good the solution must be
+  the comparison       against the current workaround, not against nothing
+  requests are not problems  a request contains a solution step already taken
+  the recovering question  what were you trying to do and what happened
+  specific instances   more reliable than generalizations
+  problem framing      the same situation framed differently yields entirely
+                       different solution spaces
+  the framing test     state the problem three ways and notice which solutions
+                       each admits
+  scope                which segment has this problem and how many of them there
+                       are; a real problem for too few people is still not a
+                       product
+
+Q: Several users request the same specific feature. What is the appropriate response?
+A. Build it; the demand is clear
+B. Investigate what each was trying to accomplish, since a shared request may reflect several
+   different underlying needs or one need that a different solution serves better, and the request
+   already encodes a solution the users chose
+C. Ignore requests as a category
+D. Survey more users about the feature
+Reasoning: Convergent requests are strong evidence that a problem exists and weak evidence about
+what would solve it, because users propose solutions from their own limited view of what is
+possible. Investigating the underlying goal frequently reveals either a better solution or that the
+requests share a label and not a need. Answer: B.
+
+## Discovery and Research
+
+Discovery reduces uncertainty about what to build, and the methods available answer different
+questions. Interviews reveal goals, context, and workarounds, and they are unreliable for
+predicting behaviour — people describe what they would like to think they would do. Observation
+reveals what people actually do, including workarounds they do not consciously notice. Surveys
+quantify prevalence across a population and require that the right questions are already known.
+Analytics reveal what happened at scale and never reveal why.
+
+The methods are complementary and the common error is using one where another is required.
+Analytics showing that users abandon a flow at a particular step establishes that something is wrong
+there and cannot establish what; that requires watching people attempt it. Interviews suggesting a
+need is widespread establish that some people have it and cannot establish prevalence; that requires
+a survey or behavioural data.
+
+Interviewing well is a specific skill with a few rules that carry most of the value. Ask about past
+behaviour rather than future intentions, since the former is recalled and the latter is invented.
+Ask about specific instances rather than typical patterns. Avoid leading questions and avoid
+describing your idea, because people are agreeable and will validate almost anything presented
+enthusiastically. And listen for the emotional weight, since the problems people describe with
+frustration are the ones they will act to solve.
+
+Discovery methods:
+  interviews           goals, context, and workarounds
+  the interview limit  unreliable for predicting behaviour
+  observation          what people actually do, including unnoticed workarounds
+  surveys              prevalence, once the right questions are known
+  analytics            what happened at scale, never why
+  the complementarity  each answers a question the others cannot
+  the common error     using one method for another's question
+  past behaviour       recalled rather than invented
+  specific instances   rather than typical patterns
+  leading questions    people validate almost anything presented enthusiastically
+  the enthusiasm trap  describing your idea contaminates every response after it
+  emotional weight     frustration marks problems people will act on
+  concierge and prototype tests  delivering the outcome manually to test demand
+                       before building the mechanism
+  the willingness signal  what someone does — pays, switches, commits time — is
+                       evidence in a way that what they say is not
+
+## Prioritization and Strategy
+
+Prioritization is the central activity, because the constraint is always capacity and the question
+is always what not to do. Frameworks that score items on impact, confidence, and effort are useful
+mainly for making the reasoning explicit rather than for producing the answer — the numbers are
+estimates and the ranking they produce should be examined rather than obeyed. Their real value is
+exposing where a disagreement is: two people scoring an item differently usually disagree about a
+specific assumption, and identifying it is more productive than averaging the scores.
+
+Sequencing matters beyond ranking. Work that unblocks other work is worth more than its own value.
+Work that reduces uncertainty is worth more when the uncertainty is large. Work that must be done
+eventually and gets harder with delay should be done early. A ranked list treats items as
+independent and they rarely are, which is why the output of prioritization should be a sequence with
+reasoning rather than a sorted backlog.
+
+Strategy is the set of choices about where to compete and how to win, and its defining property is
+that it excludes things. A strategy that accommodates every opportunity is a description rather than
+a strategy, and the test is whether it tells you what to say no to. Product strategy specifically
+should state which users, which problems, what advantage the product has, and why that advantage
+persists — and the last element is the one most often absent, leaving a plan that works until
+someone else does the same thing.
+
+Prioritization and strategy:
+  the constant constraint  capacity; the question is what not to do
+  scoring frameworks   useful for making reasoning explicit
+  the numbers          estimates; examine the ranking rather than obey it
+  disagreement location  differing scores usually mean one differing assumption
+  unblocking value     work enabling other work is worth more than itself
+  uncertainty reduction  worth more when uncertainty is large
+  the delay cost       work that gets harder with time should be earlier
+  sequence over ranking  items are not independent
+  opportunity cost     the real cost of any choice
+  sunk cost            not a reason to continue; recognized and still influential
+  strategy             where to compete and how to win
+  the exclusion test   does it tell you what to say no to
+  the four elements    which users, which problems, what advantage, why it
+                       persists
+  the missing element  durability of the advantage
+  the plan without it  works until someone else does the same thing
+  roadmaps             communicate intent and sequence; dated feature lists
+                       promise precision that does not exist and are broken by
+                       the first thing learned
+
+## Metrics and Measurement
+
+A product metric should reflect value delivered to users, and the recurring failure is choosing one
+that reflects activity instead. Engagement measured as time spent is optimized by making a product
+harder to use. Session count is optimized by fragmenting a task. Feature usage is optimized by
+placing the feature where it is unavoidable. Each of these has been driven up by teams who then
+discovered the product had become worse.
+
+The structure that works uses a small number of metrics with defined roles. One primary metric that
+represents the value the product creates. A small set of counter-metrics that catch degradation the
+primary would not reveal. And diagnostic metrics that explain movement without being targets. Making
+a metric a target changes behaviour toward it, which is why the number of targets should be small
+and chosen carefully.
+
+Leading and lagging indicators serve different purposes and both are needed. Lagging indicators —
+retention, revenue, satisfaction — measure what matters and move slowly, so they cannot guide
+week-to-week decisions. Leading indicators move quickly and predict the lagging ones, and the
+predictive relationship must be established rather than assumed. A leading indicator that has not
+been validated against a lagging one is a proxy for nothing, and teams frequently optimize such
+proxies for quarters before discovering the connection was never there.
+
+Metrics:
+  the goal             reflect value delivered
+  the recurring failure  measuring activity instead
+  time spent           optimized by making the product harder
+  session count        optimized by fragmenting tasks
+  feature usage        optimized by making the feature unavoidable
+  the observed pattern  each has been driven up while the product got worse
+  primary metric       the value the product creates
+  counter-metrics      catching degradation the primary hides
+  diagnostics          explain movement without being targets
+  targets change behaviour  so keep the number of targets small
+  lagging indicators   retention, revenue, satisfaction; slow and meaningful
+  leading indicators   fast and predictive, once validated
+  the validation requirement  the predictive relationship established, not
+                       assumed
+  the unvalidated proxy  optimized for quarters before the connection is found
+                       absent
+  cohort analysis      comparing groups by when they joined; separates changes in
+                       the product from changes in who arrived
+  segmentation         an aggregate metric hiding opposite movements in different
+                       segments is the normal case rather than the exception
+
+## Launch, Iteration, and Communication
+
+Launching is a process rather than an event, and staging it reduces risk substantially. Internal use
+catches the obvious. A limited external group catches what internal use cannot, because internal
+users know too much. A percentage rollout with monitoring catches what small groups cannot, because
+some failures appear only at scale. Each stage should have a defined question it answers and a
+criterion for proceeding, otherwise it becomes a delay rather than a check.
+
+Iteration after launch is where most of the value is created and where attention typically
+collapses. The initial version is a hypothesis, the usage data is the first real evidence about it,
+and the period immediately after launch is when that evidence is richest and the team's context is
+freshest. Teams that move to the next project at launch systematically leave value uncollected, and
+the practice that prevents it is planning the post-launch iteration period as part of the work
+rather than as a contingency.
+
+Communication is a large fraction of the role and its content differs by audience. Engineers need
+the problem, the constraints, and the reasoning behind the priority, so they can propose better
+solutions than the one specified. Executives need the decision required, the options, and the
+recommendation with its reasoning, compressed. Customers need what changed and why it helps them.
+Presenting the same material to all three is the default and it serves none of them.
+
+Launch and communication:
+  staged launch        each stage answering a defined question
+  internal use         catches the obvious
+  limited external     catches what internal users cannot, knowing too much
+  percentage rollout   catches failures that appear only at scale
+  proceeding criteria  defined, or a stage becomes a delay
+  the kill switch      the ability to disable quickly; the cheapest insurance
+  launch as hypothesis  the initial version is a claim awaiting evidence
+  the post-launch window  richest evidence and freshest context
+  the collapse         attention moving to the next project at launch
+  the practice         iteration planned as part of the work
+  engineer communication  problem, constraints, and reasoning; not a specification
+  the reason           they will propose better solutions given the problem
+  executive communication  decision, options, recommendation, compressed
+  customer communication  what changed and why it helps
+  the default failure  the same material presented to every audience
+  saying no            the most frequent communication task, and doing it with the
+                       reasoning attached preserves the relationship that a bare
+                       refusal damages

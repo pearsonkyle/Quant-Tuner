@@ -1,0 +1,330 @@
+================================================================================
+AREA: Software and Web Engineering
+SUBJECT: Computer Architecture
+Subtopics: instruction sets, pipelining, superscalar and speculation, memory hierarchy,
+parallelism, accelerators, performance analysis, energy and security.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Instruction Sets and the Hardware-Software Interface
+
+An instruction set architecture is the contract between hardware and software: it specifies
+what instructions exist, what state they operate on, and what they mean, while leaving how they
+are implemented entirely to the microarchitecture. This separation is what permits a program
+compiled once to run on implementations spanning decades and orders of magnitude in performance.
+
+The historical debate between reduced and complex instruction sets has largely dissolved in
+practice. Reduced designs use simple fixed-length instructions with a load-store structure, which
+simplifies decoding and pipelining. Complex designs use variable-length instructions performing
+multi-step operations, which was valuable when memory was expensive and compilers were weak.
+Modern implementations of complex instruction sets decode internally into simpler micro-operations
+and execute those, so the external instruction set is a compatibility interface while the internal
+execution resembles the reduced approach.
+
+What remains of the distinction is decoding cost and code density. Variable-length instructions
+require more complex decoding, which costs area and energy and is difficult to widen. Fixed-length
+instructions decode trivially and in parallel. Code density favours variable-length encodings,
+which matters for instruction cache pressure. These are real considerations and they are far
+smaller than the debate's historical prominence suggests.
+
+Instruction set concepts:
+  ISA                  the hardware-software contract; stable across
+                       implementations
+  microarchitecture    how the ISA is implemented; free to change entirely
+  load-store           only loads and stores access memory; simplifies pipelining
+  fixed vs variable length  decode simplicity against code density
+  micro-operations     internal decomposition; makes the external ISA a
+                       compatibility layer
+  addressing modes     how operands are located
+  register count       more registers reduce spilling; register renaming makes the
+                       architectural count less binding than it appears
+  word size            32 and 64 bit; the address space is usually the driver
+  endianness           byte order; a portability concern in serialization
+  SIMD extensions      one instruction over a vector of elements
+  atomic instructions  compare-and-swap and friends; the foundation of lock-free
+                       programming
+  memory model         what reorderings are permitted and what synchronization
+                       guarantees; strong models are easier to program and
+                       constrain the hardware more
+  binary compatibility  the reason instruction sets persist long past their
+                       design assumptions
+
+The memory model deserves attention because it is the part of the interface most often
+misunderstood and most consequential for concurrent code. A processor and a compiler may reorder
+memory operations for performance, and the memory model specifies which reorderings are visible
+to other threads. A strong model like x86's total store ordering permits few reorderings and
+makes naive concurrent code more likely to work by accident; weak models like those of ARM and
+POWER permit more and expose bugs that the same source hid on x86. Portable concurrent code
+must use explicit synchronization rather than relying on the behaviour observed on one platform.
+
+Q: Concurrent code that works correctly on x86 fails intermittently when ported to ARM. The most
+likely cause is:
+A. A compiler bug
+B. ARM's weaker memory model permits reorderings that x86's total store ordering does not, so
+   missing synchronization that was harmless on x86 is exposed
+C. ARM is slower
+D. Different cache sizes
+Reasoning: x86 permits relatively few reorderings, so code with insufficient synchronization
+frequently works there by accident. ARM permits store-store and load-load reordering that x86
+does not, so the same code exhibits the race it always contained. The fix is correct
+synchronization — atomics with appropriate ordering or explicit barriers — rather than any
+platform-specific workaround. Answer: B.
+
+## Pipelining, Superscalar Execution, and Speculation
+
+Pipelining overlaps instruction execution by dividing it into stages, so that while one
+instruction is executing another is being decoded and another fetched. The throughput
+approaches one instruction per cycle rather than one per multi-cycle instruction, and the latency
+of an individual instruction is unchanged or slightly worse. Deeper pipelines permit higher clock
+frequencies and increase the penalty when the pipeline must be flushed.
+
+Hazards are the situations preventing the next instruction from executing in the next cycle.
+Structural hazards occur when two instructions need the same resource. Data hazards occur when an
+instruction needs a result not yet produced, and forwarding paths route results directly from
+where they are computed to where they are needed, eliminating most of them. Control hazards occur
+at branches, where the next instruction to fetch is not known until the branch resolves.
+
+Branch prediction addresses control hazards by guessing and proceeding speculatively, and its
+accuracy determines a large fraction of achievable performance. Modern predictors exceed 95
+percent accuracy on typical code using history-based schemes that correlate a branch's outcome
+with recent global branch history. The cost of a misprediction is the pipeline depth in wasted
+cycles, so a fifteen-stage pipeline at 96 percent accuracy still loses substantial throughput to
+the four percent.
+
+Superscalar execution issues several instructions per cycle to multiple execution units, and
+out-of-order execution reorders them to fill slots that dependencies would otherwise leave empty.
+The processor maintains the appearance of sequential execution by retiring instructions in order
+while executing them out of order, tracking dependencies through register renaming that
+eliminates false dependencies arising from register reuse.
+
+Pipelining and execution:
+  pipeline             overlap stages; throughput approaches one per cycle
+  hazards              structural, data, control
+  forwarding           route results directly; eliminates most data hazards
+  branch prediction    guess and proceed speculatively; >95% typical
+  misprediction penalty  the pipeline depth in wasted cycles
+  superscalar          multiple instructions issued per cycle
+  out-of-order         reorder to fill dependency stalls; retire in order
+  register renaming    eliminates false dependencies from register reuse
+  reorder buffer       tracks in-flight instructions for in-order retirement
+  reservation station  holds instructions awaiting operands
+  instruction-level parallelism  what the hardware extracts automatically;
+                       limited by true dependencies in the code
+  speculation          execute before knowing whether the result is needed;
+                       discard on misprediction
+  memory disambiguation  determine whether a load and an earlier store alias;
+                       speculating that they do not is common and must be checked
+
+Speculation deserves emphasis because it is both the source of most modern performance and the
+source of an entire class of security vulnerability. The processor executes instructions before
+it knows whether they should execute, and when the speculation is wrong the architectural effects
+are discarded — but the microarchitectural effects, particularly cache state, are not. This is
+the mechanism behind speculative execution attacks: an attacker induces speculation that touches
+data they should not access, and then measures the cache timing to recover it. The architectural
+state was never affected, so the processor was correct by its own contract, and the contract did
+not cover microarchitectural side channels.
+
+## Memory Hierarchy
+
+The memory hierarchy exists because fast memory is expensive and small while capacious memory is
+slow, and the gap between processor and memory speed widened for decades. A main memory access
+costs on the order of two hundred cycles, during which the processor could have executed
+hundreds of instructions, so the effectiveness of caching largely determines achieved performance.
+
+Caches work because programs exhibit locality. Temporal locality means a recently accessed
+address is likely to be accessed again, which caching exploits directly by retaining it. Spatial
+locality means addresses near a recent access are likely to be accessed, which caching exploits by
+transferring whole lines of typically sixty-four bytes. Sequential access therefore uses every
+byte of each transferred line while random access uses one, which is why the two differ by an
+order of magnitude despite identical instruction counts.
+
+Cache organization trades associativity against cost. A direct-mapped cache places each address
+in exactly one location, which is fast and suffers conflict misses when several hot addresses map
+to the same set. A fully associative cache places an address anywhere, eliminating conflict
+misses at prohibitive lookup cost. Set-associative caches compromise, and typical designs use
+eight to sixteen ways.
+
+Memory hierarchy:
+  registers            sub-nanosecond, hundreds of bytes
+  L1                   ~4 cycles, 32-64 KB, split instruction and data
+  L2                   ~14 cycles, 256 KB - 2 MB
+  L3                   ~40 cycles, shared, 8-64 MB
+  main memory          ~200-300 cycles
+  cache line           64 bytes typical; the transfer unit
+  temporal locality    reuse of the same address
+  spatial locality     use of nearby addresses
+  direct mapped        one location per address; conflict misses
+  set associative      several ways per set; the practical compromise
+  replacement policy   LRU approximations
+  write-back           write to cache, to memory on eviction; the common choice
+  write-through        write to both; simpler coherence, more traffic
+  the three C's        compulsory, capacity, and conflict misses; the taxonomy
+                       that identifies which fix applies
+  prefetching          predict and fetch ahead; hardware detects strides, software
+                       hints handle irregular patterns
+  TLB                  caches address translations; misses are expensive and huge
+                       pages extend its reach
+  cache coherence      keeps multiple cores' caches consistent; MESI and variants
+  false sharing        two cores writing different variables in one line; the line
+                       bounces between them and destroys scaling
+
+The three C's taxonomy is worth knowing because it directs the fix. A compulsory miss is the
+first reference to a line and is addressed only by prefetching or by larger lines. A capacity miss
+occurs because the working set exceeds the cache and is addressed by reducing the working set or
+by blocking the computation to reuse data while it is resident. A conflict miss occurs because too
+many hot addresses map to one set and is addressed by changing the data layout or padding to
+change the mapping. Measuring which kind dominates identifies which of three quite different
+interventions to make.
+
+[user] My matrix multiply gets 4% of peak FLOPS. It's a straightforward triple loop over 2048x2048
+matrices of doubles.
+[assistant] tool_call arch.profile({"kernel": "matmul_naive_ijk", "n": 2048,
+"dtype": "float64", "peak_gflops": 180, "achieved_gflops": 7.2,
+"l1_miss_rate": 0.41, "l2_miss_rate": 0.33, "vectorized": false})
+[tool] {"working_set_mb": 96, "l3_size_mb": 32, "bound": "memory",
+"issue": "innermost_loop_strides_through_B_column_wise",
+"fixes": ["loop_interchange", "cache_blocking", "vectorization"],
+"expected_gflops_after": 120}
+[assistant] Your inner loop walks down a column of the second matrix, so every access is a
+different cache line and you get one useful value per 64-byte transfer. That alone accounts for
+most of the gap.
+
+Three changes, and each builds on the previous.
+
+Loop interchange first, because it costs one line. Reordering the loops so the innermost one
+walks along rows of both matrices — the i, k, j order rather than i, j, k — makes every access
+sequential and lets the hardware prefetcher work. This typically takes you from 4% to 15-20% of
+peak on its own.
+
+Cache blocking next. Your matrices total 96 MB against a 32 MB L3, so a full pass evicts
+everything before it is reused. Restructure into blocks sized so that the working set of three
+blocks fits in cache — a block dimension around 128 to 256 for doubles at L2, tuned by
+measurement. Each block is then loaded once and reused for the whole block multiply, which is the
+difference between reading the matrices once and reading them n times.
+
+Vectorization last. With sequential access and blocking in place, the compiler can use SIMD
+instructions processing four or eight doubles per instruction. Verify from the optimization
+report that it actually vectorized; if aliasing prevents it, restrict-qualify the pointers.
+
+Together these should reach roughly two thirds of peak. Getting beyond that requires register
+blocking, explicit prefetch, and careful instruction scheduling, which is where hand-tuned
+libraries live.
+
+The practical recommendation is to use an optimized BLAS implementation rather than writing this
+yourself. A tuned library will reach 85-95% of peak, has been developed over many
+person-years, and dispatches to kernels selected for the specific processor. Writing it yourself
+is worth doing to understand why it is fast, and not worth doing for production.
+
+## Parallelism and Accelerators
+
+Parallelism appears at several levels and the hardware exploits them differently.
+Instruction-level parallelism is extracted automatically by out-of-order execution and is limited
+by true dependencies in the code. Data-level parallelism applies one operation to many elements
+and is exploited by SIMD instructions and by GPUs. Thread-level parallelism runs independent
+instruction streams and is exploited by multiple cores. Request-level parallelism runs
+independent tasks and is exploited by multiple machines.
+
+The shift to multicore was forced rather than chosen. Increasing clock frequency raised power
+consumption faster than performance, since dynamic power scales with frequency and with the
+square of voltage and higher frequencies require higher voltage. When the power density became
+unmanageable, the industry stopped raising frequency and added cores instead — which moved the
+burden of extracting performance from the hardware to the software, since a single-threaded
+program does not get faster on more cores.
+
+GPUs achieve throughput by a fundamentally different tradeoff. A CPU devotes most of its area to
+extracting instruction-level parallelism from one stream — out-of-order logic, branch prediction,
+large caches — and optimizes latency. A GPU devotes its area to many simple cores executing in
+lockstep groups, hides memory latency by switching between many resident threads rather than by
+caching, and optimizes throughput. This makes it enormously faster on regular data-parallel work
+and much slower on irregular control-heavy work.
+
+Parallelism and accelerators:
+  instruction-level    automatic; limited by dependencies
+  data-level           SIMD and GPU; requires regular parallel structure
+  thread-level         multiple cores; requires the program to be parallelized
+  power wall           dynamic power scales with f and V squared; why frequency
+                       stopped rising
+  dark silicon         not all transistors can be powered simultaneously at
+                       modern densities
+  Amdahl's law         speedup bounded by the sequential fraction; the limit on
+                       fixed-size parallelization
+  Gustafson's law      larger problems have proportionally more parallel work; why
+                       weak scaling succeeds where strong scaling saturates
+  SIMT                 GPU execution model; lockstep groups, and divergence within
+                       a group serializes the paths
+  latency hiding       GPUs switch among many resident threads rather than caching
+  occupancy            resident threads per multiprocessor; determines how much
+                       latency can be hidden
+  coalescing           adjacent threads accessing adjacent addresses combine into
+                       one transaction; the dominant GPU memory optimization
+  tensor units         matrix-multiply accelerators; the reason modern
+                       accelerators quote such high figures for reduced precision
+  domain-specific       accelerators trading generality for efficiency; the main
+                       direction of architecture as general scaling slows
+
+The end of Dennard scaling is the fact underlying most of modern architecture. Historically,
+shrinking transistors reduced their power proportionally, so density and frequency could both
+rise at constant power. That relationship broke in the mid-2000s because leakage current no
+longer scaled, and the consequences follow directly: frequency stopped rising, cores multiplied,
+and specialized accelerators became attractive because a circuit doing one thing efficiently
+delivers more performance per watt than a general-purpose one. This is why architecture has
+become domain-specific after decades of convergence on general-purpose designs.
+
+## Performance, Energy, and Security
+
+Performance analysis begins with the observation that instructions per cycle and clock frequency
+together determine execution time for a given instruction count, so an optimization must improve
+one of the three. Hardware performance counters expose which is limiting: instructions per cycle
+below one usually indicates memory-bound behaviour, high branch misprediction indicates
+unpredictable control flow, and high cache miss rates indicate a locality problem.
+
+The roofline model provides a compact framework for reasoning about a kernel's limit. Plotting
+achievable performance against arithmetic intensity — operations per byte moved — gives a curve
+that rises with intensity until it saturates at the peak compute rate. A kernel's position on
+that curve identifies whether it is bandwidth-bound, in which case improving locality or reducing
+data movement helps and faster arithmetic does not, or compute-bound, where the reverse applies.
+
+Energy has become a first-class design constraint at every scale, from battery life in mobile
+devices to cooling capacity in data centres. The important quantity is energy per operation
+rather than power, since a computation completed faster at higher power may consume less energy
+overall — race to idle. Data movement dominates energy in most modern workloads: moving a word
+from main memory costs orders of magnitude more energy than the arithmetic performed on it, which
+is the same conclusion the roofline analysis reaches from the performance side.
+
+Performance, energy, and security:
+  execution time       instructions times cycles per instruction divided by
+                       frequency
+  IPC                  instructions per cycle; below one usually means
+                       memory-bound
+  roofline model       performance against arithmetic intensity; identifies the
+                       binding constraint
+  arithmetic intensity  operations per byte moved
+  performance counters  cache misses, branch mispredictions, stalls; the direct
+                       evidence
+  energy per operation  the right metric; race to idle can reduce total energy
+  data movement        dominates energy; far more costly than arithmetic
+  DVFS                 dynamic voltage and frequency scaling; trades performance
+                       for power
+  heterogeneous cores  large and small cores; schedule by the workload's demands
+  side channels        timing, power, and electromagnetic emission leak
+                       information about data
+  cache timing attacks  measure access times to infer another process's memory
+                       access pattern
+  speculative execution attacks  induce speculation touching inaccessible data,
+                       then recover it through the cache
+  constant-time code   cryptographic implementations must avoid data-dependent
+                       branches and memory accesses
+  mitigations          hardware and software; the speculative execution
+                       mitigations cost measurable performance and are a
+                       permanent tax
+
+Side channels deserve the closing emphasis because they represent a category the architectural
+contract never addressed. An instruction set specifies what state instructions modify, and it says
+nothing about timing, power draw, or cache occupancy — which are implementation details from the
+contract's perspective and observable properties from an attacker's. Cryptographic code must
+therefore avoid branches and memory accesses that depend on secret data, since either creates a
+timing signal, and the requirement that a correct implementation also be constant-time is a
+constraint that a purely functional specification does not express. The broader lesson is that a
+correct implementation of a specification can still leak, because the specification was silent on
+the channel.

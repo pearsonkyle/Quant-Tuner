@@ -1,0 +1,322 @@
+================================================================================
+AREA: Generative Art and Creative Technology
+SUBJECT: Shaders and GPU Graphics
+Subtopics: the graphics pipeline, GLSL, raymarching and SDFs, noise, lighting,
+color spaces, compute shaders, performance, creative coding practice.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## The Graphics Pipeline
+
+The GPU is a throughput machine, not a latency machine. It runs thousands of threads
+in lockstep groups — warps of 32 on NVIDIA, wavefronts of 64 on AMD, SIMD groups of 32
+on Apple — where every thread in a group executes the same instruction on different
+data. This single architectural fact explains nearly every shader performance rule.
+Branching is expensive not because the branch itself is slow but because divergence
+within a group forces both sides to execute with the inactive lanes masked off, so a
+conditional where half the pixels take each path costs the sum of both paths. Memory
+access is fast when neighbouring threads read neighbouring addresses and slow when
+they scatter, because the hardware coalesces contiguous accesses into single
+transactions.
+
+The rasterization pipeline transforms geometry into pixels through fixed stages. The
+vertex shader runs once per vertex, transforming positions from model space through
+world, view, and clip space, and passing per-vertex attributes onward. Primitive
+assembly groups vertices into triangles. Clipping discards geometry outside the view
+frustum and splits triangles that straddle it. The rasterizer determines which pixels
+a triangle covers and interpolates the vertex attributes across them, perspective-
+correctly. The fragment shader runs once per covered pixel and computes a colour.
+Finally per-fragment operations apply the depth test, stencil test, and blending
+before writing to the framebuffer.
+
+The coordinate transformations are the part most often gotten wrong, and the order
+matters because matrix multiplication does not commute. Model space is the mesh's own
+frame; the model matrix places it in world space; the view matrix, the inverse of the
+camera's transform, moves the world into the camera's frame; the projection matrix maps
+the view frustum into clip space, a cube in homogeneous coordinates. The perspective
+divide by w then yields normalized device coordinates, and the viewport transform maps
+those to pixels. The composite is often precomputed as a single MVP matrix, applied as
+`gl_Position = projection * view * model * vec4(position, 1.0)` — read right to left.
+
+Pipeline stages and where work belongs:
+  vertex shader      per-vertex; cheap because vertices are far fewer than pixels;
+                     do as much as possible here and interpolate the result
+  tessellation       optional; subdivides patches on the GPU for adaptive detail
+  geometry shader    optional; can emit new primitives; notoriously slow, avoid
+  rasterizer         fixed function; interpolates with perspective correction
+  fragment shader    per-pixel; the expensive stage, run millions of times
+  blending           fixed function; order-dependent for transparency
+  compute shader     outside the pipeline; general-purpose, arbitrary read/write
+
+Normals require special handling in the transformation chain and this catches
+everyone once. A normal is perpendicular to a surface, and under non-uniform scaling
+the naive transform destroys that perpendicularity — scale a sphere into an ellipsoid
+and normals transformed by the model matrix no longer point outward. The correct
+transform is the inverse transpose of the upper-left 3x3 of the model matrix, which
+reduces to the matrix itself for pure rotation, so the bug is invisible until someone
+scales an object unevenly and the lighting goes wrong in a way that is hard to
+attribute.
+
+Q: A fragment shader contains a conditional where roughly half the pixels in each
+region take each branch. Compared with a version taking one branch uniformly, the cost
+is approximately:
+A. The same
+B. Half
+C. The sum of both branches
+D. The maximum of the two branches
+Reasoning: Threads execute in lockstep groups. When threads within a group diverge, the
+hardware executes both paths serially with inactive lanes masked, so the group pays for
+both. Divergence that is coherent across whole groups — a branch on a uniform, or on
+large screen regions — costs only the taken path. Answer: C.
+
+## GLSL and Shader Language Fundamentals
+
+GLSL is a C-like language with first-class vector and matrix types and pervasive
+component-wise operations. Vectors up to four components support swizzling, so
+`v.xyz`, `v.rgb`, `v.bgra`, and `v.xxyy` are all valid reads, and swizzles can appear
+on the left of an assignment as long as no component repeats. Arithmetic operators
+apply component-wise, and multiplying a matrix by a vector performs the linear
+transform. This expressiveness is why shader code reads so densely compared with CPU
+code doing the same work.
+
+The built-in functions are hardware-accelerated and should be preferred over
+hand-written equivalents essentially always. `mix(a, b, t)` is linear interpolation and
+is a single instruction. `clamp(x, lo, hi)` and `saturate`-style `clamp(x, 0.0, 1.0)`
+are free on most hardware as an output modifier. `step(edge, x)` returns 0 or 1 and
+replaces a branch with arithmetic. `smoothstep(e0, e1, x)` gives a Hermite ramp with
+zero derivative at both ends, and it is the single most useful function in creative
+shader work because it produces antialiased edges, soft masks, and eased transitions
+in one call.
+
+Precision qualifiers matter on mobile and in WebGL. `highp` is typically 32-bit float,
+`mediump` around 16-bit, `lowp` lower still. Fragment shaders on mobile GPUs default
+to `mediump` unless specified, and a mediump float has roughly three decimal digits of
+precision with a limited exponent range — enough for colour, insufficient for world-
+space positions or for time values that grow without bound. A shader that works on
+desktop and shows banding, jitter, or complete breakdown on mobile after a few minutes
+of runtime is nearly always a precision problem, and the classic instance is passing
+elapsed seconds as a mediump uniform, which loses the ability to represent fractional
+seconds once the value grows past a few thousand.
+
+GLSL essentials by category:
+  types           float, vec2/3/4, mat2/3/4, int, ivec, bool, sampler2D
+  swizzling       v.xyzw, v.rgba, v.stpq; repeatable on read, unique on write
+  interpolation   mix(a,b,t), smoothstep(e0,e1,x), step(edge,x)
+  geometry        length, distance, dot, cross, normalize, reflect, refract
+  math            abs, sign, floor, ceil, fract, mod, min, max, clamp, pow,
+                  exp, log, sqrt, inversesqrt
+  trig            sin, cos, tan, asin, acos, atan(y,x)
+  derivatives     dFdx, dFdy, fwidth — screen-space gradients, for antialiasing
+  texture         texture(sampler, uv), textureLod, texelFetch
+  qualifiers      uniform (constant per draw), in/out (stage interface),
+                  flat (no interpolation), const
+
+`fract` and `mod` are the workhorses of procedural pattern generation because they
+create repetition. `fract(uv * 10.0)` tiles the unit square ten times in each axis,
+giving each tile local coordinates in [0,1] — the foundation of nearly every grid-based
+effect. The subtlety is that `mod` in GLSL is defined as `x - y * floor(x/y)`, which
+gives a positive result for negative inputs, unlike C's `fmod` which truncates toward
+zero. Code ported from CPU to shader that relies on the sign of a modulus will behave
+differently, and patterns that look correct in the positive quadrant break across the
+origin.
+
+Antialiasing procedural patterns uses the screen-space derivative functions. A hard
+`step` produces jagged edges because it changes discretely between adjacent pixels;
+replacing it with `smoothstep(-w, w, x)` where `w = fwidth(x)` produces a transition
+exactly one pixel wide regardless of zoom level, because `fwidth` reports how fast the
+value changes per pixel. This one technique separates amateur from professional
+procedural rendering, and it costs almost nothing.
+
+## Signed Distance Fields and Raymarching
+
+A signed distance function returns, for any point in space, the distance to the nearest
+surface, negative inside and positive outside. Raymarching renders these by stepping
+along a ray from the camera, at each step advancing by exactly the distance returned —
+which is guaranteed safe, since nothing is closer than that — until the distance falls
+below a threshold (a hit) or the ray exceeds a maximum distance or step count (a miss).
+This sphere tracing procedure converges quickly in open space and slows near grazing
+surfaces where the distance stays small.
+
+The appeal for generative art is that SDFs compose algebraically. Union is the minimum
+of two distances, intersection is the maximum, and subtraction is the maximum of one
+and the negation of the other. Smooth versions of these operators blend surfaces
+organically with a single parameter, which produces the characteristic melted,
+continuous forms of the medium. Infinite repetition costs one line — take the modulus
+of the position before evaluating — so an entire infinite lattice of objects renders at
+the same cost as one. Domain distortion, twisting or bending the input coordinate before
+evaluating, warps geometry without touching the primitives.
+
+Primitive SDFs and operations:
+  sphere, radius r        length(p) - r
+  box, half-extents b     length(max(abs(p) - b, 0.0)) + min(max(...), 0.0)
+  plane, normal n         dot(p, n) + h
+  torus, radii t          length(vec2(length(p.xz) - t.x, p.y)) - t.y
+  capsule a to b, r       length(p - closest_point_on_segment) - r
+  union                   min(d1, d2)
+  intersection            max(d1, d2)
+  subtraction             max(d1, -d2)
+  smooth union, k         h = clamp(0.5 + 0.5*(d2-d1)/k, 0, 1);
+                          mix(d2, d1, h) - k*h*(1-h)
+  repetition, period c    p = mod(p + 0.5*c, c) - 0.5*c
+  round by r              d - r
+  onion shell, t          abs(d) - t
+
+Normals come free from the gradient of the distance field, approximated by central
+differences: sample the SDF at small offsets along each axis and normalize the
+resulting vector. This is four to six extra field evaluations per pixel, which is the
+main reason raymarched scenes are expensive, and the tetrahedral four-sample variant is
+the standard optimization over the six-sample central difference.
+
+Two correctness pitfalls recur. First, non-uniform scaling breaks the distance
+property: scaling the input coordinate by a non-uniform factor yields a function that is
+no longer a true distance, so raymarching overshoots and produces artifacts. The remedy
+is to scale uniformly and multiply the result by the scale factor, or to divide the
+result by the largest scale component as a conservative bound. Second, most
+"distance functions" for complex shapes are actually lower bounds rather than exact
+distances, and if the bound is loose the march takes many small steps or, if it ever
+overestimates, punches through surfaces. Multiplying every step by a factor slightly
+below one is the standard defensive measure.
+
+[user] My raymarched scene renders correctly but drops to 12 fps at 1440p and the
+profiler says the fragment shader is the bottleneck.
+[assistant] tool_call gpu.shader_profile({"resolution": [2560, 1440], "fps": 12,
+"stage": "fragment", "max_steps": 256, "epsilon": 0.0001, "normal_samples": 6,
+"sdf_primitives": 34})
+[tool] {"pixels": 3686400, "avg_steps_per_ray": 97, "sdf_evals_per_frame": 3.9e8,
+"normal_eval_share": 0.31, "shadow_ray_share": 0.28, "hot_spots":
+["no_early_exit_on_max_dist", "six_sample_normals", "full_res_shadows"]}
+[assistant] You are evaluating the SDF about 390 million times per frame. Every fix
+below reduces that count rather than making each evaluation faster.
+
+Biggest win first: your normals use six samples and account for 31% of all SDF
+evaluations. Switch to the tetrahedral four-sample gradient — it is a drop-in
+replacement with visually identical results and cuts that third by a third.
+
+Second: shadow rays are another 28%. Raymarched soft shadows are notoriously
+expensive because each one is a full march. Halve their step budget, since shadow rays
+tolerate far more error than primary rays, and raise their epsilon by an order of
+magnitude. Better still, render shadows at half resolution into a buffer and upsample —
+shadow terms are low-frequency and the difference is rarely visible.
+
+Third: 97 average steps against a 256 cap suggests rays are marching a long way before
+giving up. Add an early exit on total distance, and make epsilon distance-dependent —
+scale it with the distance travelled, since a surface 100 units away does not need
+0.0001 precision to look correct. This alone typically cuts average steps by 30-40%.
+
+Two structural options if that is not enough. Render at 70% resolution and upscale;
+raymarched imagery is soft and this is usually imperceptible while cutting pixel count
+in half. And add a cheap bounding-volume test before the full march — if 34 primitives
+are all evaluated for every ray, a spatial early-out for rays that cannot possibly hit
+most of them is a large saving.
+
+Expect 12 fps to reach 45-60 with the normal, shadow, and epsilon changes alone.
+
+## Noise and Procedural Generation
+
+Noise functions are the raw material of procedural art. The requirement is a function
+that looks random but is deterministic, continuous, and reproducible from a coordinate
+alone — no memory, no state, evaluable in parallel for every pixel independently.
+
+Value noise assigns random values to lattice points and interpolates between them,
+which is simple and produces visible axis-aligned blockiness unless carefully filtered.
+Gradient noise, of which Perlin noise is the original, assigns random *gradients* to
+lattice points and interpolates the resulting dot products, giving a smoother result
+with no obvious grid alignment and a value of zero at every lattice point. Simplex
+noise replaces the hypercube lattice with a simplex tiling, reducing the number of
+corners to interpolate from 2^n to n+1, which makes it substantially faster in three
+dimensions and above and removes directional artifacts. Worley or cellular noise
+scatters feature points and returns the distance to the nearest, producing the
+characteristic organic cell structures used for water caustics, cracked earth, and
+scales.
+
+Fractal Brownian motion layers noise at successive octaves, each at double the
+frequency and roughly half the amplitude of the last. The amplitude ratio, the
+persistence, controls the roughness: 0.5 gives a natural-looking result, lower values
+give smoother forms, higher values approach white noise. Four to six octaves is usually
+sufficient, since further octaves contribute detail below the pixel scale and cost the
+same as the first.
+
+Noise recipes:
+  hash (no texture)   fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453)
+                      cheap, ubiquitous, precision-dependent — breaks on some
+                      mobile GPUs; integer bit-mix hashes are more robust
+  fBm                 sum over octaves of amp * noise(p * freq),
+                      freq *= 2.0, amp *= persistence
+  turbulence          same but using abs(noise); creates creases and ridges
+  ridged              1.0 - abs(noise), squared; produces mountain ridgelines
+  domain warp         noise(p + noise(p)); the single highest-impact technique for
+                      organic form — warping the input coordinate by another noise
+                      field produces flowing, marbled structure
+  curl noise          divergence-free vector field from noise derivatives; gives
+                      incompressible-looking fluid motion for particles
+
+Domain warping deserves emphasis because it is the technique that most reliably turns
+generic noise into something that looks designed. Evaluating noise at a position that
+has itself been displaced by another noise field produces swirls, filaments, and
+marbling that no amount of octave stacking achieves. Applying it twice — warping the
+warp — produces the intricate, flowing structures characteristic of the best
+procedural work, at the cost of tripling the noise evaluations.
+
+Randomness in generative art is a design material rather than a source of chaos. The
+practical discipline is to seed deterministically so a pleasing output can be
+reproduced and refined, to constrain the random ranges tightly enough that every
+sample is acceptable rather than filtering the failures by hand, and to distinguish
+parameters that should vary per piece from those that define the series. A generative
+system whose outputs all look alike has too little variance; one whose outputs are
+individually unpredictable in quality has too much, and the work of the artist is
+largely in tuning that boundary.
+
+## Colour, Lighting, and Output
+
+Colour handling is where technically correct shaders most often look wrong. The core
+issue is that sRGB, the standard colour space for displays and image files, is not
+linear: it applies a gamma curve of approximately 2.2 so that the limited bit depth is
+distributed according to human perceptual sensitivity, which is far finer in the darks.
+Light, however, adds linearly. Averaging two sRGB values does not average the light
+they represent, so blending, blurring, lighting, and antialiasing performed directly on
+sRGB values produce results that are systematically too dark in the midtones.
+
+The correct pipeline converts sRGB inputs to linear on read, performs all arithmetic in
+linear space, and converts back to sRGB on write. Modern APIs do this in hardware with
+sRGB texture formats and sRGB framebuffers, which is both faster and more accurate than
+doing it manually with a pow. The visible symptom of getting it wrong is familiar: a
+gradient between red and green that goes muddy brown in the middle rather than passing
+through a bright yellow-olive, and a Gaussian blur that darkens the image overall.
+
+Perceptual colour spaces solve a different problem. Interpolating between two colours
+in RGB, even linear RGB, traverses a path that is not perceptually uniform — equal
+steps do not look equally different, and hue shifts appear along the way. HSL and HSV
+are trivially computed and only marginally better, since their lightness axis does not
+correspond to perceived brightness. CIELAB and its successors are designed for
+perceptual uniformity, and the recent OKLab and OKLCH are the practical modern choice:
+interpolation in OKLCH produces smooth, predictable gradients with stable hue and
+uniform lightness steps, which is why it has been adopted into CSS.
+
+Colour and lighting reference:
+  sRGB to linear      c <= 0.04045 ? c/12.92 : pow((c+0.055)/1.055, 2.4)
+  linear to sRGB      c <= 0.0031308 ? 12.92*c : 1.055*pow(c, 1/2.4) - 0.055
+  luminance (Rec709)  dot(linear_rgb, vec3(0.2126, 0.7152, 0.0722))
+  Lambert diffuse     max(dot(N, L), 0.0) * albedo * light_color
+  Blinn-Phong spec    pow(max(dot(N, normalize(L + V)), 0.0), shininess)
+  Fresnel (Schlick)   F0 + (1 - F0) * pow(1 - dot(N, V), 5.0)
+  ambient occlusion   darkens creases; approximated in SDFs by sampling the field
+                      along the normal
+  tone mapping        maps unbounded HDR radiance into [0,1]; ACES and the
+                      Khronos neutral curve are the common choices
+  dithering           add ~1/255 of noise before quantizing; removes banding in
+                      smooth gradients at 8-bit output
+
+Fresnel is the effect that most improves the perceived realism of a shaded surface for
+the least code. Every material becomes more reflective at grazing angles — the reason a
+road looks mirror-like into the distance and matte underfoot — and Schlick's
+approximation captures it in one line. Adding a Fresnel term to an otherwise flat
+shaded object immediately gives it a sense of material and volume.
+
+Banding in smooth gradients is a quantization artifact of 8-bit output, not a shader
+bug, and it is unavoidable when a gradient spans fewer than 256 distinct values across
+many pixels. Adding a small amount of noise before quantization — on the order of one
+least-significant bit, ideally a blue-noise or ordered dither pattern rather than white
+noise — converts the visible contour lines into imperceptible grain. This is the last
+step of nearly every polished shader and is routinely omitted, which is why so much
+otherwise careful work shows contour rings in dark gradients.

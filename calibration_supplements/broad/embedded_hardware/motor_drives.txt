@@ -1,0 +1,342 @@
+================================================================================
+AREA: Embedded Systems and Hardware
+SUBJECT: Motor Drives and Motion Systems
+Subtopics: motor types, drive electronics, commutation and control, position sensing,
+motion profiles, mechanical transmission, sizing, diagnostics.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Motor Types and Selection
+
+An electric motor converts electrical energy into mechanical motion through the interaction of
+magnetic fields, and the types differ in how those fields are produced and switched. The choice
+determines the drive electronics, the control complexity, the sensing requirement, and the
+achievable performance, so it is the decision that constrains everything downstream.
+
+Brushed DC motors use mechanical commutation: brushes contacting a rotating commutator switch the
+current through the windings as the rotor turns, so the torque remains in one direction without any
+electronics. This makes the drive trivially simple — apply voltage and it turns — and it makes the
+brushes a wear item that limits life, generates electrical noise, and produces dust. Torque is
+proportional to current and speed is proportional to voltage, which makes the control intuitive.
+
+Brushless motors move the commutation into electronics, which eliminates the wear and permits far
+higher efficiency, speed, and power density. The cost is that the drive must know the rotor
+position to energize the correct windings, which requires either position sensors or an estimation
+scheme. Two variants exist and are frequently confused: trapezoidal motors have concentrated
+windings and are driven with block commutation, while sinusoidal motors have distributed windings
+and are driven with sinusoidal currents, giving smoother torque at the cost of more complex
+control.
+
+Stepper motors move in discrete steps determined by the winding energization sequence, which
+permits open-loop position control with no feedback at all. This is their entire appeal and their
+central weakness: if the load exceeds the available torque, the motor loses steps silently and the
+controller's position estimate is wrong with no indication. They also produce full holding current
+regardless of load, so they run hot and consume power even when stationary.
+
+Motor types:
+  brushed DC           mechanical commutation; simple drive, brush wear, noise
+  torque and speed     torque proportional to current, speed to voltage
+  brushless DC         electronic commutation; needs rotor position
+  trapezoidal BLDC     concentrated windings, block commutation, torque ripple
+  PMSM                 sinusoidal windings and drive; smooth torque, more complex
+                       control
+  induction motor      no rotor magnets; rugged, cheap, and requires slip so the
+                       rotor never matches the field speed
+  stepper              discrete steps, open loop; loses steps silently under
+                       overload
+  microstepping        intermediate positions by proportioning phase currents;
+                       smoother and does not increase the reliable positioning
+                       accuracy proportionally
+  servo                a motor with position feedback and closed-loop control; a
+                       system rather than a motor type
+  linear motor         direct linear force; no transmission backlash, low force
+                       density
+  torque constant      newton metres per amp; with the back EMF constant, the same
+                       number in SI units
+  back EMF             voltage generated proportional to speed; limits the
+                       achievable speed at a given supply voltage
+  thermal limit        continuous torque is limited by heat rather than by
+                       magnetics; peak torque can far exceed it briefly
+
+Q: A stepper motor system positions correctly at low speed and accumulates error at high
+acceleration. The most likely cause is:
+A. Encoder failure
+B. The motor is losing steps because the required torque exceeds what is available at that speed,
+   and open-loop stepping has no way to detect it
+C. Incorrect microstepping
+D. Supply voltage too high
+Reasoning: A stepper's available torque falls with speed because back EMF opposes the drive
+voltage and the winding inductance limits current rise. If the acceleration demands more torque
+than is available, the rotor falls behind and steps are lost, with no feedback to indicate it. The
+remedies are a gentler acceleration profile, a higher supply voltage to force current faster, a
+larger motor, or closed-loop operation. Answer: B.
+
+## Drive Electronics
+
+The power stage converts the supply into controlled current in the motor windings, and the
+half-bridge is the fundamental building block: two switches in series across the supply with the
+motor connected at their midpoint. Switching the upper device connects the winding to the supply
+and the lower connects it to ground, so the average voltage is controlled by the duty ratio.
+
+Three half-bridges form the three-phase inverter that drives brushless and induction motors, and
+one or two form the arrangements driving brushed motors — a single half-bridge gives one direction
+with braking, and a full bridge of two gives both directions.
+
+The dead time between switching one device off and the other on is what prevents shoot-through,
+where both conduct simultaneously and short the supply. It must be long enough for the first
+device to turn off fully under all conditions and short enough that the resulting voltage
+distortion is tolerable. Too little destroys the devices; too much distorts the output waveform and
+degrades low-speed performance, which is why dead-time compensation is implemented in
+performance-oriented drives.
+
+Current measurement is required for any torque control and the placement determines what is
+measurable. A shunt in each phase gives direct measurement of every phase at the cost of level
+shifting from the switching node. A shunt in the low side of each leg is easier to measure and is
+valid only while the low-side device conducts, which constrains the timing. A single shunt in the
+supply return is cheapest and requires reconstruction of the phase currents from the switching
+state, which fails at extreme duty ratios.
+
+Drive electronics:
+  half bridge          two switches; duty ratio sets the average voltage
+  full bridge          two half bridges; bidirectional
+  three-phase inverter  three half bridges; brushless and induction
+  dead time            prevents shoot-through; too little destroys, too much
+                       distorts
+  dead-time compensation  correct the resulting distortion in software
+  bootstrap            supplies the high-side gate drive; requires the low side to
+                       conduct periodically to recharge, which constrains
+                       hundred-percent duty operation
+  gate driver          supplies peak current to switch quickly; an underpowered
+                       driver raises switching loss quadratically
+  shoot-through        both devices conducting; a short across the supply
+  current sensing      phase shunts, low-side shunts, or a single supply shunt;
+                       each trades cost against what is measurable and when
+  regeneration         a decelerating motor returns energy; the supply must absorb
+                       it or the bus voltage rises
+  brake resistor       dissipates regenerated energy where the supply cannot
+                       absorb it; required for high-inertia decelerating loads
+  bus capacitance      absorbs switching ripple and regenerated energy; sized for
+                       ripple current as much as for capacitance
+  PWM frequency        above audibility if noise matters; higher costs switching
+                       loss and permits lower current ripple
+
+Regeneration deserves emphasis because it produces a failure that surprises people. A motor
+decelerating a load acts as a generator and returns energy to the supply, raising the bus voltage.
+A battery absorbs it, a supply with a diode input cannot, and the voltage rises until something
+fails — typically the bus capacitors or the switches. Any system decelerating a substantial inertia
+from a rectified supply needs either a brake resistor switched in when the bus rises or a control
+strategy that limits the deceleration rate, and discovering this after the first hard stop is a
+common experience.
+
+## Commutation and Control
+
+Commutation is the sequencing of winding currents to maintain torque as the rotor turns, and its
+sophistication determines the torque quality. Six-step or trapezoidal commutation energizes two of
+three phases at a time in a sequence determined by the rotor sector, which requires only coarse
+position information — three Hall sensors give sixty-degree resolution, which is sufficient. Its
+cost is torque ripple, since the torque varies within each sector, producing audible noise and
+speed variation at low speed.
+
+Field oriented control drives all three phases with sinusoidal currents whose phase is
+continuously matched to the rotor position, which gives smooth torque and the best efficiency. It
+works by transforming the three phase currents into a rotating reference frame where they become
+two direct-current quantities — one producing torque and one producing flux — which can then be
+controlled independently by ordinary regulators. This transformation is what makes the control
+tractable, and it requires accurate continuous rotor position rather than sector information.
+
+The control structure is a cascade of nested loops, and the ordering follows from their
+bandwidths. The innermost current loop is fastest, running at the switching frequency or a
+submultiple, and it regulates torque. The velocity loop is roughly a decade slower and commands
+current. The position loop is slower again and commands velocity. Each loop must be substantially
+faster than the one enclosing it, or they interact and the system oscillates.
+
+Commutation and control:
+  six-step commutation  two phases at a time; coarse position sufficient, torque
+                       ripple
+  Hall sensors         sixty-degree resolution; enough for six-step
+  sinusoidal commutation  smooth torque; needs continuous position
+  field oriented control  transform to a rotating frame; independent torque and
+                       flux control
+  Clarke and Park transforms  three phase to two axis, then to the rotor frame
+  direct and quadrature currents  flux-producing and torque-producing
+  field weakening      negative direct-axis current reduces the effective flux,
+                       permitting speed above the back-EMF limit at reduced torque
+  cascaded loops       current inside velocity inside position
+  bandwidth separation  each loop roughly a decade faster than the one enclosing
+                       it
+  feedforward          command the expected current from the desired acceleration;
+                       the feedback then corrects only the error, which
+                       substantially improves tracking
+  anti-windup          on every integrator that can saturate
+  torque ripple        from commutation, cogging, and sensor error; audible and
+                       visible at low speed
+  cogging torque       from magnetic attraction between magnets and stator teeth;
+                       present with no current, and reduced by skewing
+
+Feedforward deserves emphasis because it is the single most effective addition to a motion
+control loop and is frequently omitted. A feedback-only loop must first observe an error before
+correcting it, so it necessarily lags the command. Computing the current required to produce the
+commanded acceleration from the known inertia, and adding it directly, means the feedback loop
+handles only the discrepancy between the model and reality. Tracking error typically falls by an
+order of magnitude, and the addition requires only an inertia estimate.
+
+## Sensing, Motion Profiles, and Transmission
+
+Position sensing determines what control is possible. Hall sensors give sector information
+adequate for six-step commutation and inadequate for smooth control. Incremental encoders give
+high-resolution relative position and require a homing operation at startup to establish the
+absolute reference. Absolute encoders give position immediately at power-on. Resolvers are rugged
+analogue devices suited to harsh environments. Sensorless schemes estimate position from the back
+EMF or from the winding inductance variation, which works well at speed and poorly or not at all
+near zero, where the back EMF vanishes.
+
+Motion profiles determine how a move is executed, and the choice affects the mechanical stress and
+the settling behaviour. A trapezoidal velocity profile accelerates at a constant rate, cruises, and
+decelerates, which is simple and produces a step change in acceleration at each transition —
+infinite jerk, which excites structural resonances and produces audible knocking and vibration. An
+S-curve profile limits the rate of change of acceleration, which lengthens the move slightly and
+substantially reduces the excitation.
+
+Mechanical transmission couples the motor to the load and its properties dominate the achievable
+performance more than the motor's do. A gearbox multiplies torque by the ratio and divides speed,
+and it multiplies the reflected inertia by the square of the ratio — which is usually beneficial,
+since it makes the motor's own inertia dominant and the load easy to control, and it is why high
+reduction systems are not backdrivable.
+
+Sensing, profiles, and transmission:
+  Hall sensors         sector information; six-step only
+  incremental encoder  high resolution, relative; requires homing
+  absolute encoder     position at power-on; single or multi-turn
+  resolver             rugged analogue; harsh environments
+  sensorless           back EMF or inductance based; fails near zero speed
+  quadrature           two channels ninety degrees apart; direction and four times
+                       the resolution
+  trapezoidal profile  constant acceleration; infinite jerk at the transitions
+  S-curve profile      limited jerk; less excitation of resonances
+  jerk                 the rate of change of acceleration; what excites structural
+                       modes
+  gear reduction       multiplies torque, divides speed, multiplies reflected
+                       inertia by the ratio squared
+  inertia matching     the classical rule of a load-to-motor inertia ratio near
+                       one; a guideline rather than an optimum, and ratios far
+                       from it work with appropriate control
+  backlash             lost motion on reversal; the dominant limit on positioning
+                       accuracy in geared systems, and it destabilizes a
+                       high-gain loop
+  compliance           transmission flexibility; produces a resonance between the
+                       motor and load inertias that bounds the achievable
+                       bandwidth
+  belt drive           compliant and quiet; the compliance sets the resonance
+  harmonic drive       high ratio, near-zero backlash, some compliance
+  direct drive         no transmission; no backlash, backdrivable, needs a large
+                       motor
+
+Transmission compliance deserves emphasis because it sets a hard ceiling on control bandwidth.
+Motor and load inertias connected by a flexible element form a two-mass resonant system, and a
+control loop with bandwidth approaching that resonance excites it and becomes unstable. The
+practical limit is roughly a third to a half of the resonant frequency, so a compliant belt drive
+with a resonance at eighty hertz limits the loop to perhaps thirty, regardless of how good the
+motor and drive are. Improving the response therefore requires stiffening the transmission rather
+than tuning the controller, which is a mechanical fix to what presents as a control problem.
+
+[user] My servo axis oscillates at about 45 Hz when I raise the position loop gain, well before
+reaching the performance I need.
+[assistant] tool_call motion.tuning_diagnose({"oscillation_hz": 45, "loop": "position",
+"transmission": "toothed_belt", "motor_inertia_kgcm2": 0.9, "load_inertia_kgcm2": 12,
+"encoder": "motor_side_only", "current_bandwidth_hz": 900, "velocity_bandwidth_hz": 60})
+[tool] {"cause": "two_mass_resonance_from_belt_compliance",
+"estimated_resonance_hz": 45, "inertia_ratio": 13.3,
+"achievable_bandwidth_limit_hz": [15, 22], "recommendations": ["stiffen_transmission",
+"notch_filter", "load_side_feedback", "reduce_inertia_ratio"]}
+[assistant] You are exciting the mechanical resonance between the motor and the load through the
+belt's compliance, and no amount of controller tuning removes it.
+
+Your motor and load inertias, coupled through a compliant belt, form a two-mass system resonating
+at about 45 Hz — exactly where you see the oscillation. A position loop with bandwidth approaching
+that frequency feeds energy into the mode, and the standard limit is a third to a half of the
+resonance, so 15 to 22 Hz is what this mechanical arrangement supports.
+
+Your inertia ratio of 13 to 1 makes it worse, because the resonance is more pronounced when the
+load inertia dominates. The motor barely feels the load through the compliance at that frequency,
+so the two masses move independently.
+
+Four options, in order of how much they buy.
+
+Stiffen the transmission. This raises the resonant frequency directly and is the only change that
+raises the ceiling rather than working beneath it. A wider or shorter belt, a stiffer belt
+material, a higher preload, or replacing the belt with a direct coupling or a stiffer gearbox all
+help. Doubling the stiffness raises the resonance by about forty percent.
+
+Add a notch filter at 45 Hz in the velocity loop. This attenuates the controller's output at the
+resonant frequency so it stops exciting the mode, and it typically permits a fifty to hundred
+percent bandwidth increase. It is the standard remedy and it is a workaround rather than a fix —
+the resonance is still there and a shift in its frequency, from load change or belt ageing, moves
+it out of the notch.
+
+Reduce the inertia ratio, by a different gear ratio or a larger motor. This reduces the
+resonance's severity though not its frequency.
+
+Add load-side feedback. You are measuring at the motor, so the loop does not see what the load is
+actually doing and the compliance is entirely outside the loop. A second encoder on the load,
+used in a dual-loop arrangement, closes the position loop around the actual output. This is the
+most capable arrangement and it is more complex to tune, since the compliance is now inside the
+loop.
+
+One check first: verify the 45 Hz is mechanical rather than electrical by disconnecting the load
+and repeating. If the oscillation disappears, it is the resonance as diagnosed. If it persists, the
+velocity loop tuning or a sensor issue is involved and the fix is different.
+
+## Sizing, Thermal, and Diagnostics
+
+Sizing a motor requires the load's torque and speed requirements across the whole duty cycle
+rather than at a single operating point. The peak torque requirement, typically during
+acceleration, must be within the motor's peak capability. The root mean square torque over the
+cycle must be within the continuous rating, since that is what determines the heating. And the
+maximum speed must be achievable at the available supply voltage against the back EMF.
+
+The distinction between peak and continuous rating is thermal. A motor's peak torque is limited by
+magnetic saturation and by the drive's current capability, and it can be delivered briefly. The
+continuous rating is limited by heat — the losses at that current, dissipated through the motor's
+thermal path, must reach a steady temperature within the winding insulation's limit. A motor can
+therefore deliver several times its continuous torque for seconds and would overheat within
+minutes.
+
+Diagnostics benefit from the motor being an accessible sensor of its own condition. Current
+consumption reflects the mechanical load directly, so a rising trend at constant commanded motion
+indicates increasing friction — a failing bearing, a contaminated guideway, a misalignment.
+Following error reflects whether the axis is achieving its command. And the current signature's
+frequency content reveals mechanical faults, since a defect in a bearing or a gear produces a
+periodic load variation at a frequency determined by the geometry.
+
+Sizing and diagnostics:
+  peak torque          acceleration; limited by saturation and drive current
+  RMS torque           over the duty cycle; determines heating and must be within
+                       the continuous rating
+  duty cycle analysis  sizing from a single operating point is the common error
+  speed requirement    achievable against back EMF at the supply voltage
+  thermal path         winding to stator to housing to mount; the mounting
+                       substantially affects the continuous rating
+  insulation class     the temperature limit; life halves per ten degrees above it
+  derating             for ambient temperature, altitude, and enclosure
+  service factor       margin for the unexpected; sizing to exactly the
+                       calculated requirement leaves none
+  current monitoring   reflects load; a rising trend indicates increasing friction
+  following error      command minus actual; the primary health signal
+  current signature    frequency content reveals bearing and gear defects at
+                       characteristic frequencies
+  temperature sensing  in the winding where possible; thermal models estimate it
+                       where not
+  safe torque off      a hardware path removing the drive's ability to produce
+                       torque, independent of the software; the standard
+                       functional safety mechanism, and it is not the same as
+                       commanding zero
+
+Safe torque off deserves the closing emphasis because the distinction it embodies is a safety
+requirement rather than a design preference. Commanding a motor to zero torque relies on the
+software, the communication, and the drive all functioning, and none of those can be relied upon in
+a safety argument. Safe torque off is a hardware path that removes the gate drive supply
+independently of the control system, so no software fault, no communication failure, and no
+processor lockup can produce motion. Any machine where unexpected motion could injure someone
+requires this rather than a software interlock, and it is the reason the function exists as a
+certified capability in industrial drives rather than as something implemented in firmware.

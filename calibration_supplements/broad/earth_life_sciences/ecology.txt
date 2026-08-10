@@ -1,0 +1,281 @@
+================================================================================
+AREA: Earth and Life Sciences
+SUBJECT: Ecology
+Subtopics: populations, species interactions, communities, ecosystems and energy flow,
+biogeochemical cycles, biodiversity, disturbance and succession, conservation.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Population Ecology
+
+Population ecology studies how numbers of organisms change, and the two baseline models
+frame everything that follows. Exponential growth occurs when per-capita birth and death rates
+are constant, producing growth proportional to current size and therefore unbounded increase.
+It describes real populations only briefly — during colonization of new habitat, or recovery
+from a crash — because resources are finite.
+
+Logistic growth introduces a carrying capacity at which growth stops, with the per-capita
+rate declining linearly as the population approaches it. This produces the sigmoid curve
+familiar from textbooks and is a substantial idealization: carrying capacity is not a fixed
+property of an environment but varies with conditions, resource availability, and the
+population's own effects on its habitat. Its value is as a null model against which real
+dynamics are compared, not as a description.
+
+Real populations exhibit dynamics the simple models do not predict. Time lags between
+population size and its regulatory effect produce oscillations and overshoot, because the
+population continues growing past carrying capacity before the feedback takes effect. Discrete
+generations with strong density dependence produce cycles and, at high growth rates, chaos —
+the logistic map's period-doubling route to chaos was discovered in exactly this ecological
+context. Stochasticity matters disproportionately at small population size, where random
+variation in births and deaths can drive extinction regardless of average conditions, which
+is the demographic basis for minimum viable population sizes.
+
+Population concepts:
+  exponential growth     dN/dt = rN;  unbounded, brief in practice
+  logistic growth        dN/dt = rN(1 - N/K);  sigmoid, carrying capacity K
+  intrinsic rate r       maximum per-capita growth under ideal conditions
+  carrying capacity K    variable, not a fixed environmental constant
+  density dependence     regulation through competition, disease, predation
+  density independence   weather, disturbance; affects rate regardless of density
+  r-selected             high fecundity, low survival, early reproduction; favoured
+                         in variable or disturbed environments
+  K-selected             low fecundity, high investment, late reproduction;
+                         favoured in stable saturated environments
+  life table             age-specific survival and fecundity; the demographic core
+  metapopulation         subpopulations linked by dispersal; local extinction and
+                         recolonization
+  source-sink            productive patches exporting individuals to patches where
+                         mortality exceeds reproduction
+  Allee effect           reduced per-capita growth at low density; mate-finding,
+                         group defence, cooperative foraging
+  minimum viable pop.    the size below which stochastic extinction becomes likely
+
+The Allee effect deserves emphasis because it inverts the usual expectation and has direct
+conservation consequences. Standard density dependence means small populations grow fastest,
+which would make recovery from low numbers easy. Where individuals depend on each other — for
+finding mates, for cooperative hunting, for predator dilution, for maintaining a modified
+habitat — per-capita growth falls at low density instead, creating a threshold below which the
+population declines to extinction regardless of protection. The passenger pigeon's collapse
+from billions to zero is the standard example, and it explains why some species fail to
+recover after harvesting stops.
+
+Q: A conservation programme protects a species whose population has fallen to a few dozen
+individuals, and the population continues to decline despite complete protection from its
+former threat. The most likely ecological explanation is:
+A. The carrying capacity fell
+B. An Allee effect, in which per-capita growth is reduced at very low density
+C. Exponential decay
+D. Density dependence
+Reasoning: Removing the original threat should permit growth under ordinary density
+dependence, since small populations face least competition. Continued decline suggests
+per-capita growth is negative at low density, which is the Allee effect — from difficulty
+finding mates, loss of cooperative behaviours, or inbreeding depression. Answer: B.
+
+## Species Interactions
+
+Interactions between species are classified by their effect on each participant, and the
+classification is useful because the dynamics differ systematically. Competition harms both.
+Predation, parasitism, and herbivory benefit one at the other's expense. Mutualism benefits
+both. Commensalism benefits one and is neutral for the other, and genuine examples are rarer
+than casual classification suggests, since most apparently neutral relationships turn out to
+have small costs or benefits when measured.
+
+The competitive exclusion principle states that two species competing for exactly the same
+limiting resource cannot coexist indefinitely — the better competitor excludes the other. Its
+apparent contradiction by the enormous diversity of coexisting species is resolved by niche
+differentiation: species partition resources by type, by space, by time, or by size, so they
+are not in fact competing for an identical resource. Character displacement, where
+coexisting species diverge in traits more than allopatric populations do, is the evolutionary
+signature of this partitioning.
+
+Predator-prey dynamics generate cycles under simple assumptions, with the predator population
+lagging the prey by a quarter cycle. The classic lynx and hare data from fur trading records
+show this pattern, though the interpretation is complicated by the fact that the hare cycle
+appears in areas without lynx, indicating that vegetation and other factors contribute. This
+is a general caution about the field: the mechanism that a simple model attributes a pattern
+to is frequently one among several, and demonstrating which operates requires manipulation
+rather than correlation.
+
+Interaction types and dynamics:
+  competition            -/-;  interference or exploitation
+  competitive exclusion  identical niches cannot coexist stably
+  niche partitioning     resource, spatial, temporal differentiation
+  character displacement evolutionary divergence where species co-occur
+  predation              +/-;  can generate cycles with a lag
+  functional response    predation rate versus prey density; saturating, and the
+                         sigmoid type can stabilize prey at low density
+  parasitism             +/-;  the parasite generally does not kill the host
+  parasitoid             kills the host; important in biological control
+  mutualism              +/+;  pollination, mycorrhizae, gut microbiota
+  obligate vs facultative  whether the partner is required
+  cheating               mutualisms are exploitable and require enforcement or
+                         partner choice to persist
+  keystone species       an effect on the community disproportionate to abundance
+  ecosystem engineer     modifies the physical habitat; beavers, corals, trees
+  trophic cascade        predator effects propagating down through multiple levels
+
+Keystone species and trophic cascades are the ideas with the widest reach outside ecology.
+Removing a top predator releases its prey, which then over-exploits the next level down,
+altering the community structure far beyond the direct interaction. Sea otter removal allowed
+sea urchin populations to explode and eliminate kelp forests; wolf reintroduction in
+Yellowstone altered elk browsing behaviour and, through that, riparian vegetation and stream
+morphology. The size of these effects has sometimes been overstated in popular accounts,
+which attribute to a single reintroduction changes that had multiple causes, and the general
+phenomenon of top-down regulation is nonetheless well established.
+
+## Communities and Ecosystems
+
+A community is the set of interacting species in an area, and its structure is described by
+species richness — the count — and evenness — how equally abundance is distributed. Diversity
+indices combine both, and the choice among them matters because they weight rarity
+differently: richness counts every species equally regardless of abundance, Shannon diversity
+weights by log abundance, and Simpson diversity is dominated by the common species.
+Conclusions about whether diversity increased or decreased can depend on which index is used.
+
+Species-area relationships hold with remarkable generality: the number of species increases
+with area following a power law with an exponent typically between 0.15 and 0.35. The
+practical consequence is the basis of much conservation planning — reducing habitat area to
+ten percent of its original extent is expected to retain roughly half of the species, not ten
+percent. Island biogeography theory explains the pattern as a balance between immigration,
+which decreases with isolation, and extinction, which decreases with area, and the theory
+applies to habitat fragments as well as literal islands.
+
+Ecosystems add the abiotic environment and focus on energy flow and material cycling. The
+foundational asymmetry is that energy flows through while matter cycles: energy enters as
+sunlight, is captured by primary producers, passes up trophic levels with large losses, and
+leaves as heat, never to be reused. Matter, by contrast, is repeatedly recycled through
+organisms, soil, water, and atmosphere.
+
+Community and ecosystem structure:
+  species richness       the count of species
+  evenness               how equally abundance is distributed
+  Shannon / Simpson      diversity indices weighting rarity differently
+  species-area curve     S = cA^z, z typically 0.15-0.35
+  island biogeography    immigration versus extinction; area and isolation
+  trophic level          producer, primary consumer, secondary, tertiary
+  ecological efficiency  ~10% of energy transferred per level, with wide variation
+  food chain length      limited by energy loss; rarely exceeds four or five levels
+  food web               the realistic network; most consumers feed at several levels
+  primary production     GPP is total photosynthesis, NPP is GPP minus plant
+                         respiration; NPP is what supports everything above
+  biomass pyramid        can be inverted in aquatic systems, where fast-turnover
+                         phytoplankton support a larger standing crop of consumers
+  decomposers            return nutrients; without them, nutrients would be locked
+                         in dead biomass and productivity would cease
+
+The roughly ten percent transfer efficiency between trophic levels is the quantity with the
+broadest consequences. Most energy at each level is lost to respiration, to unconsumed
+biomass, and to indigestible material, so the energy available to support each successive
+level falls by an order of magnitude. This limits food chain length, explains why top
+predators are rare and require large territories, and underlies the arithmetic of human diet:
+producing a given quantity of animal protein requires roughly an order of magnitude more
+primary production than producing the equivalent plant protein, which is why land use and
+agricultural emissions depend so strongly on dietary composition.
+
+## Biogeochemical Cycles
+
+Nutrients cycle between organisms and the environment, and the cycles differ in whether they
+have a substantial atmospheric phase, which determines how quickly they equilibrate globally
+and how susceptible they are to human perturbation.
+
+The carbon cycle exchanges enormous fluxes between atmosphere, ocean, land biosphere, and
+soils on annual timescales, and much smaller fluxes with rocks and fossil deposits over
+geological time. Human extraction and combustion of fossil carbon transfers material from the
+slow reservoir into the fast one at a rate the fast cycle cannot absorb, which is why
+atmospheric concentration rises despite the ocean and land taking up roughly half the
+emissions.
+
+The nitrogen cycle is limited by a chemical barrier: atmospheric nitrogen is abundant and
+inert, held by a triple bond that most organisms cannot break. Nitrogen fixation by bacteria,
+some free-living and some symbiotic with legumes, converts it to biologically usable forms,
+and this was the rate-limiting step for terrestrial productivity through most of Earth's
+history. Industrial fixation by the Haber-Bosch process now roughly doubles the natural rate,
+which supports a large fraction of the human population and produces the excess nitrogen that
+causes eutrophication and nitrous oxide emissions.
+
+Cycle characteristics:
+  carbon           fast biological exchange, slow geological; fossil combustion
+                   moves the slow reservoir into the fast one
+  nitrogen         atmospheric N2 is inert; fixation is the bottleneck
+  Haber-Bosch      industrial fixation roughly doubles the natural rate
+  nitrification    ammonia to nitrite to nitrate, by bacteria
+  denitrification  nitrate back to N2; returns nitrogen to the atmosphere
+  phosphorus       no atmospheric phase; weathering to soil to organism to
+                   sediment; effectively one-way on human timescales
+  eutrophication   nutrient enrichment causing algal blooms, then decomposition
+                   consuming oxygen, then hypoxic dead zones
+  limiting nutrient  usually phosphorus in freshwater, nitrogen in marine systems
+  water cycle      evaporation, transpiration, precipitation, runoff
+  sulfur           volcanic and biological; acid deposition when combined with
+                   fossil combustion
+  residence time   how long an atom stays in a reservoir; determines how fast a
+                   perturbation propagates
+
+Phosphorus deserves particular attention because its cycle has no atmospheric phase, which
+makes it fundamentally different from carbon and nitrogen. It enters ecosystems only by rock
+weathering, cycles through organisms, and is eventually lost to ocean sediments where it is
+unavailable until tectonic uplift returns it over millions of years. There is no biological or
+industrial process that returns phosphorus from the ocean to land at scale. Phosphate rock is
+therefore a genuinely finite resource on human timescales, and the fraction of mined phosphorus
+that reaches the ocean through agricultural runoff is permanently lost — a resource question
+distinct from the pollution question that the same runoff creates.
+
+## Disturbance, Succession, and Conservation
+
+Disturbance is any event that removes biomass and creates opportunity, from fire and flood to
+windthrow and grazing. Succession is the sequence of community change that follows. Primary
+succession begins on newly exposed substrate with no soil and proceeds slowly, since soil
+formation is the rate-limiting step. Secondary succession follows a disturbance that left soil
+intact and proceeds much faster, which is why an abandoned field reforests in decades while a
+new lava flow takes centuries.
+
+The intermediate disturbance hypothesis proposes that diversity peaks at intermediate
+frequency and intensity of disturbance: too little allows competitive dominants to exclude
+others, and too much permits only rapid colonizers. The hypothesis is intuitive, has empirical
+support in some systems, and has been substantially criticized as not general — a useful case
+study in the difference between a memorable idea and an established one.
+
+The recognition that disturbance is a normal component of ecosystems rather than a departure
+from a stable state changed management practice fundamentally. Fire suppression in
+fire-adapted systems allows fuel accumulation that eventually produces catastrophic fires
+far outside the historical range, and it eliminates the species that depend on periodic
+burning. Managing for a fixed target state is generally less successful than managing for the
+processes that maintain the system.
+
+Disturbance, threats, and response:
+  primary succession     on new substrate; soil formation limits the rate
+  secondary succession   after disturbance with soil intact; much faster
+  pioneer species        fast-colonizing, short-lived, high dispersal
+  climax community       the historical framing; now understood as one of several
+                         possible states rather than a fixed endpoint
+  alternative stable states  a system can occupy more than one configuration under
+                         identical conditions; shifts can be abrupt and hard to
+                         reverse
+  hysteresis             reversing the driver does not reverse the state
+  resilience             capacity to absorb disturbance and retain function
+  habitat loss           the leading cause of extinction, by a wide margin
+  fragmentation          reduces effective area, increases edge, blocks dispersal
+  invasive species       released from natural enemies; the second leading cause
+  overexploitation       harvesting exceeding replacement
+  climate change         range shifts, phenological mismatch, ocean acidification
+  extinction debt        species committed to extinction by past habitat loss but
+                         not yet gone; current diversity overstates future
+
+Extinction debt is the concept most likely to mislead assessment of conservation status.
+After habitat is reduced, the species that the remaining area cannot support do not disappear
+immediately — long-lived individuals persist, populations decline gradually, and the new
+equilibrium is reached over decades to centuries. A fragmented landscape therefore contains
+species that are functionally already lost, and a survey showing they are present overstates
+the conservation outcome. The corresponding hopeful case is that intervention during that
+window can prevent the debt from being paid, which is a stronger argument for acting early
+than the current species list would suggest.
+
+Ecosystem services frame the practical case for conservation in terms that decision-makers
+weigh: provisioning services such as food and timber, regulating services such as pollination,
+water purification, flood control, and carbon storage, and cultural services. The framing is
+useful for making otherwise invisible values explicit and it carries a genuine risk, which is
+that it implies anything without a quantified service value is expendable. Both the
+instrumental argument and the case that species have value independent of use are available,
+and treating the economic framing as the only legitimate one concedes more than the evidence
+requires.

@@ -1,0 +1,301 @@
+================================================================================
+AREA: Physics
+SUBJECT: Optics and Photonics
+Subtopics: geometric optics, wave optics, polarization, lasers, detectors, fiber
+optics, nonlinear optics, imaging systems.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Geometric Optics
+
+Geometric optics treats light as rays travelling in straight lines through homogeneous
+media, bending at interfaces. It is the short-wavelength limit of wave optics, valid when
+the structures involved are much larger than the wavelength, and it is entirely adequate for
+designing lenses, mirrors, and imaging systems until diffraction becomes the limiting factor.
+
+Refraction at an interface follows Snell's law, with the product of refractive index and the
+sine of the angle from the normal conserved across the boundary. Light entering a denser
+medium bends toward the normal and slows, since the refractive index is the ratio of the
+speed of light in vacuum to that in the medium. Going from dense to less dense, the
+refracted ray bends away from the normal, and beyond a critical angle it cannot escape at
+all — total internal reflection, which is the mechanism of optical fiber, of prisms used as
+mirrors in binoculars, and of the sparkle of a cut diamond, whose high index gives it a
+critical angle of only 24 degrees.
+
+The thin lens equation relates object distance, image distance, and focal length, with sign
+conventions that must be stated because they differ between texts. Magnification is the
+negative ratio of image to object distance, so a real image formed beyond the focal point is
+inverted. The distinction between real and virtual images is worth precision: a real image
+can be projected onto a screen because light actually converges there, while a virtual image
+only appears to exist because diverging rays are extrapolated backward, which is what a
+magnifying glass and a plane mirror produce.
+
+Geometric optics relations:
+  refractive index      n = c / v;  air ~1.0003, water 1.33, glass 1.5-1.9
+  Snell's law           n1 sin(theta1) = n2 sin(theta2)
+  critical angle        sin(theta_c) = n2/n1,  n1 > n2
+  thin lens             1/f = 1/d_o + 1/d_i
+  magnification         m = -d_i / d_o
+  lensmaker's equation  1/f = (n-1)(1/R1 - 1/R2)
+  f-number              N = f / D;  light gathering scales as 1/N^2
+  depth of field        increases with f-number, decreases with magnification
+  numerical aperture    NA = n sin(theta_max);  resolution and light collection
+  mirror equation       same form as thin lens; f = R/2
+
+Aberrations are the departures from ideal imaging and each has a distinct signature.
+Spherical aberration arises because a spherical surface does not focus all annuli to the
+same point, producing a soft image with no sharp focus; it is corrected by aspheric surfaces
+or by combining elements. Coma makes off-axis points image as comet shapes. Astigmatism
+gives different focal positions for rays in perpendicular planes. Field curvature means the
+sharp image surface is not flat. Distortion changes magnification with field position,
+producing barrel or pincushion shapes without blurring. Chromatic aberration comes from the
+refractive index varying with wavelength and is corrected by combining glasses with
+different dispersions in an achromatic doublet — a defect mirrors do not have at all, which
+is one reason large telescopes use them.
+
+Q: A ray passes from glass (n = 1.5) into air. Total internal reflection occurs above an
+incidence angle of approximately:
+A. 30 degrees   B. 42 degrees   C. 48 degrees   D. It cannot occur
+Reasoning: The critical angle satisfies sin(theta_c) = n_air/n_glass = 1/1.5 = 0.667, so
+theta_c = 41.8 degrees. Total internal reflection requires going from higher to lower index,
+which is satisfied here. Answer: B.
+
+## Wave Optics
+
+Wave optics accounts for interference and diffraction, phenomena geometric optics cannot
+describe. Interference occurs when coherent waves superpose, adding constructively where
+they are in phase and destructively where they are opposed. The requirement is coherence —
+a fixed phase relationship — which is why interference from independent light sources is not
+observed and why demonstrations split a single beam.
+
+Young's double slit produces fringes whose spacing depends on wavelength, slit separation,
+and screen distance, and it is the canonical demonstration that light is a wave. The same
+experiment performed with single photons, or with electrons, produces the same fringe
+pattern built up one detection at a time, which is the cleanest statement of wave-particle
+duality and remains the most direct demonstration of quantum superposition.
+
+Thin film interference explains the colours of oil slicks, soap bubbles, and anti-reflection
+coatings. Light reflecting from the top and bottom surfaces of a thin film interferes, with
+the path difference determined by film thickness and index, and a half-wavelength phase shift
+occurring on reflection from a higher-index medium. Anti-reflection coatings exploit this
+deliberately: a quarter-wave layer with index equal to the geometric mean of the two
+surrounding media makes the two reflections cancel, and multilayer stacks extend the
+cancellation across a broad band, which is why quality optics appear coloured in reflection
+rather than white.
+
+Diffraction is the spreading of waves at apertures and edges, and it sets the fundamental
+resolution limit of every optical instrument. A circular aperture produces an Airy pattern
+with a central disc surrounded by rings, and two point sources are conventionally resolvable
+when the centre of one falls on the first minimum of the other — the Rayleigh criterion,
+giving an angular resolution of 1.22 times wavelength divided by aperture diameter.
+
+Wave optics relations:
+  double slit maxima     d sin(theta) = m lambda
+  single slit minima     a sin(theta) = m lambda
+  Rayleigh criterion     theta = 1.22 lambda / D
+  diffraction grating    d sin(theta) = m lambda;  resolving power R = mN
+  thin film constructive 2 n t = (m + 1/2) lambda, with one phase-inverting
+                         reflection
+  anti-reflection        n_coat = sqrt(n1 n2),  thickness = lambda/(4 n_coat)
+  coherence length       L = c / delta_nu ≈ lambda^2 / delta_lambda
+  Abbe diffraction limit d = lambda / (2 NA);  microscope resolution
+  Fresnel number         determines near-field versus far-field regime
+
+Coherence length is the practical parameter governing whether interference is observable in
+a given configuration. It is the path difference over which a source maintains a fixed phase
+relationship, and it is inversely proportional to spectral bandwidth: a white light source
+has a coherence length of a few micrometres, an LED perhaps tens, and a stabilized laser can
+exceed kilometres. Interferometric measurement requires the path difference to stay within
+the coherence length, which is exactly why laser interferometry can measure over long
+baselines and white-light interferometry only works within a very narrow range — a property
+turned into an advantage in optical coherence tomography, where the short coherence length
+provides depth sectioning.
+
+## Polarization
+
+Polarization describes the orientation of the electric field oscillation in an
+electromagnetic wave. Unpolarized light, such as that from thermal sources, has rapidly
+randomizing orientation. Linear polarization confines the field to one plane; circular
+polarization results from two perpendicular components of equal amplitude with a quarter-wave
+phase difference, so the field vector rotates; elliptical is the general case.
+
+A linear polarizer transmits the component along its axis. Malus's law gives the transmitted
+intensity as the incident intensity times the squared cosine of the angle between the
+polarization and the axis. For unpolarized input, a polarizer transmits half regardless of
+orientation. The three-polarizer demonstration is the standard surprise: crossed polarizers
+transmit nothing, and inserting a third at 45 degrees between them restores transmission,
+because each polarizer projects the field onto a new axis rather than merely filtering a
+pre-existing component.
+
+Reflection polarizes light, which has direct practical consequence. Light reflecting from a
+dielectric surface is preferentially polarized parallel to the surface, and at Brewster's
+angle the reflected light is completely polarized. This is why polarized sunglasses reduce
+glare from water and roads by blocking the horizontal component, and why photographers use
+rotating polarizing filters to control reflections and to darken skies, since scattered
+skylight is also partially polarized.
+
+Polarization components and effects:
+  polarizer            transmits one linear component; Malus's law
+  Brewster's angle     tan(theta_B) = n2/n1;  reflected light fully polarized
+  birefringence        different index for different polarizations; calcite,
+                       quartz, stressed plastic
+  wave plate           introduces a phase difference; quarter-wave converts linear
+                       to circular, half-wave rotates linear polarization
+  optical activity     rotation of polarization by chiral molecules; used to
+                       measure sugar concentration
+  Faraday rotation     magnetic-field-induced rotation; non-reciprocal, which is
+                       what makes optical isolators possible
+  photoelastic         stress-induced birefringence; visualizes stress fields
+  LCD                  voltage-controlled birefringence between crossed polarizers
+  Kerr and Pockels     electric-field-induced birefringence; fast optical modulators
+
+The non-reciprocity of Faraday rotation deserves emphasis because it enables a component
+with no passive equivalent. Most optical effects are reciprocal — light traversing a path
+backward experiences the same effect — so a wave plate rotating polarization one way rotates
+it back on return. Faraday rotation depends on the magnetic field direction rather than the
+propagation direction, so the rotation adds rather than cancels on a return pass. Combining
+it with polarizers produces an optical isolator that passes light one way and blocks the
+reverse, which is essential in laser systems where back-reflection into the cavity
+destabilizes or damages the source.
+
+## Lasers and Light Sources
+
+A laser produces coherent, monochromatic, directional light through stimulated emission. An
+excited atom stimulated by a photon of matching energy emits a second photon identical in
+frequency, phase, direction, and polarization — this cloning is the origin of coherence and
+is what distinguishes laser light from thermal emission.
+
+Three ingredients are required. A gain medium provides the atoms or molecules with a usable
+transition. A pump supplies energy to create population inversion, meaning more atoms in the
+upper state than the lower, which is necessary because otherwise absorption exceeds
+stimulated emission. And an optical cavity, typically two mirrors, feeds light back through
+the gain medium so it is amplified repeatedly, with one mirror partially transmitting to let
+the beam out.
+
+Population inversion cannot be achieved in a two-level system, because pumping the
+transition also stimulates the downward transition and the populations equalize at best.
+Three-level and four-level schemes solve this by pumping to a higher state that decays
+rapidly into the upper laser level, and in the four-level case having the lower laser level
+also empty rapidly so it stays nearly unpopulated. Four-level systems have much lower
+threshold pump power for this reason and dominate practical designs.
+
+Laser properties and types:
+  monochromatic        narrow linewidth; a stabilized laser can reach sub-hertz
+  coherent             long coherence length; enables interferometry and holography
+  directional          low divergence set by diffraction from the aperture
+  brightness           very high power per unit area per unit solid angle; this,
+                       not total power, is what distinguishes a laser
+  gas (HeNe, CO2)      good beam quality; CO2 at 10.6 um for material processing
+  solid state (Nd:YAG) high power, 1064 nm, frequency-doubled to 532 nm green
+  fiber                gain in a doped fiber; efficient, excellent beam quality,
+                       now dominant for industrial cutting
+  semiconductor        compact, efficient, directly modulated; communications and
+                       consumer devices; poorer beam quality without correction
+  Ti:sapphire          broadly tunable, ultrashort pulses
+  mode locking         fixed phase across cavity modes produces femtosecond pulses
+  Q-switching          stores energy then releases it in a nanosecond pulse of
+                       enormous peak power
+
+The distinction between average and peak power is essential when working with pulsed lasers
+and is a frequent source of both underestimated capability and underestimated hazard. A
+mode-locked laser emitting one nanojoule pulses of 100 femtoseconds at 80 megahertz has an
+average power of 80 milliwatts and a peak power of 10 kilowatts. The peak is what drives
+nonlinear processes and what damages optics; the average is what determines thermal load.
+Specifying only one of them describes the source incompletely.
+
+[user] I'm coupling a 976 nm diode into a single-mode fiber and only getting 30% through.
+[assistant] tool_call optics.fiber_coupling({"source": "laser_diode",
+"wavelength_nm": 976, "fiber_mfd_um": 6.2, "fiber_na": 0.14,
+"source_na_fast": 0.55, "source_na_slow": 0.12, "lens_na": 0.25,
+"measured_efficiency": 0.30})
+[tool] {"na_mismatch_fast_axis": true, "captured_fraction_fast": 0.45,
+"mode_overlap": 0.71, "theoretical_max": 0.32, "verdict": "beam_asymmetry_dominant",
+"recommended": ["fast_axis_collimator", "anamorphic_pair", "or_multimode_fiber"]}
+[assistant] You are actually at the theoretical limit for this setup — 30% measured against
+a 32% maximum. The problem is not alignment; it is that your diode's beam is highly
+asymmetric and single-mode fiber accepts only a symmetric mode.
+
+A laser diode emits from a rectangular aperture, so it diverges very differently in the two
+axes: your fast axis has an NA of 0.55 and your slow axis 0.12. Your fiber's NA is 0.14, so
+most of the fast-axis light is emitted outside the acceptance cone and simply cannot be
+captured no matter how well you align. Even the captured light has poor mode overlap because
+its spatial profile is elliptical and the fiber mode is circular.
+
+Three ways forward, depending on what you need.
+
+If you need single-mode output, circularize the beam. A fast-axis collimator — a short-focal
+cylindrical microlens placed close to the facet — collimates the divergent axis first, after
+which an anamorphic prism pair or a pair of crossed cylindrical lenses equalizes the two
+axes. Done well this reaches 60-75% coupling. This is standard practice for diode-to-fiber
+coupling and the components are commercially available.
+
+If you only need the power delivered and not a single spatial mode, use multimode fiber. A
+105 micron core with 0.22 NA will take essentially everything with simple aspheric coupling,
+often above 85%. For pumping a fiber amplifier this is the usual answer, since pump light
+does not need to be single mode.
+
+If you need both high power and single mode, buy a fiber-pigtailed diode. The manufacturer
+does the beam shaping at the wafer level with far better tolerances than bench assembly
+achieves, and the specified coupled power is what you get.
+
+One diagnostic worth running first: measure the free-space beam profile at two distances to
+confirm the divergence in each axis matches the datasheet. If the fast axis is worse than
+specified the diode may be damaged, and no coupling optics will fix that.
+
+## Fiber, Detectors, and Nonlinear Optics
+
+Optical fiber guides light by total internal reflection between a higher-index core and a
+lower-index cladding. Single-mode fiber has a core small enough — around nine micrometres —
+that only one spatial mode propagates, eliminating modal dispersion and enabling the
+bandwidth-distance products that make long-haul communication possible. Multimode fiber has
+a larger core, is far easier to couple into and to splice, and suffers modal dispersion that
+limits it to short reaches.
+
+Loss in silica fiber has a minimum near 1550 nanometres, around 0.2 decibels per kilometre,
+which is why that wavelength band carries essentially all long-haul traffic. At that loss a
+signal travels roughly 100 kilometres before needing amplification, and erbium-doped fiber
+amplifiers happen to have gain in exactly that band, which is an accident of materials
+science that shaped the entire architecture of global communications.
+
+Dispersion limits how fast data can be sent. Chromatic dispersion arises because different
+wavelengths travel at different speeds, so a pulse containing a range of wavelengths spreads
+as it propagates, eventually overlapping its neighbours. It is compensated by fiber with
+opposite dispersion sign or by digital signal processing at the receiver, which in coherent
+systems can undo it almost entirely. Polarization mode dispersion, from residual
+birefringence, is stochastic and harder to compensate.
+
+Detectors and fiber quantities:
+  photodiode           reverse-biased junction; fast, linear, the workhorse
+  PIN vs avalanche     APDs provide internal gain at the cost of excess noise and
+                       high bias voltage
+  photomultiplier      extremely sensitive, single-photon capable, bulky, fragile
+  SPAD / SiPM          solid-state single-photon detection; timing resolution in
+                       tens of picoseconds
+  CCD / CMOS           imaging arrays; CMOS now dominant on speed and integration
+  bolometer            thermal detector; broadband, slow, used in the far infrared
+  responsivity         amps per watt; wavelength dependent
+  dark current         signal with no light; doubles roughly every 7 degrees C
+  NEP                  noise equivalent power; the sensitivity figure of merit
+  fiber loss minimum   ~0.2 dB/km at 1550 nm
+  dispersion           ~17 ps/(nm km) in standard single-mode fiber at 1550 nm
+
+Nonlinear optics becomes relevant at high intensity, where the material's response is no
+longer proportional to the field. Second harmonic generation converts two photons into one
+of twice the frequency, which is how green laser pointers produce 532 nanometres from a 1064
+nanometre source. It requires a material without inversion symmetry and phase matching, so
+that the generated waves from different depths add constructively rather than cancelling —
+achieved by exploiting birefringence to equalize the phase velocities, or by periodically
+poling the material to reset the phase.
+
+Third-order effects occur in any material, including glass, and dominate fiber behaviour at
+high power. The Kerr effect makes the refractive index intensity-dependent, causing
+self-phase modulation that broadens a pulse's spectrum, self-focusing that can damage optics,
+and cross-phase modulation between wavelength channels. Four-wave mixing generates new
+frequencies from combinations of existing ones, which is a nuisance in
+wavelength-multiplexed systems and a tool for wavelength conversion and parametric
+amplification. Supercontinuum generation, where an intense short pulse in a suitable fiber
+broadens into a spectrum spanning an octave or more, combines several of these effects and
+produces a source that is simultaneously as bright as a laser and as broadband as a lamp —
+which is what made frequency comb metrology possible and earned a Nobel Prize for connecting
+optical frequencies to microwave standards.

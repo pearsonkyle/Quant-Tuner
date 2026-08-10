@@ -1,0 +1,327 @@
+================================================================================
+AREA: Astronomy and Space
+SUBJECT: Planetary Science and Exoplanets
+Subtopics: solar system formation, terrestrial and giant planets, small bodies,
+atmospheres, detection methods, exoplanet populations, habitability, astrobiology.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Solar System Formation and Architecture
+
+The solar system formed about 4.57 billion years ago from the gravitational collapse of a
+molecular cloud fragment. Conservation of angular momentum flattened the collapsing
+material into a disc, with most of the mass falling to the centre to form the Sun and the
+remainder accreting into planets. This nebular hypothesis explains the system's most
+obvious regularities: the planets orbit in nearly the same plane, in the same direction as
+the Sun's rotation, in nearly circular orbits.
+
+Composition varies with distance because temperature did. Inside the snow line — the radius
+where water ice could condense, around three astronomical units in the early solar system —
+only metals and silicates were solid, so the planets that formed there are small and rocky.
+Beyond it, ice was abundant and available solid mass was several times greater, so cores
+grew large enough and fast enough to capture hydrogen and helium from the nebula before it
+dispersed. The gas giants had to form quickly, within a few million years, because that is
+how long the gas lasted.
+
+Planetary migration has revised the picture substantially. Planets exchange angular
+momentum with the disc and with each other and do not necessarily remain where they formed.
+The Nice model proposes that the giant planets formed in a more compact configuration and
+migrated outward, and that a resonance crossing between Jupiter and Saturn destabilized the
+outer system, scattering small bodies and producing the Late Heavy Bombardment recorded in
+lunar cratering. The Grand Tack hypothesis proposes that Jupiter migrated inward to about
+1.5 astronomical units before Saturn's growth reversed its motion, which would explain
+Mars's small size and the asteroid belt's low mass and mixed composition.
+
+Solar system inventory:
+  Sun                    99.86% of system mass; G2V main-sequence star
+  terrestrial planets    Mercury, Venus, Earth, Mars; rock and metal, thin or no
+                         atmospheres, few moons
+  asteroid belt          2.1-3.3 AU; total mass ~4% of the Moon; sculpted by
+                         Jupiter's resonances into Kirkwood gaps
+  gas giants             Jupiter, Saturn; mostly hydrogen and helium
+  ice giants             Uranus, Neptune; water, ammonia, methane ices over rock
+  Kuiper belt            30-50 AU; Pluto, Eris, Makemake; source of short-period
+                         comets
+  scattered disc         eccentric, inclined orbits; the dominant comet source
+  Oort cloud             ~2,000-100,000 AU; inferred, spherical, source of
+                         long-period comets
+  snow line              where ice condenses; the compositional dividing line
+  invariable plane       the system's angular momentum plane, dominated by Jupiter
+
+Q: Terrestrial planets are small and rocky while giant planets are large and
+hydrogen-rich primarily because:
+A. The Sun's gravity attracted heavy elements inward
+B. Beyond the snow line ice was solid, providing far more accretable mass and larger
+   cores that could capture nebular gas
+C. Giant planets formed much later
+D. The solar wind removed rock from the outer system
+Reasoning: Temperature in the disc decreased with distance, so volatile compounds condensed
+only beyond the snow line. That roughly quadrupled the solid mass available, allowing cores
+to reach the ten-Earth-mass threshold for runaway gas accretion before the nebula
+dispersed. Inner cores never got large enough and the gas was gone. Answer: B.
+
+## Terrestrial Planets and Small Bodies
+
+The terrestrial planets are differentiated — dense material sank to form a core, lighter
+material rose to form a mantle and crust — which required them to be molten early, heated
+by accretional impacts and short-lived radioactive isotopes. Their subsequent divergence
+from one another is a study in how initial conditions and size determine long-term fate.
+
+Mercury is nearly all core, with an anomalously high density suggesting that a giant impact
+stripped much of its mantle. It has no substantial atmosphere, extreme surface temperature
+swings, and a weak magnetic field indicating a partly molten core. Venus is nearly Earth's
+twin in size and mass and utterly different in outcome: a runaway greenhouse driven by
+carbon dioxide has left it at 462 degrees Celsius with a surface pressure 92 times Earth's,
+hot enough to melt lead, with sulfuric acid clouds and no water. Mars is small enough that
+it cooled quickly, lost its internal dynamo and hence its magnetic field, and had its
+atmosphere gradually stripped by the solar wind — leaving abundant evidence of ancient
+liquid water on a surface where liquid water is now impossible.
+
+The comparison between Venus, Earth, and Mars is the most instructive in planetary
+science because it isolates the variables. All three formed from similar material at
+similar times. Venus was slightly too close, so water stayed vapour, and water vapour is a
+greenhouse gas, so temperature rose, so more water evaporated — a positive feedback that
+ran away and eventually allowed ultraviolet radiation to dissociate the water and hydrogen
+to escape. Mars was slightly too small, so it lost its heat and its field. Earth retained
+liquid water, which enabled the carbonate-silicate cycle to regulate carbon dioxide over
+geological time, providing the negative feedback that has kept the climate within habitable
+bounds for billions of years despite a Sun that has brightened by about thirty percent.
+
+Small bodies preserve the early record because they were never heated enough to
+differentiate or resurface. Asteroids are rocky and metallic bodies concentrated between
+Mars and Jupiter, classified by spectral type into carbonaceous, silicaceous, and metallic
+groups whose distribution with distance reflects the original temperature gradient. Comets
+are ice-rich bodies from the outer system that develop comae and tails when solar heating
+sublimates their ices, with the tails pointing away from the Sun regardless of the direction
+of motion — the dust tail curved by orbital dynamics and the ion tail driven straight back
+by the solar wind.
+
+Small body characteristics:
+  C-type asteroids       carbonaceous, dark, ~75% of the population; primitive
+  S-type                 silicaceous, brighter, inner belt
+  M-type                 metallic; likely exposed cores of shattered bodies
+  Kirkwood gaps          orbital resonances with Jupiter clear specific semi-major
+                         axes
+  Trojans                at Jupiter's L4 and L5; stable for the age of the system
+  near-Earth objects     tracked for impact hazard; the planetary defense target
+  comet nucleus          ice and dust, typically a few kilometres, very dark
+  short-period comets    < 200 yr, from the Kuiper belt and scattered disc,
+                         low inclination
+  long-period comets     from the Oort cloud, isotropic inclinations
+  meteorite classes      chondrites (undifferentiated, primitive), achondrites and
+                         irons (from differentiated bodies)
+
+Chondrites are the most scientifically valuable objects available because they are
+essentially unaltered samples of the solar nebula. Carbonaceous chondrites contain water,
+organic compounds including amino acids, and calcium-aluminium inclusions that are the
+oldest solids in the solar system and define its age. That amino acids arrive from space
+in unaltered meteorites is directly relevant to origin-of-life questions, since it
+establishes that prebiotic organic chemistry occurs abiotically and is delivered to
+planetary surfaces.
+
+## Atmospheres and Surfaces
+
+Whether a planet retains an atmosphere is a competition between thermal escape and gravity.
+A gas is retained when its thermal velocity is well below the escape velocity — the usual
+rule of thumb being that the escape velocity must exceed roughly six times the
+root-mean-square molecular speed for retention over the age of the solar system. Because
+thermal speed depends on molecular mass, light gases escape preferentially: Earth retains
+nitrogen, oxygen, and carbon dioxide, and loses hydrogen and helium continuously. This is
+why the giant planets, cold and massive, retain the primordial hydrogen and helium that the
+terrestrial planets could not.
+
+Atmospheric escape has several channels beyond simple thermal loss. Hydrodynamic escape
+occurs when the upper atmosphere is heated enough that it flows outward in bulk, dragging
+heavier species with it — the likely history of Venus's water. Non-thermal escape includes
+photochemical processes, charge exchange, and sputtering by the solar wind. That last one
+is why a magnetic field matters: Earth's field deflects the solar wind, while Mars, having
+lost its field around four billion years ago, has had its atmosphere eroded steadily since,
+a process directly measured by orbiting spacecraft.
+
+Greenhouse warming determines surface temperature far more than distance from the Sun
+alone. An atmosphere transparent to incoming visible light and opaque to outgoing infrared
+traps heat, raising surface temperature above the equilibrium value. Earth's greenhouse
+effect is about 33 degrees, without which the surface would average about minus 18 degrees
+Celsius and be frozen. Venus's is over 500 degrees. The effect scales nonlinearly with
+greenhouse gas abundance and can run away when a feedback — evaporating water, sublimating
+carbon dioxide, melting permafrost — amplifies an initial perturbation.
+
+Atmospheric and surface processes:
+  equilibrium temperature  from absorbed sunlight and albedo, ignoring greenhouse
+  greenhouse effect        infrared opacity raises surface above equilibrium
+  runaway greenhouse       positive feedback; the Venus outcome
+  carbonate-silicate cycle  Earth's long-term thermostat; weathering removes CO2
+                         faster when warm, volcanism returns it
+  albedo feedback          ice reflects, so cooling grows ice, which cools further
+  atmospheric escape       thermal, hydrodynamic, sputtering, photochemical
+  magnetosphere            deflects solar wind; protects atmosphere and surface
+  impact cratering         the dominant surface process on airless bodies; crater
+                           density dates surfaces
+  volcanism                resurfacing; requires internal heat, hence size or
+                           tidal heating
+  tidal heating            flexing from orbital eccentricity; powers Io's volcanism
+                           and Europa's subsurface ocean
+
+Tidal heating deserves emphasis because it decouples internal heat from planet size and
+therefore extends the possible locations of liquid water far beyond the conventional
+habitable zone. A moon in an eccentric orbit around a giant planet is flexed as the tidal
+force varies, and the resulting friction generates heat. Io is the most volcanically active
+body in the solar system for this reason despite being smaller than Earth's Moon. Europa,
+Enceladus, and probably Titan and several others maintain subsurface liquid water oceans
+under ice shells, and Enceladus vents that water into space through south polar plumes that
+spacecraft have flown through and analyzed, finding salts, silica, and organic molecules.
+
+## Exoplanet Detection
+
+More than five thousand planets are now confirmed around other stars, and essentially
+everything known about them comes from a small number of detection methods, each with
+distinct sensitivities that shape what we can find and therefore what we think is common.
+
+The transit method detects the periodic dimming as a planet crosses its star's disc. The
+depth gives the planet's radius relative to the star, the period gives the orbital distance,
+and repeated observations confirm the signal. It requires the orbit to be nearly edge-on
+from our viewpoint, which is geometrically improbable — roughly the stellar radius divided
+by the orbital radius, under one percent for an Earth-like orbit — so it finds a small
+fraction of the planets present, but surveys of hundreds of thousands of stars overcome that
+statistically. Transits are strongly biased toward large planets on short orbits, since
+those produce deep signals and repeat frequently.
+
+The radial velocity method detects the star's reflex motion as the planet orbits their
+common centre of mass, measured as a periodic Doppler shift. It gives the orbital period
+and a minimum mass — minimum because the measured velocity is only the line-of-sight
+component and the orbital inclination is unknown. Combined with a transit, which constrains
+inclination to near ninety degrees, radial velocity gives a true mass, and mass with radius
+gives density, which is the only route to knowing whether a planet is rocky, icy, or
+gaseous.
+
+Detection methods and their biases:
+  transit             radius; needs edge-on geometry; biased to large, close-in
+                      planets; enables atmospheric spectroscopy
+  radial velocity     minimum mass; biased to massive, close-in planets around
+                      quiet stars; limited by stellar activity to ~10 cm/s
+  transit + RV        true mass and radius, hence bulk density and composition
+  transit timing      perturbations from additional planets; sensitive to
+                      non-transiting companions and to resonant systems
+  microlensing        temporary brightening as a foreground system lenses a
+                      background star; sensitive to distant, cold planets and to
+                      free-floating ones; events do not repeat
+  direct imaging      resolves the planet itself; needs young, hot, widely
+                      separated giants; permits spectroscopy of the planet alone
+  astrometry          the star's positional wobble; sensitive to massive planets
+                      on wide orbits; long-baseline precision required
+
+Transmission spectroscopy is what turns a detected planet into a characterized one. During
+transit, a small fraction of starlight passes through the planet's atmosphere, and molecular
+absorption imprints features on the spectrum. Comparing spectra in and out of transit
+reveals atmospheric composition. The technique works best for large planets with low
+surface gravity and hot, extended atmospheres, and it is severely limited by high-altitude
+clouds and hazes, which flatten the spectrum by blocking the light path before it reaches
+the molecular absorbers. Detections of water, carbon dioxide, methane, and sodium in giant
+planet atmospheres are now routine; comparable measurements for small rocky planets remain
+at the edge of current capability.
+
+[user] What can we actually say about a planet from a transit alone, without radial
+velocity?
+[assistant] tool_call exo.constraint_analysis({"method": "transit_only",
+"available": ["depth", "period", "duration", "shape"], "stellar_params_known": true})
+[tool] {"derivable": ["radius_ratio", "orbital_period", "semi_major_axis_over_stellar
+_radius", "impact_parameter", "stellar_density", "equilibrium_temperature"],
+"not_derivable": ["mass", "density", "composition", "surface_gravity"],
+"caveats": ["radius_depends_on_stellar_radius_accuracy", "blends_and_false_positives"]}
+[assistant] A transit alone constrains geometry and thermal environment, and tells you
+nothing about mass — which means nothing about composition.
+
+What you get. The depth gives the ratio of planet radius to stellar radius, so a planet
+radius follows if you know the star's radius. The period comes from repetition. The
+duration and the ingress/egress shape together give the impact parameter and, through the
+transit's relation to orbital speed, the ratio of semi-major axis to stellar radius — which
+notably yields the stellar density directly, independent of stellar models, which is a
+useful cross-check. With the semi-major axis and the star's luminosity you get an
+equilibrium temperature.
+
+What you do not get. Mass, and therefore density, and therefore whether the object is
+rocky, water-rich, or a small gas envelope. This matters because the radius alone is
+genuinely ambiguous in the interesting range: a planet of 2.5 Earth radii could be a dense
+rocky world, a water world, or a rocky core with a percent or two of hydrogen envelope, and
+those are entirely different objects. The envelope dominates the radius while contributing
+almost nothing to the mass.
+
+Two important caveats. Your planet radius inherits the fractional uncertainty of the
+stellar radius, which for a poorly characterized star can be twenty percent or more — so
+that is often the dominant error, not the photometry. And transit-like signals have
+astrophysical false positives: an eclipsing binary blended with your target in the same
+aperture, or a background eclipsing binary, reproduces a shallow periodic dip. Validation
+requires checking the transit shape for the V-profile typical of grazing binaries,
+searching for secondary eclipses and ellipsoidal variation, and ideally obtaining
+high-resolution imaging to rule out blends.
+
+If mass is what you need and the star is too faint or too active for radial velocity,
+transit timing variations are the alternative — but they require a multi-planet system with
+detectable mutual perturbations, ideally near a mean-motion resonance.
+
+## Exoplanet Populations, Habitability, and Astrobiology
+
+The populations discovered have overturned expectations formed on a sample size of one
+system. Hot Jupiters — giant planets orbiting in days — were the first found and were not
+predicted, since giant planets cannot form that close and must have migrated. Super-Earths
+and sub-Neptunes, with radii between Earth's and Neptune's, are the most common type of
+planet found and have no solar system representative at all. Planets are extremely common:
+statistical analysis indicates most stars host planets, and small planets outnumber large
+ones substantially.
+
+The radius valley is one of the more informative findings. The distribution of small planet
+radii shows a deficit around 1.8 Earth radii, separating a population of likely-rocky
+super-Earths below from a population of sub-Neptunes with hydrogen envelopes above. The
+explanation is atmospheric loss: photoevaporation by stellar ultraviolet radiation, or
+core-powered mass loss from the planet's own residual heat, strips thin envelopes
+completely while thick ones survive, so intermediate cases are unstable and the population
+is bimodal. This is a case where a population-level statistical feature diagnoses an
+individual-planet physical process.
+
+The habitable zone is conventionally defined as the range of orbital distances where liquid
+water could exist on a rocky planet's surface given an Earth-like atmosphere. It is a
+useful first filter and a crude one. Its boundaries depend on assumed atmospheric
+composition and cloud behaviour, both poorly constrained. It ignores subsurface oceans
+maintained by tidal heating, which vastly expands the volume where liquid water exists. And
+being in the zone is necessary rather than sufficient — Venus and Mars both sit at or near
+its edges and neither is habitable.
+
+Habitability factors beyond orbital distance:
+  stellar type         M dwarfs are the most common and offer the easiest
+                       detection; their habitable zones are close in, causing tidal
+                       locking, and they emit strong flares that may strip
+                       atmospheres
+  planet mass          enough gravity to retain an atmosphere, not so much as to
+                       accumulate a hydrogen envelope
+  magnetic field       shields against stellar wind stripping and radiation
+  plate tectonics      drives the carbonate-silicate thermostat; requires internal
+                       heat and probably water
+  atmosphere           composition and pressure; pressure must permit liquid water
+  a large moon         may stabilize obliquity, moderating climate swings
+  giant planets        may shield from or increase impact flux; the net effect is
+                       debated
+  system age           complex life took billions of years on Earth; the only
+                       data point available
+  tidal heating        enables subsurface oceans far outside the habitable zone
+
+Biosignatures are the observational target of astrobiology, and the difficulty is that
+almost every candidate has abiotic explanations. Molecular oxygen in an atmosphere is
+suggestive because it is reactive and should be consumed without continuous replenishment,
+but photolysis of water followed by hydrogen escape produces oxygen abiotically, which is
+precisely what may have happened on Venus. The more robust approach is chemical
+disequilibrium — the simultaneous presence of gases that should react with each other, such
+as oxygen and methane — since maintaining that requires continuous production. Even then,
+the inference is statistical and rests on being able to enumerate abiotic sources, which is
+a claim about the completeness of our knowledge of planetary chemistry.
+
+The honest state of the field is that no biosignature has been detected and the
+observational capability for rocky planets around Sun-like stars does not yet exist. Current
+instruments can characterize the atmospheres of giant planets and, with difficulty, of
+rocky planets around small cool stars. The next generation of ground-based extremely large
+telescopes and dedicated space missions is designed for the harder case. Meanwhile the
+Fermi paradox — the tension between the apparent commonness of planets and the absence of
+any evidence for other technological civilizations — remains entirely unresolved, with
+proposed explanations spanning rare abiogenesis, rare complex life, rare technology, short
+technological lifetimes, and detection difficulty, none of which are currently
+distinguishable by evidence.

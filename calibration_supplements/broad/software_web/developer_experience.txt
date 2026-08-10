@@ -1,0 +1,311 @@
+================================================================================
+AREA: Software and Web Engineering
+SUBJECT: Developer Experience and Engineering Practice
+Subtopics: feedback loops, local development, code organization, refactoring and
+technical debt, documentation, incident practice, tooling, working with legacy systems.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Feedback Loops
+
+Developer productivity is dominated by the length of feedback loops — the time between making a
+change and learning whether it worked. Every activity has one, and the durations span six orders
+of magnitude from a compiler error appearing as you type to a production incident revealing a
+design flaw months later. Shortening the inner loops has compounding returns because they are
+traversed thousands of times.
+
+The perceptual thresholds are worth knowing because they determine how a developer works. Under
+about a hundred milliseconds a response feels instantaneous and attention is unbroken. Under a
+second, attention is retained. Beyond about ten seconds, attention wanders and the developer
+context-switches to something else, which costs far more than the ten seconds because returning
+requires reconstructing the mental state. A build that takes two minutes does not cost two
+minutes; it costs the two minutes plus the context reconstruction plus whatever was done in the
+interval.
+
+This is why build and test times deserve treatment as a first-class engineering concern rather
+than as an inconvenience. A test suite that takes forty minutes is not run before pushing, so it
+catches problems in CI rather than locally, which lengthens the loop by another order of
+magnitude. Investment in build caching, test parallelization, incremental compilation, and
+selective test execution has returns proportional to the team size times the change frequency,
+which for any established team is substantial.
+
+Feedback loops and their durations:
+  type checking        milliseconds; in the editor
+  unit test            seconds; the loop that should dominate
+  local run            seconds to a minute
+  integration test     minutes
+  CI pipeline          minutes to tens of minutes
+  deploy to staging    minutes to hours
+  production feedback  hours to weeks
+  under 100 ms         feels instantaneous; attention unbroken
+  under 1 s            attention retained
+  over 10 s            context switch; the cost far exceeds the wait
+  the compounding      inner loops are traversed thousands of times
+  build caching        do not rebuild what has not changed
+  test selection       run the tests affected by the change
+  parallelization      the straightforward lever once the suite is isolated
+  flaky tests          destroy the loop's value entirely by making its output
+                       uninformative
+
+Q: A team's test suite takes 35 minutes and developers push without running it locally. The
+primary cost is:
+A. The 35 minutes of compute
+B. The feedback loop has lengthened from minutes to the CI cycle, so defects are found later,
+   with more context lost and more changes to bisect
+C. CI capacity
+D. Developer patience
+Reasoning: The compute cost is trivial relative to engineering time. The consequence is that
+defects that would have been caught in seconds locally are found after push, when the developer
+has moved on, when several changes may be in flight, and when the diagnosis requires
+reconstructing context. Test selection and parallelization address the cause. Answer: B.
+
+## Local Development and Environments
+
+A local development environment should let a developer make a change and see its effect
+immediately, and the recurring obstacle is that modern applications depend on services that are
+awkward to run locally. The approaches trade fidelity against speed and against setup cost.
+
+Running dependencies in containers gives high fidelity — the actual database, the actual message
+broker, the actual cache — at the cost of resource consumption and startup time. In-memory or
+lightweight substitutes are fast and diverge from production in ways that permit bugs to pass
+locally and fail in production. Shared development environments avoid local resource cost and
+introduce contention, where one developer's experiment breaks another's work.
+
+The single most valuable property is that setup is automated and reproducible. A README with
+twenty manual steps produces environments that differ subtly between developers, which produces
+the works-on-my-machine class of problem that consumes disproportionate time. A single command
+that provisions everything, and a container or virtual machine definition capturing the whole
+environment, converts onboarding from days to minutes and eliminates the divergence.
+
+Local development:
+  fidelity vs speed    real dependencies in containers versus lightweight
+                       substitutes
+  test containers      real dependencies, started per test suite; now fast enough
+                       to be the default
+  seed data            realistic and small; a development environment requiring a
+                       production database dump is a privacy problem and a
+                       practical one
+  automated setup      one command; a manual README produces divergent
+                       environments
+  reproducible environment  a container or declarative definition; eliminates
+                       works-on-my-machine
+  hot reload           see the change without a restart; the largest single
+                       improvement to the inner loop for most applications
+  feature flags        test in production safely; decouple deploy from release
+  ephemeral environments  a full environment per branch; expensive and excellent
+                       for review
+  production data      never in development; use synthetic or anonymized data
+  secrets              never in the repository; a local secret store or injected
+                       values
+  onboarding time      the measure of how good the setup is; a day is good, a week
+                       indicates a problem worth fixing
+
+Onboarding time is worth treating as a metric because it measures something real and is easy to
+observe. The time from a new engineer's first day to their first merged change reflects the
+quality of the setup automation, the documentation, the codebase's comprehensibility, and the
+team's practices, and it is paid on every hire. Timing it deliberately and treating a long
+duration as a defect to be fixed produces improvements that benefit everyone rather than only the
+newcomer, because the same friction is encountered by existing developers whenever they touch an
+unfamiliar area.
+
+## Code Organization and Technical Debt
+
+Code is read far more than it is written, so optimizing for the reader is the governing
+principle. Names carry most of the communication and are worth spending time on. Functions should
+do one thing at one level of abstraction, so that reading a function reveals what it does without
+requiring the reader to descend into the details. Comments should explain why rather than what,
+because what is visible in the code while why is not, and a comment restating the code becomes
+wrong when the code changes.
+
+Module boundaries should follow the domain rather than the technology, and this is the
+organizational decision with the longest-lasting consequences. Grouping by technical layer — all
+the controllers, all the services, all the repositories — means every feature change touches
+every directory, and the modules have no meaning independent of the framework. Grouping by domain
+capability puts everything relating to a capability together, so a change is local and the
+boundaries correspond to something real.
+
+Technical debt is the accumulated cost of decisions that were expedient rather than correct, and
+the metaphor is useful because it captures the interest: the cost is not the original shortcut but
+the ongoing tax on every subsequent change in that area. The metaphor also captures the legitimacy
+of taking it on deliberately, since borrowing to reach a deadline can be the right decision — what
+distinguishes managed debt from accumulated mess is whether it was recorded, understood, and
+scheduled for repayment.
+
+Code organization and debt:
+  read over write      optimize for the reader
+  naming               carries most of the communication; worth the time
+  single responsibility  one thing at one level of abstraction
+  comments             explain why; what is already visible and the comment rots
+  domain boundaries    group by capability, not by technical layer
+  coupling and cohesion  low coupling between modules, high cohesion within
+  dependency direction  stable things should not depend on volatile things
+  duplication          the wrong abstraction is more costly than duplication; wait
+                       until the pattern is clear rather than abstracting the
+                       second occurrence
+  premature abstraction  the most common architectural error; it constrains
+                       future change based on an incorrect prediction
+  technical debt       the interest matters more than the principal
+  deliberate debt      recorded, understood, and scheduled; legitimate
+  accumulated mess     unrecorded and unowned; the actual problem
+  the boy scout rule   leave the code slightly better than you found it; the
+                       practical route to gradual improvement
+  refactoring          change structure without changing behaviour; requires tests
+                       to be safe
+
+The relationship between duplication and abstraction deserves emphasis because the received
+advice is frequently applied too eagerly. Removing duplication by abstracting after two
+occurrences frequently produces an abstraction fitting neither case well, and subsequent
+requirements diverge so that the abstraction accumulates parameters and conditionals until it is
+harder to understand than the duplication was. The heuristic that the wrong abstraction is more
+expensive than duplication captures this: duplication is visible and locally fixable, while a bad
+abstraction is a structural commitment that resists change. Waiting until the pattern is clear —
+frequently the third or fourth occurrence — produces better abstractions.
+
+## Documentation and Knowledge
+
+Documentation fails predictably, and the failures are addressable by recognizing that different
+documents serve different purposes and are read differently. A tutorial teaches a newcomer through
+a worked example and is optimized for learning. A how-to guide solves a specific problem for
+someone who knows what they want. A reference describes the interface exhaustively and is
+consulted rather than read. And an explanation provides the conceptual background and the
+reasoning. Mixing these in one document serves none of them.
+
+The document type with the highest return and the lowest adoption is the architecture decision
+record. It captures a decision, the context that prompted it, the alternatives considered, and the
+reasoning — and the value appears months later when someone asks why the system works this way.
+Without it, the reasoning is lost and the decision is either preserved through inertia or reversed
+without understanding what it was solving.
+
+Documentation drifts from reality unless something forces it to stay accurate, and the reliable
+mechanisms are automation and proximity. Generating API documentation from the code or the schema
+means it cannot diverge. Testing the code examples in documentation means they cannot break
+silently. Keeping documentation in the repository alongside the code means it is reviewed in the
+same change. Documentation in a separate system, updated by a separate process, is documentation
+that will be wrong.
+
+Documentation and knowledge:
+  tutorial             learning through a worked example
+  how-to guide         solving a specific problem
+  reference            exhaustive interface description; consulted not read
+  explanation          conceptual background and reasoning
+  do not mix them      one document serving all four serves none
+  architecture decision record  decision, context, alternatives, reasoning; the
+                       highest-return document and the least adopted
+  README               what it is, how to run it, how to contribute; the first
+                       thing read and frequently the least maintained
+  generated docs       from code or schema; cannot diverge
+  tested examples      run the examples in CI; they cannot break silently
+  proximity            documentation in the repository is reviewed with the code
+  runbooks             what to do when a specific alert fires; written for someone
+                       woken at three in the morning
+  bus factor           how many people must be unavailable before knowledge is
+                       lost; pairing, review, and writing address it
+  tribal knowledge     what everyone knows and nobody wrote down; visible when a
+                       newcomer asks and the answer is not findable
+
+The architecture decision record deserves the strongest recommendation because the problem it
+solves is otherwise unsolvable. Six months after a decision, the reasoning exists only in the
+memory of whoever made it, and that person may have left. Someone encountering the resulting
+structure sees a constraint with no visible justification, and their options are to preserve it
+without understanding — which propagates the constraint past its usefulness — or to remove it
+without knowing what it prevented. A short record of the context and reasoning makes the decision
+reviewable, and reviewing a decision whose original constraints have changed is exactly what keeps
+a system from being shaped by conditions that no longer hold.
+
+[user] Our codebase has grown to the point where nobody understands more than their own area and
+changes keep breaking things unexpectedly.
+[assistant] tool_call eng.codebase_audit({"loc": 480000, "services": 1, "modules": "by_layer",
+"test_coverage": 0.34, "avg_pr_size_loc": 890, "build_minutes": 22,
+"onboarding_weeks": 6, "cross_module_imports": "high"})
+[tool] {"issues": ["layer_based_organization_causes_cross_cutting_changes",
+"high_coupling_between_modules", "large_prs_reduce_review_effectiveness",
+"low_coverage_makes_refactoring_unsafe"], "leverage_order": ["reduce_pr_size",
+"characterization_tests_on_change_surface", "boundary_extraction_by_domain"]}
+[assistant] The unexpected breakage and the limited understanding have the same root: your
+modules are organized by technical layer, so they have no meaningful boundaries and everything
+depends on everything.
+
+Grouping by layer means a single feature spans every module, so every change is cross-cutting and
+nobody can reason about a module in isolation because it has no independent purpose. The high
+cross-module import count confirms it. Reorganizing by domain capability — everything relating to
+one area of the business together, with explicit narrow interfaces between areas — is the durable
+fix, and it is a large piece of work.
+
+Three things in order, because the third is only safe after the second.
+
+Reduce pull request size first, since it costs nothing and helps immediately. At 890 lines per
+change, reviewers skim rather than review, so defects pass and knowledge does not transfer.
+Changes under a couple of hundred lines get genuinely reviewed. This alone will reduce the
+unexpected breakage measurably.
+
+Add characterization tests around the areas you are about to change. At 34% coverage, refactoring
+is unsafe because there is nothing to tell you whether behaviour changed — which is why the
+codebase has become resistant to improvement. You do not need to raise coverage globally; you need
+tests around the specific seams you are about to move, capturing current behaviour whether or not
+it is correct, so that a refactor's behaviour preservation is verified.
+
+Then extract boundaries incrementally. Choose one domain area, define its interface, move the code
+behind it, and enforce that other modules use only the interface. Do not attempt a global
+reorganization — it will take months, conflict with all other work, and be abandoned partway,
+leaving the codebase in a worse state than either the before or the after. One boundary at a time,
+each merged and stable before the next.
+
+One measurement worth adding: track how many modules a typical change touches. It is the direct
+measure of whether the boundaries are working, and watching it fall is how you know the extraction
+is achieving something rather than merely moving files.
+
+## Incidents, Tooling, and Legacy Systems
+
+Incident practice determines how much an organization learns from failure. Blameless postmortems
+are a technique with a specific mechanism rather than a cultural nicety: accurate reconstruction of
+what happened requires honest accounts from the people involved, and honest accounts are given only
+when doing so is safe. Framing the analysis around systems, tooling, information, and conditions
+rather than around individual decisions is what makes reconstruction possible — and the finding is
+nearly always that a person acted reasonably given what they knew, which locates the fix in the
+information rather than in the person.
+
+The postmortem's output is action items, and a postmortem without owned and tracked actions is
+documentation of a failure rather than a mechanism for preventing recurrence. The most valuable
+actions are frequently not fixing the specific bug but improving the conditions: better
+observability so the problem is detected sooner, a safer deployment mechanism, a clearer runbook,
+or removing the sharp edge that made the mistake possible.
+
+Working with legacy systems is where most engineering time is actually spent, and the defining
+characteristic is code without tests that cannot be safely changed. The way in is characterization
+tests: rather than testing what the code should do, test what it currently does, capturing the
+behaviour whether or not it is correct. This creates the safety net that permits refactoring, and
+it also documents behaviour that nobody had recorded.
+
+Incidents, tooling, and legacy:
+  blameless postmortem  accurate reconstruction requires safety; the mechanism
+                       rather than the sentiment
+  action items         owned and tracked; without them the postmortem is theatre
+  conditions over causes  improve the conditions that made the error possible
+  near misses          review them too; the same conditions with a better outcome
+  runbooks             per alert, current, written for three in the morning
+  game days            rehearse; incident response is a skill that decays
+  automate the repeated  anything done manually three times
+  scripts in the repo   shared and reviewed rather than in someone's home
+                       directory
+  linting and formatting  automate; removes a category of review discussion
+                       entirely
+  characterization tests  capture current behaviour, correct or not; the way into
+                       untested code
+  seams                where behaviour can be changed without editing in place;
+                       finding them is the core legacy refactoring skill
+  strangler pattern    build the replacement around the old system and redirect
+                       incrementally; the alternative to a rewrite
+  the rewrite          almost always takes longer than estimated and loses
+                       accumulated behaviour that nobody documented
+  Chesterton's fence   understand why something exists before removing it
+
+Chesterton's fence deserves the closing emphasis because it applies constantly in legacy work and
+is routinely violated. Encountering code that appears unnecessary — a check that never seems to
+fire, a workaround for a condition that seems impossible, a delay with no apparent purpose — the
+instinct is to remove it. It was frequently added in response to a real incident, and the reason
+is undocumented because whoever added it was addressing an urgent problem. Removing it reproduces
+the original failure, typically after enough delay that the connection is not made. Investigating
+what it was for before removing it, and recording the answer if it turns out to be obsolete, is
+what converts legacy code from an accumulation of mysteries into something that can be
+deliberately simplified.

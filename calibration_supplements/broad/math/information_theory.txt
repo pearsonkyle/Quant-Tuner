@@ -1,0 +1,312 @@
+================================================================================
+AREA: Mathematics
+SUBJECT: Information Theory
+Subtopics: entropy and information, source coding, channel capacity, divergences,
+error-correcting codes, rate-distortion, connections to statistics and learning.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Entropy and Information
+
+Information theory begins with a question about measurement: how much information does
+learning the outcome of a random event convey? Shannon's answer is that information is
+surprise, quantified as the negative logarithm of the probability. A certain event conveys
+zero information; a one-in-a-million event conveys twenty bits. Entropy is the expected
+information content, the probability-weighted average of the surprise over all outcomes.
+
+The logarithm's base sets the unit. Base two gives bits, base e gives nats, base ten gives
+hartleys. Bits are conventional in communications and computer science; nats are more
+natural in statistics and machine learning because derivatives of the natural logarithm are
+cleaner, which is why cross-entropy losses in machine learning frameworks are in nats
+whether or not that is stated.
+
+Entropy is maximized by the uniform distribution over a finite alphabet, giving the
+logarithm of the alphabet size, and it is zero for a deterministic outcome. This matches
+intuition: a fair coin is maximally uncertain at one bit per flip, and a two-headed coin
+conveys nothing. For a biased coin the entropy falls, and it falls slowly at first —
+a coin landing heads 60 percent of the time still carries 0.97 bits — which is why detecting
+small biases requires many observations.
+
+Fundamental quantities:
+  self-information      I(x) = -log p(x)
+  entropy               H(X) = -sum p(x) log p(x)
+  joint entropy         H(X,Y) = -sum p(x,y) log p(x,y)
+  conditional entropy   H(Y|X) = H(X,Y) - H(X);  remaining uncertainty in Y
+  mutual information    I(X;Y) = H(X) + H(Y) - H(X,Y) = H(Y) - H(Y|X)
+  chain rule            H(X,Y) = H(X) + H(Y|X)
+  subadditivity         H(X,Y) <= H(X) + H(Y), equality iff independent
+  conditioning reduces  H(Y|X) <= H(Y);  on average, never increases
+  maximum entropy       uniform on a finite alphabet; Gaussian for fixed variance;
+                        exponential for fixed positive mean
+
+Mutual information measures how much knowing one variable reduces uncertainty about
+another. It is symmetric, non-negative, and zero exactly when the variables are independent
+— which makes it a far better general dependence measure than correlation, since correlation
+detects only linear association and mutual information detects any statistical dependence.
+The practical difficulty is estimation: mutual information between continuous variables from
+finite samples is hard to estimate reliably, and naive binning approaches are badly biased
+upward, which produces spurious findings of dependence when bins are small relative to the
+sample.
+
+The maximum entropy principle is a useful inferential rule with a clean justification:
+among all distributions consistent with what you know, choose the one with maximum entropy,
+since any other assumes information you do not have. This derives the uniform distribution
+from knowing only the support, the exponential from knowing the mean of a positive quantity,
+and the Gaussian from knowing the mean and variance — which is one reason the Gaussian
+appears so often, independently of the central limit theorem.
+
+Q: A biased coin lands heads with probability 0.9. Its entropy per flip is closest to:
+A. 0.9 bits   B. 0.47 bits   C. 1.0 bits   D. 0.1 bits
+Reasoning: H = -(0.9 log2 0.9 + 0.1 log2 0.1) = -(0.9)(-0.152) - (0.1)(-3.322) = 0.137 +
+0.332 = 0.469 bits. The rare outcome carries most of the information despite occurring
+seldom, which is the structure that source coding exploits. Answer: B.
+
+## Source Coding and Compression
+
+The source coding theorem states that a source with entropy H can be compressed to an
+average of H bits per symbol and no fewer, and that this bound is achievable in the limit of
+long blocks. This is a hard limit: no algorithm compresses below the source entropy without
+losing information, and any claim of universal lossless compression is provably false by a
+counting argument — there are more possible files of a given length than shorter ones, so
+some files must grow.
+
+Huffman coding constructs an optimal prefix code by repeatedly merging the two least
+probable symbols, producing a binary tree whose depths give the code lengths. It is optimal
+among codes assigning an integer number of bits per symbol, and that integer constraint is
+precisely its limitation: a symbol with probability 0.9 ideally costs 0.152 bits and Huffman
+must spend at least one, so the overhead can be substantial for highly skewed distributions.
+Arithmetic coding removes the constraint by encoding an entire message as a single number in
+an interval, achieving the entropy bound to within a bit for the whole message rather than
+per symbol.
+
+Dictionary methods take a different approach, replacing repeated substrings with references
+to earlier occurrences. The Lempel-Ziv family underlies most general-purpose compressors and
+requires no prior knowledge of the source statistics, adapting as it reads. Modern
+compressors combine these ideas: a dictionary stage to remove repetition, followed by an
+entropy coding stage on the resulting symbol stream, often with context modelling that
+conditions the probability estimate on recent history.
+
+Compression concepts:
+  source coding theorem  average code length >= H;  achievable in the limit
+  prefix code            no codeword is a prefix of another; instantaneously
+                         decodable
+  Kraft inequality       sum of 2^(-length) <= 1 for any prefix code
+  Huffman                optimal integer-length code; overhead up to 1 bit/symbol
+  arithmetic coding      approaches the entropy bound; encodes the whole message
+  range / ANS coding     modern practical equivalents; ANS is fast and now common
+  LZ77 / LZ78            dictionary methods on repeated substrings
+  context modelling      condition probabilities on preceding symbols; the largest
+                         practical gain for text
+  Kolmogorov complexity  the length of the shortest program producing the string;
+                         the ultimate limit, and uncomputable
+
+Kolmogorov complexity is worth knowing because it clarifies what compression is. The
+shortest program that outputs a string is the truest measure of its information content, and
+it is uncomputable — there is no algorithm that finds it, by a diagonalization argument
+similar to the halting problem. Practical compression is therefore always relative to a
+model, and a compressor performs well exactly to the extent that its model matches the
+source. This is why a text compressor performs poorly on images and why the best text
+compressors are, increasingly, language models: prediction and compression are the same
+problem, and a model that assigns high probability to the actual next symbol yields short
+codes.
+
+That equivalence is exact rather than metaphorical. Given a probabilistic model, arithmetic
+coding achieves a code length equal to the negative log probability the model assigns to the
+data. Minimizing compressed size is therefore identical to maximizing likelihood, and the
+cross-entropy loss used to train a language model is literally the expected code length in
+nats. A model with lower perplexity compresses better, by exactly the amount its perplexity
+improved.
+
+## Channel Capacity and Coding
+
+A channel transmits symbols with some probability of error. Channel capacity is the maximum
+mutual information between input and output over all input distributions, and the noisy
+channel coding theorem states the remarkable result that reliable communication is possible
+at any rate below capacity — with arbitrarily small error probability, using long enough
+codes — and impossible above it.
+
+This was counterintuitive when proved. The prior expectation was that reducing error
+required reducing rate toward zero, trading throughput for reliability continuously.
+Shannon showed instead that there is a sharp threshold: below capacity, error can be driven
+to zero at fixed rate, and above it, error is bounded away from zero regardless of the code.
+The proof is non-constructive, using a random coding argument to show that good codes exist
+without exhibiting one, which left a fifty-year engineering effort to find practical codes
+approaching the bound.
+
+The Shannon-Hartley theorem gives the capacity of a bandwidth-limited channel with additive
+Gaussian noise as bandwidth times the logarithm of one plus the signal-to-noise ratio. Its
+structure carries the key engineering tradeoff: capacity is linear in bandwidth and only
+logarithmic in power, so doubling bandwidth doubles capacity while doubling power adds only
+a fixed increment. Bandwidth is the more valuable resource, which is why spread spectrum,
+wider channels, and higher carrier frequencies have driven communications capacity far more
+than transmitter power.
+
+Channel and coding quantities:
+  capacity              C = max over input distributions of I(X;Y)
+  binary symmetric      C = 1 - H(p) bits per use, p the crossover probability
+  erasure channel       C = 1 - p;  erasures are far less damaging than errors,
+                        since their locations are known
+  Shannon-Hartley       C = B log2(1 + SNR)
+  Shannon limit         Eb/N0 >= -1.59 dB for reliable communication as rate -> 0
+  code rate             k/n;  information bits per transmitted bit
+  Hamming distance      number of differing positions; minimum distance d corrects
+                        floor((d-1)/2) errors and detects d-1
+  singleton bound       d <= n - k + 1;  MDS codes meet it
+  soft decision         using the analog received value rather than a hard bit
+                        decision; worth about 2 dB
+
+Error-correcting codes add structured redundancy so that errors can be detected and
+corrected. Hamming codes correct a single error with minimal overhead and were the first
+systematic construction. Reed-Solomon codes operate on symbols rather than bits and correct
+burst errors efficiently, which is why they appear in optical discs, QR codes, and deep-space
+communication. Convolutional codes with Viterbi decoding dominated for decades. Turbo codes
+and low-density parity-check codes approach the Shannon limit within a fraction of a decibel
+using iterative belief-propagation decoding, and polar codes are the first construction
+proved to achieve capacity, now used in mobile standards.
+
+The erasure channel deserves note because it explains a design pattern. An erasure — a symbol
+known to be missing — is much easier to handle than an error, because the location is known
+and only the value must be recovered. This is why packet networks with checksums are
+effectively erasure channels: a corrupted packet is discarded rather than delivered
+incorrectly, converting errors into erasures. Fountain codes exploit this by generating
+unlimited encoded symbols from which any sufficiently large subset reconstructs the original,
+which is ideal for broadcast where different receivers lose different packets.
+
+## Divergences and Their Uses
+
+Kullback-Leibler divergence measures how much one distribution differs from another,
+defined as the expected log ratio under the first. It is the expected number of extra bits
+required to encode samples from p using a code optimized for q, which is the interpretation
+that makes it concrete. It is non-negative, zero only when the distributions are identical,
+and asymmetric — the divergence from p to q differs from q to p — so it is not a metric
+despite being called a distance.
+
+The asymmetry is not a defect but a feature with consequences. Forward KL, the divergence
+from the data distribution to the model, penalizes assigning low probability where the data
+has mass, so it produces mass-covering behaviour: a model fit this way spreads to cover all
+modes, blurring between them if it cannot represent them. Reverse KL penalizes assigning
+mass where the data has none, producing mode-seeking behaviour: the model concentrates on
+one mode and ignores others. Maximum likelihood minimizes forward KL, which is why
+maximum-likelihood-trained generative models produce blurry averages; variational inference
+minimizes reverse KL, which is why it underestimates posterior variance.
+
+Cross-entropy is the entropy of the data plus the KL divergence to the model, and since the
+data entropy is fixed, minimizing cross-entropy is exactly minimizing KL divergence. This is
+the identity underlying essentially all classification and language model training: the
+cross-entropy loss is a KL divergence to the empirical distribution, and the model is being
+fit to compress the data as well as possible.
+
+Divergences and related measures:
+  KL divergence         D(p||q) = sum p log(p/q);  asymmetric, unbounded
+  forward KL            mass-covering; maximum likelihood
+  reverse KL            mode-seeking; variational inference
+  cross-entropy         H(p,q) = H(p) + D(p||q)
+  Jensen-Shannon        symmetrized and bounded; the square root is a metric
+  total variation       half the L1 distance; bounded by 1
+  Pinsker's inequality  TV <= sqrt(D/2);  relates the two
+  Wasserstein           optimal transport cost; finite for disjoint supports where
+                        KL is infinite, which is why it stabilizes GAN training
+  f-divergences         a general family containing KL, JS, TV, chi-square
+  Fisher information    the local curvature of KL; the metric on statistical
+                        manifolds and the basis of the Cramer-Rao bound
+
+The relationship between KL divergence and Fisher information is the bridge to statistics.
+Expanding KL divergence between two nearby distributions to second order gives a quadratic
+form whose matrix is the Fisher information, so Fisher information is the local curvature of
+the divergence. This is why the inverse Fisher information bounds estimator variance, why
+the natural gradient — which uses the Fisher metric rather than the Euclidean one — is the
+correct steepest-descent direction in distribution space, and why parameterization-dependent
+gradient descent can be so much slower than a method respecting the underlying geometry.
+
+[user] I'm comparing two quantized models against an FP16 reference using KL divergence over
+the output distributions. Which direction should I use and why?
+[assistant] tool_call info.divergence_choice({"reference": "fp16_teacher",
+"candidate": "quantized", "goal": "detect_degradation", "distribution": "softmax_vocab",
+"vocab_size": 152000})
+[tool] {"recommended": "forward_kl_reference_to_candidate",
+"rationale": "penalizes_candidate_assigning_low_prob_where_reference_has_mass",
+"caution": "reverse_kl_ignores_dropped_modes", "practical": "tail_mass_handling",
+"alternative": "js_divergence_if_symmetry_needed"}
+[assistant] Use forward KL — divergence from the reference to the candidate, written
+D(reference || candidate). Here is why the direction matters for this particular purpose.
+
+Forward KL takes the expectation under the reference distribution, so it heavily penalizes
+any token to which the reference assigns meaningful probability and the candidate assigns
+near-zero. That is exactly the failure mode you care about in quantization: the quantized
+model has lost the ability to consider an option the full-precision model considered
+plausible. The penalty grows without bound as the candidate's probability approaches zero
+there, which makes the metric appropriately sensitive to dropped modes.
+
+Reverse KL would take the expectation under the candidate, so it penalizes the candidate for
+putting mass where the reference does not — hallucinated options — while being nearly blind
+to modes the candidate dropped entirely, since those regions have negligible weight in the
+expectation. A quantized model that collapsed onto the single most likely token would score
+well under reverse KL and terribly under forward KL, and the forward verdict is the correct
+one.
+
+Two practical points for a 152k vocabulary. Numerical handling of the tail matters: exact KL
+requires the full distribution, and if you are storing only top-k logits you need to account
+for the residual tail mass explicitly rather than truncating, or you will systematically
+understate the divergence — and the tail is precisely where low-bit quantization does its
+damage. Second, KL is unbounded, so a single catastrophic position can dominate an average
+over a corpus. Report the distribution of per-token KL, not only the mean: the median plus
+the 99th percentile is far more diagnostic than the mean alone, because two quants with the
+same mean KL can differ entirely in whether the error is diffuse or concentrated in rare
+catastrophic positions.
+
+If you need a symmetric bounded measure for ranking — for example to compare quants of
+different base models — Jensen-Shannon is the reasonable alternative, at the cost of being
+less sensitive to exactly the dropped-mode failure you are hunting.
+
+## Rate-Distortion and Connections
+
+Rate-distortion theory extends source coding to lossy compression, asking for the minimum
+rate needed to represent a source within a specified distortion. The rate-distortion
+function is the minimum mutual information between source and reconstruction subject to the
+distortion constraint, and it defines the achievable frontier: no scheme beats it, and it is
+approachable in the limit of long blocks. Every practical lossy codec — audio, image, video
+— is an engineering approximation to this bound with a perceptually motivated distortion
+measure, since squared error correlates poorly with what people notice.
+
+The connection to machine learning runs deep and is worth making explicit. The information
+bottleneck principle frames representation learning as finding a representation that is
+maximally informative about the target while minimally informative about the input,
+compressing away everything irrelevant. This is a rate-distortion problem with mutual
+information as both the rate and the distortion measure, and it provides one account of what
+a deep network's layers are doing: successively discarding input information not predictive
+of the label.
+
+Variational autoencoders are also a rate-distortion system in disguise. Their objective
+decomposes into a reconstruction term and a KL term penalizing the divergence of the
+approximate posterior from the prior, and that KL term is precisely a rate: the number of
+nats used to describe the latent code. The weighting between them traces out the
+rate-distortion curve, and the observed tradeoff — that increasing the KL weight produces
+better-organized latents and worse reconstructions — is the rate-distortion frontier being
+traversed.
+
+Cross-domain connections:
+  compression = prediction   a better predictive model gives shorter codes;
+                             perplexity is exponentiated cross-entropy
+  MDL principle              choose the model minimizing the description length of
+                             model plus data; a formalization of Occam's razor and
+                             an alternative justification for regularization
+  thermodynamic entropy      Gibbs entropy has the same form; Landauer's principle
+                             sets a physical energy cost of k T ln 2 per bit erased
+  Maxwell's demon            resolved by accounting for the information the demon
+                             must store and eventually erase
+  channel capacity in bio    neural coding, sensory bandwidth, molecular signalling
+  differential privacy       privacy loss is a bounded log-likelihood ratio, which
+                             is a divergence constraint
+  feature selection          mutual information with the target, with the caveat
+                             that estimation from finite samples is unreliable
+
+The minimum description length principle deserves the last word because it reframes model
+selection cleanly. The best model is the one minimizing the total number of bits required to
+describe both the model and the data given the model. A complex model fits the data closely,
+requiring few bits for the residuals and many for the model itself; a simple model requires
+the reverse. The optimum balances them, which is a principled derivation of Occam's razor
+rather than an aesthetic preference, and it recovers information criteria such as AIC and
+BIC as approximations under particular coding assumptions. Where competing model selection
+criteria disagree, asking which one is measuring total description length usually clarifies
+what they are actually optimizing for.

@@ -1,0 +1,323 @@
+================================================================================
+AREA: Astronomy and Space
+SUBJECT: Orbital Mechanics and Mission Design
+Subtopics: two-body problem, orbital elements, maneuvers, transfers, perturbations,
+n-body and Lagrange points, launch and reentry, interplanetary trajectories.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## The Two-Body Problem
+
+Two point masses under mutual gravitation reduce exactly to a one-body problem: the
+centre of mass moves uniformly, and the relative position obeys r'' = -mu r / |r|^3
+with mu = G(M + m), the standard gravitational parameter. For a spacecraft around a
+planet the spacecraft's mass is negligible and mu is a property of the central body
+alone, known far more precisely than either G or M individually — which is why mission
+software uses tabulated mu values rather than computing GM.
+
+The solution is a conic section with the central body at one focus, r = p/(1 + e cos
+nu), where p is the semi-latus rectum, e the eccentricity, and nu the true anomaly
+measured from periapsis. Eccentricity classifies the orbit: e = 0 is a circle, 0 < e <
+1 an ellipse, e = 1 a parabola, and e > 1 a hyperbola. This is Kepler's first law,
+derived rather than observed, and it holds only for an inverse-square force — any other
+power law gives orbits that precess rather than closing.
+
+Two conserved quantities do most of the work. Specific angular momentum h = r cross v
+is constant because gravity is central, which immediately gives Kepler's second law:
+the radius sweeps equal areas in equal times, so a body moves fastest at periapsis and
+slowest at apoapsis. Specific orbital energy is the vis-viva quantity, and combining it
+with the geometry yields the single most-used equation in the subject.
+
+Core two-body relations:
+  vis-viva            v^2 = mu (2/r - 1/a)
+  specific energy     E = v^2/2 - mu/r = -mu/(2a)
+  circular speed      v_c = sqrt(mu / r)
+  escape speed        v_esc = sqrt(2 mu / r) = sqrt(2) * v_c
+  period              T = 2 pi sqrt(a^3 / mu)          Kepler's third law
+  periapsis radius    r_p = a(1 - e)
+  apoapsis radius     r_a = a(1 + e)
+  semi-major axis     a = (r_p + r_a)/2
+  angular momentum    h = sqrt(mu a (1 - e^2)) = r v cos(flight path angle)
+
+The vis-viva equation deserves particular emphasis because nearly every maneuver
+calculation reduces to applying it twice and differencing. It says speed depends only
+on current radius and semi-major axis — not on eccentricity, not on where you are in
+the orbit except through r. Note what the energy expression implies: total energy
+depends only on a. Two orbits with wildly different eccentricities but the same
+semi-major axis have identical energy and identical period, which is the key to
+understanding why raising apoapsis and raising periapsis cost the same energy for the
+same change in a.
+
+Kepler's equation, M = E - e sin E, relates mean anomaly (which advances linearly in
+time) to eccentric anomaly (which is geometric). It is transcendental and has no closed
+form, so propagating a position to a future time requires iteration — Newton's method
+converges quickly except near e = 1, where the derivative degenerates and specialized
+formulations are used. This small transcendental obstacle is why orbit propagation is a
+numerical rather than an algebraic exercise, and it is the historical origin of a great
+deal of numerical analysis.
+
+Q: Two satellites orbit Earth with the same semi-major axis, one nearly circular and
+one highly eccentric. Compared to each other, their orbital periods are:
+A. Equal
+B. Shorter for the eccentric one
+C. Longer for the eccentric one
+D. Dependent on their masses
+Reasoning: Kepler's third law gives T = 2 pi sqrt(a^3/mu), which depends only on the
+semi-major axis. Eccentricity affects the distribution of speed around the orbit but
+not the period, and satellite mass is negligible. Answer: A.
+
+Q: A spacecraft in a circular orbit fires prograde briefly. Immediately afterward:
+A. The whole orbit expands uniformly
+B. The burn point becomes periapsis and the opposite side rises to a new apoapsis
+C. The orbit becomes circular at a larger radius
+D. The period is unchanged
+Reasoning: An impulsive burn changes velocity but not position, so the burn point
+remains on the new orbit at the same radius. Since speed increased there, that point is
+now the fastest point, which is periapsis, and the orbit rises to a higher apoapsis
+half a revolution later. Energy increased so a increased and the period lengthened.
+Answer: B.
+
+## Orbital Elements and Reference Frames
+
+Six numbers specify an orbit and a position on it. Semi-major axis a gives size and
+energy. Eccentricity e gives shape. Inclination i is the tilt of the orbital plane
+relative to the reference plane — the equator for Earth orbits, the ecliptic for
+heliocentric ones. Right ascension of the ascending node, capital Omega, orients the
+line where the orbit crosses the reference plane going north. Argument of periapsis,
+omega, locates periapsis within the orbital plane measured from that node. True anomaly
+nu locates the spacecraft along the orbit at a given epoch.
+
+The parameterization degenerates in exactly the cases that occur most often in practice.
+For a circular orbit periapsis is undefined, so omega and nu are individually
+meaningless while their sum, the argument of latitude, remains well defined. For an
+equatorial orbit the ascending node is undefined, so Omega is meaningless while the
+longitude of periapsis, Omega plus omega, survives. Since the most common orbits are
+near-circular and many are near-equatorial, production software uses equinoctial
+elements, a nonsingular reparameterization that avoids these degeneracies entirely.
+
+Inclination determines coverage and cost. A launch from latitude phi cannot directly
+reach an inclination below phi without a plane change, since the launch site's
+latitude sets the maximum latitude of the resulting ground track. Launching due east
+from the equator gives an equatorial orbit and captures the full 465 m/s of Earth's
+rotational speed as a free contribution; launching from Kennedy Space Center at 28.5
+degrees latitude gives 28.5 degrees inclination minimum and about 409 m/s of assist;
+polar and sun-synchronous launches get essentially none and pay a real performance
+penalty.
+
+Common Earth orbit regimes:
+  LEO          160-2000 km; short periods (~90 min), high drag, cheap access
+  SSO          ~600-800 km, i ~98 deg, retrograde; J2 precession matches Earth's
+               orbital rate so the local solar time of the ground track is fixed
+  MEO          ~20,200 km, 12 h period; the GNSS constellation altitude
+  GEO          35,786 km, i = 0, period exactly one sidereal day; appears fixed
+               over one longitude
+  GTO          elliptical transfer with apogee at GEO altitude
+  Molniya      a ~26,600 km, e ~0.74, i = 63.4 deg; the critical inclination zeroes
+               apsidal precession, giving long dwell over high northern latitudes
+  HEO/Lunar    beyond GEO; three-body effects become significant
+
+The sidereal day distinction matters for GEO and is a frequent error. A geostationary
+satellite matches Earth's rotation relative to the stars, 23 h 56 m 4 s, not the 24 h
+solar day. Using the solar day gives a radius error of a few tens of kilometres and a
+satellite that drifts steadily in longitude — small in relative terms, operationally
+disqualifying.
+
+## Maneuvers and Transfers
+
+An impulsive maneuver idealizes a burn as an instantaneous velocity change, valid when
+the burn duration is short compared with the orbital period. The delta-v budget is the
+currency of mission design because the rocket equation makes it exponentially
+expensive: delta_v = v_e ln(m_0/m_f), so propellant mass fraction grows exponentially
+with required delta-v. Exhaust velocity v_e equals I_sp times standard gravity, which
+is why specific impulse dominates propulsion selection — chemical bipropellants reach
+around 450 s in vacuum, ion thrusters exceed 3,000 s, and the difference reshapes what
+missions are possible.
+
+The Hohmann transfer moves between coplanar circular orbits using two burns and is
+minimum-delta-v for radius ratios below about 11.94. Burn prograde at the inner orbit
+to raise apoapsis to the target radius, coast half an ellipse, then burn prograde again
+at apoapsis to circularize. Above that ratio the bi-elliptic transfer wins: burn to an
+apoapsis far beyond the target, perform a cheap plane-and-periapsis adjustment where
+speed is low, then drop back. The bi-elliptic saves delta-v at the cost of enormously
+longer transfer time, which is usually the reason it is not used.
+
+Maneuver formulas:
+  Hohmann, r1 -> r2
+    dv1 = sqrt(mu/r1) * (sqrt(2 r2/(r1+r2)) - 1)
+    dv2 = sqrt(mu/r2) * (1 - sqrt(2 r1/(r1+r2)))
+    transfer time = pi * sqrt(((r1+r2)/2)^3 / mu)
+  plane change, angle theta at speed v
+    dv = 2 v sin(theta/2)
+  combined plane change and speed change
+    dv = sqrt(v1^2 + v2^2 - 2 v1 v2 cos theta)
+  circularization at apoapsis
+    dv = v_circular(r_a) - v_apoapsis
+  rocket equation
+    dv = I_sp * g0 * ln(m_0 / m_f)
+
+Plane changes are brutally expensive and the formula shows why: the cost is
+proportional to the orbital speed at which you perform it. A 30-degree plane change in
+LEO at 7.7 km/s costs about 4 km/s, comparable to reaching orbit in the first place.
+Three mitigations follow directly. Perform plane changes at apoapsis where speed is
+lowest, which is why GTO-to-GEO burns combine circularization with the inclination
+change in a single vector sum rather than doing them separately. Combine the maneuvers,
+since the vector sum is always less than the scalar sum. Or exploit natural
+perturbations — differential nodal regression from J2 can rotate the plane for free
+given enough time, which is how constellations phase their planes.
+
+Orbital rendezvous is counterintuitive because thrusting toward a target does not close
+the distance. To catch a target ahead of you in the same orbit, you must slow down: a
+retrograde burn lowers your orbit, which shortens your period, so you gain angular
+position each revolution and rise to meet the target later. Speeding up sends you to a
+higher, slower orbit and you fall behind. The Clohessy-Wiltshire equations linearize
+relative motion in a rotating frame near a circular reference orbit, producing the
+characteristic elliptical relative trajectories that govern close-proximity operations
+and docking.
+
+[user] Getting from a 400 km circular parking orbit to GEO — what's the delta-v and
+would a bi-elliptic help?
+[assistant] tool_call astro.transfer_analysis({"r1_km": 6778, "r2_km": 42164,
+"mu": 398600.4, "inclination_change_deg": 28.5})
+[tool] {"ratio": 6.22, "hohmann_dv1": 2.426, "hohmann_dv2": 1.466,
+"hohmann_total_coplanar": 3.892, "hohmann_time_hr": 5.27,
+"combined_apogee_burn_dv": 1.831, "hohmann_total_with_plane_change": 4.257,
+"separate_plane_change_dv": 5.045, "bielliptic_breakeven_ratio": 11.94}
+[assistant] Coplanar Hohmann is 3.89 km/s total: 2.43 km/s to raise apogee from the
+400 km parking orbit, then 1.47 km/s at apogee to circularize, with a 5.3 hour
+transfer.
+
+Bi-elliptic does not help you. The breakeven radius ratio is 11.94 and yours is 6.22,
+comfortably below it, so Hohmann is optimal and bi-elliptic would cost more delta-v
+*and* take days instead of hours.
+
+The interesting part is the 28.5 degree inclination change from a Kennedy launch. Do
+not do it separately — that would cost 5.05 km/s on top of the transfer. Instead
+combine it with the apogee circularization burn as a single vector: at apogee your
+speed is only 1.60 km/s versus 3.07 km/s for the circular GEO speed, and the plane
+change is cheap precisely because you are moving slowly. The combined burn is 1.83
+km/s using dv = sqrt(v1^2 + v2^2 - 2 v1 v2 cos theta), against 1.47 km/s for
+circularization alone — so the entire inclination change costs you only about 365 m/s
+extra.
+
+Total: roughly 4.26 km/s from the parking orbit. That is the standard GTO-to-GEO
+approach and the reason commercial launches to GEO always leave the plane change for
+apogee.
+
+One further optimization if you have time: a supersynchronous transfer with apogee
+above GEO altitude makes the plane change even cheaper, then a small burn lowers
+apogee back. It saves on the order of 100 m/s for a few extra days of transfer, and
+whether that trade is worth it depends on whether your constraint is propellant or
+schedule.
+
+## Perturbations
+
+The two-body solution is an idealization. Real orbits evolve under perturbing
+accelerations, and which ones matter depends entirely on altitude.
+
+Earth's oblateness is the dominant perturbation for most Earth orbits. The equatorial
+bulge, quantified by the J2 zonal harmonic of about 1.083e-3, produces a torque that
+causes two secular effects. The orbital plane regresses, with the node moving westward
+for prograde orbits at a rate proportional to cos(i), and the argument of periapsis
+rotates within the plane at a rate proportional to (5 cos^2 i - 1). Both are exploited
+rather than merely tolerated. Sun-synchronous orbits choose a retrograde inclination
+near 98 degrees so the nodal regression is +0.9856 degrees per day, exactly matching
+Earth's mean motion about the Sun, which fixes the local solar time of every equator
+crossing and gives consistent lighting for imaging. Molniya orbits choose the critical
+inclination of 63.4 degrees, where 5 cos^2 i - 1 vanishes and apsidal rotation stops,
+so apogee stays over the northern hemisphere indefinitely.
+
+Atmospheric drag dominates below about 600 km and is the least predictable
+perturbation, because upper-atmosphere density varies by more than an order of
+magnitude with solar activity over the eleven-year cycle and by large factors within a
+single geomagnetic storm. Drag removes energy, shrinking the semi-major axis; because
+lower orbits are faster, the paradoxical result is that drag *speeds the satellite up*
+while removing energy from the orbit. Decay is self-accelerating, since a lower orbit
+encounters denser air, so a satellite's altitude declines slowly for years and then
+reenters over days. Ballistic coefficient, mass over drag area times drag coefficient,
+determines the rate, which is why deployable drag sails are a viable passive
+deorbit mechanism.
+
+Perturbation magnitudes and where they matter:
+  J2 oblateness          dominant in LEO through GEO; secular node and apsidal drift
+  higher zonals, tesseral J3, J22 and beyond; J22 drives GEO longitude drift toward
+                         two stable points at 75 E and 105 W
+  atmospheric drag       dominant below ~600 km; negligible above ~1000 km
+  lunisolar gravity      significant above ~15,000 km; drives GEO inclination growth
+                         of about 0.85 deg/year, requiring north-south stationkeeping
+  solar radiation pressure  matters for high area-to-mass ratios; dominant for
+                         solar sails, significant for large GEO satellites
+  relativistic           tiny but real; GPS clocks require both special and general
+                         relativistic corrections totalling +38 microseconds/day
+  tidal / non-gravitational  thermal recoil, outgassing; the Pioneer anomaly's
+                         eventual explanation
+
+The GPS relativistic correction is a useful concrete case. Satellite clocks run slow by
+about 7 microseconds per day from special-relativistic time dilation at orbital speed,
+and fast by about 45 microseconds per day from the weaker gravitational potential at
+20,200 km altitude, netting +38 microseconds per day. Uncorrected, this accumulates to
+a positioning error of about 10 kilometres per day. The clocks are deliberately offset
+in frequency before launch to compensate, making GNSS the most widely deployed
+practical application of general relativity.
+
+Stationkeeping budgets follow from these perturbations. A GEO satellite spends roughly
+50 m/s per year on north-south stationkeeping to fight lunisolar inclination growth,
+and only 2-5 m/s per year on east-west to counter the J22 longitude drift. Since
+north-south is an order of magnitude more expensive, satellites near end of life are
+often allowed to drift in inclination — inclined-orbit operation — trading ground
+antenna tracking complexity for years of additional service.
+
+## Three-Body Effects and Interplanetary Trajectories
+
+The three-body problem has no general closed-form solution, but the restricted circular
+case, where a negligible mass moves in the field of two bodies in circular mutual
+orbit, admits five equilibrium points in the rotating frame. L1, L2, and L3 lie on the
+line through the two primaries and are saddle points — unstable, requiring
+stationkeeping of roughly 1-10 m/s per year, but the instability is gentle and the
+associated halo and Lissajous orbits are practical. L4 and L5 lead and trail the
+smaller primary by 60 degrees and are genuinely stable for mass ratios below about
+1/24.96, which is why Jupiter's Trojan asteroids accumulate there and why Earth has
+captured at least one Trojan.
+
+The Sun-Earth Lagrange points are prime observatory real estate. Sun-Earth L1 gives an
+uninterrupted view of the Sun and is where solar monitors sit. Sun-Earth L2, 1.5
+million kilometres anti-sunward, lets a spacecraft shield Sun, Earth, and Moon behind a
+single sunshade while maintaining a constant thermal environment and continuous
+downlink, which is why the major infrared and microwave observatories are placed there.
+Earth-Moon L2, beyond the far side, provides continuous communication relay for far-side
+lunar surface operations.
+
+Interplanetary trajectory design uses the patched-conic approximation: treat the
+trajectory as a sequence of two-body arcs, heliocentric between planets and planetocentric
+inside each planet's sphere of influence, matching velocity at the boundaries. The
+sphere of influence radius scales as a(m/M)^{2/5}, about 925,000 km for Earth. The
+approximation is crude — it discontinuously switches the central body — but it is
+accurate enough for mission architecture and provides the initial guess for the
+high-fidelity numerical optimization that follows.
+
+Interplanetary quantities:
+  hyperbolic excess speed   v_inf; speed relative to the planet at infinity
+  characteristic energy     C3 = v_inf^2; the standard launch performance metric
+  sphere of influence       r_SOI = a (m_planet / M_sun)^{2/5}
+  gravity assist turn angle sin(delta/2) = 1/(1 + r_p v_inf^2 / mu_planet)
+  max heliocentric dv       2 v_inf from a single flyby
+  synodic period            1/T_syn = |1/T_1 - 1/T_2|
+  Earth-Mars synodic        ~25.6 months between launch windows
+  Hohmann Earth-Mars        ~5.6 km/s C3, ~259 day transfer
+
+Gravity assists exchange momentum with a planet. In the planet's frame the flyby is a
+hyperbola and only rotates the velocity vector, preserving its magnitude; in the Sun's
+frame that rotation changes the heliocentric speed, and the planet gains or loses an
+utterly negligible compensating amount. The maximum gain from one encounter is 2 v_inf,
+achieved for a 180-degree turn, which requires a low v_inf and a close approach at a
+massive planet. This is what makes outer-planet missions feasible at all — Voyager 2's
+Jupiter-Saturn-Uranus-Neptune sequence would have been impossible with chemical
+propulsion alone, and Cassini used Venus twice, Earth, and Jupiter to reach Saturn.
+
+Launch windows follow from synodic periods. Earth-Mars transfer opportunities recur
+every 25.6 months, and because Mars' orbit is appreciably eccentric, the delta-v cost
+varies substantially between windows on a roughly 15-year cycle. A mission that misses
+its window waits over two years, which is why interplanetary launch campaigns operate
+under schedule pressure that has no equivalent in Earth-orbital work, and why launch
+periods are designed with daily windows spanning several weeks with a corresponding
+performance margin.

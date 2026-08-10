@@ -1,0 +1,242 @@
+================================================================================
+AREA: Earth and Life Sciences
+SUBJECT: Evolutionary Biology
+Subtopics: selection and drift, population genetics, speciation, phylogenetics,
+molecular evolution, evolutionary developmental biology, evidence and inference.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Selection, Drift, and the Mechanisms of Change
+
+Evolution is change in the heritable characteristics of populations across generations, and it
+requires only three conditions: variation among individuals, heritability of that variation, and
+differential reproduction associated with it. Where those three hold, the composition of the
+population changes, and the argument is close to a logical necessity rather than an empirical
+claim about biology specifically.
+
+Natural selection is the process arising when the differential reproduction is caused by the
+variation. It is not the only mechanism of evolutionary change and it is frequently not the
+dominant one. Genetic drift — the random sampling of which individuals happen to reproduce — changes
+allele frequencies in any finite population, and its magnitude is inversely proportional to
+population size. In a small population drift overwhelms weak selection entirely, which means that a
+mildly advantageous variant can be lost and a mildly deleterious one can fix, purely by chance.
+
+The relationship between the two is quantified by comparing the selection coefficient with the
+reciprocal of the effective population size. When selection is much stronger, the outcome is
+deterministic; when it is much weaker, the variant behaves as though neutral. This threshold is why
+effective population size is one of the most consequential quantities in evolutionary biology, and
+why species with small populations accumulate slightly deleterious mutations that large populations
+purge.
+
+Mechanisms of evolutionary change:
+  the three conditions  variation, heritability, differential reproduction
+  natural selection    differential reproduction caused by the variation
+  genetic drift        random sampling; magnitude scales inversely with
+                       population size
+  the threshold        selection dominates when its coefficient exceeds one over
+                       the effective population size
+  effective population size  the size of an idealized population with the same
+                       drift; usually far smaller than the census count
+  mutation             the ultimate source of variation; mostly neutral or
+                       deleterious
+  recombination        reshuffles combinations; decouples linked sites
+  gene flow            migration between populations; homogenizes them
+  directional selection  shifts the mean
+  stabilizing selection  reduces the variance; the most common form
+  disruptive selection  favours extremes; can initiate divergence
+  balancing selection  maintains polymorphism through heterozygote advantage,
+                       frequency dependence, or spatial variation
+  sexual selection     differential mating success; can oppose survival
+                       advantage, which is why extravagant traits persist
+
+Q: A slightly deleterious mutation becomes fixed in a population. The most likely explanation is:
+A. The mutation was actually beneficial
+B. The population was small enough that drift dominated weak selection, so the allele's fate was
+   effectively random despite its mild disadvantage
+C. Selection does not act on mutations
+D. The measurement is wrong
+Reasoning: Selection is effective only when its strength exceeds the magnitude of drift, which
+scales inversely with effective population size. In a small population, mutations with small
+fitness effects behave as though neutral and can fix by chance. This is a routine outcome, not an
+anomaly. Answer: B.
+
+## Population Genetics
+
+Population genetics is the quantitative core of evolutionary theory, and it began by establishing
+what happens in the absence of evolution. The Hardy-Weinberg principle states that under random
+mating, no selection, no drift, no mutation, and no migration, allele and genotype frequencies
+remain constant. Its value is as a null model: a population departing from Hardy-Weinberg
+proportions is telling you that one of those assumptions fails, and which direction the departure
+runs narrows down which.
+
+The dynamics of a single locus under selection are tractable and instructive. A beneficial dominant
+allele rises quickly at first and then slowly, because when it is common the recessive homozygotes
+that selection acts against are rare. A beneficial recessive allele does the opposite, lingering at
+low frequency for a long time because it is almost always masked in heterozygotes. This asymmetry
+means that the rate of adaptation depends on dominance as much as on the strength of selection.
+
+Linkage complicates the single-locus picture in ways that matter for interpretation. Sites near a
+selected variant are dragged along with it, a process called genetic hitchhiking, which reduces
+diversity in the surrounding region and produces a signature called a selective sweep. Detecting
+these signatures in genome data is how selection is inferred in species that cannot be
+experimented on, and distinguishing them from the diversity reductions produced by demographic
+history — a bottleneck reduces diversity genome-wide — is the central inferential difficulty.
+
+Population genetics:
+  Hardy-Weinberg       the null model; frequencies constant absent evolution
+  the diagnostic use   departures indicate which assumption fails
+  allele frequency     the fundamental state variable
+  fitness              expected relative reproductive contribution
+  selection coefficient  the fitness difference per generation
+  dominance            determines the shape of the frequency trajectory
+  the recessive lag    beneficial recessives rise slowly while rare
+  heterozygote advantage  maintains both alleles; sickle-cell and malaria the
+                       textbook case
+  linkage disequilibrium  non-random association between sites
+  genetic hitchhiking  neutral sites carried by a selected neighbour
+  selective sweep      the diversity reduction signature around a swept variant
+  background selection  diversity reduction from purging deleterious mutations;
+                       mimics a sweep
+  the confound         demographic history reduces diversity genome-wide;
+                       distinguishing it from selection requires comparing
+                       regions rather than looking at one
+  coalescent theory    tracing lineages backward to common ancestors; the modern
+                       inferential framework
+
+## Speciation and Phylogenetics
+
+A species is a population or set of populations that is reproductively isolated from others, under
+the most widely used definition, and speciation is the process by which that isolation arises. The
+definition has well-known difficulties — it does not apply to asexual organisms, it is untestable
+for fossils, and hybridization between recognized species is common — which is why several
+alternative species concepts coexist and why the boundary is often genuinely fuzzy rather than
+merely uncertain.
+
+Geographic separation is the most straightforward route. Populations divided by a barrier accumulate
+differences independently through drift and divergent selection, and if they remain separated long
+enough, reproductive incompatibilities arise as a byproduct. When secondary contact occurs,
+selection against unfit hybrids can then strengthen prezygotic isolation directly, a process called
+reinforcement. Speciation without geographic separation is harder because gene flow opposes
+divergence, but it occurs — through host shifts, polyploidy in plants, and strong disruptive
+selection with assortative mating.
+
+Phylogenetics reconstructs the branching history relating organisms. Characters shared through
+common ancestry are informative; characters shared through convergent evolution are misleading, and
+distinguishing them is the core methodological problem. Molecular data made the field quantitative
+because sequences supply many independent characters and because models of substitution allow
+likelihood-based inference rather than counting.
+
+Speciation and phylogeny:
+  biological species   reproductive isolation; the standard concept and an
+                       imperfect one
+  alternative concepts  morphological, ecological, phylogenetic; each fails
+                       differently
+  allopatric           geographic separation; the common route
+  sympatric            divergence without separation; requires strong selection
+                       and assortative mating
+  polyploidy           instantaneous speciation, common in plants
+  reinforcement        selection strengthening isolation after secondary contact
+  hybrid zones         stable regions of interbreeding; informative about
+                       the strength of isolation
+  homology             similarity through common ancestry; the informative signal
+  homoplasy            similarity through convergence or reversal; the noise
+  parsimony            fewest character changes; simple, biased under unequal
+                       rates
+  maximum likelihood   a substitution model plus optimization; the standard
+  Bayesian inference   posterior distributions over trees; gives uncertainty
+                       directly
+  long branch attraction  rapidly evolving lineages grouping spuriously; a
+                       specific and diagnosable artifact
+  molecular clock      substitutions accumulating roughly linearly; calibrated by
+                       fossils, and rate variation across lineages is the main
+                       source of error
+  incomplete lineage sorting  gene trees disagreeing with the species tree; a
+                       real biological phenomenon, not an analytical failure
+
+## Molecular Evolution and Evolutionary Development
+
+The neutral theory of molecular evolution asserts that most substitutions between species are
+neither advantageous nor deleterious but effectively neutral, fixed by drift. It was controversial
+when proposed and is now the standard null model, which is a substantial shift: the question asked
+of any observed sequence difference is no longer whether it is adaptive but whether it departs
+detectably from neutral expectation.
+
+The tests for that departure are elegant. Comparing the rate of substitutions that change an amino
+acid with the rate of those that do not gives a ratio whose expected value under neutrality is one;
+values below indicate purifying selection removing changes, and values above indicate positive
+selection driving them. Comparing polymorphism within a species with divergence between species
+gives an independent test, because selection affects the two differently. Both are applied
+routinely to genome data and both are sensitive to demography in ways that require care.
+
+Evolutionary developmental biology addresses how genetic change produces morphological change, and
+its central finding is that the same small set of regulatory genes patterns the body plans of
+animals as different as flies and vertebrates. Morphological diversity arises far more from changes
+in when and where those genes are expressed than from changes in the genes themselves. This
+resolves an old puzzle — how such varied forms arise from such conserved genomes — and it relocates
+the action from protein-coding sequence to regulatory sequence.
+
+Molecular and developmental evolution:
+  neutral theory       most substitutions are effectively neutral
+  the shift            neutrality is the null; adaptation must be demonstrated
+  synonymous vs nonsynonymous  the ratio test for selection
+  purifying selection  the dominant mode; removes deleterious changes
+  positive selection   drives change; detectable but far less common
+  the McDonald-Kreitman test  polymorphism versus divergence
+  demography as confound  population size change mimics selection signals
+  gene duplication     the raw material for new function; one copy free to
+                       diverge
+  neofunctionalization  a duplicate acquiring a new role
+  subfunctionalization  duplicates partitioning the ancestral role
+  horizontal gene transfer  transfer between lineages; pervasive in prokaryotes
+                       and it makes a strictly branching tree the wrong model
+                       there
+  Hox genes            conserved patterning genes across animal phyla
+  regulatory evolution  changes in expression, not protein sequence, as the main
+                       source of morphological difference
+  constraint           developmental pathways limiting what variation is possible;
+                       evolution explores a restricted space
+  exaptation           a structure co-opted for a function it did not evolve for
+
+## Evidence and Inference
+
+The evidence for common descent is convergent from independent lines, and the convergence is what
+makes it robust rather than any single line being conclusive. The fossil record documents forms
+intermediate between major groups. Comparative anatomy shows shared structures repurposed across
+lineages, including structures that are functionally poor and make sense only as inherited
+constraints. Biogeography shows distributions that track geological history. Molecular sequences
+produce a phylogeny that matches the one derived from morphology, from entirely independent data.
+
+Vestigial structures and molecular pseudogenes are particularly informative because they are
+evidence of history rather than of function. A non-functional copy of a gene that works in related
+species, disabled by an identifiable mutation shared with the nearest relatives, records both the
+ancestry and the loss. The shared inactivating mutation is the key detail — an independently
+disabled gene would carry a different lesion.
+
+Evolution is observable on human timescales where generation times are short and selection is
+strong. Antibiotic resistance, pesticide resistance, herbicide resistance, and viral immune escape
+are all evolution occurring in real time under selection pressures we apply, and they are also
+the practical reason the theory matters outside biology: resistance management is applied
+evolutionary biology, and strategies that ignore it fail predictably.
+
+Evidence and application:
+  independent convergence  fossils, anatomy, biogeography, molecules agreeing
+  transitional fossils  documented for the major transitions
+  homologous structures  the same underlying plan in different functions
+  vestigial structures  reduced and functionally poor; evidence of history
+  pseudogenes          disabled copies; the shared inactivating mutation dates
+                       the loss
+  endogenous retroviruses  insertions at identical genomic positions across
+                       species; essentially unambiguous shared ancestry
+  biogeography         distributions tracking continental history
+  observed evolution   resistance evolution on human timescales
+  antibiotic resistance  the most consequential applied case
+  resistance management  rotation, combination, refugia; strategies designed
+                       against the evolutionary response
+  directed evolution   selection applied deliberately in the laboratory to
+                       produce enzymes and binders; the theory used as an
+                       engineering method
+  the general lesson   any replicating system with variation and differential
+                       success evolves, which is why the same reasoning applies
+                       to tumours, to viruses within a host, and to populations
+                       of algorithms under a selection criterion

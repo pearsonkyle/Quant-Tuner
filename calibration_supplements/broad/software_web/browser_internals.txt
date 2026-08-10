@@ -1,0 +1,235 @@
+================================================================================
+AREA: Software and Web Engineering
+SUBJECT: Browser Internals and Web Platform
+Subtopics: process architecture, parsing and the render pipeline, the event loop,
+networking and caching, storage, security model, performance measurement.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Process Architecture and the Rendering Pipeline
+
+A modern browser is a distributed system running on one machine. Separate processes handle the
+browser UI, network requests, GPU work, and — critically — each site's content, isolated from the
+others. Site isolation exists because the browser executes untrusted code from mutually distrusting
+origins in the same application, and process boundaries are the only reliable enforcement mechanism
+when speculative execution attacks made in-process memory boundaries insufficient.
+
+Within a renderer process, turning a response into pixels follows a fixed pipeline. Parsing builds a
+document tree from markup and a rule set from stylesheets. Style resolution computes the final value
+of every property for every element. Layout computes geometry — position and size — for everything in
+the tree. Paint records the drawing operations. Compositing assembles layers into the final image,
+usually on the GPU.
+
+The pipeline's cost structure is what matters for performance work. A change to a property that
+affects geometry invalidates layout and everything downstream. A change affecting only appearance
+skips layout but requires paint. A change to a property the compositor can handle by itself —
+transform and opacity being the important ones — skips both and runs entirely on the compositor,
+which is why animating those two properties is smooth while animating position or dimensions is not.
+
+Architecture and pipeline:
+  multi-process        browser, network, GPU, and per-site renderers
+  site isolation       process boundaries between origins
+  the motivation       in-process memory boundaries proved insufficient
+  parsing              markup to a document tree, stylesheets to rules
+  style resolution     computed values for every element
+  layout               geometry for the tree
+  paint                recording drawing operations
+  compositing          assembling layers, usually on the GPU
+  the invalidation cascade  geometry changes invalidate everything downstream
+  paint-only changes   skip layout
+  compositor-only properties  transform and opacity; skip layout and paint
+  the animation rule   animate transform and opacity, never position or size
+  layer promotion      moving an element to its own compositor layer; effective
+                       and memory-expensive, so it should be deliberate
+  forced synchronous layout  reading a geometry property after a write, forcing
+                       the pipeline to run mid-script; the classic performance bug
+  batch reads and writes  read all geometry, then write; avoids the forced
+                       interleaving
+
+Q: A script that toggles a class in a loop, reading an element's offset height after each change,
+runs far slower than expected. The cause is:
+A. Too many class changes
+B. Each geometry read after a style write forces layout to run synchronously; interleaving reads
+   and writes defeats the browser's batching and produces one full layout per iteration
+C. The class selector is slow
+D. Garbage collection
+Reasoning: The browser batches style and layout work until it is needed. Reading a property that
+depends on layout forces it to flush immediately. A read-write-read-write loop therefore triggers
+a layout per iteration. Batching all reads before all writes eliminates it. Answer: B.
+
+## The Event Loop and Asynchrony
+
+JavaScript executes on a single thread per document, and the event loop is what coordinates
+everything that thread does. It runs a task to completion, then drains the microtask queue, then
+performs rendering work if a frame is due, then takes the next task. Understanding this order
+explains most timing behaviour that appears mysterious, including why a promise chain completes
+before a timer scheduled for zero milliseconds.
+
+Tasks and microtasks differ in when they run and the difference matters. Tasks — timers, events,
+network callbacks — are taken one per loop iteration. Microtasks — promise continuations chiefly —
+are drained completely after each task, including microtasks enqueued by other microtasks. A
+microtask that schedules another microtask therefore blocks rendering indefinitely, which is a
+subtle way to freeze a page that no amount of promise usage would suggest.
+
+Long tasks are the primary cause of unresponsiveness because the thread cannot process input while
+executing them. A task exceeding roughly fifty milliseconds risks a perceptible delay in responding
+to a click or keypress, and the remedy is to break the work into pieces that yield to the loop
+between them, or to move it to a worker thread that does not share the document.
+
+The event loop:
+  single threaded      one execution thread per document
+  the loop order       a task, then all microtasks, then rendering if due
+  tasks                timers, events, network callbacks; one per iteration
+  microtasks           promise continuations; drained completely each time
+  the recursion hazard  microtasks scheduling microtasks block rendering
+  the timer ordering surprise  a resolved promise runs before a zero-delay timer
+  rendering opportunity  the frame callback runs before layout and paint
+  long tasks           over roughly fifty milliseconds risk perceptible input
+                       delay
+  yielding             break work into pieces that return to the loop
+  workers              a separate thread without document access; structured
+                       cloning across the boundary
+  the transfer option  transferable objects move rather than copy, which matters
+                       for large buffers
+  idle callbacks       work scheduled when the thread is otherwise free
+  input responsiveness  the metric users feel; measured as the delay from
+                       interaction to the next paint
+  the practical rule   anything that might take long enough to notice belongs off
+                       the main thread or split across frames
+
+## Networking, Caching, and Loading
+
+Loading a page is a dependency graph resolution problem. The document arrives, references
+stylesheets and scripts, those reference fonts and images, and the browser must discover and
+prioritize all of it while the connection has limited capacity. The preload scanner exists to speed
+this up by scanning ahead in the markup for referenced resources while the parser is blocked, which
+is one reason resources referenced from markup load earlier than those discovered by executing
+script.
+
+Render blocking is the concept that determines perceived load speed. Stylesheets block rendering
+because rendering without them would produce a flash of unstyled content. Synchronous scripts block
+parsing because they may modify the document being parsed. Marking scripts as deferred or as modules
+removes the parser block, and inlining the styles needed for initial visible content while loading
+the rest asynchronously removes the render block for the part that matters.
+
+Caching operates at several layers with different semantics and confusing them causes real problems.
+The HTTP cache stores responses keyed by URL and governed by response headers. A service worker can
+intercept requests and serve from its own storage with arbitrary logic. The back-forward cache
+preserves a whole page in memory so that navigating back restores it instantly, and pages using
+certain APIs are excluded from it, which is a common and unintentional performance regression.
+
+Networking and loading:
+  the dependency graph  resources discovered progressively
+  preload scanner      scans ahead while the parser is blocked
+  the implication      markup-referenced resources are discovered earlier than
+                       script-discovered ones
+  render blocking      stylesheets; the alternative is unstyled content
+  parser blocking      synchronous scripts; they may modify the document
+  defer and module     remove the parser block
+  critical styles      inline what is needed for initial visible content
+  resource hints       preconnect, preload, prefetch; each solves a different
+                       problem and misuse wastes bandwidth
+  priority             browsers assign it heuristically; hints can adjust
+  connection reuse     multiplexed connections remove the old per-request
+                       overhead but not the bandwidth limit
+  compression          text compression is nearly free and consistently
+                       underapplied
+  HTTP cache           keyed by URL, governed by headers
+  immutable assets     content-hashed filenames with long expiry; the standard
+                       pattern
+  service worker       programmable request interception
+  back-forward cache   the whole page preserved; certain APIs disqualify a page
+                       from it
+  the common regression  an unload handler or an open connection silently
+                       disabling instant back navigation
+
+## Storage, Security, and the Origin Model
+
+The origin — scheme, host, and port together — is the browser's security boundary. Content from one
+origin cannot read content from another by default, and every storage mechanism, every network
+capability, and every scripting access is scoped by it. Understanding that the origin rather than
+the domain is the unit explains why a page served over an insecure connection cannot access storage
+written by the secure version of the same host.
+
+The same-origin policy prevents reading cross-origin data and does not prevent sending requests,
+which is the asymmetry underlying request forgery attacks: a form submission or image request to
+another origin still carries that origin's cookies. The defences are cookie attributes restricting
+cross-site sending, tokens the attacker cannot read, and origin verification on the server.
+Cross-origin resource sharing is the mechanism by which a server opts in to allowing reads, and it
+is a relaxation of the policy rather than an obstacle to be worked around.
+
+Injection remains the dominant vulnerability class on the platform. Script injection occurs when
+untrusted data is interpreted as code, and the reliable defence is context-appropriate encoding at
+the point of insertion plus avoiding the APIs that parse strings as markup. Content security policy
+provides defence in depth by restricting which sources may execute, which converts many injection
+bugs from exploitable to merely broken.
+
+Storage and security:
+  origin               scheme, host, and port together
+  the boundary         all storage and access is origin-scoped
+  same-origin policy   prevents reading, not sending
+  the asymmetry        cross-origin requests still carry cookies
+  request forgery      the attack exploiting that asymmetry
+  cookie attributes    same-site, secure, http-only; the first line of defence
+  cross-origin resource sharing  a server opting in to cross-origin reads
+  script injection     untrusted data interpreted as code
+  contextual encoding  the defence; different for markup, attributes, URLs, and
+                       script
+  content security policy  restricting executable sources; defence in depth
+  local storage        synchronous, string-only, blocks the thread; suitable only
+                       for small values
+  indexed database     asynchronous and structured; the option for real data
+  cookies              sent with every matching request; a bandwidth cost and a
+                       security surface
+  quota and eviction   storage is not guaranteed permanent; handle eviction
+  clickjacking         framing defences through headers and policy
+  subresource integrity  a hash pinning third-party scripts against
+                       substitution
+  the third-party reality  every included script runs with full origin
+                       privileges, so each one is a trust decision about the
+                       entire application
+
+## Performance Measurement and Practice
+
+Measurement discipline distinguishes effective performance work from folklore. Synthetic testing
+under controlled conditions isolates changes and gives reproducible comparisons; field measurement
+from real users captures the actual distribution of devices, networks, and usage. Both are needed,
+and optimizing against synthetic numbers alone routinely produces improvements that do not appear in
+the field.
+
+The metrics that correlate with user experience measure distinct things. Time to first byte
+measures server and connection. First contentful paint measures when anything appears. Largest
+contentful paint measures when the main content appears, which is the closest proxy for perceived
+load. Layout stability measures unexpected content movement, which is the source of the mis-click
+frustration everyone has experienced. Interaction latency measures responsiveness, which is
+dominated by main-thread occupancy.
+
+Field data should be read as a distribution rather than as an average. The median user's experience
+and the slowest quarter's experience often differ by an order of magnitude, and averages are pulled
+around by both tails. Reporting a high percentile is the standard, and segmenting by device class
+and connection type is what turns a number into an actionable finding — a poor aggregate is usually
+one segment being very badly served rather than everyone being slightly slow.
+
+Measurement and practice:
+  synthetic testing    controlled and reproducible; isolates changes
+  field measurement    real devices, networks, and usage
+  the gap              synthetic improvements that do not appear in the field
+  time to first byte   server and connection
+  first contentful paint  when anything appears
+  largest contentful paint  when the main content appears; the best load proxy
+  layout stability     unexpected movement; the mis-click source
+  interaction latency  responsiveness; dominated by main-thread occupancy
+  percentiles not averages  the tails are the story
+  segmentation         by device class and connection; where the finding is
+  the usual pattern    a poor aggregate is one badly served segment
+  budgets              enforced limits on bundle size and metric thresholds; the
+                       only mechanism that prevents gradual regression
+  image optimization   format, dimensions, and lazy loading; consistently the
+                       largest available win on content sites
+  font loading         a blocking or shifting behaviour depending on the strategy
+                       chosen; the default is rarely the right one
+  the ordering principle  measure, find the dominant cost, fix that, measure
+                       again — and resist the improvements you are confident about
+                       but have not measured, because on this platform they are
+                       frequently in the wrong place entirely

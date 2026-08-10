@@ -1,0 +1,228 @@
+================================================================================
+AREA: Software and Web Engineering
+SUBJECT: Search Systems
+Subtopics: inverted indexes, scoring and ranking, query processing, vector and hybrid
+retrieval, relevance engineering, infrastructure, evaluation.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Inverted Indexes and Query Processing
+
+A search system answers the question "which documents match this query, and in what order" over a
+corpus too large to scan. The data structure that makes this possible is the inverted index: a map
+from each term to the list of documents containing it, called a posting list. Answering a
+conjunctive query means intersecting posting lists, and everything else in the retrieval layer is
+an optimization of that operation.
+
+Documents are prepared for indexing by an analysis chain. Tokenization splits text into terms;
+lowercasing and Unicode normalization collapse variants; stopword removal drops terms too common
+to discriminate; stemming or lemmatization reduces inflections to a common form. The critical
+invariant is that the same chain must be applied to queries — an index built with stemming and
+queried without it will fail to match, and this mismatch is one of the most common causes of a
+search system that mysteriously returns nothing for obviously present terms.
+
+Posting lists are stored compressed and sorted by document id, which makes intersection a merge
+and enables skip pointers for jumping past runs of non-matching ids. Terms with very long posting
+lists dominate query cost, so query processing evaluates the rarest term first and uses it to
+constrain the others. Dynamic pruning goes further: if the best possible score of the remaining
+candidates cannot reach the current top-k threshold, they can be skipped entirely without changing
+the result.
+
+Index and query processing:
+  inverted index       term to posting list; the core structure
+  posting list         document ids, sorted, compressed, with positions and
+                       frequencies
+  analysis chain       tokenize, normalize, filter, stem
+  the invariant        index-time and query-time analysis must match
+  positional index     token offsets; enables phrase and proximity queries
+  skip pointers        jump ahead in a posting list during intersection
+  rarest term first    constrain with the shortest list
+  dynamic pruning      skip candidates that cannot enter the top k
+  segment              an immutable index unit; writes create new segments
+  merge policy         background consolidation of segments; the dominant source
+                       of write amplification and IO cost
+  near-real-time       a refresh makes new segments searchable; the interval is
+                       the freshness-versus-cost knob
+  deletes              marked, not removed; reclaimed on merge
+
+Q: A search index returns no results for a term that is visibly present in indexed documents. The
+first thing to check is:
+A. The document was not indexed
+B. Whether the query analyzer and the index analyzer produce the same terms — a mismatch in
+   stemming, tokenization, or normalization means the query term never matches the indexed term
+C. The relevance scoring
+D. The cluster health
+Reasoning: Analysis mismatch is the standard cause and is easy to verify by running the analyzer on
+both the document text and the query and comparing the token streams. Most search engines expose an
+endpoint for exactly this. Answer: B.
+
+## Scoring and Ranking
+
+Retrieval identifies candidates; ranking orders them, and the ordering is what users experience as
+search quality. The classical scoring function combines term frequency, which rewards documents
+mentioning the query term more, with inverse document frequency, which rewards rare terms over
+common ones, and normalizes by document length so that long documents are not favoured simply for
+containing more words.
+
+BM25 is the standard formulation and it improves on naive TF-IDF in two ways that matter. Term
+frequency saturates, so the tenth occurrence of a term adds much less than the second — a document
+repeating a word is not proportionally more relevant. Length normalization is tunable, so the
+degree of penalty for long documents can be adapted to the corpus. Its parameters have sensible
+defaults and are rarely worth tuning before other levers are exhausted.
+
+Modern ranking is multi-stage. A cheap retrieval stage produces a few hundred to a few thousand
+candidates using BM25 or vector similarity; a more expensive reranking stage scores those with a
+model that can afford to be far heavier because it sees so few documents. The cascade is what makes
+sophisticated relevance affordable, and the failure mode it introduces is that a document missed
+by the retrieval stage can never be recovered — recall at the first stage bounds everything
+downstream.
+
+Scoring and ranking:
+  term frequency       more mentions, more relevant, with saturation
+  inverse document frequency  rare terms discriminate more
+  length normalization  prevent long documents dominating
+  BM25                 the standard lexical scorer; saturating TF, tunable length
+  field weighting      title matches count more than body; usually the single
+                       largest quality lever in lexical search
+  phrase and proximity  terms near each other score higher
+  multi-stage cascade  cheap retrieval, expensive rerank
+  first-stage recall   bounds the entire pipeline; measure it separately
+  cross-encoder rerank  query and document scored jointly; accurate, expensive
+  learning to rank     a model over features; pointwise, pairwise, or listwise
+  feature sources      lexical scores, vector similarity, freshness, popularity,
+                       quality signals, personalization
+  position bias        users click higher results regardless of relevance;
+                       training on raw clicks bakes this in and must be corrected
+
+Position bias is the trap in click-based ranking training. Users click the top result more because
+it is at the top, so a model trained on raw click data learns to reproduce the current ranking
+rather than to improve it, and the system converges on its own past behaviour. Correcting it
+requires either randomized result interleaving to collect unbiased data, or an explicit
+propensity model that discounts clicks by their position. Skipping this step produces a ranker that
+looks excellent on historical clicks and does nothing for users.
+
+## Vector and Hybrid Retrieval
+
+Lexical retrieval matches words; a query and a document expressing the same idea in different words
+do not match. Dense retrieval addresses this by embedding both into a shared vector space, where
+proximity reflects semantic similarity rather than lexical overlap, and retrieval becomes nearest
+neighbour search.
+
+The index for this is an approximate nearest neighbour structure, because exact search over
+millions of high-dimensional vectors is too slow. The dominant approach is a navigable
+small-world graph, which gives excellent recall at high query rates in exchange for substantial
+memory and expensive incremental updates. Quantized alternatives trade recall for a large memory
+reduction, and the right choice depends far more on whether the corpus fits in memory than on
+benchmark recall differences.
+
+Hybrid retrieval combines lexical and dense results, and it consistently beats either alone. The
+reason is that their failure modes are complementary: lexical search fails on vocabulary mismatch
+and paraphrase, dense search fails on exact identifiers, rare proper nouns, numbers, and any term
+whose meaning is its literal form. A product code or an error message is retrieved reliably by
+BM25 and unreliably by an embedding model, which is why any system serving technical queries needs
+the lexical path.
+
+Vector and hybrid retrieval:
+  dense retrieval      embed query and document; nearest neighbour search
+  the strength         paraphrase, synonymy, cross-lingual matching
+  the weakness         exact identifiers, rare tokens, numbers, negation
+  approximate search   graph-based for recall and speed, quantized for memory
+  the real constraint  whether the index fits in memory
+  embedding drift      re-embedding the corpus on a model change is a full
+                       reindex; plan the migration before choosing the model
+  chunking             documents split for embedding; the chunk boundary strategy
+                       affects quality more than the embedding model choice
+  hybrid fusion        reciprocal rank fusion or a learned combination
+  reciprocal rank fusion  combines rankings without needing comparable scores;
+                       robust and requires no tuning
+  score normalization  necessary if combining raw scores; ranks avoid the problem
+  sparse learned       neural models producing sparse term weights; lexical
+                       infrastructure with learned expansion
+  the practical default  BM25 plus dense, fused by rank, then reranked
+
+## Relevance Engineering and Evaluation
+
+Relevance work is empirical and the discipline is in the measurement rather than the ideas.
+Offline evaluation uses a set of queries with graded relevance judgements and computes ranking
+metrics; online evaluation uses interleaving or A/B tests against real traffic. Both are needed —
+offline evaluation iterates quickly and correlates imperfectly with user outcomes, online
+evaluation is authoritative and slow.
+
+The metrics measure different things and choosing among them is a modelling decision. Precision at
+k measures how much of the visible result set is relevant. Recall matters when the user needs to
+find everything rather than something. Mean reciprocal rank measures how quickly the first relevant
+result appears, which suits navigational queries. Normalized discounted cumulative gain handles
+graded relevance and position discounting together and is the general default.
+
+Query understanding sits before retrieval and often produces larger gains than ranking changes.
+Spelling correction, query segmentation, intent classification, entity recognition, and synonym
+expansion each remove a class of failure entirely rather than reordering results. A query the
+system understands wrongly cannot be rescued by better ranking, and the highest-value work in most
+search systems is usually in a query log analysis identifying which understanding failures are
+frequent.
+
+Relevance and evaluation:
+  judgement set        queries with graded relevance labels; expensive and
+                       essential
+  precision at k       fraction of the top k that is relevant
+  recall               fraction of relevant documents retrieved
+  MRR                  rank of the first relevant result; suits navigation
+  NDCG                 graded relevance with position discounting; the default
+  interleaving         mix two rankings in one result set; far more sensitive
+                       than A/B for ranking changes
+  A/B test             authoritative, slow, needs traffic
+  the correlation gap  offline gains that do not reproduce online are routine;
+                       treat offline as a filter, not a verdict
+  spelling correction  removes a failure class entirely
+  query segmentation   which words form a unit
+  intent classification  navigational, informational, transactional; different
+                       ranking for each
+  synonym expansion    handles vocabulary mismatch in the lexical path
+  query logs           where to look first; the frequent failures are visible and
+                       usually unglamorous
+  zero-result rate     the simplest quality metric and one of the most actionable
+
+## Infrastructure and Operations
+
+A search cluster is a distributed system with a specific shape: an index partitioned into shards
+for capacity, each shard replicated for throughput and availability, and a coordinating layer that
+fans a query out to all shards and merges the results. Query latency is therefore the slowest
+shard's latency, which makes tail latency the operational concern rather than the mean.
+
+Indexing and querying compete for the same resources, and the tension is structural. Indexing
+consumes CPU for analysis and IO for segment writes and merges; merges in particular produce
+bursts of IO that degrade query latency at unpredictable times. Separating the indexing and serving
+tiers, or throttling merges, is the standard mitigation, and a system that indexes continuously on
+its serving nodes will have a latency profile that looks mysterious until merges are correlated
+with it.
+
+Capacity planning follows from a small number of measured quantities: index size on disk, the
+fraction that must be cached in memory for acceptable latency, query rate, and the per-query CPU
+cost at the target result count. The most common sizing error is under-provisioning memory, because
+search performance falls off a cliff rather than degrading gradually once the working set no longer
+fits — the difference between a page cache hit and a disk seek is several orders of magnitude and
+it appears in the tail first.
+
+Search infrastructure:
+  sharding             partition for capacity; query hits every shard
+  replication          copies for throughput and availability
+  scatter-gather       fan out, merge; latency is the slowest shard
+  tail latency         the operational metric; means hide the problem
+  shard count          too few limits parallelism, too many multiplies per-query
+                       overhead; both directions hurt
+  merge pressure       bursty IO degrading query latency; throttle or separate
+                       tiers
+  memory sizing        the cliff, not a slope; the working set must fit
+  reindexing           alias-swap into a freshly built index; never mutate in
+                       place for a mapping change
+  index aliases        indirection enabling zero-downtime reindex
+  caching              filter caches, query result caches, page cache; know which
+                       one a workload benefits from
+  warmup               a cold replica serves badly; warm before adding to
+                       rotation
+  monitoring           latency percentiles, zero-result rate, index lag, merge
+                       activity, cache hit rates
+  the freshness knob   refresh interval trades indexing cost against how quickly
+                       new documents become searchable, and most applications
+                       tolerate far more lag than they are configured for

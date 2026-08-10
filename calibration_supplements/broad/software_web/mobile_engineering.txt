@@ -1,0 +1,217 @@
+================================================================================
+AREA: Software and Web Engineering
+SUBJECT: Mobile Engineering
+Subtopics: platform models, lifecycle and state, UI architecture, networking and offline,
+performance and battery, storage and sync, release and diagnostics.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Platform Models and Application Lifecycle
+
+Mobile development differs from desktop and server development in a set of constraints that are
+not negotiable: the operating system controls the application's lifetime, the resources are
+constrained and shared, the network is unreliable, and the user can leave at any moment. Every
+architectural decision that distinguishes good mobile code from bad follows from taking those
+constraints seriously rather than treating them as edge cases.
+
+The lifecycle is the first of these. An application is not a process that runs until it exits; it
+is a set of components the system creates, suspends, and destroys according to its own resource
+pressure. Anything held only in memory can vanish, and the correct mental model is that the process
+may be terminated at any point when it is not in the foreground and must be able to restore its
+state from persisted data on the next launch. Developers who test only by navigating within a
+running app never encounter the state loss that users encounter routinely.
+
+Configuration changes make this concrete on one platform and background termination on the other,
+but the discipline is the same: identify what state must survive, persist it deliberately, and
+restore it on entry. State that is expensive to recompute belongs in a layer that outlives the UI
+component; state that is cheap should be recomputed rather than saved. The common failure is
+holding everything in the view layer and discovering the loss only under memory pressure on a
+device the developer does not own.
+
+Platform and lifecycle:
+  the system owns lifetime  the application does not decide when it stops
+  foreground priority  the system reclaims background processes first
+  process death        must be survivable; restore from persisted state
+  saved state          small, serializable, restored on recreation
+  the retained layer   state outliving UI components; a view model or equivalent
+  configuration changes  rotation, theme, locale, window size; recreate cleanly
+  cold, warm, hot start  three distinct startup paths with different budgets
+  startup budget       the metric users feel most; measure all three separately
+  permissions          requested at use, revocable at any time, and the revoked
+                       path must work
+  background execution  heavily restricted; scheduled work is deferred and
+                       batched by the system
+  the testing gap      developers test in the foreground on fast devices and
+                       users are neither
+
+Q: An app loses the user's in-progress form when they take a phone call and return ten minutes
+later. The root cause is:
+A. A bug in the operating system
+B. The state lived only in memory in a UI component, and the system reclaimed the backgrounded
+   process; state that must survive has to be persisted explicitly
+C. The phone has insufficient memory
+D. The form is too large
+Reasoning: Background process termination under memory pressure is normal, documented behaviour on
+every mobile platform, not a failure. The application is responsible for persisting state it needs
+to survive and restoring it on recreation. Answer: B.
+
+## UI Architecture and State Management
+
+Mobile user interfaces are event-driven and asynchronous, and the architectural problem is keeping
+the displayed state consistent with the underlying data while both change from multiple sources.
+The pattern that has converged across platforms is unidirectional: a single source of truth holds
+the state, the UI is a function of that state, and user events produce updates to it rather than
+mutating the UI directly.
+
+Declarative UI frameworks make this natural by construction, since the UI is described rather than
+imperatively mutated, and the framework computes the difference. The cost is that the description
+runs frequently, so it must be cheap and free of side effects. The recurring performance mistake in
+declarative UI is doing work — allocation, formatting, sorting, database access — inside the
+description rather than deriving it once and passing it in.
+
+Separating layers is the other structural discipline. A view layer that only renders and emits
+events, a presentation layer holding state and coordinating, and a data layer owning persistence and
+network access is the standard decomposition. Its practical value is testability: the presentation
+layer can be tested without a device, and the data layer can be tested without a UI, which converts
+most of the logic from expensive instrumented tests into fast unit tests.
+
+UI architecture:
+  unidirectional flow  state down, events up
+  single source of truth  one owner per piece of state
+  UI as a function of state  render, do not mutate
+  declarative frameworks  describe the result, the framework diffs
+  the recomposition cost  the description runs often; keep it cheap and pure
+  derived state        compute once, pass down; not inside the render path
+  view layer           renders and emits; no logic
+  presentation layer   holds state, coordinates; testable without a device
+  data layer           persistence and network; testable without a UI
+  the testability payoff  most logic moves from instrumented to unit tests
+  navigation           a stack that must survive process death; encode it in
+                       serializable arguments rather than object references
+  deep links           entry at an arbitrary point; the back stack must be
+                       synthesized sensibly
+  accessibility        labels, focus order, dynamic type, contrast; retrofitting
+                       is far more expensive than building it in
+
+## Networking, Offline, and Synchronization
+
+The mobile network is intermittent, slow, metered, and high-latency, and an application designed
+for a reliable connection fails constantly in real use. The correct default assumption is that any
+request may hang, fail, or succeed after the user has moved on, and that the application must
+remain usable when none of them succeed.
+
+Offline-first architecture inverts the usual data flow. The local database is the source of truth
+for the UI, which reads from it and is never blocked on the network. Network operations update the
+local store, and user actions are recorded locally and queued for transmission. The user experience
+becomes immediate and connection-independent, and the cost is that synchronization and conflict
+resolution become explicit problems that must be designed rather than avoided.
+
+Conflict resolution requires a policy chosen deliberately. Last-write-wins is simple and silently
+discards data. Per-field merging preserves more and requires field-level timestamps. Operation-based
+synchronization transmits intents rather than states and merges naturally for many data types.
+Server-authoritative resolution is simplest to reason about and requires the client to accept
+rejection gracefully, which means the UI must be able to undo an optimistic update without
+confusing the user.
+
+Networking and sync:
+  assume unreliable    hangs, failures, and late successes are the normal case
+  timeouts             on every request; a request without one can hang forever
+  retry with backoff   exponential, jittered, and bounded
+  idempotency          retries must be safe; use a client-generated request key
+  request cancellation  tied to the UI lifecycle; a completed request for a
+                       discarded screen is wasted work
+  offline-first        the local store is the source of truth for the UI
+  optimistic update    apply locally, reconcile later, and be able to roll back
+  outbox pattern       queue local mutations for transmission
+  conflict policy      chosen deliberately; last-write-wins discards data silently
+  field-level merge    preserves more, needs per-field metadata
+  operation-based sync  transmit intent; merges naturally for many structures
+  server authority     simplest to reason about; the client must handle rejection
+  payload size         metered connections make this a user cost, not just a
+                       latency cost
+  image handling       size the request to the display; downloading full
+                       resolution for a thumbnail is the single most common
+                       bandwidth waste in mobile applications
+
+## Performance, Memory, and Battery
+
+Performance on mobile means frame rate first. A dropped frame is visible, and the budget for all
+work on the UI thread between frames is a few milliseconds. Anything that can block — file access,
+database queries, decoding, network, large allocations — must be off that thread, and the profiler
+that shows the frame timeline is the tool that finds the violations rather than reasoning about
+which operations are slow.
+
+Memory pressure manifests as termination rather than as slowdown. The system kills the largest
+background consumers first, so an application holding large caches is preferentially destroyed and
+its users experience it as constant cold starts. Bitmaps dominate memory in most applications, and
+sizing them to the display rather than to the source is usually the single largest available
+reduction. Leaks in mobile code most often come from holding a reference to a UI context in
+something that outlives it, which retains the entire view hierarchy.
+
+Battery is the constraint users notice most and developers measure least. The dominant consumers
+are the radio, the screen, and the GPS, and the radio's behaviour is the least intuitive: it stays
+in a high-power state for seconds after a transmission, so many small requests spread over time
+cost far more than the same bytes sent together. Batching network activity, aligning it with
+system-scheduled wake windows, and never polling on a timer are the interventions that matter.
+
+Performance and power:
+  frame budget         a few milliseconds of UI-thread work per frame
+  the main thread rule  no blocking work; profile rather than guess
+  jank                 dropped frames; visible and measurable
+  startup profiling    cold start is dominated by initialization ordering; defer
+                       what is not needed for the first frame
+  memory pressure      manifests as termination, not slowdown
+  bitmap sizing        to the display, not the source; usually the largest win
+  leaks                UI context references held past the component's life
+  the radio tail       high power for seconds after transmission
+  batching             many small requests cost far more than one combined
+  wake alignment       use the system scheduler rather than timers
+  never poll           push or scheduled sync; polling is a battery bug
+  location cost        the highest-precision mode is dramatically more expensive;
+                       request the accuracy actually needed
+  wake locks           held longer than intended is a classic drain; every
+                       acquisition needs a guaranteed release path
+  measurement          on a mid-range device with a real battery, not a
+                       flagship on a charger
+
+## Release, Diagnostics, and Fragmentation
+
+Mobile release differs from server release in that the deployment is not under your control. Users
+update when they choose, review processes introduce delay, and a bad build cannot be rolled back —
+it can only be superseded by a newer one that also takes time to propagate. The consequences are
+architectural: feature flags with server-side control are how a bad feature is disabled without a
+release, and staged rollouts are how a defect is caught before it reaches everyone.
+
+Because many versions run simultaneously, backward compatibility with the server is a permanent
+requirement rather than a migration concern. The server must support the oldest version still in
+meaningful use, which means API changes are additive and removals happen long after the client
+change. Forced upgrades exist as a last resort and are user-hostile enough that they should be
+reserved for security issues.
+
+Diagnostics carry the burden that reproduction cannot. The devices, operating system versions,
+locales, screen sizes, and hardware capabilities in the field vastly exceed what can be tested, so
+crash reporting with symbolication, structured logging, and metrics that segment by device class
+and version are how problems are found. A crash rate that is acceptable in aggregate frequently
+hides a specific device or version where the application is unusable, and only segmented reporting
+surfaces that.
+
+Release and diagnostics:
+  you do not control deployment  users update when they choose
+  no rollback          only a newer build, with its own propagation delay
+  feature flags        server-controlled disable without a release
+  staged rollout       a percentage first, monitored, then widened
+  kill switch          for anything risky; the cheapest insurance in mobile
+  version fragmentation  many versions in use simultaneously
+  API compatibility    additive changes; removals long after
+  forced upgrade       a last resort, for security
+  crash reporting      symbolicated, with breadcrumbs leading to the crash
+  segmented metrics    by device class, OS version, locale, and connection type
+  the hidden failure   an acceptable aggregate rate hiding a device where the app
+                       is unusable
+  device fragmentation  screen sizes, memory, CPU, GPU, camera capability
+  testing matrix       cannot be exhaustive; pick by installed base and by
+                       the extremes of the capability range
+  the low-end device   the most valuable single test device you can own, because
+                       everything that is slow, memory-constrained, or
+                       thermally throttled shows up there first and nowhere else

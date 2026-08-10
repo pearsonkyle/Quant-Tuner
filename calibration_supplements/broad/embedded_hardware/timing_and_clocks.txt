@@ -1,0 +1,246 @@
+================================================================================
+AREA: Embedded and Hardware Engineering
+SUBJECT: Timing, Clocks, and Synchronization
+Subtopics: oscillators and stability, jitter and phase noise, clock distribution,
+phase-locked loops, time transfer protocols, real-time scheduling, measurement.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Oscillators and Frequency Stability
+
+Every digital system runs on a clock, and the clock's quality bounds what the system can do. An
+oscillator's specification has several distinct parameters that are routinely confused: frequency
+accuracy is how far the output is from nominal at a reference condition; frequency stability is how
+much it moves with temperature, supply, load, and time; and short-term stability describes
+fluctuation within a single measurement interval.
+
+Quartz crystals dominate because they combine good stability with low cost. Their frequency depends
+on temperature along a curve set by the crystal's cut, and the standard cut for common oscillators
+has a cubic characteristic that is flat near room temperature and deviates at the extremes.
+Temperature compensation applies a correction from a measured temperature; oven control holds the
+crystal at a fixed elevated temperature and achieves far better stability at the cost of warm-up
+time and substantial power.
+
+Ageing is the drift that occurs regardless of conditions, from stress relief and contamination
+within the package, and it is the parameter that determines how often a system must be recalibrated
+or resynchronized. It is largest immediately after manufacture and decreases roughly logarithmically,
+which is why a period of operation before final calibration improves long-term accuracy. Atomic
+references — rubidium and caesium — remove ageing almost entirely and are used where holdover
+performance without an external reference is required.
+
+Oscillators:
+  frequency accuracy   deviation from nominal at reference conditions
+  frequency stability  movement with temperature, supply, load, and time
+  the confusion        accuracy and stability are different specifications
+  parts per million    the usual unit; one part per million is about a second per
+                       twelve days
+  quartz               good stability at low cost
+  the temperature curve  set by the crystal cut
+  temperature compensation  correction from a measured temperature
+  oven control         the crystal held at a fixed temperature; best quartz
+                       stability
+  the oven costs       warm-up time and substantial power
+  load capacitance     the circuit's loading pulls the frequency; a mismatch is a
+                       common cause of a board running slightly off nominal
+  ageing               drift from stress relief and contamination
+  the ageing profile   largest initially, decreasing roughly logarithmically
+  burn-in              operation before calibration improves long-term accuracy
+  atomic references    ageing effectively removed; used for holdover
+  holdover             maintaining accuracy after losing an external reference;
+                       the specification that determines what a system does when
+                       its synchronization source fails
+
+Q: A board's oscillator runs consistently a few hundred parts per million high, though the crystal
+is specified to twenty parts per million. The most likely cause is:
+A. A defective crystal
+B. Load capacitance mismatch — the circuit's loading pulls the crystal's frequency, and capacitors
+   chosen without accounting for the crystal's specified load and the stray capacitance produce
+   exactly this magnitude of offset
+C. Temperature
+D. Ageing
+Reasoning: A crystal's frequency specification applies at a stated load capacitance. The oscillator
+circuit's capacitors plus board and pin strays must present that load. A mismatch pulls the
+frequency by far more than the crystal's own tolerance, and the error is consistent rather than
+drifting, which distinguishes it from temperature and ageing. Answer: B.
+
+## Jitter, Phase Noise, and Their Effects
+
+Jitter is the deviation of clock edges from their ideal times, and phase noise is the same
+phenomenon described in the frequency domain as noise sidebands around the carrier. Which
+description to use depends on the application: digital designers work with jitter in picoseconds,
+and radio and data converter designers work with phase noise in decibels relative to the carrier at
+specified offsets, and converting between them is routine.
+
+The categories of jitter matter because they have different causes and different consequences.
+Random jitter arises from thermal and other noise sources, is unbounded, and is characterized by a
+standard deviation. Deterministic jitter comes from identifiable mechanisms — power supply
+coupling, crosstalk, and data-dependent effects in serial links — is bounded, and can be reduced by
+addressing its source. Total jitter at a specified error rate combines both, and it is what a link
+budget must accommodate.
+
+The consequences differ by application in ways worth knowing. In a synchronous digital system,
+cycle-to-cycle jitter eats into the timing margin and reduces the maximum usable frequency. In a
+serial link, jitter closes the eye and raises the error rate. In a sampling data converter,
+aperture jitter translates directly into amplitude error proportional to the input's slew rate,
+which means a high-frequency input demands a far cleaner clock than a low-frequency one for the same
+resolution. In an audio converter the effect is audible distortion. The same clock can be adequate
+for one of these and inadequate for another.
+
+Jitter and phase noise:
+  jitter               edge deviation in the time domain
+  phase noise          the same phenomenon as frequency-domain sidebands
+  the domain choice    digital design uses jitter, radio and converters use phase
+                       noise
+  random jitter        thermal and other noise; unbounded, characterized by a
+                       standard deviation
+  deterministic jitter  identifiable mechanisms; bounded and reducible
+  the sources          supply coupling, crosstalk, data-dependent effects
+  total jitter         combined, specified at an error rate
+  period jitter        deviation of a single period
+  cycle-to-cycle jitter  the change between adjacent periods; what timing margin
+                       sees
+  long-term jitter     accumulated over many cycles; matters for synchronization
+  timing margin        reduced by jitter, limiting maximum frequency
+  eye closure          the serial link consequence
+  aperture jitter      converter sampling error proportional to input slew rate
+  the frequency dependence  high-frequency inputs demand far cleaner clocks
+  the application specificity  a clock adequate for one role can be inadequate for
+                       another in the same system
+
+## Clock Distribution and Phase-Locked Loops
+
+Distributing a clock across a board or a chip introduces skew — differences in arrival time at
+different destinations — and skew consumes timing margin exactly as jitter does. The distribution
+network is therefore designed rather than routed: matched trace lengths, controlled impedance,
+proper termination, and a topology chosen so that the paths to synchronous destinations are
+equalized.
+
+Buffers and fanout devices regenerate the clock and add their own jitter and skew, so a deep
+distribution tree accumulates both. Differential signalling is preferred for high-speed clocks
+because it rejects common-mode noise and radiates less, and it costs a pair of traces and a
+terminated receiver. Return paths matter as much as the traces themselves — a clock trace crossing a
+gap in the reference plane has no adjacent return path, which increases inductance, degrades the
+edge, and radiates.
+
+Phase-locked loops generate a clock locked in phase to a reference, multiplying or dividing its
+frequency. The loop compares the phase of a divided output against the reference, filters the error,
+and steers a controlled oscillator. The loop bandwidth is the key design parameter: it sets how fast
+the loop tracks the reference and therefore which noise it passes and which it rejects. Reference
+noise inside the loop bandwidth passes through; oscillator noise inside is suppressed and outside is
+not. Choosing the bandwidth is therefore a decision about which noise source dominates where, and
+the correct choice depends on the relative quality of the reference and the oscillator.
+
+Distribution and loops:
+  skew                 arrival time differences; consumes margin like jitter
+  matched routing      equalized path lengths to synchronous destinations
+  controlled impedance  and proper termination to avoid reflections
+  buffer accumulation  each stage adds jitter and skew
+  differential clocks  common-mode rejection and lower emission
+  return paths         a clock crossing a plane gap degrades and radiates
+  the reference plane rule  never route a clock across a split in its reference
+  phase-locked loop    output locked in phase to a reference
+  frequency multiplication  by dividing in the feedback path
+  loop bandwidth       how fast the loop tracks the reference
+  reference noise      passed inside the bandwidth
+  oscillator noise     suppressed inside, passed outside
+  the bandwidth choice  determined by which source is cleaner where
+  lock time            how long to acquire; matters for systems that switch
+                       references
+  jitter cleaning      a narrow-bandwidth loop with a good oscillator, used
+                       specifically to remove reference jitter
+  clock domain crossing  signals passing between unrelated clocks require
+                       synchronizers, and the metastability failure that results
+                       from omitting them is intermittent, rare, and extremely
+                       difficult to diagnose
+
+## Time Transfer and Synchronization Protocols
+
+Synchronizing clocks across a network is a distinct problem from generating a stable local clock,
+and the fundamental obstacle is that measuring the offset between two clocks requires knowing the
+one-way delay between them, which cannot be measured directly. The standard exchange measures the
+round trip and assumes the path is symmetric, so any asymmetry between the forward and reverse paths
+appears directly as an offset error of half the asymmetry.
+
+Network time protocols achieve millisecond accuracy over ordinary networks by exchanging timestamps
+and filtering many measurements to reject those affected by queueing delay. Their accuracy is
+limited by exactly the asymmetry problem, since queueing is not symmetric and varies. Precision time
+protocols achieve sub-microsecond accuracy by timestamping in hardware at the physical layer, which
+removes the software stack's variability, and by having the intermediate switches measure and report
+their own residence time so that queueing is corrected rather than averaged over.
+
+Satellite navigation systems provide a widely available time reference with excellent accuracy,
+which is why they underpin timing in telecommunications, power grids, and financial systems. This is
+also a concentration risk: the signals are weak, jamming and spoofing are demonstrated, and systems
+depending on them need holdover capability and ideally an independent reference. The holdover
+requirement is what determines the oscillator specification, since a system that must maintain
+accuracy for a day without a reference needs a fundamentally better oscillator than one that
+resynchronizes every minute.
+
+Time transfer:
+  the fundamental obstacle  one-way delay cannot be measured directly
+  the round-trip exchange  measures the sum and assumes symmetry
+  path asymmetry       appears as an offset of half the asymmetry
+  network time protocol  milliseconds over ordinary networks
+  filtering            many measurements with the queue-affected ones rejected
+  precision time protocol  sub-microsecond with hardware timestamping
+  hardware timestamps  removing software stack variability
+  transparent clocks   switches reporting their own residence time
+  boundary clocks      switches terminating and regenerating the timing chain
+  satellite time       excellent accuracy and widely deployed
+  the concentration risk  weak signals, demonstrated jamming and spoofing
+  holdover requirement  what determines the oscillator specification
+  the design question   how long must accuracy be maintained without a reference
+  leap seconds         irregular one-second adjustments; a recurring source of
+                       software failures because the assumption that every minute
+                       has sixty seconds is embedded everywhere
+  monotonic versus wall clock  code measuring elapsed time must use a monotonic
+                       source, since wall clock time can move backward on
+                       synchronization and every duration computed across such an
+                       adjustment is wrong
+
+## Real-Time Scheduling and Measurement
+
+A real-time system is one where correctness depends on timing as well as on results, and the
+distinction between hard and soft real-time is about the consequence of a missed deadline rather
+than about how fast the system is. A hard deadline missed is a failure; a soft deadline missed
+degrades quality. Systems are frequently specified as hard when they are soft, which drives cost
+without benefit, and occasionally the reverse, which is more serious.
+
+Schedulability analysis determines whether a set of tasks can meet their deadlines. Rate-monotonic
+priority assignment gives higher priority to more frequent tasks and is optimal among fixed-priority
+schemes, with a utilization bound below which schedulability is guaranteed. Earliest-deadline-first
+schedules dynamically and achieves full utilization, at the cost of less predictable behaviour when
+the system is overloaded. Both analyses require worst-case execution times, and obtaining them is
+the hard part — measurement gives observed maxima rather than true worst cases, and static analysis
+gives bounds that are safe and often very pessimistic.
+
+Priority inversion is the failure mode that catches designers. A high-priority task blocked on a
+resource held by a low-priority task is effectively running at the low priority, and if a
+medium-priority task then preempts the low-priority one, the high-priority task waits for it too.
+Priority inheritance — temporarily raising the holder's priority to that of the blocked task —
+resolves it, and it must be enabled explicitly on most systems that offer it.
+
+Real-time and measurement:
+  the definition       correctness depends on timing
+  hard real-time       a missed deadline is a failure
+  soft real-time       a missed deadline degrades quality
+  the specification error  hard requirements applied where soft would do
+  rate-monotonic       higher priority to more frequent tasks; optimal for fixed
+                       priority
+  the utilization bound  below which schedulability is guaranteed
+  earliest deadline first  dynamic; full utilization, worse overload behaviour
+  worst-case execution time  required by the analysis and hard to obtain
+  measurement          observed maxima, not true worst cases
+  static analysis      safe bounds, often very pessimistic
+  interrupt latency    the delay from event to handler; a system property
+                       dominated by the longest interrupt-disabled section
+  priority inversion   a high-priority task blocked behind a lower one
+  priority inheritance  the holder temporarily elevated; must usually be enabled
+                       explicitly
+  jitter in task start  as important as latency for control loops; a control loop
+                       sampling at irregular intervals has an effective noise
+                       source that no filter design accounts for
+  measurement method   a toggled output pin observed on a scope remains the most
+                       reliable timing measurement available, because it does not
+                       perturb the system the way instrumented tracing does

@@ -1,0 +1,302 @@
+================================================================================
+AREA: Embedded Systems and Hardware
+SUBJECT: FPGA Design and Hardware Description Languages
+Subtopics: FPGA architecture, HDL fundamentals, synthesizable design, timing closure,
+IP and interfaces, verification, high-level synthesis, applications.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## FPGA Architecture
+
+A field-programmable gate array is an array of configurable logic connected by a
+programmable interconnect, so the same silicon can implement arbitrary digital circuits by
+loading a configuration. This is a fundamentally different computational model from a
+processor: rather than sequencing instructions through fixed hardware, the hardware itself is
+shaped to the problem, and computation is spatial rather than temporal.
+
+The basic logic element is a lookup table with an associated flip-flop. A lookup table with n
+inputs stores the truth table of any n-input Boolean function, so a 6-input lookup table
+implements any of the 2^64 possible functions of six variables by loading the appropriate
+memory contents. Grouping several of these with carry chains, wide multiplexers, and
+flip-flops gives the configurable logic block that synthesis targets.
+
+Modern devices are heterogeneous rather than uniform arrays. Dedicated block RAM provides
+efficient memory that would be enormously wasteful implemented in logic. Digital signal
+processing blocks provide hardened multiply-accumulate units, which matter because
+multipliers built from lookup tables are large and slow. Clock management blocks synthesize
+and phase-align clocks. High-speed serial transceivers handle multi-gigabit links. Many
+devices embed complete processor cores, giving a system where software and custom hardware
+coexist on one die with high-bandwidth interconnect between them.
+
+FPGA resources:
+  lookup table (LUT)   implements any function of its inputs; typically 6-input
+  flip-flop            paired with each LUT; registers are abundant, so pipelining
+                       is cheap
+  carry chain          dedicated fast paths for arithmetic
+  block RAM            dedicated memory; dual-port, configurable width and depth
+  distributed RAM      LUTs used as small memories; efficient for tiny buffers
+  DSP block            hardened multiply-accumulate; the resource that usually
+                       limits signal processing designs
+  clock management     PLL and MMCM; frequency synthesis, phase alignment
+  I/O blocks           configurable standards, drive strength, termination
+  transceivers         multi-gigabit serial links
+  hard processor       ARM cores on SoC devices; software plus custom logic
+  routing              the programmable interconnect; often the actual bottleneck
+                       for both timing and utilization
+
+Routing deserves specific mention because it is the resource most often underestimated. A
+design can fit comfortably in terms of logic and memory and still fail to route or fail
+timing, because the programmable interconnect is a finite and shared resource with
+substantial delay. Designs with high fan-out signals, with logic spread across the device, or
+with utilization above roughly 80 percent become routing-limited, and the symptom is timing
+that degrades unpredictably with small design changes. Keeping utilization moderate and
+keeping related logic physically together are the practical mitigations.
+
+Q: A design uses 40% of available LUTs and fails timing at the target frequency, with the
+critical path reported as mostly routing delay. The most productive response is:
+A. Move to a larger device
+B. Reduce logic levels by pipelining, and improve locality so related logic is placed together
+C. Increase the clock frequency target
+D. Use more DSP blocks
+Reasoning: Routing-dominated delay at moderate utilization indicates that signals are
+travelling long physical distances, which comes from poor locality or from long combinational
+paths spanning many logic levels. Pipelining breaks the path into shorter segments, and
+floorplanning or hierarchy preservation keeps related logic together. A larger device
+generally makes distances longer, not shorter. Answer: B.
+
+## HDL Fundamentals
+
+Hardware description languages describe hardware, and the most consequential adjustment for
+someone arriving from software is that HDL code is not executed sequentially — it describes
+structures that all exist simultaneously. A file containing ten assignments describes ten
+pieces of hardware operating in parallel, not ten steps.
+
+The distinction between blocking and non-blocking assignment in Verilog encodes this and is
+the most common source of bugs for newcomers. Blocking assignment executes immediately in
+order, modelling combinational logic where each value depends on the previous statement.
+Non-blocking assignment schedules all right-hand sides to be evaluated before any left-hand
+side is updated, modelling the simultaneous update of registers on a clock edge. The rule is
+simple and must be followed: non-blocking for sequential logic, blocking for combinational
+logic, and never mix them in one block. Violating it produces designs that simulate
+differently from how they synthesize, which is the worst class of bug because both tools
+appear to be working.
+
+Sensitivity lists specify what a process responds to, and incomplete lists are a classic
+error that produces a simulation-synthesis mismatch. A combinational block whose sensitivity
+list omits an input will not re-evaluate when that input changes in simulation, while
+synthesis infers the complete list and produces correct hardware — so the design works in
+hardware and fails in simulation, or vice versa depending on which was written first. The
+automatic sensitivity constructs in modern language versions eliminate the problem and should
+always be used.
+
+HDL essentials:
+  concurrency          everything described happens simultaneously
+  non-blocking         for sequential logic; models simultaneous register update
+  blocking             for combinational logic within a process
+  never mix            in the same always block
+  sensitivity list     use the automatic form; incomplete lists cause mismatches
+  incomplete branches  a combinational block that does not assign in every path
+                       infers a latch, which is almost never intended
+  reset strategy       synchronous or asynchronous, consistently applied; and only
+                       reset what needs it, since resetting everything costs routing
+  parameterization     generics and parameters; write reusable modules
+  generate             structural replication
+  bit widths           mismatches truncate or extend silently; be explicit
+  signed vs unsigned   arithmetic differs; declare intent
+  initial values       supported on some FPGA families at configuration; not
+                       portable to ASIC and not a substitute for reset
+
+Inferred latches are worth naming because they are silently produced and cause intermittent
+failures. A combinational process that does not assign a value to a signal on every possible
+execution path implies that the signal must hold its previous value, which requires storage,
+so synthesis infers a latch. Latches are level-sensitive rather than edge-triggered, they are
+difficult to constrain for timing, and they are almost never what the designer intended. The
+defence is assigning default values at the top of every combinational block, and treating the
+synthesis warning about inferred latches as an error rather than as noise.
+
+## Synthesizable Design and Timing
+
+Not all HDL is synthesizable. The languages contain constructs for simulation and testbench
+writing — delays, file I/O, unbounded loops, real-number arithmetic — that have no hardware
+equivalent. Learning which subset synthesizes is part of the skill, and the practical
+guideline is that the design should be describable as registers and combinational logic
+between them, because that is what the tools produce.
+
+Finite state machines are the standard way to express control, and the structural choice
+matters. A one-hot encoding uses one flip-flop per state, which costs registers — abundant in
+an FPGA — and makes the next-state logic simple, often improving timing. Binary encoding uses
+fewer registers and more decode logic. Because FPGAs have far more flip-flops than most
+designs need, one-hot is usually the better choice, which is the opposite of the ASIC
+tradition where register area is expensive.
+
+Timing closure is the process of meeting the required clock frequency, and it begins with
+correct constraints. The tools optimize what they are told to optimize, so a design with
+incomplete constraints may report timing met while a real path is unconstrained and fails in
+hardware. Every clock must be declared, every asynchronous crossing must be identified as
+such, and input and output delays relative to external devices must be specified.
+
+Design and timing practice:
+  synthesizable subset  registers and combinational logic; avoid simulation-only
+                        constructs
+  FSM encoding          one-hot is usually preferable in FPGAs
+  pipelining            registers are abundant; adding stages is the standard way
+                        to raise frequency
+  retiming              the tool moves registers across logic to balance stages
+  constraints           declare every clock, every crossing, every I/O timing
+                        relationship
+  false path            a path that is never timing-critical in operation; tell the
+                        tool so it does not waste effort or fail spuriously
+  multicycle path       a path allowed more than one cycle; must be declared
+  setup failure         path too slow; fix by pipelining, restructuring, or a
+                        slower clock
+  hold failure          path too fast; the tool inserts delay, and a hold failure
+                        that survives usually indicates a constraint error
+  clock domain crossing  synchronizers for single bits, FIFOs or handshakes for
+                        buses; the leading cause of intermittent hardware failure
+  resource sharing      the tool may share a multiplier across mutually exclusive
+                        operations; this can create unexpected critical paths
+
+[user] My FPGA design meets timing at 100 MHz but fails at 150 MHz, and the critical path is
+a 32-bit multiply followed by an accumulate and a comparison.
+[assistant] tool_call fpga.timing_analysis({"target_mhz": 150, "achieved_mhz": 112,
+"critical_path": ["dsp_multiply", "accumulate", "compare", "mux"],
+"logic_levels": 9, "dsp_pipeline_stages": 0, "routing_pct": 0.38})
+[tool] {"slack_ns": -2.26, "path_delay_ns": 8.93, "dsp_internal_pipeline_available": 3,
+"recommendation": "enable_dsp_pipeline_registers", "expected_mhz_after": 180,
+"secondary": "register_compare_output"}
+[assistant] Your DSP blocks have internal pipeline registers that are not being used. Enabling
+them is the standard fix and should take you past the target.
+
+Hardened DSP blocks include optional registers at the input, between the multiply and the
+accumulate, and at the output. With none enabled, the multiply, accumulate, compare, and
+multiplex all resolve in a single clock cycle, giving nine logic levels and 8.93 nanoseconds
+of delay against your 6.67 nanosecond budget. Enabling the internal stages breaks that into
+segments that each fit comfortably, and the DSP block's registers are free — they exist in the
+silicon whether you use them or not.
+
+The cost is latency: three additional pipeline stages means results emerge three cycles later.
+For a streaming datapath this is almost always acceptable and requires only that you delay any
+control or side-band signals by the matching number of cycles so they stay aligned. Getting
+that alignment wrong is the usual bug when adding pipeline stages, so add a matched delay line
+for every signal that travels alongside the data.
+
+How to enable them depends on your flow. If you are inferring the DSP from an HDL
+multiply-accumulate expression, add explicit registers around the operation in your source and
+the synthesis tool will absorb them into the DSP block — check the synthesis report to confirm
+it did rather than building them in fabric. If you are instantiating the primitive directly,
+the pipeline stages are parameters.
+
+Two further things once that is done. Register the comparison output as well; comparisons feed
+wide fan-out control signals and frequently become the next critical path. And your path is 38%
+routing, which is moderate — if it rises above roughly half after pipelining, the next lever is
+floorplanning to keep the datapath physically compact rather than further pipelining.
+
+## Interfaces, IP, and Verification
+
+Most FPGA designs are assembled from intellectual property blocks rather than written
+entirely from scratch, and standard interfaces are what makes that assembly possible.
+Streaming interfaces carry unidirectional data with a valid and ready handshake, which is the
+right abstraction for datapaths. Memory-mapped interfaces carry addressed read and write
+transactions, which suits control registers and memory access. Adopting a standard interface
+means blocks compose without glue logic and that the tools can generate interconnect
+automatically.
+
+The valid-ready handshake deserves understanding because it appears everywhere and has one
+rule that is easy to violate. The transfer occurs on a cycle where both valid and ready are
+asserted. The critical requirement is that the source must not wait for ready before asserting
+valid — that produces deadlock if the sink also waits for valid before asserting ready. Valid
+must be asserted independently, and once asserted must remain asserted with stable data until
+the transfer completes.
+
+Verification consumes the majority of effort on any substantial design, and simulation is the
+primary tool. A testbench drives stimulus, observes responses, and checks correctness, and the
+progression from directed tests through constrained random to formal methods reflects
+increasing confidence at increasing cost. Directed tests verify specific known cases.
+Constrained random generates many inputs within declared legal ranges and checks results
+against a reference model, which finds cases nobody thought to write. Coverage measures what
+fraction of the design's states and transitions the tests exercised, and it is the mechanism
+that turns random testing from a guess into a measured process.
+
+Interfaces and verification:
+  streaming interface   valid/ready handshake; unidirectional data
+  handshake rule        valid must not depend on ready; otherwise deadlock
+  memory-mapped         addressed reads and writes; control and status registers
+  backpressure          ready deasserted; must propagate upstream correctly
+  IP integration        standard interfaces enable automatic interconnect
+                        generation
+  directed test         specific known cases
+  constrained random    generated stimulus within legal ranges; finds unanticipated
+                        cases
+  reference model       independent implementation to check against; the checking
+                        is the hard part, not the stimulus
+  assertions            properties checked continuously during simulation; catch
+                        violations at the source rather than at the output
+  coverage              functional and code coverage; the measure of completeness
+  formal verification   proves properties exhaustively; excellent for control logic
+                        and protocol compliance, impractical for large datapaths
+  hardware debug        embedded logic analyzer cores capture internal signals in
+                        the running device
+  simulation limits     does not model metastability, does not model actual timing
+                        unless doing gate-level simulation with annotated delays
+
+Assertions deserve emphasis because they change where bugs are detected. A design checked only
+at its outputs reports a failure long after and far from the cause, and the debugging effort is
+in tracing back. An assertion placed at an interface — that valid is never asserted with
+unstable data, that a FIFO never overflows, that a state machine never reaches an illegal state
+— fires at the moment and location of the violation. They cost little to write, they document
+the designer's assumptions in executable form, and many can be checked formally as well as in
+simulation.
+
+## High-Level Synthesis and Applications
+
+High-level synthesis compiles a sequential description in a language such as C++ to a
+hardware implementation, inferring parallelism, pipelining, and memory structures from the code
+plus directives. The appeal is productivity — an algorithm expressible in a hundred lines of
+C++ might take a thousand lines of HDL — and the reality is that achieving good results
+requires writing the C++ in a hardware-aware style and applying directives that specify
+pipelining, loop unrolling, array partitioning, and interface types.
+
+The honest assessment is that high-level synthesis works well for dataflow-heavy computation
+with regular structure — image processing pipelines, filter chains, matrix operations — where
+the parallelism is loop-level and the memory access patterns are predictable. It works poorly
+for control-heavy logic and for anything requiring precise cycle-level behaviour, where
+handwritten HDL remains necessary. The productivity gain is real when the fit is right and
+disappears when the designer spends longer fighting directives than they would have spent
+writing the register transfer description.
+
+FPGAs occupy a specific niche between processors and custom silicon, and choosing among them
+follows from volume and from the nature of the computation. A processor is best for irregular
+control-heavy work, for anything requiring flexibility, and at any volume, since the hardware
+is a commodity. A custom integrated circuit gives the best performance and power at high
+volume, at enormous non-recurring engineering cost and no post-fabrication flexibility. An
+FPGA sits between: much better than a processor for regular parallel computation, much worse
+than custom silicon in efficiency, reconfigurable after deployment, and economical at low to
+moderate volume.
+
+Where FPGAs fit:
+  massive parallelism     thousands of operations per cycle on regular computation
+  deterministic latency   fixed cycle counts; hard real-time guarantees a
+                          processor cannot make
+  custom precision        arbitrary bit widths; a 12-bit datapath costs 12 bits
+  I/O flexibility         arbitrary protocols and pin timing
+  reconfigurable          field updates and even runtime partial reconfiguration
+  applications            signal processing, video, communications, instrumentation,
+                          high-frequency trading, prototyping, low-latency inference
+  weak at                 irregular control flow, floating point relative to a GPU,
+                          anything needing a large flexible memory hierarchy
+  versus GPU              FPGA wins on latency, determinism, and custom precision;
+                          GPU wins on raw floating-point throughput and on
+                          development effort
+  versus ASIC             FPGA has far lower NRE and is reconfigurable; ASIC is
+                          faster and lower power at volume
+  development cost        substantially higher than software; the deciding factor
+                          in most real decisions
+
+That last line is the practical conclusion. FPGA development is slower than software
+development by a large factor — compilation takes minutes to hours rather than seconds,
+debugging visibility is limited, and the skill is scarcer. The technology wins where its
+specific advantages are decisive: hard latency guarantees, custom bit widths, direct high-speed
+I/O, or a parallelism structure that maps badly onto a processor or a GPU. Choosing it for
+work a processor handles adequately trades a large increase in development cost for a
+performance gain that was not required.

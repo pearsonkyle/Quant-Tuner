@@ -1,0 +1,323 @@
+================================================================================
+AREA: Astronomy and Space
+SUBJECT: Mission Operations and Ground Systems
+Subtopics: operations concepts, ground segment, telemetry and commanding, flight
+dynamics, anomaly response, planning and scheduling, data processing, mission phases.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Operations Concepts
+
+Mission operations is the discipline of flying a spacecraft after launch, and it is shaped by
+constraints that have no equivalent in terrestrial systems. The vehicle cannot be repaired.
+Communication is intermittent, delayed, and bandwidth-limited. Every command is irreversible in
+the sense that an incorrect one may consume propellant, damage hardware, or place the vehicle in
+a state from which recovery is difficult. And the people operating it were frequently not the
+people who designed it.
+
+The concept of operations is the document that defines how the mission will be flown, and it
+should be written during design rather than after, because it drives requirements. How often
+will the spacecraft be contacted, and therefore what onboard autonomy is needed between
+contacts? What happens when a contact is missed? How much data will be produced and can it be
+downlinked? How long may the vehicle remain in a safe mode before the mission is jeopardized?
+Each of these is an operations question with hardware consequences, and a design finalized
+without answering them produces a spacecraft that is expensive or impossible to operate.
+
+Autonomy versus ground control is the central architectural tradeoff. Ground control keeps
+decisions with humans who have full context and requires contact, which for a low Earth orbit
+satellite with a single ground station may be four short passes per day. Onboard autonomy
+handles situations between contacts and requires that the fault detection logic be correct,
+since an autonomous response to a misdiagnosed condition can be worse than no response. The
+practical resolution in most missions is autonomy for time-critical safety responses and ground
+control for everything else.
+
+Operations concepts:
+  concept of operations   how the mission will be flown; written during design
+  contact opportunities   pass duration and frequency; drives autonomy needs
+  light time              one-way delay; 1.3 s to the Moon, 4-24 min to Mars,
+                          hours to the outer planets
+  real-time versus stored  commands executed on receipt or from an onboard
+                          sequence
+  onboard autonomy        fault detection, isolation, and recovery; safe mode
+  safe mode               a known-good low-power state prioritizing survival and
+                          communication over the mission
+  ground segment          stations, control centre, data processing, networks
+  operations team         flight director, spacecraft engineers, subsystem
+                          specialists, planners, data managers
+  shift coverage          continuous during critical phases, business hours in
+                          routine cruise
+  procedures              written, reviewed, and rehearsed; nothing sent to the
+                          vehicle without one
+  configuration control   the ground's model of the spacecraft state must match
+                          reality; divergence is a leading cause of incidents
+
+Light time changes the character of operations fundamentally as distance increases. A low
+Earth orbit satellite can be commanded interactively, with an operator observing the response
+within a second. A Mars mission has a round-trip delay of eight to forty-eight minutes, so no
+interactive control is possible and everything must be sequenced in advance with onboard logic
+handling contingencies. An outer planet mission plans days ahead. This is why deep space
+missions carry far more onboard autonomy than their computing hardware would suggest is
+comfortable, and why entry, descent, and landing at Mars is entirely autonomous — the vehicle
+has landed or crashed before the ground learns it began.
+
+Q: A Mars lander is executing entry, descent, and landing while Earth is 12 light-minutes
+away. The ground's role during this sequence is:
+A. To send corrective commands as needed
+B. To monitor only; the entire sequence must be autonomous because any command would arrive
+   long after the outcome
+C. To abort if telemetry indicates a problem
+D. To control the parachute deployment
+Reasoning: The entire sequence lasts a few minutes and the one-way light time is twelve, so
+the vehicle has completed the sequence before the first telemetry from its beginning reaches
+Earth. Every decision must be made onboard from onboard sensing. This is why entry, descent,
+and landing is the highest-risk phase of any Mars mission and why it is validated so heavily
+in simulation. Answer: B.
+
+## The Ground Segment
+
+The ground segment comprises the antennas that communicate with the spacecraft, the networks
+carrying data to and from them, the control centre where operations are conducted, and the
+systems that process and distribute the resulting data.
+
+Ground stations are located to provide the coverage the orbit requires. A polar-orbiting
+satellite is visible from a high-latitude station on nearly every orbit, which is why such
+stations are disproportionately valuable. A geostationary satellite is permanently visible from
+a station within its footprint. Deep space missions require large antennas at widely separated
+longitudes so that at least one always faces the target, which is the architecture of the
+international deep space networks with their complexes spaced roughly 120 degrees apart.
+
+Link budget determines what data rate is achievable, and it is computed as a sum of gains and
+losses in decibels from transmitter to receiver. Free-space path loss dominates and grows with
+the square of distance, which is why data rates fall so sharply with range — a mission at
+Jupiter has roughly a thousandth of the received power of an identical one at Mars at
+comparable geometry. The available margin above the minimum required signal-to-noise ratio is
+what permits operation through rain, at low elevation angles, and with degraded equipment.
+
+Ground segment elements:
+  ground station        antenna, transmitter, receiver, tracking
+  antenna gain          grows with aperture area and with frequency
+  system noise temp     the receiver's noise; low-noise amplifiers and cryogenic
+                        cooling for deep space
+  G/T                   gain over system temperature; the station's figure of merit
+  EIRP                  effective isotropic radiated power; the transmit figure
+  link budget           gains minus losses versus the required signal-to-noise
+  link margin           the surplus; consumed by weather, pointing error, ageing
+  elevation mask        the minimum angle for a usable pass; low angles have more
+                        atmosphere and more noise
+  pass planning         which station, which orbit, what duration
+  station keeping       scheduling contention among missions sharing a network
+  control centre        telemetry displays, command interface, procedures, logs
+  simulator             a spacecraft model for training and for validating command
+                        sequences before uplink
+  data archive          long-term storage; often the longest-lived mission product
+
+The spacecraft simulator deserves emphasis because it is what makes safe operations possible.
+Every command sequence of consequence is executed against a model of the spacecraft before it
+is transmitted, and the model's fidelity determines what classes of error are caught.
+Constraint violations, resource conflicts, and state-dependent command rejections are all found
+this way. The recurring risk is that the simulator's model diverges from the actual spacecraft
+as the vehicle ages, as parameters are updated, or as onboard software is patched, so keeping
+the simulator synchronized with flight is an ongoing operations task rather than a
+pre-launch one.
+
+## Telemetry, Commanding, and Flight Dynamics
+
+Telemetry is the stream of measurements from the spacecraft describing its state:
+temperatures, voltages, currents, pressures, attitude, mode, memory contents, and instrument
+status. It is packetized, often compressed, and typically prioritized so that critical
+housekeeping data is transmitted even when bandwidth is constrained. Limit checking flags
+values outside expected ranges, and the operations team's routine work is largely reviewing
+trends rather than instantaneous values, because a parameter drifting slowly toward a limit is
+far more informative than one currently within it.
+
+Commanding sends instructions to the spacecraft, and the safeguards reflect the irreversibility
+of the medium. Commands are validated against the spacecraft's state and against constraints
+before transmission. Critical commands require two-step arm-and-execute sequences so that a
+single erroneous transmission cannot trigger them. Command authentication prevents unauthorized
+or corrupted commands from being accepted. And the ground maintains a model of the expected
+onboard state so that a command's preconditions can be checked, with verification that the
+command was received and executed as expected.
+
+Flight dynamics determines and predicts where the spacecraft is and where it is pointing.
+Orbit determination fits a trajectory to tracking measurements — range, range rate, and angles
+— producing a state estimate and its uncertainty. Orbit propagation predicts forward, requiring
+a force model including gravity harmonics, atmospheric drag, solar radiation pressure, and
+third-body effects, with the accuracy limited by the least well modelled of these. For low
+orbits that is atmospheric density, which varies by more than an order of magnitude with solar
+activity and is the reason low-orbit predictions degrade rapidly.
+
+Telemetry, commanding, and dynamics:
+  housekeeping telemetry  subsystem health; the operational core
+  payload telemetry       science or mission data
+  limit checking          red and yellow limits; alerts on excursion
+  trend analysis          slow drift is more informative than an instantaneous
+                          value
+  packet prioritization   critical data survives bandwidth constraints
+  command validation      state and constraint checking before transmission
+  arm and execute         two-step protection for critical commands
+  authentication          prevents unauthorized commanding
+  command verification    confirm receipt and expected effect
+  stored sequences        time-tagged or event-driven onboard execution
+  orbit determination     fit tracking data; state plus covariance
+  propagation             predict forward; accuracy limited by the force model
+  drag uncertainty        the dominant error source in low orbit
+  conjunction assessment  screening for close approaches with other objects;
+                          manoeuvre decisions rest on collision probability
+                          rather than on miss distance alone
+  manoeuvre planning      design, simulate, execute, and calibrate from the
+                          observed change
+
+Conjunction assessment has become a routine operational burden as the orbital population has
+grown. Screening predicted trajectories against a catalogue identifies close approaches, and the
+decision to manoeuvre rests on the estimated probability of collision rather than on the miss
+distance, because a large miss distance with large uncertainty can carry more risk than a small
+one that is precisely known. The counterintuitive consequence is that improving tracking
+accuracy can raise the computed collision probability, since a shrinking uncertainty region that
+still contains the other object concentrates the probability rather than dispersing it.
+
+## Anomaly Response and Planning
+
+Anomalies are inevitable and the response is procedural rather than improvised. The
+first priority is spacecraft safety: place the vehicle in a stable configuration, which
+frequently means allowing or commanding entry into safe mode, before attempting diagnosis. The
+second is preserving evidence, which means capturing telemetry and avoiding changes that
+destroy the state needed to understand what happened. Only then does diagnosis proceed, and
+recovery follows a reviewed plan rather than an operator's judgment in the moment.
+
+Safe mode is the designed response to an unrecognized condition. The spacecraft orients its
+solar arrays to the Sun, points its antenna toward Earth or begins a search, sheds non-essential
+loads, and waits. It is deliberately simple and heavily tested, because it is the state the
+vehicle must be able to reach from any condition. Missions have been saved by a well-designed
+safe mode and lost by one that made an assumption which did not hold in the actual failure.
+
+Fault management design is the counterpart to this on the spacecraft. The detection logic must
+distinguish genuine faults from transient sensor noise, since responding to noise causes
+unnecessary safe mode entries that cost mission time. The isolation logic must correctly
+identify which component failed, since responding to the wrong one may disable a healthy unit
+while leaving the failed one active. And the recovery action must be safe under a misdiagnosis,
+which is why conservative responses that preserve the vehicle are preferred over clever ones
+that attempt to continue the mission.
+
+Anomaly and planning practice:
+  safety first          stabilize before diagnosing
+  preserve evidence     capture telemetry; avoid destroying the failure state
+  anomaly review board  a structured process for diagnosis and recovery approval
+  fault tree            systematic enumeration of possible causes
+  reproduce in simulation  confirm the diagnosis before committing to a recovery
+  recovery procedure    written, reviewed, and simulated before uplink
+  lessons learned       fed back into procedures and into future designs
+  planning cycle        science requests, constraint checking, sequence generation,
+                        validation, uplink
+  constraints           power, thermal, data volume, pointing, contact windows,
+                        instrument duty cycles, propellant
+  oversubscription      requests routinely exceed capacity; prioritization is a
+                        scheduling and a political problem
+  scheduling            constraint satisfaction; automated planners are standard
+                        for complex missions
+  margin management     resource margins consumed early leave no room for
+                        recovery from anomalies
+
+The planning cycle is where the mission's science return is actually determined, and it is
+fundamentally a constrained optimization. Requests for observations exceed what the spacecraft
+can execute, and the constraints — power available in this orbit, thermal limits on how long an
+instrument may operate, onboard storage before the next downlink, slew time between targets,
+keep-out zones protecting sensitive instruments from the Sun — interact in ways that make
+manual planning infeasible for complex missions. Automated planners handle this, and the
+operational skill is in expressing the constraints correctly, since a missing constraint
+produces a plan that violates it and a spurious one silently discards achievable science.
+
+[user] Our smallsat keeps entering safe mode every few days and we can't find a cause. Battery
+and thermal look nominal.
+[assistant] tool_call ops.anomaly_triage({"events": 9, "period_days": 31,
+"safe_mode_trigger": "attitude_error_threshold", "correlation_checks":
+["orbit_position", "eclipse", "sun_angle", "magnetic_field", "ground_pass",
+"payload_duty_cycle"]})
+[tool] {"correlation": {"orbit_position": 0.91, "eclipse_exit": 0.88,
+"sun_angle": 0.34, "ground_pass": 0.11, "payload_duty": 0.22},
+"pattern": "clustered_at_eclipse_exit_over_south_atlantic",
+"hypothesis": ["saa_radiation_upset", "thermal_transient_on_eclipse_exit",
+"sun_sensor_blinding_at_terminator"]}
+[assistant] The events cluster at eclipse exit over the South Atlantic, which is a strong
+enough correlation to work with — 0.91 with orbit position and 0.88 with eclipse exit is not
+coincidence across nine events.
+
+Three hypotheses fit that pattern, and they are distinguishable from data you likely already
+have.
+
+Radiation upset in the South Atlantic Anomaly is the first. That region has elevated trapped
+particle flux at low altitude, and single event upsets in the attitude determination processor
+or its memory would produce exactly this: attitude error spikes clustered geographically. Check
+whether your error-correcting memory is logging corrected errors, and whether the upset counter
+increments during these passes. If it does, the fix is architectural — memory scrubbing at
+higher frequency, and treating a single attitude error sample as insufficient to trigger safe
+mode.
+
+Sun sensor blinding at the terminator is the second and would explain the eclipse-exit
+correlation specifically. Emerging from eclipse, the sensor sees a rapidly changing
+illumination geometry, and earth albedo near the terminator can produce a spurious sun vector.
+If your attitude determination weights the sun sensor heavily, a bad vector produces a large
+apparent attitude error. Check the sun sensor's raw output during these events, and whether the
+error persists or resolves within seconds.
+
+Thermal transient is the third. Eclipse exit produces a rapid temperature change, and if a
+structural element or the sensor mount has a thermal gradient, the sensor's alignment shifts.
+This would show as an attitude error that correlates with temperature rate of change rather
+than with position, which distinguishes it from the first two.
+
+Regardless of which it is, one change is worth making now: your safe mode trigger appears to
+fire on a threshold crossing. Requiring the error to persist for several consecutive samples
+before triggering would reject transients while still catching genuine attitude loss, and it
+would likely stop the safe mode entries even before you identify the cause. Verify the
+persistence duration against how fast a real attitude excursion would develop, so you do not
+delay a genuine response.
+
+## Mission Phases and Data
+
+Missions proceed through phases with distinct operational characteristics. Launch and early
+orbit is the highest-risk period, with continuous coverage, a compressed sequence of critical
+events — separation, attitude acquisition, solar array deployment, first contact — and a team
+prepared for immediate response. Commissioning checks out each subsystem and instrument
+progressively, calibrating and characterizing against pre-launch expectations. Routine
+operations follows an established cadence with reduced staffing. Extended mission continues
+past the primary objectives with an ageing vehicle and typically reduced resources. Disposal
+concludes the mission.
+
+Disposal is a requirement rather than an option in current practice. Low orbit satellites must
+deorbit or be placed in an orbit that decays within a specified period, now widely being reduced
+from twenty-five years toward five. Geostationary satellites are boosted to a graveyard orbit
+above the operational belt, which requires reserving propellant that could otherwise extend the
+mission — a real tension since the disposal manoeuvre must be performed while the vehicle is
+still controllable, so it is executed before the propellant is exhausted rather than after.
+
+Data processing converts downlinked telemetry into usable products through defined levels.
+Raw data is reconstructed and time-tagged. Calibrated data has instrument characteristics
+removed and physical units applied. Derived products apply geophysical or scientific
+algorithms. Each level is archived, because reprocessing with improved calibration is routine
+and requires the lower levels to be preserved.
+
+Mission phases and data:
+  launch and early orbit  highest risk; continuous coverage, critical sequence
+  commissioning           subsystem and instrument checkout and calibration
+  routine operations      established cadence, reduced staffing
+  extended mission        ageing vehicle, reduced resources, often the highest
+                          scientific return per dollar
+  disposal                deorbit or graveyard; propellant must be reserved
+  Level 0                 raw, reconstructed, time-tagged
+  Level 1                 calibrated, physical units, geolocated
+  Level 2                 derived geophysical or scientific variables
+  Level 3                 gridded and composited
+  reprocessing            improved calibration applied to archived lower levels
+  archive                 often outlives the mission by decades; formats and
+                          metadata determine whether the data remains usable
+  data policy             proprietary period versus open release; open data
+                          reliably increases scientific return per mission
+
+The archive deserves the final word because it is the mission product that persists longest.
+Spacecraft operate for years and their data is used for decades, which means the format,
+metadata, and documentation determine whether the investment remains accessible. Data archived
+in an undocumented binary format with the calibration knowledge held only by the original team
+becomes unusable within a decade of that team dispersing. Standard formats, self-describing
+metadata, documented processing provenance, and archived processing software are what make
+long-term reuse possible, and they are consistently underfunded relative to their contribution
+to the mission's eventual scientific return.

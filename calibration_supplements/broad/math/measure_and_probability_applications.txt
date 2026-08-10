@@ -1,0 +1,236 @@
+================================================================================
+AREA: Mathematics
+SUBJECT: Stochastic Processes
+Subtopics: Markov chains, Poisson and counting processes, martingales, Brownian motion,
+stochastic calculus, queueing, applications and simulation.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Markov Chains and the Memoryless Property
+
+A stochastic process is a collection of random variables indexed by time, and the useful structure
+comes from restricting how the future may depend on the past. The Markov property is the most
+important such restriction: given the present state, the future is independent of the past. This
+memorylessness is what makes a process analytically tractable, because the entire history collapses
+into the current state.
+
+A discrete Markov chain is specified by its transition probabilities, and its long-run behaviour
+follows from the structure of that matrix. States communicate if each is reachable from the other,
+which partitions the state space into classes. A class is recurrent if the process returns to it
+with probability one and transient if there is positive probability of leaving forever. An
+irreducible chain — one where every state communicates with every other — that is aperiodic and
+positive recurrent has a unique stationary distribution to which it converges from any starting
+point.
+
+The stationary distribution is what most applications want. It describes the long-run fraction of
+time spent in each state, and it is found by solving a linear system expressing that the
+distribution is unchanged by one transition. Convergence to it is geometric, at a rate governed by
+the second-largest eigenvalue of the transition matrix, which is why the spectral gap is the
+quantity that determines how long a simulation must run before its samples are usable.
+
+Markov chains:
+  the Markov property  the future depends on the past only through the present
+  transition matrix    the complete specification for a discrete chain
+  communication        mutual reachability; partitions the state space
+  recurrent            returns with probability one
+  transient            positive probability of never returning
+  irreducible          every state reachable from every other
+  periodicity          returns only at multiples of some period
+  stationary distribution  unchanged by a transition
+  the convergence theorem  irreducible, aperiodic, positive recurrent chains
+                       converge from any start
+  ergodicity           time averages equal distribution averages
+  detailed balance     a stronger condition implying stationarity; the basis of
+                       most sampling algorithm constructions
+  spectral gap         governs the convergence rate
+  mixing time          how long until the distribution is close to stationary
+  the practical implication  a sampler must run past its mixing time before its
+                       output means anything, and diagnosing convergence is
+                       genuinely hard because a chain stuck in one region looks
+                       converged from inside it
+  continuous-time chains  exponential holding times and a jump chain; the
+                       memoryless holding time is what preserves the Markov
+                       property
+
+Q: A Markov chain Monte Carlo sampler produces samples whose statistics are stable across a long
+run. Does this establish convergence?
+A. Yes, stability is convergence
+B. No — a chain trapped in one region of the state space produces stable statistics for that region
+   indefinitely; stability is necessary and not sufficient, and multiple chains from dispersed
+   starting points are the standard check
+C. Only for discrete chains
+D. Convergence cannot be assessed
+Reasoning: Apparent stationarity within a mode is indistinguishable from global convergence when
+observed from a single chain. Running several chains from overdispersed starts and comparing
+between-chain and within-chain variance is the standard diagnostic precisely because it can detect
+this. Answer: B.
+
+## Poisson Processes and Counting
+
+The Poisson process models events occurring randomly in time at a constant average rate, with
+independent increments and no two events simultaneous. It is characterized equivalently by three
+descriptions: the number of events in any interval is Poisson distributed with mean proportional to
+the interval's length; the times between events are independent exponential variables; and given the
+number of events in an interval, their positions are uniformly distributed within it.
+
+The exponential inter-arrival time is memoryless, which is the property that makes the process
+tractable and which is also its main modelling limitation. Memorylessness means that having waited
+any amount of time tells you nothing about how much longer you will wait, and this is a strong
+assumption that fails for many real processes — machine failures become more likely with age,
+customer arrivals have daily patterns, and network traffic is bursty rather than smooth.
+
+The generalizations relax specific assumptions. A non-homogeneous Poisson process allows a
+time-varying rate, which handles daily and seasonal patterns while preserving independence. A
+renewal process allows arbitrary inter-arrival distributions, losing the Markov property in
+continuous time but retaining tractable long-run behaviour. A compound process attaches a random
+magnitude to each event, which is the natural model for insurance claims and for aggregate demand.
+
+Poisson and counting processes:
+  the three characterizations  Poisson counts, exponential gaps, uniform
+                       conditional positions
+  independent increments  disjoint intervals are independent
+  memorylessness       waiting tells you nothing about remaining wait
+  the modelling limitation  ageing, periodicity, and burstiness violate it
+  superposition        merging independent Poisson processes gives a Poisson
+                       process
+  thinning             randomly keeping events gives a Poisson process
+  the practical use    these closure properties make composite models tractable
+  non-homogeneous      a time-varying rate
+  renewal process      arbitrary inter-arrival distribution
+  the renewal paradox  an arriving observer sees a longer-than-average interval,
+                       because longer intervals are more likely to contain a
+                       random time; this counterintuitive fact explains why buses
+                       seem to run less often than the schedule says
+  compound process     a random magnitude attached to each event
+  birth-death process  a chain with transitions only to adjacent states; the
+                       structure behind most queueing models
+
+## Martingales and Brownian Motion
+
+A martingale is a process whose expected future value, given everything known so far, equals its
+current value. It formalizes a fair game: no strategy based on available information changes the
+expected outcome. The definition is deceptively simple and the consequences are powerful, because
+martingales admit strong general theorems that apply regardless of the process's specific
+distribution.
+
+The optional stopping theorem is the most used of these. It states that under conditions preventing
+unbounded play, the expected value at a stopping time equals the initial value. This immediately
+resolves gambling questions that are otherwise messy — the expected outcome of a strategy that
+doubles after losses is unchanged, and it fails in practice only because the conditions on bounded
+resources are violated. The theorem's conditions are where all the content lies.
+
+Brownian motion is the continuous-time process with independent, stationary, normally distributed
+increments and continuous paths. It is the limit of a random walk under appropriate scaling, which
+is why it appears whenever many small independent effects accumulate. Its paths are continuous
+everywhere and differentiable nowhere, with unbounded variation on every interval — properties that
+make ordinary calculus inapplicable and that motivated the development of a different calculus
+entirely.
+
+Martingales and Brownian motion:
+  martingale           expected future equals present given the past
+  the fair game reading  no strategy changes the expected outcome
+  submartingale and supermartingale  favourable and unfavourable versions
+  stopping time        a rule for stopping using only past information
+  optional stopping    expected value at stopping equals initial value, under
+                       conditions
+  the conditions matter  unbounded resources or unbounded time break it
+  martingale convergence  bounded martingales converge almost surely
+  Brownian motion      independent stationary normal increments, continuous paths
+  the scaling limit    of a random walk; why it appears so widely
+  path properties      continuous everywhere, differentiable nowhere
+  unbounded variation  on every interval; ordinary calculus does not apply
+  quadratic variation  finite and equal to elapsed time; the property that makes
+                       stochastic calculus work
+  reflection principle  a symmetry argument giving hitting time distributions
+                       directly
+  geometric Brownian motion  the exponential of a Brownian motion with drift;
+                       stays positive and has proportional rather than additive
+                       fluctuations, which is why it is the default model for
+                       quantities that cannot go negative
+
+## Stochastic Calculus
+
+Ordinary calculus fails for Brownian paths because they have unbounded variation, so the Riemann-
+Stieltjes integral does not exist. The Ito integral is constructed differently: it is defined as a
+limit of sums evaluating the integrand at the left endpoint of each subinterval, and that choice —
+rather than the midpoint or right endpoint — is what makes the resulting integral a martingale.
+
+The left-endpoint convention has a concrete interpretation: the integrand is decided before the
+increment is observed, which is exactly the situation of a trading strategy or a control decision
+that cannot see the future. This is why the Ito convention is the right one for finance and control,
+while the midpoint convention, which yields ordinary calculus rules, is preferred in physics where
+the noise is a limit of a smooth process.
+
+Ito's lemma is the chain rule of this calculus and it contains an extra term that has no counterpart
+in ordinary calculus. Because the quadratic variation of Brownian motion is nonzero, the
+second-order term in a Taylor expansion does not vanish, and the derivative of a function of a
+stochastic process acquires a term proportional to its second derivative. This term is the source of
+essentially every result in the field that seems surprising, including why the expected growth rate
+of a lognormal quantity differs from the drift of its logarithm.
+
+Stochastic calculus:
+  the failure of ordinary integration  unbounded variation
+  Ito integral         left-endpoint evaluation; a limit of adapted sums
+  the martingale property  a consequence of the left-endpoint choice
+  the interpretation   the integrand decided before the increment is seen
+  Stratonovich convention  midpoint evaluation; ordinary chain rule, preferred in
+                       physics
+  when each is right   Ito for decisions made without foresight, Stratonovich for
+                       limits of smooth noise
+  quadratic variation  nonzero, and the source of everything unusual
+  Ito's lemma          the chain rule with an extra second-derivative term
+  the practical consequence  a nonlinear function of a process has a drift the
+                       process itself does not
+  stochastic differential equation  drift plus diffusion terms
+  strong and weak solutions  pathwise versus distributional
+  the Feynman-Kac connection  expectations of a diffusion satisfying a partial
+                       differential equation, linking probabilistic and analytic
+                       methods
+  numerical schemes    Euler-Maruyama as the basic method; convergence orders
+                       differ from the deterministic case and higher-order
+                       schemes require care with the noise terms
+
+## Queues, Applications, and Simulation
+
+Queueing theory analyses systems where items arrive, wait, and are served, and its results are
+surprisingly general. The standard notation specifies the arrival process, the service distribution,
+and the number of servers, and the simplest case — Poisson arrivals, exponential service, one server
+— yields closed-form expressions for queue length and waiting time as functions of the utilization.
+
+The central result is that waiting time grows without bound as utilization approaches capacity, and
+it does so hyperbolically rather than linearly. A system at fifty percent utilization has a modest
+queue; at ninety percent the queue is roughly nine times longer; at ninety-nine percent it is
+ninety-nine times. This is why systems operated near capacity behave so badly, why the last
+increment of utilization is so expensive in latency, and why capacity planning targets a utilization
+well below one hundred percent rather than treating headroom as waste.
+
+Little's law is the other result worth knowing and it is remarkably general: the average number in a
+system equals the arrival rate times the average time spent in it. It requires no assumptions about
+the arrival or service distributions, applies to any stable system, and provides a consistency check
+on any measurement of the three quantities. Two of them measured gives the third for free, which is
+frequently the easiest route to the one that is hard to observe directly.
+
+Queues and simulation:
+  the notation         arrival process, service distribution, server count
+  utilization          arrival rate over service capacity
+  the hyperbolic growth  waiting time diverging as utilization approaches one
+  the practical numbers  ninety percent utilization queues roughly nine times the
+                       fifty percent case
+  capacity planning    headroom is a latency requirement, not waste
+  Little's law         average number equals arrival rate times average time
+  the generality       no distributional assumptions; any stable system
+  the practical use    measure two of three quantities and derive the third
+  variability          higher service time variance lengthens queues at the same
+                       utilization; predictability is itself a capacity resource
+  priority disciplines  shortest-job-first minimizes average wait and starves long
+                       jobs; the fairness tradeoff is explicit
+  networks of queues   departures feeding arrivals; tractable under specific
+                       conditions and otherwise requiring simulation
+  discrete event simulation  advancing to the next event rather than in fixed
+                       steps; the standard method when analysis is intractable
+  variance reduction   common random numbers, antithetic variates, control
+                       variates; often worth more than more replications
+  the warm-up problem  initial transient discarded before collecting statistics,
+                       and deciding how much to discard is the same convergence
+                       question that arises for Markov chain sampling

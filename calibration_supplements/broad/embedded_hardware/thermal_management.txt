@@ -1,0 +1,238 @@
+================================================================================
+AREA: Embedded and Hardware Engineering
+SUBJECT: Thermal Management
+Subtopics: heat transfer fundamentals, thermal resistance networks, component and board
+level cooling, enclosures and airflow, measurement, transient behaviour, reliability.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Heat Transfer Fundamentals
+
+Every watt a circuit consumes becomes heat, and thermal design is the discipline of moving that heat
+to the ambient environment at an acceptable temperature rise. The three mechanisms are conduction
+through solids, convection to a moving fluid, and radiation as electromagnetic emission, and a real
+system uses all three in proportions that shift with geometry, temperature, and airflow.
+
+Conduction is governed by the material's thermal conductivity, the cross-sectional area, and the
+path length, and it is the mechanism that dominates within a device and its immediate mounting. The
+enormous conductivity range across materials is what makes design possible: copper conducts roughly
+two thousand times better than the epoxy in a circuit board and roughly ten thousand times better
+than still air, so the design problem is usually one of arranging conductive paths from the source
+to a surface where the other mechanisms can take over.
+
+Convection to air is where most heat finally leaves, and its coefficient depends strongly on
+whether the air moves. Natural convection, driven by buoyancy alone, gives coefficients in the
+range of a few watts per square metre per kelvin. Forced convection with even modest airflow gives
+an order of magnitude more, which is why a fan changes a thermal design categorically rather than
+incrementally. Radiation is often dismissed and should not be: at typical electronics temperatures
+it can carry a comparable share to natural convection from a dark surface, and it is free.
+
+Heat transfer fundamentals:
+  every watt becomes heat  the starting point of any thermal budget
+  conduction           through solids; conductivity times area over length
+  the conductivity range  copper versus board epoxy versus air spans four orders
+                       of magnitude
+  convection           to a moving fluid; coefficient depends on flow
+  natural convection   buoyancy driven; a few watts per square metre per kelvin
+  forced convection    an order of magnitude better with modest airflow
+  the fan's effect     categorical, not incremental
+  radiation            proportional to the fourth power of absolute temperature
+  emissivity           surface property; a dark matte surface radiates far better
+                       than bare polished metal
+  the radiation share  comparable to natural convection at electronics
+                       temperatures; free and frequently ignored
+  thermal budget       total dissipation, allowed temperature rise, ambient
+                       maximum
+  the ambient assumption  the specification that most often turns out to be
+                       optimistic in the field
+
+Q: A design that stays within temperature limits on the bench overheats when installed in its
+enclosure. The primary cause is:
+A. The components changed
+B. The bench test had unrestricted natural convection and radiation to a cool room; the enclosure
+   raises the local ambient temperature and restricts airflow, and both effects were absent from
+   the test
+C. Measurement error
+D. Higher supply voltage
+Reasoning: A board on a bench sits in an effectively infinite cool ambient with free airflow.
+Inside an enclosure the internal air heats up, so the temperature difference driving convection
+shrinks, and the enclosure walls block the airflow that was assumed. Thermal testing must be done
+in the final mechanical configuration. Answer: B.
+
+## Thermal Resistance Networks
+
+The most useful analytical tool in practical thermal design is the resistance network analogy.
+Temperature difference plays the role of voltage, heat flow the role of current, and thermal
+resistance in kelvins per watt the role of electrical resistance. Series and parallel combination
+rules apply directly, which means an entire thermal path can be analysed with the same intuition an
+engineer already has for circuits.
+
+A component's datasheet gives junction-to-case and junction-to-ambient resistances, and the
+distinction matters greatly. Junction-to-ambient is measured on a specified test board under
+specified conditions and rarely resembles the real installation; treating it as a property of the
+part rather than of the part-plus-test-board is one of the most common thermal errors. Junction-to-
+case is a property of the package and is the number to build a real network from.
+
+The interface between a component and its heatsink is frequently the dominant resistance in the
+chain, because two nominally flat surfaces touch at a small fraction of their apparent area and the
+gaps are filled with air. Thermal interface material displaces the air with something conductive,
+and the practical rules are that thinner is better, that excess material adds resistance rather than
+removing it, and that mounting pressure matters as much as the material choice.
+
+Resistance networks:
+  the analogy          temperature as voltage, heat as current, resistance in
+                       kelvins per watt
+  series and parallel  combine as in circuits
+  junction-to-case     a package property; the number to build a network from
+  junction-to-ambient  a test-board property; not transferable to your design
+  the common error     treating junction-to-ambient as intrinsic
+  case-to-sink         dominated by the interface
+  contact area         nominally flat surfaces touch at a small fraction of their
+                       area
+  thermal interface material  displaces the insulating air
+  thinner is better    the material is a poorer conductor than the metals it
+                       joins; it exists to fill gaps, not to conduct
+  excess material      adds resistance; more is not better
+  mounting pressure    as influential as material choice
+  gap pads             for larger, less controlled gaps; higher resistance,
+                       easier assembly
+  phase change materials  conform under heat; good performance with simple
+                       assembly
+  spreading resistance  a small source into a large plate; the constriction near
+                       the source can dominate and is missed by one-dimensional
+                       analysis
+
+## Board and Component Level Cooling
+
+A printed circuit board is a thermal component, and treating it as one changes designs. Copper
+planes conduct heat laterally very effectively; the board's epoxy conducts through its thickness
+very poorly. The consequence is that heat spreads well within a layer and passes between layers
+badly, which is why thermal vias exist — arrays of plated holes creating vertical copper paths
+under a hot component.
+
+Thermal via design follows a few rules that are frequently violated. Many small vias outperform few
+large ones for a given copper area, because the plating thickness rather than the hole diameter
+carries the heat. They should be placed directly under the thermal pad, not adjacent to it. They
+should connect to a plane with substantial copper area, since a via array leading to an isolated
+island accomplishes nothing. And filled or tented vias prevent solder from wicking away during
+assembly, which is an assembly problem that manifests as a thermal one.
+
+Component placement is the cheapest thermal lever and it is fixed early, which is why thermal
+consideration must enter at the floorplanning stage rather than after routing. Hot components
+spread out rather than clustered, thermally sensitive parts — voltage references, oscillators,
+sensors — kept away from heat sources and from the airflow downstream of them, and orientation
+chosen so that natural convection carries heat away from rather than across other components.
+
+Board-level thermal design:
+  the board is a thermal component  copper spreads laterally, epoxy insulates
+                       vertically
+  thermal vias         vertical copper paths under hot components
+  many small vias      outperform few large ones for a given copper area
+  placement under the pad  not adjacent
+  connect to a plane   an array into an isolated island does nothing
+  filled or tented     prevents solder wicking during assembly
+  copper pour          area is the spreader; connected area, not drawn area
+  layer stackup        an internal plane close to the component surface helps
+                       most
+  placement            the cheapest lever; fixed at floorplanning
+  spread the heat sources  do not cluster
+  protect the sensitive  references, oscillators, and sensors away from heat and
+                       from downstream airflow
+  orientation          natural convection rises; place accordingly
+  the temperature gradient across a board  causes measurement offsets and
+                       mechanical stress; both are real failure modes
+  heatsinks            fin area, fin spacing matched to the flow regime, and
+                       attachment method; a heatsink with fins spaced for forced
+                       air performs poorly in natural convection because the
+                       boundary layers merge and the inter-fin air stagnates
+
+## Enclosures, Airflow, and System Level
+
+At the system level the enclosure determines the thermal outcome more than any component choice. A
+sealed enclosure must conduct all its heat through its walls to the outside surface, so its
+external area and finish are the design variables, and internal fans in a sealed box move heat
+around without removing any of it — though they do help by eliminating internal hot spots and
+raising the effective internal convection coefficient.
+
+Ventilated enclosures rely on air moving through, and the flow path must be designed rather than
+assumed. Inlet low, outlet high, with the components arranged along the path in order of increasing
+temperature tolerance, is the natural convection arrangement. Bypass — air finding a low-resistance
+route that misses the components — is the standard failure, and blanking plates, baffles, and
+sealed cable openings exist to prevent it.
+
+Fan selection requires matching the fan curve to the system impedance curve. A fan rated for a
+certain airflow delivers that only into free air, and the actual operating point is where its
+pressure-flow curve intersects the system's resistance. A high-flow low-pressure fan performs badly
+in a restricted enclosure and a smaller high-pressure fan may move more air through it, which is
+counterintuitive from the specification numbers alone.
+
+Enclosure and airflow:
+  sealed enclosure     all heat through the walls; external area and finish are
+                       the variables
+  internal fan in a sealed box  removes no heat and still helps by eliminating
+                       hot spots
+  ventilated           designed flow path, not assumed
+  inlet low, outlet high  the natural convection arrangement
+  component ordering   along the flow path by increasing temperature tolerance
+  bypass               air missing the components; the standard failure
+  baffles and blanking  force the air where it is needed
+  fan curve            pressure against flow
+  system impedance     the enclosure's resistance curve
+  operating point      the intersection; free-air ratings are not what you get
+  the counterintuitive result  a smaller high-pressure fan can outperform a
+                       larger high-flow one in a restricted box
+  filters              necessary and they increase impedance as they load; design
+                       for the dirty condition
+  acoustic constraint  fan noise scales steeply with speed; larger and slower is
+                       quieter for the same flow
+  ingress protection   sealing conflicts directly with airflow; a sealed unit
+                       needs a conduction path to the exterior instead
+  altitude derating    less dense air convects less; a design validated at sea
+                       level can fail in a data centre at elevation
+
+## Measurement, Transients, and Reliability
+
+Thermal simulation is useful for comparing options and is not a substitute for measurement, because
+its results depend on boundary conditions, material properties, and interface resistances that are
+rarely known to better than tens of percent. The correct workflow uses simulation to choose among
+designs and measurement to validate the chosen one.
+
+Measurement technique determines whether the numbers mean anything. A thermocouple attached with a
+gap reads the air rather than the surface. An infrared camera reports a temperature that depends on
+the assumed emissivity, so a shiny metal surface reads far too cool unless it is coated or the
+emissivity is corrected. On-die temperature sensors report the junction directly and are the most
+trustworthy source where available. The most useful single practice is measuring the same point by
+two different methods and investigating any disagreement.
+
+Transient behaviour matters when the load is not steady. Thermal capacitance means temperature lags
+power, so a short burst may not raise the junction significantly while a sustained load will. The
+relevant time constants span from milliseconds for a die to minutes for a heatsink to tens of
+minutes for an enclosure, and a design that survives a burst profile may fail on a duty cycle whose
+average power is much lower but whose on-periods exceed the shortest relevant time constant.
+
+Measurement and reliability:
+  simulate to compare  measure to validate
+  boundary conditions  where simulation accuracy is actually lost
+  thermocouple attachment  a gap reads air, not surface
+  infrared emissivity  shiny metal reads far too cool; coat or correct
+  on-die sensors       the most trustworthy where available
+  two-method agreement  the best practical validation
+  steady state         reached after several time constants; measure long enough
+  thermal capacitance  temperature lags power
+  time constants       milliseconds for a die, minutes for a sink, tens of
+                       minutes for an enclosure
+  duty cycle risk      lower average power can be worse if the on-period exceeds
+                       the die time constant
+  thermal throttling   the system reducing performance to stay in limits; a
+                       correct behaviour that appears as a performance bug
+  the Arrhenius relation  reaction rates roughly doubling per ten kelvin; the
+                       basis of temperature-accelerated life testing
+  electrolytic capacitor life  halves per ten kelvin; commonly the first thing to
+                       fail in a hot design
+  thermal cycling      fatigue at solder joints and interfaces from repeated
+                       expansion mismatch; the cycle count and range matter more
+                       than the peak temperature
+  the design margin    validate at the worst realistic ambient with the worst
+                       realistic load, and the difference between that and the
+                       nominal case is where most field thermal failures live

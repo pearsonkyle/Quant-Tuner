@@ -1,0 +1,320 @@
+================================================================================
+AREA: Generative Art and Creative Technology
+SUBJECT: Data Visualization
+Subtopics: perceptual foundations, encodings and chart selection, scales and axes,
+colour for data, multivariate and network views, interaction, narrative, honesty.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Perceptual Foundations
+
+Data visualization works by mapping data to visual properties that the perceptual system reads
+accurately, and the accuracy of that reading varies enormously by property. This is an empirical
+matter rather than a stylistic one: controlled experiments established a ranking of how
+precisely people judge magnitude from different visual encodings, and the ranking should drive
+encoding choices for anything where precise comparison matters.
+
+Position along a common scale is judged most accurately, which is why scatter plots and bar
+charts with a shared axis support precise comparison. Length is next, then slope and angle, then
+area, then volume, then colour saturation and hue. The gap is large: people judge position to
+within a few percent and area with errors that routinely exceed thirty percent, systematically
+underestimating large areas relative to small ones. This is the perceptual basis for the standard
+criticism of pie charts, which encode by angle and area, and of bubble charts, which encode by
+area.
+
+Pre-attentive processing is the other perceptual fact worth designing around. Certain visual
+properties are processed in parallel across the visual field before conscious attention, so a
+single element differing in colour, size, orientation, or motion is found in constant time
+regardless of how many other elements are present. A target differing in two properties
+simultaneously loses this advantage and requires serial search. The design implication is that
+one strong contrast draws the eye immediately and several competing contrasts draw it nowhere.
+
+Perceptual foundations:
+  position on a common scale  most accurate; the default for precise comparison
+  position on unaligned scales  less accurate; small multiples pay this cost
+  length               accurate; bar charts
+  slope and angle      moderate; line charts read trend well and value less well
+  area                 poor; errors of thirty percent or more, and large areas
+                       are underestimated
+  volume               worse; three-dimensional encoding of quantity is almost
+                       never justified
+  colour saturation    poor for magnitude; adequate for ordering a few levels
+  colour hue           categorical only; no natural order
+  pre-attentive        a single differing property is found in constant time
+  competing contrasts  several simultaneous emphases cancel
+  Gestalt grouping     proximity, similarity, enclosure, connection; operates
+                       before conscious inspection and overrides labels
+  change blindness     large changes across an interruption go unnoticed;
+                       animated transitions must be slow enough to track
+
+Gestalt grouping deserves emphasis because it determines what a reader perceives as related
+regardless of what the design intends. Elements placed close together are read as a group; a
+shared background or enclosure groups more strongly than proximity; a connecting line groups
+more strongly still. A legend placed nearer to the wrong series will be associated with it, and
+a spacing that separates a label from its bar will detach them perceptually whatever the
+alignment implies. Spacing communicates relationship more forcefully than any label does.
+
+Q: A dashboard uses a 3D pie chart to compare five categories. The most fundamental problem is:
+A. It is out of fashion
+B. It encodes magnitude by angle and area, which people judge poorly, and the perspective
+   distorts the areas further so identical values appear different
+C. Five categories is too many
+D. It uses too much colour
+Reasoning: Angle and area are low on the accuracy ranking, so precise comparison is already
+difficult. Adding perspective makes the near slices appear larger than equal far ones, which
+introduces a systematic distortion unrelated to the data. A bar chart encoding the same values
+by position on a common scale supports accurate comparison. Answer: B.
+
+## Encodings and Chart Selection
+
+Chart selection follows from the question being asked rather than from the data's shape, and
+stating the question explicitly is the most useful discipline in the field. Comparing values
+across categories, showing a distribution, showing change over time, showing the relationship
+between two variables, showing composition, and showing geographic pattern are different
+questions with different appropriate forms, and a chart chosen without deciding which is being
+asked usually answers none of them well.
+
+Bar charts compare values by length along a common baseline, and the baseline must start at
+zero because length is the encoding — truncating the axis makes a small difference look large
+and is the most common form of misleading chart. Line charts show change over an ordered
+variable, and their axis need not start at zero because slope rather than length is the
+encoding, so a truncated axis showing meaningful variation is legitimate. Confusing these two
+rules produces both unnecessary and misleading axis choices.
+
+Scatter plots show the relationship between two continuous variables and are the most
+information-dense standard form, supporting judgments about correlation, clusters, outliers, and
+functional form simultaneously. Their limitation is overplotting: at high density, points
+overlap and the visual density no longer represents the data density, so the apparent pattern
+reflects the plotting order. Transparency, small point size, binning into a heatmap, or
+contouring the density each address it.
+
+Chart forms and their questions:
+  bar chart            compare across categories; zero baseline required
+  grouped bar          compare across two categorical dimensions
+  stacked bar          composition within a total; only the bottom series has a
+                       common baseline, so the others are hard to compare
+  line chart           change over an ordered variable; zero baseline optional
+  slope chart          change between two points across many categories
+  scatter plot         relationship between two continuous variables
+  bubble chart         adds a third variable by area; the area is read poorly
+  histogram            distribution of one variable; bin width materially changes
+                       the impression and should be examined at several settings
+  box plot             distribution summary; hides multimodality entirely
+  violin / strip       show the distribution's shape; preferable when n permits
+  heatmap              a matrix of values by colour; ordering the rows and columns
+                       is what makes structure visible
+  small multiples      the same chart repeated across a facet; excellent for
+                       comparison, and each panel needs a shared scale
+  dual axis            two series on different scales; the relationship implied
+                       depends entirely on arbitrary scaling and should almost
+                       always be replaced by two aligned panels
+
+The box plot's limitation deserves emphasis because it is widely used and hides exactly the
+feature that would change an interpretation. It shows median, quartiles, and outliers, all of
+which are identical for a unimodal and a strongly bimodal distribution with the same summary
+statistics. A dataset where two subpopulations differ would appear as a single unremarkable box.
+Overlaying the individual points, or using a violin plot showing the estimated density, makes the
+structure visible at essentially no cost when the sample size permits.
+
+Stacked bars carry a related and less recognized problem. Only the bottom series sits on a
+common baseline, so only it can be compared accurately across categories; every series above it
+starts at a varying position, and comparing them requires judging length without alignment,
+which is substantially less accurate. If the comparison across categories matters more than the
+totals, grouped bars or small multiples serve better.
+
+## Scales, Axes, and Colour
+
+Scale choice determines what is visible and what is compressed. A linear scale represents equal
+differences equally and is the default. A logarithmic scale represents equal ratios equally,
+which is correct when the data spans orders of magnitude or when proportional change is the
+meaningful quantity — and it must be labelled clearly, because a reader who assumes linearity
+will misread it badly. Square root scales are used for area encodings so that the perceived area
+is proportional to the value.
+
+Axis conventions carry meaning that violating them subverts. Time on the horizontal axis
+increasing to the right is nearly universal and reversing it will be misread regardless of
+labels. Zero on a bar chart's value axis is required because the bar's length encodes the value.
+Consistent scales across small multiples are required for the comparison the form exists to
+support, and independent scales silently defeat it.
+
+Colour is the most misused encoding channel and its correct use depends on what the data is.
+Categorical data with no order takes a qualitative palette of distinct hues, limited to about
+eight before discrimination fails. Ordered data takes a sequential palette varying primarily in
+lightness, because lightness is the channel that reads as ordered. Data with a meaningful
+midpoint takes a diverging palette with two hues meeting at a neutral centre, and the midpoint
+must correspond to the meaningful value rather than to the data's median.
+
+Scales, axes, and colour:
+  linear               equal differences; the default
+  logarithmic          equal ratios; for orders of magnitude, and label it clearly
+  square root          for area encodings, so perception is proportional
+  zero baseline        required for bars, optional for lines
+  consistent scales    across small multiples; independent scales defeat the
+                       comparison
+  qualitative palette  distinct hues for unordered categories; about eight is the
+                       practical limit
+  sequential palette   varying lightness; for ordered data
+  diverging palette    two hues meeting at neutral; place the midpoint at the
+                       meaningful value
+  perceptual uniformity  equal steps should look equally different; the rainbow
+                       palette fails this badly, creating false boundaries at
+                       yellow and cyan and compressing differences elsewhere
+  colourblind safe     avoid red-green as the sole distinction; about 8% of men
+                       are affected
+  redundant encoding   pair colour with shape, position, or label; colour alone
+                       fails for colourblind readers and in greyscale
+  greyscale check      a visualization should survive being printed in black and
+                       white with its structure intact
+
+The rainbow palette deserves specific criticism because it remains common in scientific
+figures and is actively misleading. It is not perceptually uniform: the transitions through
+yellow and cyan appear abrupt while the greens change slowly, so the palette creates apparent
+boundaries where the data is smooth and hides variation where the data changes. It also has no
+consistent lightness ordering, so it fails entirely in greyscale and is difficult for
+colourblind readers. Perceptually uniform sequential palettes with monotonic lightness solve all
+three problems and are available in every plotting library.
+
+[user] My chart shows two metrics on a dual axis and reviewers keep drawing conclusions about
+their relationship that I don't think the data supports.
+[assistant] tool_call viz.critique({"chart": "dual_axis_line", "series": 2,
+"axis_ranges": [[0, 100], [2.1, 2.4]], "correlation": 0.31,
+"reviewer_conclusion": "strong_relationship"})
+[tool] {"issue": "dual_axis_implies_arbitrary_relationship",
+"detail": "the_apparent_alignment_depends_entirely_on_chosen_ranges",
+"actual_correlation": 0.31, "alternatives": ["two_aligned_panels",
+"indexed_to_common_base", "scatter_plot"]}
+[assistant] The reviewers are reading the chart correctly; the chart is making a claim the data
+does not support.
+
+A dual-axis chart lets you choose two independent scale ranges, and the apparent relationship
+between the two lines depends entirely on that choice. Your second axis spans 2.1 to 2.4, a
+range you selected, and a different range would make the lines diverge, converge, or cross at
+different points. Any of those choices is equally defensible and they imply different
+conclusions, which means the visual relationship carries no information about the data. Your
+actual correlation is 0.31, which is weak, and the chart implies something much stronger.
+
+Three alternatives, depending on what you want to show.
+
+Two aligned panels stacked vertically with a shared time axis. Each series keeps its own scale,
+the reader can see both trends, and no spurious alignment is implied because the lines are not
+superimposed. This is the general-purpose replacement and it is almost always better.
+
+Index both series to a common base — set each to 100 at the starting period and plot percentage
+change. This is legitimate on a single axis because both series are now in the same units, and
+it directly shows relative movement, which is usually the intended comparison.
+
+A scatter plot of one against the other, with time encoded by point colour or by connecting the
+points in order. If the question is whether the two are related, this answers it directly and
+shows the strength honestly — a cloud with a weak trend looks like a cloud with a weak trend.
+
+If the dual axis must stay for some reason, at minimum state the correlation in the chart and
+be explicit that the axis ranges were chosen. But the standard advice is well founded: dual
+axes make a visual claim that is a function of the designer's arbitrary choices rather than of
+the data, and there is nearly always a better form.
+
+## Multivariate, Networks, and Interaction
+
+Showing more than two or three variables requires either additional encoding channels or
+additional structure, and each has costs. Adding colour, size, and shape to a scatter plot
+extends it to five variables and rapidly exceeds what a reader can decode. Small multiples
+faceting by a categorical variable preserve the accuracy of the base encoding at the cost of
+space and of comparison across unaligned panels. Parallel coordinates place each variable on a
+vertical axis and draw a line per observation, which handles many dimensions and requires
+practice to read and is highly sensitive to axis ordering.
+
+Dimensionality reduction projects high-dimensional data to two dimensions for viewing, and the
+results are routinely over-interpreted. In nonlinear embeddings, cluster sizes are not
+meaningful, distances between clusters are largely not meaningful, and the apparent structure
+depends strongly on hyperparameters. They are valuable for exploration and for generating
+hypotheses, and they do not establish that clusters are separable or that two groups are more
+similar than two others.
+
+Network visualization shows relationships, and the layout algorithm determines what is visible.
+Force-directed layouts place connected nodes near each other and reveal community structure at
+the cost of being non-deterministic and slow at scale. Matrix representations avoid edge
+crossings entirely and read densities well while making path-following impossible. Beyond a few
+hundred nodes, node-link diagrams become uninterpretable regardless of layout — the hairball —
+and the answer is aggregation, filtering, or a different representation rather than a better
+layout.
+
+Multivariate, networks, and interaction:
+  small multiples      facet by a category; preserves encoding accuracy
+  parallel coordinates  many dimensions; axis order matters greatly
+  scatterplot matrix   all pairwise relationships; scales poorly beyond ~8
+                       variables
+  dimensionality reduction  exploration only; cluster size and inter-cluster
+                       distance are not meaningful
+  force-directed       reveals communities; non-deterministic, slow at scale
+  matrix view          no edge crossings, good for density, poor for paths
+  hairball             a node-link diagram beyond a few hundred nodes; aggregate
+                       or filter instead
+  overview then detail  show the whole, then zoom to specifics
+  brushing and linking  select in one view, highlight in all; the highest-value
+                       interaction for multivariate exploration
+  filtering            dynamic queries; immediate feedback is what makes it
+                       exploratory
+  tooltips             detail on demand; do not put essential information there,
+                       since it is invisible in a static export and on touch
+                       devices
+  animation            effective for showing transitions between states; poor for
+                       comparing states, since it requires memory rather than
+                       side-by-side comparison
+
+The animation caveat is worth stating because animated charts are visually compelling and
+frequently the wrong choice. Comparing two states requires holding one in memory while viewing
+the other, which is far less accurate than comparing them side by side. Animation is genuinely
+valuable for showing a transition — making clear that this bar became that bar, which preserves
+object identity across a change — and it is a poor substitute for small multiples when the
+question is how the states differ.
+
+## Narrative and Honesty
+
+A visualization intended to communicate rather than to explore requires different design.
+Exploratory visualization serves an analyst who knows the data and is looking for structure, so
+density and flexibility matter more than immediate legibility. Explanatory visualization serves a
+reader encountering the data once, so it must have a clear point, remove everything not serving
+that point, and direct attention to what matters.
+
+Annotation is the most underused tool in explanatory visualization. A chart with the key
+finding stated in text on the chart, with the relevant point marked, communicates in seconds what
+an unannotated chart requires the reader to find. The title should state the finding rather than
+describe the axes — a title reading that costs rose 40% after the policy change conveys more than
+one reading costs over time, and it is honest as long as the chart supports it.
+
+Honesty in visualization is a design responsibility, and the common distortions have known
+forms. Truncating a bar chart's axis exaggerates differences. Inconsistent axis intervals distort
+trends. Cherry-picking the time range shows the trend that suits. Encoding one-dimensional
+quantities by area or volume misleads because perception is nonlinear. Omitting uncertainty
+presents estimates as facts. Aggregating across a variable can reverse the apparent
+relationship — Simpson's paradox — which is a genuine analytical hazard rather than a
+presentational one.
+
+Narrative and honesty:
+  exploratory vs explanatory  different audiences, different designs
+  state the finding    a title that says what the chart shows
+  annotate             mark the relevant point; the highest-value addition
+  remove non-data ink   gridlines, borders, and decoration that carry no
+                       information compete for attention
+  direct labelling     label series on the chart rather than in a legend; removes
+                       the lookup
+  sort meaningfully    by value rather than alphabetically, unless the reader
+                       needs to look up a specific category
+  show uncertainty     intervals or distributions; omitting them presents
+                       estimates as facts
+  aggregation          check whether the pattern holds within subgroups; Simpson's
+                       paradox reverses aggregate relationships
+  axis truncation      exaggerates; legitimate for lines, misleading for bars
+  time range selection  choosing the window that shows the desired trend
+  area encoding        perception is nonlinear; scale by the square root or use
+                       length instead
+  the honest test      would someone with the underlying data draw the same
+                       conclusion from this chart
+
+Uncertainty deserves the final emphasis because omitting it is the most consequential and most
+common failure. A point estimate drawn as a line or a bar reads as a fact, and the same estimate
+with an interval reads as an estimate — which is what it is. This matters most where the
+intervals overlap and the visual difference is striking, since a reader without the intervals
+concludes there is a difference and a reader with them concludes correctly that the data does
+not establish one. Presenting uncertainty is harder to design and it is the difference between
+communicating what the data shows and communicating more confidence than it supports.
