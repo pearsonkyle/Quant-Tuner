@@ -1,0 +1,599 @@
+================================================================================
+MMMU DISCIPLINE: Art & Design
+Subjects: Art, Art Theory, Design, Music
+Plain text; llama-imatrix treats the whole file as one continuous token stream.
+Samples are separated by a blank line. No raw special tokens.
+================================================================================
+
+## Art
+
+Western painting is often narrated as a sequence of problems and solutions. The
+Renaissance problem was depth: how to make a flat plaster wall read as a window
+onto a receding world. Linear perspective, codified by Brunelleschi and written
+down by Alberti in De pictura (1435), solved it with a single vanishing point and
+a horizon line tied to the viewer's eye. Masaccio's Holy Trinity (c. 1427) is the
+canonical demonstration — the coffered barrel vault recedes to a point at the foot
+of the cross, so a standing viewer feels the chapel bore into the wall. Once depth
+was solved, the next problem became light. Caravaggio's tenebrism, a century and a
+half later, abandoned even illumination for a single raking source, letting most
+of the canvas fall into near-black so that gesture and face emerge like a spotlight
+on a stage.
+
+The shift from Renaissance to Baroque is less a change of subject than a change of
+energy. A High Renaissance composition such as Raphael's School of Athens is
+balanced, frontal, and stable: figures arrange themselves in a frieze under a
+symmetrical arch, and the eye rests. A Baroque composition such as Rubens' Descent
+from the Cross is diagonal, off-balance, and kinetic: the dead Christ slides down a
+long diagonal of white cloth, and every supporting figure strains against gravity.
+The Baroque wants you to feel motion and weight; the Renaissance wants you to
+contemplate order.
+
+Impressionism is best understood as a response to two pressures — photography and
+optics. Once the camera could record a likeness cheaply, the painter's monopoly on
+representation broke, and the question became what painting could do that a
+photograph could not. The Impressionist answer was to paint perception rather than
+objects: the broken, comma-like brushstrokes of Monet record the flicker of light
+on water at a particular hour, not the timeless form of a haystack. The optical
+theory of the period held that the eye mixes adjacent dabs of pure color at a
+distance, so a field rendered in strokes of unmixed green and violet reads as more
+luminous than the same field mixed to a flat olive on the palette.
+
+Figure: a 17th-century oil painting. A single candle on a wooden table lights the
+faces of two men counting coins; the upper two-thirds of the canvas is in deep
+shadow, and the men's hands and the coins are the brightest passages.
+Q: Which technique most directly produces the dramatic effect described?
+A. Sfumato   B. Tenebrism   C. Pointillism   D. Grisaille
+Reasoning: A single strong light source surrounded by near-black, used for drama,
+is tenebrism (associated with Caravaggio and his followers). Sfumato is soft
+smoky transitions (Leonardo); pointillism builds form from dots of pure color
+(Seurat); grisaille is monochrome gray underpainting. Answer: B.
+
+Q: A painter wants warm flesh tones to appear to glow against a cool background
+without literally brightening the pigment. Which classical strategy applies?
+A. Simultaneous contrast — placing the warm tone beside its cool complement makes
+   each appear more intense.   B. Chiaroscuro alone.   C. Reducing saturation.
+D. Using only earth pigments.
+Reasoning: Complementary colors mutually intensify when adjacent (simultaneous
+contrast), so a warm orange flesh tone reads as more vivid against cool blue.
+Answer: A.
+
+In conservation and connoisseurship, attribution leans on material evidence as
+much as on style. Pigment analysis can date a work: Prussian blue does not appear
+before about 1704, titanium white not before the early 20th century, so either
+pigment in a panel attributed to a 17th-century master is decisive evidence of
+later intervention or forgery. Canvas weave, ground preparation, craquelure
+patterns, and underdrawing revealed by infrared reflectography all enter the
+argument. Style alone is the weakest leg of an attribution; it persuades the eye
+but not the laboratory.
+
+[user] I'm cataloguing a small panel painting and need to flag anything that
+contradicts its "Dutch, c. 1650" label. Pigments detected by XRF: lead white,
+vermilion, azurite, Prussian blue, ochres.
+[assistant] tool_call pigment_db.lookup({"pigments":["lead white","vermilion","azurite","Prussian blue","ochre"],"date":"c.1650"})
+[tool] {"anachronisms":[{"pigment":"Prussian blue","earliest_use":"c.1704","note":"first synthetic blue, Berlin"}],"consistent":["lead white","vermilion","azurite","ochre"]}
+[assistant] One red flag: Prussian blue was not synthesized until around 1704, so
+its presence is inconsistent with a c. 1650 date. The other four pigments are all
+plausible for a mid-17th-century Dutch panel. I'd recommend either revising the
+date to post-1704 or testing whether the Prussian-blue passages are a later
+restoration on top of an earlier ground.
+
+## Art Theory
+
+Formalism holds that the meaning of a work resides in its formal relationships —
+line, shape, color, mass, and their arrangement — rather than in subject matter,
+biography, or social context. Clement Greenberg's mid-century formalism pushed this
+toward medium-specificity: each art should pursue what is unique to its own medium,
+so painting should foreground flatness, the one property no other art shares. On
+this reading, the trajectory from Manet to abstract expressionism is a logical
+self-purification, painting shedding the illusionistic depth it had borrowed from
+sculpture and theater. The obvious objection is that medium-specificity is a
+historically contingent value dressed up as a law, and that it cannot account for
+work whose point is precisely to cross media.
+
+Iconography and iconology, as formulated by Erwin Panofsky, give the complementary
+account: a work is legible through layers. The pre-iconographic layer is what we
+see (a man, a knife, a lamb). The iconographic layer identifies conventional
+subjects and stories (this is Abraham and Isaac). The iconological layer reads the
+work as a symptom of a culture's deepest assumptions — its "symbolic forms." A
+Panofskyan reading of a Northern Renaissance interior treats the single candle, the
+convex mirror, and the discarded shoes not as décor but as a coded theology of
+presence and witness.
+
+The "death of the author," in Barthes' essay, denies that a text's meaning is
+fixed by its maker's intention; meaning is produced at the moment of reading, by a
+reader situated in a web of prior texts. Applied to visual art, it licenses
+readings the artist never intended and dissolves the authority of the artist's own
+statements. The gain is interpretive freedom; the cost, critics argue, is that it
+can detach a work from the conditions that actually produced it.
+
+Q: A critic argues that a Rothko color-field painting should be judged solely on
+the interaction of its stacked rectangles of color, ignoring Rothko's stated
+intentions about tragedy and the sublime. This critic is most clearly working in
+which tradition?
+A. Iconology   B. Formalism   C. Social art history   D. Psychoanalytic criticism
+Reasoning: Judging the work on internal formal relations while bracketing the
+artist's intentions and external meaning is formalism. Iconology seeks deep
+cultural meaning; social art history situates the work in class and economy;
+psychoanalytic criticism reads unconscious content. Answer: B.
+
+The institutional theory of art, associated with George Dickie, sidesteps the
+question "what properties make something art?" and answers instead "what confers
+the status of art?" On this account an object becomes art when an agent acting on
+behalf of the artworld confers upon it the status of candidate for appreciation.
+Duchamp's Fountain is the test case: a mass-produced urinal becomes art not by any
+visible property but by being placed, by an artist, into the artworld's circuit of
+galleries, critics, and catalogues. Critics object that this is circular — the
+artworld is defined by the art it certifies — but its strength is descriptive: it
+explains how readymades and conceptual works can be art without sharing any
+perceptual feature with painting or sculpture.
+
+[user] Summarize the core disagreement between formalism and institutional theory
+in two sentences, then say which better explains Duchamp's Fountain.
+[assistant] Formalism locates art's value and identity in a work's intrinsic
+formal properties; institutional theory locates art-status in a social act of
+conferral by the artworld, independent of any visible property. Institutional
+theory better explains Fountain, because the urinal has no special formal
+properties — what makes it art is that an artist placed it into the artworld's
+circuit, which is exactly the move institutional theory describes and formalism
+cannot account for.
+
+## Design
+
+Design is constrained problem-solving, and its theory is largely a theory of those
+constraints. The Gestalt principles describe how the visual system groups marks
+into wholes: proximity (near elements read as a group), similarity (alike elements
+group across distance), closure (the eye completes implied contours), continuity
+(the eye prefers smooth paths), and figure–ground (the scene splits into object and
+backdrop). A logo that works as both a positive shape and the negative space around
+it — the FedEx arrow hidden between the E and x — is a deliberate exploitation of
+figure–ground.
+
+Typography carries an enormous share of a design's tone and legibility. The first
+distinction is serif versus sans-serif: serifs are the small terminal strokes that
+guide the eye along a line of body text and lend a traditional, editorial feel;
+sans-serifs read as modern, neutral, and clean on screens. The second is the type
+scale — the ratio between successive sizes. A modular scale built on a ratio such
+as 1.25 (the major third) yields sizes that feel harmonious because the steps are
+proportional rather than arbitrary. Leading (line spacing) is typically set to
+about 1.4–1.6× the font size for body text; too tight and lines crowd, too loose
+and the paragraph loses cohesion. Measure (line length) wants roughly 45–75
+characters; longer lines tire the eye on the return sweep.
+
+Color in design is usually reasoned about in HSL — hue, saturation, lightness —
+because it maps better to human intuition than RGB. A palette is often built from
+relationships on the wheel: complementary (opposite hues, high contrast), analogous
+(neighbors, harmonious and calm), or triadic (three evenly spaced hues, vibrant but
+balanced). Accessibility imposes a hard constraint: text must meet a contrast ratio
+of at least 4.5:1 against its background for normal body size under WCAG AA, which
+frequently overrides aesthetic preference.
+
+Color tokens for a small UI palette, expressed as HSL and hex:
+
+  --primary:    hsl(222, 89%, 55%)   #2563eb
+  --primary-700 hsl(222, 76%, 42%)   #1d4ed8
+  --neutral-50  hsl(210, 20%, 98%)   #f8fafc
+  --neutral-900 hsl(222, 47%, 11%)   #0f172a
+  --success:    hsl(142, 71%, 45%)   #22c55e
+  --danger:     hsl(0,   84%, 60%)   #ef4444
+  contrast(--neutral-900 on --neutral-50) = 16.1:1   (passes AA & AAA)
+  contrast(--primary  on --neutral-50)    = 4.7:1    (passes AA for normal text)
+
+Q: A landing page uses 18px body text at a 1.05 line-height on lines that run the
+full 1400px width of the viewport. Two readability problems are present. Which pair?
+A. Line-height too loose; measure too short.
+B. Line-height too tight; measure too long.
+C. Font size too large; contrast too low.
+D. Leading correct; measure correct.
+Reasoning: 1.05 line-height is far below the 1.4–1.6 comfortable range, so lines
+crowd (too tight). A full-width 1400px line vastly exceeds the 45–75 character
+target, so the measure is too long. Answer: B.
+
+The double-diamond model frames the design process as two successive
+divergence-convergence cycles: first discover (diverge to explore the problem) then
+define (converge on a single problem statement), then develop (diverge to generate
+solutions) then deliver (converge on one to ship). Its discipline is that you must
+not begin solving until you have converged on the right problem; most failed
+products solve a real solution to the wrong problem.
+
+[user] Our checkout has a 38% abandon rate. Help me frame this with the double
+diamond before anyone proposes a redesign.
+[assistant] tool_call analytics.funnel({"flow":"checkout","window":"30d"})
+[tool] {"steps":[{"name":"cart","n":10000},{"name":"address","n":7200},{"name":"shipping","n":6900},{"name":"payment","n":6800},{"name":"review","n":6700},{"name":"complete","n":6200}]}
+[assistant] Discover/Define first — the data says the cliff is cart→address (28%
+drop), not payment. So the problem to converge on is "users abandon before they
+even enter shipping details," likely a forced-account-creation or unexpected-cost
+issue, not a payment-UI problem. Only after we've defined that should we diverge on
+solutions (guest checkout, early cost disclosure) in the Develop phase. Redesigning
+the payment screen would be solving the wrong problem.
+
+## Music
+
+Western tonal music is organized around a tonic, the pitch that feels like home,
+and the tension-and-release of departing from and returning to it. A major scale is
+a specific pattern of whole (W) and half (H) steps: W–W–H–W–W–W–H. Starting on C
+that gives C D E F G A B C with no sharps or flats; starting on G the pattern forces
+an F#, which is why G major has one sharp. The natural minor scale uses the pattern
+W–H–W–W–H–W–W and shares a key signature with its relative major a minor third
+above (A minor relates to C major).
+
+Triads are built by stacking thirds. A major triad is root, major third, perfect
+fifth (C–E–G); a minor triad lowers the third (C–E♭–G); diminished stacks two minor
+thirds (C–E♭–G♭); augmented stacks two major thirds (C–E–G#). Functional harmony
+assigns roles: the tonic (I) is stable, the dominant (V) is maximally tense and
+pulls back to I, and the subdominant (IV) is the gentle departure. The most
+characteristic gesture in tonal music is the authentic cadence V→I, and the
+dominant's pull is sharpened by adding a seventh (V7), whose tritone resolves
+inward to the tonic third.
+
+Roman-numeral analysis of a common progression in C major:
+  C        Am       F        G7       C
+  I        vi       IV       V7       I
+  The vi–IV–V7–I tail is a textbook "circle-ish" approach to a strong cadence; the
+  G7 (G–B–D–F) contains the tritone B–F, which resolves B→C and F→E into the tonic.
+
+A 12-bar blues in E, the backbone of countless rock and jazz tunes:
+  | E7 | E7 | E7 | E7 | A7 | A7 | E7 | E7 | B7 | A7 | E7 | B7 |
+  I   I   I   I   IV  IV  I   I   V   IV  I   V(turnaround)
+  The dominant-7 quality on every chord — not just on V — is what gives the blues
+  its characteristic "wrong but right" sound against the blues scale melody.
+
+Figure: a single measure of 4/4 sheet music containing a quarter note, two eighth
+notes beamed together, a quarter rest, and a half note.
+Q: How many beats of sound (not rest) does the measure contain?
+A. 2   B. 3   C. 3.5   D. 4
+Reasoning: quarter = 1 beat, two eighths = 1 beat, quarter rest = 0 sounding,
+half = 2 beats. Sounding total = 1 + 1 + 2 = 3. Answer: B.
+
+Q: A passage modulates from C major to G major. The most economical pivot chord is
+one that is diatonic in both keys. Which works?
+A. The C major triad (I in C, IV in G).   B. An F# major triad.   C. A C minor
+triad.   D. An A♭ major triad.
+Reasoning: A pivot must be diatonic in both keys. C major is I in C and IV in G,
+so it lives naturally in both — an ideal pivot. F# major and A♭ major are foreign
+to C major; C minor is foreign to both as written. Answer: A.
+
+Timbre, the quality that distinguishes a violin from a flute playing the same
+pitch, is governed by the overtone series and the instrument's envelope (attack,
+decay, sustain, release). A struck or plucked sound has a sharp attack and rapid
+decay; a bowed or blown sound can sustain indefinitely. Synthesis exploits this:
+subtractive synthesis starts with a harmonically rich waveform (a sawtooth) and
+carves it with filters, while additive synthesis builds a timbre by summing pure
+sine partials at chosen amplitudes.
+
+[user] I have a melody in A minor and want a four-chord loop that sounds melancholy
+but resolves. Suggest one and explain the function of each chord.
+[assistant] Try Am – F – C – G (i – VI – III – VII in A natural minor). Function:
+Am (i) establishes the minor tonic and the melancholy color; F (VI) is a soft,
+lifting departure that shares two notes with Am; C (III) is the relative major,
+brightening the loop and hinting at resolution; G (VII) acts as a leading
+back-pull toward Am, so the loop closes and restarts naturally. It resolves
+because VII→i functions like a gentle dominant approach in the minor mode, and the
+F and C in the middle keep it from feeling static.
+
+The sonata-allegro form, the dominant large-scale structure of the Classical era,
+is a drama of keys. The exposition states a first theme in the tonic and a second,
+contrasting theme in the dominant (or relative major), establishing a tonal
+conflict. The development fragments and recombines this material, modulating
+restlessly through distant keys to maximize instability. The recapitulation
+restates both themes — but now the second theme appears in the tonic, resolving the
+key conflict. The whole form is thus a tonal narrative: home, away, struggle, and
+a homecoming in which the once-foreign material is reconciled to the tonic.
+
+Rhythm and meter give music its temporal grid. Simple meters divide the beat into
+two (2/4, 3/4, 4/4); compound meters divide it into three (6/8, 9/8, 12/8), which
+is why 6/8 feels like a lilting two-pulse rather than a march of six. Syncopation —
+accenting the off-beats or the weak parts of the beat — creates the forward push
+central to jazz, funk, and most popular music. A polyrhythm layers conflicting
+divisions, such as three-against-two, where one voice plays triplets while another
+plays straight eighths, producing a shimmering composite that neither voice states
+alone.
+
+## Art (continued)
+
+Modernism in the visual arts is a chain of refusals. Manet refused the smooth
+illusionistic finish of the Salon and left his brushwork visible, insisting that a
+painting is paint on a flat surface before it is a window. Cézanne refused the
+single fixed viewpoint, building apples and mountains from facets seen as if the eye
+moved, which handed Cubism its starting premise. Picasso and Braque then refused
+the unified picture plane entirely, shattering the motif into overlapping planes so
+that a guitar is presented from several angles at once on a single shallow stage.
+Each refusal narrows what painting claims to do and widens what it is allowed to be.
+
+Non-Western traditions resist the European problem-and-solution narrative. Chinese
+landscape painting (shanshui) never adopted single-point perspective because it was
+not trying to fix a viewer at a window; the scroll is meant to be traveled through,
+its shifting "moving focus" letting the eye wander up rivers and into mist. Empty
+space (liubai, "leaving white") is not unfinished background but an active element —
+the unpainted silk reads as cloud, water, or sky, and the balance of mark and void
+carries the meaning. Japanese ukiyo-e woodblock prints, with their flat color
+fields, bold outlines, and asymmetric cropping, in turn fed directly back into
+European art when they reached Paris, shaping Degas's off-center compositions and
+Van Gogh's saturated planes.
+
+Sculpture poses problems painting does not: it occupies real space, casts real
+shadows, and is seen from infinitely many angles. Classical Greek sculpture solved
+the problem of lifelike stance with contrapposto, shifting the figure's weight onto
+one leg so the hips and shoulders tilt in opposition and the body relaxes into an
+S-curve. Bernini's Baroque marble pushes the medium toward the pictorial and the
+theatrical, freezing a single instant of maximum drama — Daphne's fingers sprouting
+into laurel leaves — and demanding a specific vantage point from which the
+transformation reads. Modern sculpture, from Brancusi's polished ovoids to Calder's
+mobiles, abandons the pedestal and the human figure to investigate pure form,
+balance, and, in the mobile, time and motion themselves.
+
+Figure: a bronze statue of a male figure standing with his weight on his right leg,
+the left knee slightly bent and relaxed, hips tilted so the right hip is higher,
+shoulders tilted the opposite way.
+Q: The relaxed, weight-shifted stance that produces opposing tilts of hip and
+shoulder is called:
+A. Foreshortening   B. Contrapposto   C. Chiaroscuro   D. Sfumato
+Reasoning: The weight-shift producing opposed hip/shoulder tilts and an S-curve is
+contrapposto, a hallmark of Classical Greek and Renaissance sculpture.
+Foreshortening is a perspective device, chiaroscuro and sfumato are pictorial
+light/edge techniques. Answer: B.
+
+Q: An artist coats a canvas with a single dark vanishing point and renders saints
+on either side at a smaller scale than the donors in the foreground. The size
+difference is best read as:
+A. A perspectival error.   B. Hierarchical scale, signaling relative importance.
+C. Atmospheric perspective.   D. Anamorphosis.
+Reasoning: When figure size encodes status rather than distance, it is hierarchical
+(or hieratic) scale, common in medieval and early Renaissance devotional work.
+Atmospheric perspective fades distant forms; anamorphosis is a distorted projection.
+Answer: B.
+
+## Art Theory (continued)
+
+The "gaze," a concept imported into art theory from film and psychoanalysis,
+analyzes who is positioned to look and who is positioned to be looked at. The
+classical European nude, in this reading, is constructed for an implied male
+spectator: the figure is turned out, displayed, and made aware of being seen, so
+that the picture's real subject is the act of looking itself. The critique does not
+deny the beauty of the works; it asks what relations of power the conventions
+naturalize, and why so many traditions reserve the active, surveying position for
+one viewer and the passive, surveyed position for another.
+
+Walter Benjamin's "aura" names what a work of art loses when it can be perfectly
+reproduced. A unique painting in a specific place at a specific time has an aura — a
+presence rooted in its singular history and ritual location. Photography and
+printing strip that away: a poster of the Mona Lisa is everywhere and therefore
+nowhere in particular. Benjamin reads this loss ambivalently. The aura was bound up
+with cult and authority, so its decay is also a democratization — reproduction pries
+art loose from ritual and makes it available to the masses, opening the door to
+political rather than ceremonial uses of the image.
+
+Q: A theorist argues that a museum's lighting, labels, and hushed galleries teach
+visitors to treat objects as "art" before they have looked at a single one. This is
+closest to:
+A. Formalism   B. A critique of the institutional framing of art   C. Iconography
+D. Medium-specificity
+Reasoning: Attending to how the museum-as-institution confers and shapes the
+category "art" is institutional critique, the practical sibling of the institutional
+theory of art. Formalism and medium-specificity attend to internal form; iconography
+decodes subject matter. Answer: B.
+
+## Design (continued)
+
+Interaction design adds time and response to the static concerns of graphic design.
+Two ideas dominate. Affordance, borrowed from perceptual psychology, is the
+relationship between an object and a user's capabilities — a flat plate on a door
+affords pushing, a handle affords pulling, and a door that contradicts its
+affordances ("Norman doors") forces a label to compensate for a design failure.
+Feedback closes the loop: every action should produce a perceptible, timely
+response, or the user cannot tell whether the system heard them. A button that
+depresses, a spinner during a wait, a confirmation after a save — each is feedback
+that keeps the user's mental model synchronized with the system's state.
+
+Responsive layout reasons in terms of a grid and breakpoints. Content is poured into
+a fluid grid of columns whose count and width adapt to the viewport, and at chosen
+breakpoints the layout reflows — a three-column desktop grid collapsing to a single
+stacked column on a phone. Mobile-first design inverts the historical default,
+designing the constrained small-screen experience first and progressively enhancing
+it for larger screens, on the theory that it is easier to add room than to remove
+content gracefully.
+
+A minimal responsive grid expressed in CSS-like tokens:
+  container: max-width 1200px; gutter 24px; columns 12
+  breakpoints: sm 640px / md 768px / lg 1024px / xl 1280px
+  card span: 12 cols (xs) -> 6 cols (md) -> 4 cols (lg)
+  spacing scale (px): 4, 8, 12, 16, 24, 32, 48, 64   (a 4px base unit)
+
+Q: A team ships a "Save" action that writes to the server in ~900ms but shows no
+visual change until the response returns. Users click it repeatedly, creating
+duplicate records. The clearest design fix is:
+A. Increase the contrast of the button.   B. Provide immediate feedback (disable the
+button and show a spinner on click).   C. Move the button lower on the page.
+D. Rename the button.
+Reasoning: The duplicates come from absent feedback during the latency window; the
+fix is to acknowledge the click immediately (disable + spinner) so the user's model
+matches the system. Contrast, position, and label do not address the missing
+feedback loop. Answer: B.
+
+[user] Audit this micro-interaction spec for usability gaps: "On submit, POST the
+form; on 200, navigate to /done."
+[assistant] Three gaps against standard interaction-design principles. (1) No
+feedback during the request — disable the submit control and show a pending state
+so the user doesn't re-submit. (2) No error path — only the 200 case is handled;
+4xx/5xx and network timeouts need an inline, recoverable error message that
+preserves the user's input. (3) No protection against double submission — guard
+with an idempotency key or by disabling the control on first click. The happy path
+is fine; the spec is missing the latency and failure affordances.
+
+## Music (continued)
+
+Counterpoint is the art of combining independent melodic lines so that each is
+satisfying alone yet they cohere vertically. Species counterpoint, the pedagogical
+ladder codified by Fux, builds the skill in stages: first note-against-note, then
+two-against-one, then suspensions, until the student can write florid lines that
+remain consonant on the strong beats and treat dissonance as passing or prepared.
+The fugue is counterpoint's high form: a subject is stated alone, answered in a
+related key by a second voice while the first continues in counterpoint, and then
+developed through episodes and entries until the voices reconverge.
+
+The overtone series explains both consonance and the construction of instruments. A
+vibrating string sounds not only its fundamental but a ladder of harmonics at
+integer multiples of that frequency; the simplest ratios (2:1 octave, 3:2 fifth,
+4:3 fourth) are the most consonant because their harmonics align. Equal temperament
+is the compromise that lets keyboards play in all keys: it divides the octave into
+twelve equal semitones, each a frequency ratio of the twelfth root of two (≈1.0595),
+deliberately detuning the pure ratios slightly so that no key is unusable and
+modulation anywhere is possible.
+
+Equal-tempered frequencies in the A4=440 reference, one octave:
+  A4 440.00 | A#4 466.16 | B4 493.88 | C5 523.25 | C#5 554.37 | D5 587.33
+  D#5 622.25 | E5 659.26 | F5 698.46 | F#5 739.99 | G5 783.99 | G#5 830.61 | A5 880.00
+  Each step multiplies the previous by 2^(1/12); twelve steps double the frequency.
+
+Q: Two notes have a fundamental-frequency ratio of exactly 3:2. The interval is a:
+A. Perfect octave   B. Perfect fifth   C. Major third   D. Minor seventh
+Reasoning: The 2:1 ratio is the octave, 3:2 is the perfect fifth, 4:3 the perfect
+fourth, 5:4 the (just) major third. Answer: B.
+
+[user] Transpose the chord loop C – G – Am – F up a perfect fourth and give the new
+roman numerals in the new key.
+[assistant] tool_call music.transpose({"chords":["C","G","Am","F"],"interval":"P4 up"})
+[tool] {"key":"F major","chords":["F","C","Dm","B♭"]}
+[assistant] Up a perfect fourth from C is F, so the loop becomes F – C – Dm – B♭ in
+F major. The roman numerals are unchanged by transposition: I – V – vi – IV. That's
+the same extremely common "I–V–vi–IV" pop progression, now centered on F.
+
+## Art (movements and materials)
+
+The story of an artwork is partly the story of its materials. Fresco — pigment in
+water painted into wet lime plaster — fuses the image into the wall as the plaster
+cures, which is why fresco is durable but unforgiving: the painter must finish each
+patch (giornata, a "day's work") before the plaster sets, and mistakes require
+chiseling out the section. Oil paint, by contrast, dries slowly, allowing blending,
+glazing, and endless revision; its translucency lets light pass through thin colored
+glazes and reflect off a white ground, producing the deep luminous shadows of
+Northern Renaissance panels. Tempera, pigment bound in egg yolk, dries almost
+instantly and cannot be blended wet, so its modeling is built from fine cross-hatched
+strokes — the reason early Italian panels have their characteristic crisp, linear
+surfaces.
+
+Romanticism, Realism, and Symbolism form a 19th-century triangle of competing
+answers to "what should art depict?" Romanticism (Turner, Friedrich, Géricault)
+exalted emotion, the sublime, and nature's overwhelming scale, dwarfing the human
+figure beneath storms and mountains. Realism (Courbet, Millet) rejected both
+classical idealization and Romantic drama, insisting on the dignity of ordinary
+labor depicted at life scale and without flattery. Symbolism (Redon, Moreau) turned
+inward, treating the visible world as a screen for dreams, myth, and the irrational —
+a reaction against Realism's materialism and a precursor to Surrealism.
+
+Q: A large canvas shows tiny human figures on a shore beneath an immense, turbulent
+sky that fills four-fifths of the picture. The composition's scale relationship most
+directly expresses which value?
+A. The Realist dignity of labor   B. The Romantic sublime   C. Cubist
+simultaneity   D. Minimalist reduction
+Reasoning: Dwarfing humans beneath an overwhelming natural force to evoke awe and
+smallness is the Romantic sublime. Realism keeps the human at dignified life scale;
+Cubism fragments viewpoint; Minimalism strips content. Answer: B.
+
+## Art Theory (semiotics and reception)
+
+Semiotics reads images as systems of signs. A sign has a signifier (the mark, the
+shape, the color) and a signified (the concept it evokes); the link between them is
+largely conventional, learned within a culture, not natural. A red octagon signifies
+"stop" only because a community agreed it should. Applied to painting, semiotics
+distinguishes the iconic sign (which resembles its referent, like a portrait), the
+indexical sign (which is physically caused by its referent, like a cast shadow or a
+brushstroke that records the hand's motion), and the symbolic sign (purely
+conventional, like a halo signifying sanctity). Much of a picture's meaning lives in
+the interplay of these registers.
+
+Reception theory shifts attention from the work's production to its consumption,
+arguing that meaning is completed by historically situated audiences. The same
+altarpiece meant one thing to a 15th-century worshipper kneeling before it in
+candlelight and means another to a 21st-century tourist photographing it in a
+gallery. The "horizon of expectations" a viewer brings — their prior images, beliefs,
+and conventions — shapes what they can see, so the history of a work is in part the
+history of its changing audiences.
+
+## Design (systems and accessibility)
+
+A design system is the infrastructure that lets a large product stay coherent. It
+codifies tokens (color, spacing, type, radius, shadow), components (buttons, inputs,
+modals) with documented states, and usage guidelines, so that hundreds of screens
+built by dozens of people still feel like one product. The payoff is consistency and
+speed; the risk is rigidity, where the system's defaults discourage the bespoke
+solution a hard problem actually needs.
+
+Accessible design is not a coat of paint applied at the end; it is a constraint that
+shapes the whole. Beyond color contrast, it requires that every interactive element
+be reachable and operable by keyboard alone, that images carry text alternatives,
+that form fields have programmatically associated labels, and that motion can be
+reduced for users who are sensitive to it. The discipline of designing for the
+keyboard and screen reader frequently improves the experience for everyone — captions
+help in noisy rooms, high contrast helps in sunlight, and clear focus states help
+fast mouse users too.
+
+Q: A color palette pairs #767676 gray text on a #ffffff white background. The
+measured contrast ratio is 4.54:1. For 16px body text under WCAG AA, this:
+A. Fails; AA requires 7:1 for body text.   B. Passes; AA requires 4.5:1 for normal
+text.   C. Fails; gray on white is never allowed.   D. Passes only for large text.
+Reasoning: WCAG AA requires 4.5:1 for normal-size text (and 3:1 for large text);
+4.54:1 clears the 4.5:1 bar, so it passes for 16px body text. (7:1 is the stricter
+AAA threshold.) Answer: B.
+
+[user] Generate accessible alt text for a product photo and explain your choices.
+The image: a navy insulated water bottle, 750ml, with a bamboo lid, photographed on
+a white background.
+[assistant] Alt text: "Navy 750ml insulated water bottle with a bamboo screw lid,
+shown upright on a plain background." Choices: it leads with the salient identifying
+attributes (color, capacity, type) that a sighted user gets at a glance; it names the
+distinctive bamboo lid because that's a likely purchase factor; it omits "image of"
+(redundant — screen readers already announce the role) and omits the white background
+as decorative; and it stays under ~125 characters so it isn't truncated by some
+assistive tech. If the page text already states color and capacity, the alt could be
+shortened to avoid repetition.
+
+## Music (form, genre, and production)
+
+Genre is partly a set of formal conventions and partly a set of timbral and
+rhythmic signatures. The 32-bar AABA song form — two statements of an eight-bar A
+section, a contrasting eight-bar bridge (B), and a final A — organized the Great
+American Songbook and remains audible in countless standards. Verse–chorus form, the
+backbone of pop and rock, instead alternates a narrative verse with a repeated,
+hook-bearing chorus, often inserting a single contrasting bridge before a final
+chorus to refresh the ear. The structural logic is the same in both: establish,
+contrast, return.
+
+Music production reasons about frequency, dynamics, and space. Equalization (EQ)
+shapes the balance of frequencies — cutting low-mid "mud" around 250–400 Hz to clear
+a vocal, or boosting "air" above 10 kHz for sheen. Compression reduces dynamic range
+by attenuating peaks above a threshold by a set ratio, then making up the gain, so a
+performance sits more evenly in the mix. Reverb and delay place sounds in a virtual
+space, the pre-delay and decay time cueing the size of the imagined room. The
+mastering stage then balances and limits the finished mix for consistent loudness
+across playback systems.
+
+A simple drum pattern in 4/4, sixteenth-note grid (x = hit, . = rest):
+  Hi-hat: x x x x x x x x x x x x x x x x
+  Snare:  . . . . x . . . . . . . x . . .
+  Kick:   x . . . . . . . x . x . . . . .
+  The snare on beats 2 and 4 is the backbeat; the kick on 1, the "and" of 2, and 3
+  gives a common rock/pop groove. Shifting a kick to a sixteenth off-beat introduces
+  syncopation and a funkier feel.
+
+Q: A mix engineer says the lead vocal sounds "boxy" and buried in the same range as
+the rhythm guitar. The most targeted first move is:
+A. Add reverb to the vocal.   B. Carve a small EQ cut in the guitar around the
+vocal's core frequencies to make space (complementary EQ).   C. Increase the master
+limiter.   D. Pan the vocal hard left.
+Reasoning: "Boxy" and "buried in the same range" describe a frequency-masking clash;
+the standard fix is complementary EQ — cutting the competing instrument where the
+vocal needs to sit so the two stop fighting for the same band. Reverb worsens
+muddiness, limiting affects loudness not masking, and panning the lead vocal off
+center is undesirable. Answer: B.
+
+[user] Build a practice plan to internalize the ii–V–I progression in all twelve
+keys for jazz piano. Keep it to a week.
+[assistant] Day 1–2: learn ii–V–I in C, F, B♭ (the "flat" side) — play rootless
+voicings, left-hand shells (3rds and 7ths) while the right outlines guide-tone
+lines. Day 3–4: add E♭, A♭, D♭, moving around the circle of fourths so each new key
+is a fifth down from the last. Day 5: the "sharp" side — G, D, A, E. Day 6: B, F#/G♭.
+Day 7: cycle all twelve in tempo at quarter = 80, two bars each, no stopping. Drill
+tip: keep the 3rd and 7th as your anchors — across ii–V–I the 7th of one chord falls
+a half step to the 3rd of the next, so the smooth voice-leading is the same shape in
+every key, which is what makes twelve keys learnable in a week rather than twelve
+separate problems.

@@ -12,7 +12,7 @@ model: PLACEHOLDER      # HF repo id or local path, e.g. Qwen/Qwen3.5-9B
 workspace: PLACEHOLDER  # output directory, e.g. ./out/iq3s_qwen3_5_9b
 
 data:
-  logs: PLACEHOLDER     # path to a usage-log .jsonl (e.g. logtrain.jsonl)
+  logs: PLACEHOLDER     # a usage-log .jsonl(.gz), e.g. ./datasets/agent-logs/data/logs-cli.jsonl.gz
   train_frac: 0.8
   test_frac: 0.1
   holdout_frac: 0.1

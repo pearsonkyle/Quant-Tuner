@@ -13,7 +13,7 @@ from typing import Any
 from quant_tuner.data.ingest import (
     coerce_tool_call_arguments,
     normalize_messages,
-    session_fingerprint,
+    session_group,
 )
 
 # A window body may begin on a user or assistant turn, but never on a `tool`
@@ -569,6 +569,34 @@ def interleave(a: list[str], b: list[str]) -> list[str]:
     return out
 
 
+def interleave_many(lists: list[list[str]]) -> list[str]:
+    """N-way proportional round-robin merge, preserving each list's internal order.
+
+    The generalization of :func:`interleave` (which it reproduces exactly for two inputs):
+    at each step the list furthest *behind* its proportional pace emits next, so every
+    contiguous span of the output mixes all sources in their budget ratio. That property is
+    what token-budgeted calibrators (AWQ/GPTQ sample a fixed budget across the file, imatrix
+    reads it in ctx-sized chunks) depend on — a corpus written source-by-source calibrates
+    on whichever source happens to sit under the sampler.
+    """
+    nonempty = [lst for lst in lists if lst]
+    if not nonempty:
+        return []
+    totals = [len(lst) for lst in nonempty]
+    cursors = [0] * len(nonempty)
+    out: list[str] = []
+    for _ in range(sum(totals)):
+        # Pick the list with the smallest emitted fraction; ties go to the earlier list,
+        # matching interleave()'s `ia * nb <= ib * na` preference for the first input.
+        best = min(
+            (i for i in range(len(nonempty)) if cursors[i] < totals[i]),
+            key=lambda i: (cursors[i] / totals[i], i),
+        )
+        out.append(nonempty[best][cursors[best]])
+        cursors[best] += 1
+    return out
+
+
 def write_corpus(chunks: list[str], path: Path, supplement: Path | None = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with open(path, "w") as f:
@@ -588,27 +616,34 @@ def split_sessions(
     holdout_frac: float = 0.1,
     seed: int = 42,
 ) -> dict[str, list[dict]]:
-    """Disjoint shuffle-split by session fingerprint."""
+    """Disjoint shuffle-split, **by group** (``ingest.session_group``).
+
+    For CLI log sessions the group is the session fingerprint, so this is the historical
+    per-session split, unchanged. For harvested agent trajectories the group is the
+    ``instance_id``: the file holds several attempts at the same GitHub issue by different
+    scaffolds/models, and splitting per row would put one attempt in calibration and another
+    attempt at the *same issue* in the eval holdout — an eval that then measures fit.
+    """
     assert abs(train_frac + test_frac + holdout_frac - 1.0) < 1e-6, "splits must sum to 1.0"
     rng = random.Random(seed)
-    by_fp = {session_fingerprint(s): s for s in sessions}
-    fps = sorted(by_fp.keys())
-    rng.shuffle(fps)
-    n = len(fps)
+    by_group: dict[str, list[dict]] = defaultdict(list)
+    for s in sessions:
+        by_group[session_group(s)].append(s)
+    groups = sorted(by_group.keys())
+    rng.shuffle(groups)
+    n = len(groups)
     n_train = int(n * train_frac)
     n_test = int(n * test_frac)
-    # Iterate the deterministically-shuffled `fps` list (not sets) so the order
-    # within each split is reproducible. Building lists by iterating a set makes
-    # ordering depend on PYTHONHASHSEED, which silently changes which sessions a
-    # downstream token-budgeted stratified_pack selects run-to-run.
-    train_fps = fps[:n_train]
-    test_fps = fps[n_train : n_train + n_test]
-    holdout_fps = fps[n_train + n_test :]
-    return {
-        "train": [by_fp[fp] for fp in train_fps],
-        "test": [by_fp[fp] for fp in test_fps],
-        "holdout": [by_fp[fp] for fp in holdout_fps],
+    # Iterate the deterministically-shuffled `groups` list (not sets) so the order within
+    # each split is reproducible. Building lists by iterating a set makes ordering depend on
+    # PYTHONHASHSEED, which silently changes which sessions a downstream token-budgeted
+    # stratified_pack selects run-to-run.
+    parts = {
+        "train": groups[:n_train],
+        "test": groups[n_train : n_train + n_test],
+        "holdout": groups[n_train + n_test :],
     }
+    return {k: [s for g in gs for s in by_group[g]] for k, gs in parts.items()}
 
 
 def write_split_jsonl(sessions: list[dict], path: Path) -> None:
@@ -622,6 +657,7 @@ __all__ = [
     "cap_session",
     "chunk_text",
     "interleave",
+    "interleave_many",
     "length_bucket",
     "session_tools",
     "session_windows",

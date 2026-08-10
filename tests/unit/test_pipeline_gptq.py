@@ -203,7 +203,7 @@ def test_quantize_filename_includes_imatrix_variant(tmp_path, monkeypatch):
 
     monkeypatch.setattr(
         gguf_mod, "quantize",
-        lambda src, out, qtype, imatrix=None, log=None: (out.touch(), out)[1],
+        lambda src, out, qtype, **kw: (out.touch(), out)[1],
     )
     cfg = RunConfig(
         name="t", model="m", workspace=tmp_path / "ws",
@@ -239,7 +239,7 @@ def test_quantize_q4_without_imatrix_allowed(tmp_path, monkeypatch):
 
     monkeypatch.setattr(
         gguf_mod, "quantize",
-        lambda src, out, qtype, imatrix=None, log=None: (out.touch(), out)[1],
+        lambda src, out, qtype, **kw: (out.touch(), out)[1],
     )
     cfg = RunConfig(
         name="t", model="m", workspace=tmp_path / "ws",
