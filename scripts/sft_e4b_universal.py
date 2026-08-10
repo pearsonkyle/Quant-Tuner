@@ -56,10 +56,15 @@ def _open(path):
     return gzip.open(path, "rt") if str(path).endswith(".gz") else open(path)
 
 
-def _tokenize_example(tokenizer, msgs, tools, max_len):
+def _tokenize_example(tokenizer, msgs, tools, max_len, last_turn_only=False):
     """Render msgs (base template + tools) and build masked labels via unmask_spans.
     The gemma-4 template renders reasoning only for the FINAL assistant turn, so
-    callers pass truncated msg lists ending at a reasoning turn to train it."""
+    callers pass truncated msg lists ending at a reasoning turn to train it.
+
+    ``last_turn_only``: train ONLY the final assistant turn (mask the prefix as
+    context). Used for truncation examples so a conversation's early turns are not
+    re-trained in every prefix — that repetition is what memorized the model
+    (loss ~0.02). Whole-conversation examples still train all turns (once each)."""
     try:
         text = tokenizer.apply_chat_template(
             msgs, tools=tools, tokenize=False, add_generation_prompt=False
@@ -70,6 +75,8 @@ def _tokenize_example(tokenizer, msgs, tools, max_len):
                     truncation=True, max_length=max_len)
     ids, offs = enc["input_ids"], enc["offset_mapping"]
     spans = unmask_spans(text)
+    if last_turn_only and spans:
+        spans = spans[-1:]  # only the final assistant turn (its reasoning + action)
     labels = [-100] * len(ids)
     si = 0
     for i, (a, b) in enumerate(offs):
@@ -109,7 +116,9 @@ def build_examples(tokenizer, data_path, max_len, split, max_rows):
                     if k == len(merged) - 1:
                         continue  # already covered by the whole conversation
                     if m.get("role") == "assistant" and m.get("reasoning_content"):
-                        ex = _tokenize_example(tokenizer, merged[: k + 1], tools, max_len)
+                        # train ONLY this reasoning turn; the prefix is context
+                        ex = _tokenize_example(tokenizer, merged[: k + 1], tools, max_len,
+                                               last_turn_only=True)
                         if ex:
                             examples.append(ex)
     return examples
