@@ -24,12 +24,11 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
 
 from quant_tuner.calibrate.awq import (  # noqa: E402
+    _get_module,
     discover_groups,
     proxy_loss,
     scale_from_alpha,
-    _get_module,
 )
-
 
 MODEL_DIR = REPO / "out" / "q5_k_s_qwen3_6_mtp" / "model_extracted"
 CALIB = REPO / "out" / "q5_k_s_qwen3_6_mtp" / "corpus" / "train.txt"
@@ -135,7 +134,7 @@ def main() -> int:
             loss = sum(proxy_loss(W, X, scale) for W in Ws)
             losses.append((a, loss))
         best = min(losses, key=lambda t: t[1])
-        print(f"           alpha grid:")
+        print("           alpha grid:")
         for a, l in losses:
             mark = "  <- best" if (a, l) == best else ""
             print(f"             α={a:.2f}  loss={l:.4e}{mark}")

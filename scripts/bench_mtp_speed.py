@@ -38,7 +38,6 @@ sys.path.insert(0, str(REPO / "src"))
 
 from quant_tuner.eval.server import running_server  # noqa: E402
 
-
 PROMPTS = [
     "Write a Python function that returns the n-th Fibonacci number using memoization. Include a brief docstring.",
     "Explain what a B-tree is and when you would use one instead of a hash table. Be concrete.",

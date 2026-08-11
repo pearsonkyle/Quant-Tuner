@@ -56,7 +56,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
 
-from quant_tuner.experiments import log, phase as stage
+from quant_tuner.experiments import log
+from quant_tuner.experiments import phase as stage
 
 WORK = REPO / "out" / "omnicoder_q4_k_m"
 LOGS = WORK / "logs"

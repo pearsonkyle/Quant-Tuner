@@ -35,7 +35,6 @@ from __future__ import annotations
 import argparse
 import json
 import math
-import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -49,7 +48,6 @@ sys.path.insert(0, str(REPO / "src"))
 from quant_tuner.data import ingest, split
 from quant_tuner.experiments import log, phase
 from quant_tuner.paths import LLAMA_CPP_DIR
-
 
 # ---------------------------------------------------------------------------
 # Step 1: dequantize GGUF → temp F16 GGUF via llama-quantize
@@ -138,8 +136,9 @@ def _measure_activation_noise_empirical(
     """Patch the HF backbone with dequantized weights, run calibration batches,
     measure ||h_fp16 - h_dq||_F / ||h_fp16||_F at the final hidden layer.
     """
-    from transformers import AutoTokenizer, AutoConfig
-    import json, copy
+    import copy
+
+    from transformers import AutoConfig, AutoTokenizer
 
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available()
@@ -316,7 +315,7 @@ def main() -> int:
         import json as _json
         n_layers = _json.loads((args.model / "config.json").read_text()).get("num_hidden_layers", 32)
         sigma_estimated, mean_w_noise = _estimate_activation_noise(per_tensor, n_layers)
-        log(f"\n--- Weight-based estimate ---")
+        log("\n--- Weight-based estimate ---")
         log(f"  mean projection weight RMSE: {mean_w_noise:.4f}")
         log(f"  estimated activation noise:  {sigma_estimated:.4f}  (sqrt({n_layers}) * {mean_w_noise:.4f} * 0.35)")
         log(f"  → use --quant-noise {sigma_estimated:.3f} in train_mtp_head.py")
@@ -335,12 +334,12 @@ def main() -> int:
                 sigma_empirical = _measure_activation_noise_empirical(
                     args.model, f16_weights, dq_weights, args.logs,
                 )
-                log(f"\n--- Empirical measurement ---")
+                log("\n--- Empirical measurement ---")
                 log(f"  actual activation noise: {sigma_empirical:.4f}")
                 log(f"  → use --quant-noise {sigma_empirical:.3f} in train_mtp_head.py")
                 result["sigma_empirical"] = sigma_empirical
 
-        log(f"\n=== RESULT ===")
+        log("\n=== RESULT ===")
         log(f"  quant type:  {quant_type}")
         log(f"  noise level: {result.get('sigma_empirical', sigma_estimated):.4f}  "
             f"({'empirical' if 'sigma_empirical' in result else 'estimated'})")

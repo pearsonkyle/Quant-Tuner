@@ -19,7 +19,6 @@ from quant_tuner.calibrate import imatrix
 from quant_tuner.experiments import log, phase, step
 from quant_tuner.quantize import gguf
 
-
 MODEL = "Jackrong/Qwopus3.5-9B-Coder"
 SLUG = MODEL.replace("/", "__")
 
