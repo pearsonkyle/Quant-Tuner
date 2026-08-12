@@ -28,8 +28,12 @@
 #   RESUME (env, default `auto`) — continue from this tag's own trained_latents.pt when
 #           one exists (data order, step and Adafactor state; the corpus fingerprint must
 #           match). Set RESUME= to force a fresh run, or RESUME=<path> to pin one.
-#   CKPT_EVERY (env, default 10) — at ~370 s/step the old 40 meant 4 h of work at risk
-#           between checkpoints, and both historical OOM kills landed ON a checkpoint.
+#   CKPT_EVERY (env, default 25) — ~2.5 h of work at risk at ~370 s/step. Do NOT push this
+#           much lower: the save materializes a ~28 GB CPU copy of the latents, and on a
+#           128 GB box that transient is itself an OOM risk (it briefly takes swap to 63 GB).
+#   EMPTY_CACHE_EVERY (env, default 5) — MPS allocator cache release. 25 was too sparse:
+#           an OOM kill landed at ~step 12, MID-interval, before the release ever fired.
+#           The release costs ~1 s against a ~390 s step, so frequent is nearly free.
 #
 # Free the GPU first: a full-36-layer fp32 run sits near the unified-memory ceiling, so
 # unload any resident LM Studio / llama-server model before starting.
@@ -66,7 +70,8 @@ echo "=== [$(date)] ${TAG} TRAIN (all-36, adafactor, fp32, window 8064, lr ${LR}
 $PY -u scripts/exp058_qat_train_v2.py \
   --corpus "$CORPUS" "${VAL_ARGS[@]}" "${RESUME_ARGS[@]}" \
   --layers 0-35 --optim adafactor --epochs "$EPOCHS" --grad-accum 4 --lr "$LR" \
-  --dtype fp32 --ckpt-every "${CKPT_EVERY:-10}" --flip-sample 12 \
+  --dtype fp32 --ckpt-every "${CKPT_EVERY:-25}" --flip-sample 12 \
+  --empty-cache-every "${EMPTY_CACHE_EVERY:-5}" \
   --out "$TRAIN_OUT"
 
 echo "=== [$(date)] ${TAG} EXPORT -> Q2_0 (prism) ==="

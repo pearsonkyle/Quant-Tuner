@@ -79,6 +79,7 @@ class QATConfig:
     flip_sample: int = 8
     ckpt_every: int = 40
     chunked_attention: bool = True
+    empty_cache_every: int = 5
 
 
 def parse_layers(spec: str, n_layers: int) -> set[int]:
@@ -333,7 +334,15 @@ def train_qat(cfg: QATConfig) -> int:
     recent: list[float] = []
 
     if cfg.resume:
-        ck = torch.load(cfg.resume, map_location="cpu", weights_only=False)
+        # mmap=True keeps the ~28 GB of latents as file-backed pages the kernel can evict,
+        # instead of anonymous memory that can only go to swap. Without it, resuming an
+        # all-36 run costs model (30 GB) + checkpoint (26 GB) resident simultaneously and
+        # the process is OOM-killed during startup — observed twice.
+        try:
+            ck = torch.load(cfg.resume, map_location="cpu", weights_only=False, mmap=True)
+        except (RuntimeError, ValueError) as e:  # legacy (non-zipfile) checkpoint
+            print(f"[qat] mmap load unavailable ({e}); falling back to a full read", flush=True)
+            ck = torch.load(cfg.resume, map_location="cpu", weights_only=False)
         ck_fp = ck.get("corpus_fingerprint")
         if ck_fp != fp:
             sys.exit(f"[qat] resume corpus mismatch: ckpt fingerprint {ck_fp} != "
@@ -344,13 +353,20 @@ def train_qat(cfg: QATConfig) -> int:
         if missing:
             sys.exit(f"[qat] resume layer-set mismatch: ckpt lacks {missing[:3]}... "
                      f"({len(missing)} params). Use the same layers/train_norms.")
+        # Consume tensor-by-tensor and drop each reference as it lands, so peak overhead is
+        # ONE tensor rather than the whole payload. `[latents[n] for n in t_names]` would
+        # have pinned all 28 GB at once.
         if isinstance(opt, MasterOptimizer):
-            opt.load_masters([latents[n] for n in t_names])
+            with torch.no_grad():
+                for m, n in zip(opt.masters, t_names, strict=True):
+                    m.copy_(latents.pop(n).to(m.device, torch.float32))
+                for p, m in zip(opt.params, opt.masters, strict=True):
+                    p.copy_(m.to(p.dtype))
         else:
             named = dict(model.named_parameters())
             with torch.no_grad():
                 for n in t_names:
-                    named[n].copy_(latents[n].to(named[n].device, named[n].dtype))
+                    named[n].copy_(latents.pop(n).to(named[n].device, named[n].dtype))
         step, mi = int(ck.get("step", 0)), int(ck.get("mi", 0))
         for _ in range(mi // n_win):  # replay epoch reshuffles -> deterministic order
             order = torch.randperm(n_win, generator=g)
@@ -362,6 +378,14 @@ def train_qat(cfg: QATConfig) -> int:
                   f"({'adamw state is not checkpointed (56 GB at all-36)' if cfg.optim == 'adamw' else 'no state in ckpt'})",
                   flush=True)
         loss_first = ck.get("loss_first")
+        # `ck` is function-scoped, so without this it stays alive for the WHOLE run —
+        # 28 GB of checkpoint sitting alongside a 30 GB model for 50+ hours.
+        latents.clear()
+        ck.clear()
+        del latents, ck
+        gc.collect()
+        if dev == "mps":
+            torch.mps.empty_cache()
 
     snaps = snapshot_codes(model, cfg.flip_sample)
     print(f"[qat] flip telemetry on {len(snaps)} linears", flush=True)
@@ -451,8 +475,11 @@ def train_qat(cfg: QATConfig) -> int:
             step += 1
             # Periodic MPS cache release: over a long all-36 run the allocator fragments and
             # working-set creeps until it swaps (s/step balloons) and macOS OOM-kills the
-            # process. Emptying every 25 steps at the post-step memory trough keeps it bounded.
-            if dev == "mps" and step % 25 == 0:
+            # process. Release at the post-step memory trough to keep it bounded.
+            # Every 25 steps was NOT enough at window 8064/all-36: an OOM kill landed at
+            # ~step 12 with swap at 63 GB, i.e. mid-interval, before the release ever fired.
+            # The release is cheap (~1 s) next to a ~390 s step, so err on frequent.
+            if dev == "mps" and step % cfg.empty_cache_every == 0:
                 torch.mps.empty_cache()
             if step == 1 or step % 5 == 0:
                 mem = torch.mps.current_allocated_memory() / 1024**3 if dev == "mps" else 0
@@ -515,6 +542,11 @@ def _build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--flip-sample", type=int, default=8,
                     help="trainable linears to track for code-flip telemetry")
     ap.add_argument("--ckpt-every", type=int, default=40)
+    ap.add_argument("--empty-cache-every", type=int, default=5,
+                    help="release the MPS allocator cache every N steps (default 5). At "
+                         "all-36/window 8064 the old 25 let the working set creep into "
+                         "swap and OOM-kill the process mid-interval; the release costs "
+                         "~1 s against a ~390 s step.")
     ap.add_argument("--no-chunked-attention", dest="chunked_attention", action="store_false",
                     help="use the stock SDPA kernel; caps the MPS window at 8191 tokens "
                          "(n_heads*S^2 < 2^31). Chunked SDPA is bit-identical and on by default.")
@@ -535,6 +567,7 @@ def main(argv: list[str] | None = None) -> int:
         train_norms=args.train_norms, resume=args.resume,
         flip_sample=args.flip_sample, ckpt_every=args.ckpt_every,
         chunked_attention=args.chunked_attention,
+        empty_cache_every=args.empty_cache_every,
     )
     return train_qat(cfg)
 
