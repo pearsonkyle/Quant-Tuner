@@ -22,7 +22,6 @@ sys.path.insert(0, str(REPO / "src"))
 from quant_tuner.config import RunConfig
 from quant_tuner.pipeline import run_pipeline
 
-
 RECIPE = REPO / "src" / "quant_tuner" / "recipes" / "q4_k_m_qwen3_6_mtp.yaml"
 
 

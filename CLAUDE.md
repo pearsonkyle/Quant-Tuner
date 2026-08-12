@@ -281,7 +281,6 @@ benchmark-agnostic — anything that reduces to `dict[str, float]` plugs in.
   emits `<think>`, so also pass `--chat-template-kwargs '{"enable_thinking":
   false}'`). **`_build_env_config` must keep `cwd: /testbed`** — the grader and
   the mini-swe agent call `env.execute` without a cwd and rely on it.
-
 - `eval/red_team.py` + `eval/red_team_agent.py` — **red-team safety eval**
   (deepteam over llama-server). The only eval here that asks "is the quant still
   *safe*", not "still capable". Full method: `docs/benchmarks.md#red-team-safety`.
@@ -348,6 +347,107 @@ benchmark-agnostic — anything that reduces to `dict[str, float]` plugs in.
     property — 1.0.6 imports fine on 3.13 but lacks `Hallucination`, so
     `_VULN_SPECS` loses one entry there. The repo's main `.venv` is 3.13, so this
     extra lives in a separate `.venv-redteam` (see `docs/benchmarks.md`).
+
+### vLLM-native PTQ export (`src/quant_tuner/vllm_export/`)
+Sibling to the GGUF pipeline: produces a **compressed-tensors W4A16 safetensors
+checkpoint vLLM serves directly** (same format as `google/gemma-4-E4B-it-qat-w4a16-ct`),
+calibrated on our corpora. Motivation: the HomeLab GPU-1 vLLM deployment
+(gemma-4-E4B at 131k ctx — see HomeLab/CLAUDE.md "vLLM stack") should run a quant
+calibrated on *our* distribution instead of Google's generic QAT.
+- `w4a16.py` — `PTQConfig` (validated), `build_calibration_samples` (reuses
+  `calibrate._ingest.sample_chunks`: deterministic, whole-corpus stride),
+  `run_ptq` (llm-compressor `oneshot` + `GPTQModifier`). `llmcompressor` imports
+  **lazily inside `run_ptq`** (same convention as `eval.agents`) — the `vllm-ptq`
+  extra provides it; everything else tests without it.
+- **Calibration ctx defaults to 8192** — deliberately above the GGUF pipeline's
+  `DEFAULT_IMATRIX_CTX=4096` because the serving target is 100k+ context.
+- **`lm_head` is always ignored** (kept bf16) — the gemma-challenge osoi5
+  checkpoint's pruned/quantized head is exactly the rare-token failure mode we're
+  avoiding ("Pineple"). Multimodal towers/embeddings/PLE are ignored by default
+  (matches Google's official QAT W4A16 layout); text-only models match none of
+  those patterns, so defaults are architecture-safe.
+- Output dir gains `quant_tuner_ptq.json` (corpus SHA-256s, ctx, budget, scheme)
+  and `run_ptq` **fails loudly** if the exported config lacks
+  `quantization_config` (otherwise vLLM would silently serve bf16).
+- CLI: `scripts/run_vllm_ptq.py --model <hf-dir> --corpus corpus.cal.txt --out
+  <dir> [--ctx 8192] [--scheme W4A16|W8A8|W8A16|FP8_DYNAMIC] [--pipeline basic]`.
+  Corpus files come from `scripts/build_corpora.py`; multiple `--corpus` flags
+  split the token budget proportionally.
+- **gemma-4 needs `--pipeline basic`**: the default sequential (layer-sliced)
+  pipeline breaks on its cross-layer shared KV (`shared_kv_states` flows from
+  share-source layers into later sliding layers → `KeyError: 'sliding_attention'`
+  under the tracer). `basic` runs full-model forwards with hooks; the modifier
+  auto-enables `offload_hessians` there (all Hessians accumulate at once).
+  Memory reality on a 16 GB card: the bf16 model + forwards need the WHOLE GPU —
+  stop llama-server first, `device_map=cpu` alone is not enough with `auto`
+  dispatch fighting a neighbor process.
+- Validated E2E 2026-08-09: gemma-4-E4B → W4A16 calibrated on 262k tokens of
+  logtrain (train slice, `stratified_pack`, ctx 8192) → served by vLLM 0.26 —
+  ~68 tok/s, 72k-token needle retrieved with **exact** rare-token spelling
+  ("PINEAPPLE-7742", vs the osoi5 pruned-head "Pineple"). Checkpoint:
+  `out/e4b-w4a16-logs/checkpoint`; registered in HomeLab llama-switch as
+  `gemma-4-E4B-w4a16-logs-vllm` (alias `w4a16-logs`).
+- Serve result: `vllm serve <out-dir> --max-model-len ...` (quantization
+  auto-detected). Bench against the GGUF leaderboard via the usual `eval/`
+  reps with `--base-url` pointed at the vLLM server.
+
+### MTP-drafter fine-tuning (`src/quant_tuner/drafter/`)
+Fine-tunes the Gemma-4 **assistant/drafter** (the MTP speculative head) on OUR
+usage logs — a pure latency lever for the vLLM osoi5/turbo serving stack (under
+**greedy** speculative decoding the drafter can never change an emitted token, so
+this raises acceptance with zero quality risk to the served model). This is what
+the gemma-challenge `kenyan-duma` agent did for their ≤4k benchmark; we do it for
+our long agentic sessions.
+- **Motivation — logs are long.** Real Claude-Code sessions here run 5k–288k
+  tokens (median ~46k; 195/200 train sessions > 8k, 144 > 32k). A drafter that
+  only saw ≤8k prefixes has low acceptance deep in a session. `drafter/windows.py`
+  templates each session **whole** and slices into ≤`max_len` windows (default
+  32768) — keeping every window, not head-anchoring like the calibration corpora.
+- **The assistant is NOT a standalone LM.** Its `forward` needs `inputs_embeds`
+  and `shared_kv_states` from the frozen target, so training is a coupled
+  teacher-forced loop (`drafter/train.py::_teacher_step`). The exact EAGLE input
+  (verified against transformers' `AssistedCandidateGeneratorShared`): at
+  position t, `inputs_embeds = concat(raw_embed(token_t), target_last_hidden_t)`
+  (2·hidden = 5120), and the assistant predicts token t+1. Get `shared_kv_states`
+  + `hidden_states[-1]` from ONE target forward with `return_shared_kv_states=True`.
+- **Memory** (16 GB card): target loaded **4-bit** (bitsandbytes nf4, forward-only)
+  so it fits alongside long activations; **CE is chunked over the sequence**
+  (512-token slices) because the 262k vocab makes a single fp32 logits
+  materialization ~2 GB. Only the assistant (159 MB, 4 layers) gets gradients.
+- CLI: `scripts/gen_drafter_windows.py` (build windows JSONL) →
+  `scripts/train_drafter.py --target <bf16 dir> --drafter <warm-start> --windows
+  <jsonl> --out <dir> [--max-len 1024] [--lr 1e-5] [--no-4bit]`. Result drops
+  into the HomeLab `turbo` stack via the vLLM `SPECULATIVE_CONFIG` model path
+  (no SHA pin there). Validated E2E 2026-08-09: coupled fwd/bwd + save + stable
+  descending loss.
+- **Two hard-won training facts:**
+  1. **Warm-start from Google's base assistant** (`~/Programs/llm/hf/gemma-4-E4B-it-assistant`),
+     NOT the gemma-challenge `kenyan-duma` ft head. Both share the
+     ordered-embedding + 2048-centroid head config, but the challenge head is
+     tuned to their pruned serving path; naive CE against raw token ids on it
+     starts *above* random and diverges. Base assistant already gets ~29%
+     next-token argmax match on our logs (a working drafter) — the right base.
+  2. **lr ≤ 1e-5.** The ordered-embedding head emits large-magnitude logits
+     (absolute CE ~15-20 even at ~29% top-1 — not scaled as clean softmax
+     logits), a poorly-conditioned CE objective. lr 1e-4 diverges (15→26 in 30
+     steps); lr 1e-5 descends monotonically (20.9→16.3 in 40). Watch the *trend*,
+     not the absolute value. If unstable, freeze lm_head/embeddings and train
+     only the 4 transformer layers + projections.
+- **Memory cap = span length, not context.** The 262k-vocab logits force ≤1024
+  training spans on a 16 GB card. `load_windows` chunks each long session into
+  spans so the drafter still sees ALL session content — but true long-*attention*
+  training (drafter attending over a long shared-KV while training only a short
+  slice of query positions) is the v2 enhancement noted in `train.py`.
+- **Result of the first full run (honest):** 1 epoch, lr 1e-5, 1024 spans from
+  base assistant → held-out acceptance proxy (next-token argmax match) 30.58% →
+  **31.71%** (+1.13pp, generalizing — measured on the test split). But **no
+  measurable end-to-end tok/s gain** on the turbo stack (base 154.8 vs ft 151.6,
+  within noise): +1.1pp is too small to move a K=7 spec chain in one light epoch.
+  `scripts/eval_drafter_accept.py` is the acceptance-proxy harness (loss is a poor
+  proxy — the ordered-embedding head's CE is uncalibrated). To actually beat base:
+  more epochs / freeze-head + higher stable LR / the long-shared-KV design / a KD
+  objective. The bigger real win was orthogonal — see the HomeLab `turbo` note:
+  base Google drafter (not kenyan-duma's) on the turbo stack = 155 tok/s.
 
 ### Continued QAT for native-ternary models (`src/quant_tuner/qat/`)
 For **natively-ternary** models (`prism-ml/Ternary-Bonsai-8B`), post-hoc calibration is a

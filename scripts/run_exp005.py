@@ -27,7 +27,6 @@ from quant_tuner.experiments import log, phase, step
 from quant_tuner.models.hf_gguf_map import is_ssm
 from quant_tuner.quantize import gguf
 
-
 MODEL = "Jackrong/Qwopus3.5-9B-Coder"
 SLUG = MODEL.replace("/", "__")
 

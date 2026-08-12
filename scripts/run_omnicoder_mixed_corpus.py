@@ -21,7 +21,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
 
-from quant_tuner.bench import bpw as bpw_mod, runner
+from quant_tuner.bench import bpw as bpw_mod
+from quant_tuner.bench import runner
 from quant_tuner.calibrate import imatrix
 from quant_tuner.data import ingest, split
 from quant_tuner.experiments import log, phase, step

@@ -36,7 +36,6 @@ import json
 import math
 import statistics
 import sys
-import time
 from pathlib import Path
 
 import requests
@@ -46,7 +45,6 @@ sys.path.insert(0, str(REPO / "src"))
 
 from quant_tuner.eval.server import running_server  # noqa: E402
 from quant_tuner.experiments import log, phase  # noqa: E402
-
 
 # ---------------------------------------------------------------------------
 # Model registry — maps slug → (IQ3_S gguf name, trained-mtp gguf name or None)

@@ -73,8 +73,8 @@ QUANT_NOISE_DEFAULTS: dict[str, float] = {
 
 from quant_tuner.data import ingest, split
 from quant_tuner.experiments import log, phase
-from quant_tuner.mtp.chunks import build_token_batches, session_to_text as _session_to_text
-
+from quant_tuner.mtp.chunks import build_token_batches
+from quant_tuner.mtp.chunks import session_to_text as _session_to_text
 
 # ---------------------------------------------------------------------------
 # MTP head
@@ -82,8 +82,9 @@ from quant_tuner.mtp.chunks import build_token_batches, session_to_text as _sess
 
 def _load_mtp_tensors(model_dir: Path) -> dict[str, torch.Tensor]:
     """Load all mtp.* tensors from model_extracted safetensors."""
-    from safetensors.torch import load_file
     import json
+
+    from safetensors.torch import load_file
 
     index_path = model_dir / "model.safetensors.index.json"
     wmap: dict[str, str] = json.loads(index_path.read_text())["weight_map"]
@@ -108,7 +109,7 @@ class Qwen3MTPBlock(torch.nn.Module):
     def __init__(self, config: object) -> None:
         super().__init__()
         from transformers.models.qwen3_5.modeling_qwen3_5 import (
-            Qwen3_5DecoderLayer, Qwen3_5RMSNorm,
+            Qwen3_5DecoderLayer,
         )
         # Build a fresh config copy that forces full_attention for this layer.
         mtp_config = copy.deepcopy(config)
@@ -761,18 +762,18 @@ def main() -> int:
 
     elapsed = (time.time() - t0) / 60
     log(f"=== DONE in {elapsed:.1f} min ===")
-    log(f"Next steps:")
-    log(f"  1. Install trained weights into model_extracted:")
+    log("Next steps:")
+    log("  1. Install trained weights into model_extracted:")
     log(f"       cp {args.out}/model-mtp-trained.safetensors \\")
     log(f"          {args.model}/model-mtp-trained.safetensors")
-    log(f"     # update model.safetensors.index.json to point mtp.* to model-mtp-trained.safetensors")
-    log(f"  2. Delete old F16 GGUF and reconvert:")
+    log("     # update model.safetensors.index.json to point mtp.* to model-mtp-trained.safetensors")
+    log("  2. Delete old F16 GGUF and reconvert:")
     log(f"       rm {args.model.parents[0]}/model-f16.gguf")
-    log(f"       uv run quant-tuner run ... (or run the convert step directly)")
-    log(f"  3. Evaluate acceptance rate:")
-    log(f"       uv run python scripts/bench_mtp_speed.py \\")
-    log(f"           --model <new-gguf> --holdout-jsonl logtrain.jsonl \\")
-    log(f"           --reps 5 --n-max 1")
+    log("       uv run quant-tuner run ... (or run the convert step directly)")
+    log("  3. Evaluate acceptance rate:")
+    log("       uv run python scripts/bench_mtp_speed.py \\")
+    log("           --model <new-gguf> --holdout-jsonl logtrain.jsonl \\")
+    log("           --reps 5 --n-max 1")
     return 0
 
 
