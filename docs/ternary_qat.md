@@ -619,12 +619,40 @@ More verified data recovers the model's *ability to produce a patch* but has so 
 not a data-quantity wall, which is the motivation for Method B. (A single 8% in-distribution
 solve at 12 trajectories did **not** replicate at 30; treat it as noise.)
 
-## Memory: the OOM you will otherwise hit
+## Memory: the OOMs you will otherwise hit
 
-Both observed OOM kills landed **exactly on a `--ckpt-every` boundary** — peak training memory
-plus `save_ckpt`'s ~28 GB whole-dict `.cpu()` transient. `save_ckpt` now releases the MPS cache
-*before* that copy, the training loop calls `torch.mps.empty_cache()` every 25 steps to bound
-working-set creep, and the auto-loop salvages from the last checkpoint if a run still dies.
+macOS sends **SIGKILL**, so there is no traceback — the log just ends in `Killed: 9`. Diagnose
+these by watching `sysctl vm.swapusage` alongside the step log, not by reading the crash.
+Note that swap `used` is a poor live gauge on its own: it counts stale pages from dead
+processes and does not shrink eagerly, so read the *trend* while a run is up, not the absolute.
+
+Four distinct causes, all now fixed — the first three cost three killed runs on a 128 GB M4 Max
+at all-36 / window 8064:
+
+1. **`--resume` leaked the entire checkpoint.** `torch.load(resume, map_location="cpu")` is
+   function-scoped and was never freed, so ~28 GB of latents sat resident next to the 30 GB
+   model *for the whole run*; `[latents[n] for n in t_names]` also pinned every tensor while
+   applying them. Now loaded with `mmap=True` (file-backed pages the kernel can evict, not
+   anonymous memory that can only go to swap), consumed tensor-by-tensor with `.pop()`, then
+   cleared and gc'd. Resume peak went 70 GB → flat.
+2. **The lm_head ran on all labeled positions at once.** `[1, K, vocab]` fp32 where **K is the
+   window's trainable-token count**, which varies per window (density 0.05–1.00): 1.55 GiB at
+   the mean K, **4.56 GiB at K=8064**, ~3× that with softmax and backward. This is why runs
+   died at step ~12 and ~14 rather than at a fixed point, and why a single-window probe never
+   reproduced it. The plain masked-CE path now passes `need_logits=False` and chunks the
+   lm_head + CE into `LOGIT_CHUNK` (1024) blocks recomputed in the backward — peak ~0.6 GiB
+   regardless of K, at no measurable speed cost. Only KD needs the logits themselves.
+3. **The MPS cache release was too sparse.** Every 25 steps let the allocator working set creep
+   into swap between releases. Now `--empty-cache-every`, default 5; it costs ~1 s against a
+   ~355 s step.
+4. **`save_ckpt`'s ~28 GB whole-dict `.cpu()` transient** on a `--ckpt-every` boundary. It
+   releases the MPS cache *before* the copy. **Do not lower `--ckpt-every` to "be safer"** —
+   that was tried and made things worse, since each save is itself an OOM risk. 25 (~2.5 h of
+   work at risk) is the right side of the trade.
+
+Healthy steady state after all four, for comparison: MPS resident **30.8 GiB**, swap **flat or
+declining**, 356 s/step. If swap climbs monotonically while a run is up, something above has
+regressed.
 
 Stay in **fp32**: `--compute-dtype bf16` is a *pessimization* at all-36 (measured 54.5 GiB vs
 31 GiB), because `MasterOptimizer` keeps a full fp32 master copy on top of the bf16 model+grads.

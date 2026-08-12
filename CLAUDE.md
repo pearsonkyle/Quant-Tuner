@@ -430,8 +430,19 @@ the ternarization in the loop** (BitNet/TWN STE). Full guide: `docs/ternary_qat.
 - **Read the code-flip telemetry, not the loss.** A ternary model only learns by flipping codes;
   lr 3e-4 flips ~0% (scale drift only) while the loss still falls. 5e-4 for ~2.2 epochs is the
   measured sweet spot; 8 epochs memorizes.
-- Peak memory spikes on `--ckpt-every` boundaries (`save_ckpt`'s whole-dict `.cpu()` transient);
-  both observed OOM kills landed exactly there. Keep the MPS-cache release before that copy.
+- **OOM kills give no traceback** (macOS SIGKILL — the log just ends in `Killed: 9`); diagnose
+  by watching `sysctl vm.swapusage` against the step log. Four causes, all fixed, three of which
+  killed the sft8k-full run: (1) `--resume` leaked the whole ~28 GB checkpoint — it was
+  function-scoped and never freed, so it sat next to the 30 GB model for the entire run; now
+  `mmap=True` + consumed via `.pop()` + cleared. (2) the lm_head ran on all K labeled positions
+  at once, and **K varies per window** (density 0.05-1.00) → `[1, K, 151669]` fp32 swings
+  1.55→4.56 GiB, ~3× with backward — an intermittent spike that kills at a *random* step and
+  that no single-window probe reproduces; the non-KD path now chunks it (`need_logits=False`,
+  `LOGIT_CHUNK=1024`) with loss/grad parity unit-tested. (3) `--empty-cache-every` (default 5,
+  was 25) — the working set crept into swap between releases. (4) `save_ckpt`'s whole-dict
+  `.cpu()` transient on a `--ckpt-every` boundary; keep the MPS-cache release before that copy
+  and **do not lower `--ckpt-every` to be safer** — each save is itself an OOM risk.
+  Healthy steady state: MPS resident 30.8 GiB, swap flat/declining, ~356 s/step.
 - Trajectory generation (`scripts/run_ornith_distill_gen.sh`) is Docker-heavy and slow under
   amd64 emulation. `--cleanup-images` *untags* images, leaving `<none>` dangling layers — run
   `scripts/docker_housekeep.sh` alongside long runs (SWE images + dangling only; never `-a`).
