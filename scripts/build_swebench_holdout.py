@@ -16,6 +16,20 @@ Default: 10 ``is_lite`` instances, seeded shuffle (seed 42) over the first
 ``--scan-limit`` rows. Lite + a difficulty cap give a weak 2-bit model a fair
 shot at producing gradeable patches; widen with ``--no-lite-only`` /
 ``--max-difficulty``.
+
+**SWE-rebench-V2** (20 languages) is also supported and auto-detected from the rows'
+``language`` field. V2 has no ``is_lite`` marker, so the (default-on) lite filter is
+skipped with a notice rather than silently selecting nothing. V2-only knobs:
+``--languages`` (subset), ``--balanced`` (round-robin so Python/Go can't dominate; on by
+default when ``--languages`` is given), ``--difficulty {easy,medium,hard}``,
+``--clean-only`` (annotator code ``A``, on by default), and ``--max-f2p``.
+
+    # a language-balanced eval holdout, then a training pool DISJOINT from it
+    .venv/bin/python scripts/build_swebench_holdout.py \
+        --from-local out/external/swe-rebench/v2_all.jsonl \
+        --languages python,go,ts,js,rust,java,php,kotlin \
+        --difficulty medium --max-f2p 25 --n 24 --seed 42 \
+        --out out/external/swe-rebench/holdout_multilang.jsonl
 """
 
 from __future__ import annotations
@@ -48,24 +62,96 @@ _KEEP_FIELDS = [
     "version",
     "install_config",
     "meta",
+    # V2 only
+    "language",
+    "pr_description",
 ]
 
 _DS_SERVER = "https://datasets-server.huggingface.co/rows"
+
+# V2's LLM annotator grades task cleanliness: "A" = no detected issues, "B1".."B6" flag
+# problems (underspecified statement, tests keyed to implementation details, …). For
+# distillation data we want A by default — a task the solver can't reasonably get right
+# yields a trajectory that is either garbage or accidentally-correct.
+_CLEAN_CODE = "A"
+_DIFFICULTY_ORDER = ["easy", "medium", "hard"]
 
 
 def _slim(row: dict) -> dict:
     return {k: row.get(k) for k in _KEEP_FIELDS if k in row}
 
 
+def _as_list(value) -> list:
+    """FAIL_TO_PASS / PASS_TO_PASS as a list (some mirrors store them JSON-encoded)."""
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except (json.JSONDecodeError, ValueError):
+            return [value] if value.strip() else []
+    return list(value) if isinstance(value, list | tuple) else []
+
+
+def _meta(row: dict) -> dict:
+    meta = row.get("meta")
+    if isinstance(meta, str):
+        try:
+            meta = json.loads(meta)
+        except (json.JSONDecodeError, ValueError):
+            return {}
+    return meta if isinstance(meta, dict) else {}
+
+
+def is_v2_row(row: dict) -> bool:
+    """V2 rows carry a ``language``; V1 is Python-only and has no such field."""
+    return bool(row.get("language"))
+
+
+def language_of(row: dict) -> str:
+    return (row.get("language") or "python").strip().lower()
+
+
 def _is_lite(row: dict) -> bool:
-    meta = row.get("meta") or {}
-    return bool(meta.get("is_lite"))
+    return bool(_meta(row).get("is_lite"))
 
 
 def _difficulty(row: dict) -> int | None:
-    meta = row.get("meta") or {}
-    score = (meta.get("llm_score") or {}).get("difficulty_score")
+    """V1 numeric difficulty score (V2 uses a label — see :func:`_difficulty_label`)."""
+    score = (_meta(row).get("llm_score") or {}).get("difficulty_score")
     return int(score) if score is not None else None
+
+
+def _difficulty_label(row: dict) -> str | None:
+    """V2 difficulty: ``easy`` / ``medium`` / ``hard``."""
+    label = (_meta(row).get("llm_metadata") or {}).get("difficulty")
+    return str(label).strip().lower() if label else None
+
+
+def _quality_code(row: dict) -> str | None:
+    """V2 task-quality grade: ``A`` (clean) or ``B*`` (annotator flagged an issue)."""
+    code = (_meta(row).get("llm_metadata") or {}).get("code")
+    return str(code).strip() if code else None
+
+
+def balanced_take(rows: list[dict], n: int, key) -> list[dict]:
+    """Round-robin across ``key`` groups so no single group dominates the sample.
+
+    A plain shuffle-and-take over SWE-rebench-V2 returns mostly Python/Go/JS simply
+    because those are the biggest buckets; round-robin gives an even spread and
+    degrades gracefully when a language runs out of candidates.
+    """
+    groups: dict[str, list[dict]] = {}
+    for row in rows:
+        groups.setdefault(key(row), []).append(row)
+    out: list[dict] = []
+    order = sorted(groups)
+    while len(out) < n and any(groups[g] for g in order):
+        for g in order:
+            if not groups[g]:
+                continue
+            out.append(groups[g].pop(0))
+            if len(out) >= n:
+                break
+    return out
 
 
 def _fetch_rows_page(dataset: str, config: str, split: str, offset: int, length: int) -> dict:
@@ -140,8 +226,35 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--no-lite-only", dest="lite_only", action="store_false")
     p.add_argument(
         "--max-difficulty", type=int, default=None,
-        help="Keep only instances with meta.llm_score.difficulty_score <= this",
+        help="V1 only: keep instances with meta.llm_score.difficulty_score <= this",
     )
+    # ---- SWE-rebench-V2 (multi-language) ----
+    p.add_argument(
+        "--languages", default=None,
+        help="V2: comma-separated languages to keep, e.g. 'python,go,rust,ts,java'. "
+             "Omit for all. See the dataset card for the full 20-language list.",
+    )
+    p.add_argument(
+        "--balanced", dest="balanced", action="store_true", default=None,
+        help="Sample round-robin across languages instead of proportionally "
+             "(default: on when --languages is given, so one big bucket can't dominate)",
+    )
+    p.add_argument("--no-balanced", dest="balanced", action="store_false")
+    p.add_argument(
+        "--difficulty", default=None,
+        help="V2: max difficulty label to keep — one of easy/medium/hard",
+    )
+    p.add_argument(
+        "--max-f2p", type=int, default=None,
+        help="Drop instances with more than N FAIL_TO_PASS tests. Some V2 rows list the "
+             "WHOLE suite (16k+ ids), so 'resolved' would demand every test in the repo "
+             "pass — slow to grade and a poor training target. 25 is a sane cap.",
+    )
+    p.add_argument(
+        "--clean-only", dest="clean_only", action="store_true", default=True,
+        help="V2: keep only annotator-code 'A' tasks (no detected issues). Default on.",
+    )
+    p.add_argument("--no-clean-only", dest="clean_only", action="store_false")
     p.add_argument(
         "--shuffle", dest="shuffle", action="store_true", default=True,
         help="Seeded shuffle of the candidate pool before taking --n (default: on)",
@@ -183,18 +296,52 @@ def main() -> int:
         print(f"  fetched {len(rows)} rows", flush=True)
 
     candidates = rows
-    if args.lite_only:
-        candidates = [r for r in candidates if _is_lite(r)]
-    if args.max_difficulty is not None:
-        candidates = [
-            r for r in candidates
-            if (_difficulty(r) is not None and _difficulty(r) <= args.max_difficulty)
-        ]
+    v2 = any(is_v2_row(r) for r in rows)
+
+    if v2:
+        # V2 has no is_lite marker at all, so applying the (default-on) lite filter
+        # would silently select zero instances. Skip it and say so.
+        if args.lite_only:
+            print("  [v2] dataset has no is_lite marker — skipping the lite filter", flush=True)
+        if args.languages:
+            wanted = {s.strip().lower() for s in args.languages.split(",") if s.strip()}
+            unknown = wanted - {language_of(r) for r in candidates}
+            if unknown:
+                print(f"  [v2] WARNING: no candidates for language(s): "
+                      f"{', '.join(sorted(unknown))}", flush=True)
+            candidates = [r for r in candidates if language_of(r) in wanted]
+        if args.clean_only:
+            before = len(candidates)
+            candidates = [r for r in candidates if _quality_code(r) == _CLEAN_CODE]
+            print(f"  [v2] clean-only (code A): {before} -> {len(candidates)}", flush=True)
+        if args.difficulty:
+            want = args.difficulty.strip().lower()
+            if want not in _DIFFICULTY_ORDER:
+                print(f"ERROR: --difficulty must be one of {_DIFFICULTY_ORDER}", file=sys.stderr)
+                return 1
+            cap = _DIFFICULTY_ORDER.index(want)
+            candidates = [
+                r for r in candidates
+                if (_difficulty_label(r) in _DIFFICULTY_ORDER
+                    and _DIFFICULTY_ORDER.index(_difficulty_label(r)) <= cap)
+            ]
+    else:
+        if args.lite_only:
+            candidates = [r for r in candidates if _is_lite(r)]
+        if args.max_difficulty is not None:
+            candidates = [
+                r for r in candidates
+                if (_difficulty(r) is not None and _difficulty(r) <= args.max_difficulty)
+            ]
     # Every gradeable instance needs FAIL_TO_PASS and an image.
     candidates = [
         r for r in candidates
         if r.get("FAIL_TO_PASS") and (r.get("image_name") or r.get("docker_image"))
     ]
+    if args.max_f2p is not None:
+        before = len(candidates)
+        candidates = [r for r in candidates if len(_as_list(r.get("FAIL_TO_PASS"))) <= args.max_f2p]
+        print(f"  max-f2p<={args.max_f2p}: {before} -> {len(candidates)}", flush=True)
     if args.exclude and args.exclude.exists():
         excluded = {
             json.loads(ln)["instance_id"]
@@ -218,17 +365,29 @@ def main() -> int:
     candidates.sort(key=lambda r: r["instance_id"])
     if args.shuffle:
         random.Random(args.seed).shuffle(candidates)
-    selected = candidates[: args.n]
+
+    balanced = args.balanced if args.balanced is not None else bool(v2 and args.languages)
+    selected = (balanced_take(candidates, args.n, language_of) if balanced
+                else candidates[: args.n])
 
     with args.out.open("w") as f:
         for row in selected:
             f.write(json.dumps(_slim(row)) + "\n")
 
     print(f"\nWrote {args.out}  ({len(selected)} instances)")
-    for row in selected:
-        diff = _difficulty(row)
-        n_f2p = len(row.get("FAIL_TO_PASS") or [])
-        print(f"  {row['instance_id']:45s}  lite={_is_lite(row)!s:5s} diff={diff} f2p={n_f2p}")
+    if v2:
+        spread: dict[str, int] = {}
+        for row in selected:
+            spread[language_of(row)] = spread.get(language_of(row), 0) + 1
+        print("  languages: " + ", ".join(f"{k}={v}" for k, v in sorted(spread.items())))
+        for row in selected:
+            print(f"  {row['instance_id']:45s}  lang={language_of(row):8s} "
+                  f"diff={_difficulty_label(row)} f2p={len(row.get('FAIL_TO_PASS') or [])}")
+    else:
+        for row in selected:
+            diff = _difficulty(row)
+            n_f2p = len(row.get("FAIL_TO_PASS") or [])
+            print(f"  {row['instance_id']:45s}  lite={_is_lite(row)!s:5s} diff={diff} f2p={n_f2p}")
     return 0
 
 

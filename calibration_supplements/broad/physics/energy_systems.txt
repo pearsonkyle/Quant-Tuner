@@ -1,0 +1,249 @@
+================================================================================
+AREA: Physics
+SUBJECT: Energy Systems and Power Engineering
+Subtopics: thermodynamic limits, generation technologies, the electrical grid,
+storage and dispatch, transmission, efficiency and losses, systems analysis.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Thermodynamic Limits and Energy Accounting
+
+Energy analysis begins with quantities and units, and confusion between them is the source of most
+errors in public discussion of the subject. Energy is measured in joules or kilowatt-hours; power
+is energy per unit time, measured in watts. A battery stores energy; a generator delivers power. A
+statement that a plant produces some number of megawatts describes its rate, and multiplying by
+hours of operation gives the energy delivered — a distinction that matters enormously when
+comparing intermittent sources with continuous ones.
+
+The second law imposes limits that no engineering can circumvent. A heat engine converting thermal
+energy to work is bounded by the Carnot efficiency, which depends only on the ratio of the cold
+and hot reservoir temperatures. Real engines fall well below it because of irreversibilities, but
+the bound explains the structure of every thermal plant: raising the hot temperature is the primary
+route to efficiency, which is why materials science limits determine power plant performance.
+
+Exergy is the more useful accounting concept for systems analysis because it measures the fraction
+of energy that can actually be converted to work. A joule of high-temperature heat and a joule of
+low-temperature heat are equal in energy and very unequal in exergy, which is why heating a
+building with electricity generated from heat is thermodynamically wasteful — high-grade energy is
+degraded to a task requiring only low-grade energy. A heat pump avoids this by moving heat rather
+than producing it, which is why it delivers several units of heat per unit of electricity without
+violating anything.
+
+Fundamentals and limits:
+  energy               joules or kilowatt-hours
+  power                energy per time; watts
+  capacity             the maximum power rating
+  capacity factor      actual energy delivered divided by rated power times time
+  the common confusion  comparing capacity between intermittent and continuous
+                       sources without capacity factors is meaningless
+  Carnot efficiency    one minus the ratio of cold to hot absolute temperature
+  the practical consequence  raise the hot temperature; materials limit it
+  combined cycle       a second engine on the first one's waste heat; the highest
+                       thermal efficiencies achieved
+  cogeneration         use the waste heat directly; total utilization far above
+                       electrical efficiency alone
+  exergy               the work-capable fraction; the correct currency for
+                       systems analysis
+  energy grade         high-grade electricity degraded to low-grade heat is a
+                       thermodynamic waste even when it is convenient
+  heat pump            moves heat rather than generating it; coefficient of
+                       performance above one is not an anomaly
+  energy return on investment  energy delivered over energy invested to build and
+                       operate; a system-level metric that constrains what is
+                       viable
+
+Q: A heat pump delivers 3.5 kWh of heat per kWh of electricity consumed. This:
+A. Violates conservation of energy
+B. Is normal; the device moves existing heat from a colder reservoir rather than converting
+   electricity into heat, so the delivered heat exceeds the electrical input without creating
+   energy
+C. Indicates a measurement error
+D. Only works in warm climates
+Reasoning: A heat pump is a refrigerator run in reverse. The electrical work drives a thermodynamic
+cycle that transfers heat up a temperature gradient; the heat delivered is the heat extracted plus
+the work input. The coefficient of performance falls as the temperature difference grows, which is
+why cold-climate performance is a real design concern, but values well above one are routine.
+Answer: B.
+
+## Generation Technologies
+
+Thermal generation dominates historically and burns a fuel to raise steam or drive a gas turbine.
+Its characteristics are dispatchable output, substantial thermal inertia limiting how quickly it can
+change, and efficiency determined by the top cycle temperature. Combined cycle gas plants reach the
+highest thermal efficiencies of any deployed technology by running a gas turbine and then using its
+exhaust heat to raise steam for a second turbine.
+
+Nuclear fission generates heat without combustion, with very high energy density, very low
+operating fuel cost, and high capital cost. Its economics are therefore dominated by construction
+cost and financing, and its operational profile favours continuous full-power operation. Its safety
+engineering is defence in depth: multiple independent barriers, passive cooling where achievable, and
+containment sized for the worst credible failure. Waste management is a long-timescale materials and
+institutional problem rather than an unsolved technical one.
+
+Renewable generation is characterized by zero fuel cost, low marginal cost, and — for wind and solar
+— variability that is weather-driven and only partly predictable. This inverts the traditional
+system economics: with near-zero marginal cost the merit order places them first, and the challenge
+moves from fuel supply to matching a variable supply with demand. Hydroelectricity is the exception
+among renewables in being dispatchable and storable, which makes it disproportionately valuable to a
+system with high variable penetration.
+
+Generation:
+  thermal              fuel to heat to steam or gas turbine; dispatchable, slow
+                       to ramp
+  combined cycle       highest deployed thermal efficiency
+  nuclear fission      high energy density, high capital cost, low fuel cost
+  the nuclear economics  dominated by construction and financing
+  defence in depth     independent barriers, passive safety, containment
+  hydroelectric        dispatchable, storable, geographically constrained
+  pumped hydro         the dominant grid storage technology by installed energy
+  wind                 variable, partly predictable, zero marginal cost
+  solar photovoltaic   variable with a predictable daily shape and unpredictable
+                       cloud modulation
+  geothermal           continuous, geographically constrained
+  the merit order      dispatch by marginal cost; zero-marginal-cost sources run
+                       first
+  the price consequence  high renewable penetration suppresses wholesale prices
+                       during high output, which affects the economics of every
+                       generator including the renewables themselves
+  curtailment          generation deliberately reduced because it cannot be used
+                       or transmitted; a signal that storage or transmission is
+                       the binding constraint
+
+## The Grid and System Operation
+
+An alternating current grid is a synchronized machine. Every rotating generator connected to it
+turns in lockstep at the system frequency, and that frequency is a direct real-time indicator of
+the balance between generation and load: excess generation raises it, excess load lowers it.
+Maintaining it within a narrow band is the fundamental control task of system operation, performed
+continuously and on timescales from seconds to hours.
+
+The control hierarchy has distinct layers. Inertia — the kinetic energy stored in rotating masses —
+resists frequency change instantaneously with no control action at all. Primary control, the
+governor response of generators, acts within seconds to arrest a deviation. Secondary control
+restores the frequency to nominal over minutes. Tertiary control and economic dispatch reposition
+the fleet over longer periods. Each layer buys time for the next, and the loss of inertia as
+synchronous generators are replaced by inverter-connected sources removes the instantaneous layer,
+which is why synthetic inertia from fast-responding inverters and storage has become an active
+engineering concern.
+
+Reactive power is the aspect of grid operation least familiar outside the field and it is essential.
+Alternating current systems with inductive loads and lines require reactive power to sustain
+voltage, it does not travel far, and it must be supplied locally. Voltage collapse — a runaway in
+which falling voltage increases current, increasing losses, further lowering voltage — is a real
+failure mode responsible for major blackouts, and reactive support is what prevents it.
+
+Grid operation:
+  synchronism          all rotating generators locked to system frequency
+  frequency            the real-time indicator of supply-demand balance
+  inertia              stored kinetic energy resisting change instantaneously
+  the inertia concern  inverter-connected sources supply none inherently
+  synthetic inertia    fast inverter response emulating it
+  primary control      governor response in seconds
+  secondary control    frequency restoration over minutes
+  economic dispatch    least-cost allocation subject to constraints
+  unit commitment      which plants to start, given start-up costs and minimum
+                       run times
+  reserves             spinning and non-spinning capacity held for contingency
+  the N-1 criterion    the system must survive the loss of any single element
+  reactive power       sustains voltage; local, and it cannot be transmitted far
+  voltage collapse     a runaway instability; a genuine blackout mechanism
+  protection           relays isolating faults in cycles; coordination failures
+                       cause cascading outages
+  cascading failure    an initial loss overloading neighbours in sequence; the
+                       mechanism behind every large blackout
+  black start          restoring a collapsed grid from generators that can start
+                       without external power; a capability that must be
+                       deliberately maintained
+
+## Storage, Flexibility, and Transmission
+
+Storage decouples generation from consumption in time, and the correct way to compare technologies
+is by the duration they serve rather than by capacity alone. Short-duration storage handles
+frequency regulation and smoothing over seconds to minutes. Medium-duration storage shifts solar
+output from midday to evening over hours. Long-duration storage covers multi-day weather events and
+seasonal mismatch, and it is the category with no economical solution at scale, which is the central
+unresolved problem in high-renewable system design.
+
+Round-trip efficiency and cost per unit of energy stored are the two figures that determine where a
+technology fits. Batteries have high round-trip efficiency and high energy cost, which suits short
+durations with many cycles. Pumped hydro has good efficiency and low energy cost with severe
+geographic constraints. Hydrogen and thermal storage have poor round-trip efficiency and low energy
+cost, which is the profile that suits long duration and few cycles — efficiency matters less when
+the alternative is not storing at all.
+
+Demand flexibility is storage's underrated complement, because shifting when energy is consumed
+costs less than storing it. Water heating, space conditioning within a comfort band, vehicle
+charging, and many industrial processes tolerate substantial time shifting, and the aggregate
+resource is large. Realizing it requires price signals reaching the consuming device and automation
+acting on them, since manual response does not scale.
+
+Storage and flexibility:
+  duration is the axis  compare technologies by the duration they serve
+  short duration       frequency regulation and smoothing; batteries
+  medium duration      intraday shifting; batteries and pumped hydro
+  long duration        multi-day and seasonal; the unresolved problem
+  round-trip efficiency  energy out over energy in
+  energy cost          cost per stored kilowatt-hour; determines viable duration
+  power cost           cost per kilowatt of charge or discharge rate
+  the profile match    poor efficiency and low energy cost suits long duration
+  demand flexibility   shifting consumption is cheaper than storing energy
+  the flexible loads   water heating, conditioning, vehicle charging, industrial
+                       processes
+  the requirement      automated response to price signals; manual does not scale
+  transmission         moves energy in space as storage moves it in time
+  geographic smoothing  aggregating variable sources over a wide area reduces
+                       aggregate variability substantially
+  interconnection      the cheapest form of flexibility where it can be built
+  the constraint       transmission is slow to permit and build; it is frequently
+                       the binding constraint on renewable deployment rather than
+                       generation cost
+  losses               resistive losses scale with current squared, which is why
+                       transmission voltage is high; high voltage direct current
+                       is preferred for long distances and undersea links
+
+## Efficiency, Losses, and Systems Analysis
+
+Efficiency improvements compete with supply expansion and usually win on cost, which makes the
+demand side the first place to look. The relevant comparison is the cost of a saved unit of energy
+against the cost of a delivered one, and for building envelopes, lighting, motors, and industrial
+process heat the saved unit is frequently cheaper by a wide margin. This is well established and
+persistently under-exploited, because the costs and benefits often fall on different parties.
+
+Losses accumulate along the chain from primary energy to delivered service, and analysing them at
+the wrong point produces the wrong conclusion. A high-efficiency appliance supplied by a
+low-efficiency generation and transmission chain delivers less benefit than its rating suggests, and
+the correct accounting runs from primary energy to the service actually wanted — a lit room, a
+warm building, a moved tonne — rather than to the intermediate energy carrier.
+
+Systems analysis is where the counterintuitive results appear. Rebound effects return part of the
+savings from an efficiency gain as increased use, and estimates of the magnitude vary widely by
+sector. Marginal versus average emissions matter for evaluating any load change: adding load
+displaces the marginal generator, not the average one, so the emissions consequence can be
+substantially different from the grid average. And the system value of a generator depends on when
+it produces relative to demand, so two sources with identical cost per unit of energy can have very
+different value to the system.
+
+Efficiency and systems analysis:
+  the demand side first  saved energy is usually cheaper than delivered energy
+  the split incentive  costs and benefits falling on different parties; the main
+                       reason cheap efficiency goes unrealized
+  the full chain       primary energy to delivered service, not to the carrier
+  the service framing  a lit room, a warm building, a moved tonne
+  rebound effect       part of the saving returned as increased use
+  marginal emissions   what a load change actually displaces; frequently very
+                       different from the grid average
+  time-resolved analysis  hourly or better; annual averages hide the entire
+                       problem in a variable system
+  value factor         the market value of a source relative to the average
+                       price; falls as penetration rises for correlated sources
+  the correlation problem  all solar produces at the same time, so each addition
+                       is worth less than the last
+  levelized cost       cost per unit of energy over the lifetime; useful and
+                       incomplete because it ignores when the energy arrives
+  system cost          the honest metric; includes the storage, transmission, and
+                       flexibility a source requires
+  the modelling caution  results from an energy system model follow from its
+                       assumptions about cost trajectories, demand growth, and
+                       what is allowed to be built, and the sensitivity analysis
+                       is where the information is

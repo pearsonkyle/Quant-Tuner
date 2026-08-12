@@ -1,0 +1,327 @@
+================================================================================
+AREA: Generative Art and Creative Technology
+SUBJECT: Light, Projection, and Installation Fabrication
+Subtopics: light sources and control, LED systems, projection, display technologies,
+kinetic elements, materials and fabrication, power and safety, production practice.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Light Sources and Control
+
+Light is the primary medium of most installation work, and the properties determining how it
+behaves are frequently different from the ones specified in a catalogue. Luminous flux measured in
+lumens is the total light emitted, which describes the source. Illuminance in lux is the light
+falling on a surface, which depends on distance and falls with its square. Luminance in candelas
+per square metre is the brightness of a surface as seen, which is what the viewer perceives. A
+source specified only in lumens says nothing about how bright anything will appear without knowing
+the geometry.
+
+Colour rendering describes how faithfully a source reveals surface colours, and it matters
+whenever the light is illuminating something rather than being the subject. The colour rendering
+index compares against a reference across a set of sample colours, and its known weakness is that
+a source can score well while rendering saturated reds poorly, which is why the newer metrics
+report fidelity and gamut separately. Sources with spiky spectra — some LEDs and most discharge
+lamps — render some colours badly regardless of their index.
+
+Colour temperature describes the appearance of white light on a scale from warm to cool, and it
+is not a measure of quality. Two sources at the same colour temperature can have entirely
+different spectra and render colours differently, which is why matching colour temperature between
+fixtures does not guarantee they will look the same on a surface.
+
+Light properties and control:
+  luminous flux        lumens; total emitted, a property of the source
+  illuminance          lux; falling on a surface, falls with distance squared
+  luminance            candelas per square metre; perceived brightness of a surface
+  inverse square law   doubling the distance quarters the illuminance
+  beam angle           where the intensity falls to half; determines the spread
+  colour temperature   warm to cool appearance; not a quality measure
+  colour rendering     fidelity to a reference; spiky spectra render poorly
+                       regardless of the index
+  metamerism           two sources appearing identical rendering surfaces
+                       differently
+  dimming curve        perception is roughly logarithmic, so linear dimming looks
+                       wrong; apply a gamma curve
+  PWM dimming          switching rapidly; the frequency must exceed what cameras
+                       and peripheral vision detect, which is far above the flicker
+                       threshold for direct viewing
+  flicker              visible or not depending on frequency and depth; a health
+                       concern and a problem for video capture
+  DMX                  the standard lighting control protocol; 512 channels per
+                       universe, no acknowledgement, and no security
+  Art-Net and sACN     DMX over Ethernet; many universes over one cable
+
+Q: An installation lit by PWM-dimmed LEDs looks fine to the eye and shows severe banding when
+filmed. The cause is:
+A. The camera is faulty
+B. The PWM frequency interacts with the camera's rolling shutter, so different rows of the sensor
+   are exposed during different parts of the PWM cycle
+C. The LEDs are the wrong colour temperature
+D. The exposure is wrong
+Reasoning: A rolling shutter exposes sensor rows sequentially rather than simultaneously, so a
+light switching on and off during the frame produces bright and dark bands corresponding to the
+PWM state when each row was exposed. The eye integrates over time and does not see it. Raising the
+PWM frequency well above the row rate, or using analogue dimming, eliminates it. Answer: B.
+
+## LED Systems
+
+Addressable LED strips have become the default medium for light-based installation work because
+they permit per-pixel control at low cost. The two families differ in ways that determine which
+suits an application. Single-wire protocols embed the clock in the data timing, which requires only
+one signal wire and makes the timing critical — an interrupt during transmission corrupts the
+frame. Two-wire protocols with a separate clock are timing-insensitive, work over longer distances,
+and support far higher refresh rates.
+
+Power is the constraint that most installations underestimate. A common strip specification is
+sixty LEDs per metre at sixty milliamps each at full white, which is 3.6 amps per metre — so a
+ten-metre run at full brightness draws thirty-six amps, which is a substantial supply and a
+conductor sizing problem. Voltage drop along the strip is the associated failure: at five volts, a
+run of more than a couple of metres shows visible dimming and colour shift toward red at the far
+end, because the red channel's forward voltage is lowest and it survives the drop best.
+
+Power injection addresses this by feeding supply at intervals along the strip rather than only at
+one end, and the spacing follows from the acceptable drop. Twelve-volt and twenty-four-volt strips
+tolerate longer runs because the same absolute drop is a smaller fraction of the supply, which is
+why higher voltages are preferred for large installations despite the lower per-pixel density.
+
+LED systems:
+  addressable strip    per-pixel control; the default medium
+  single-wire protocol  clock embedded in timing; one wire, timing-critical
+  two-wire protocol    separate clock; robust, longer runs, higher refresh
+  current per LED      ~60 mA at full white for a common type
+  power calculation    LEDs times current times voltage; a ten-metre run at full
+                       white is a serious supply
+  voltage drop         visible dimming and colour shift along a run
+  colour shift         toward red, since red has the lowest forward voltage
+  power injection      feed supply at intervals; the spacing follows from the drop
+  higher voltage       12 V and 24 V tolerate longer runs; lower pixel density
+  common ground        data and power grounds must be connected, and a missing
+                       common ground is the most frequent cause of erratic
+                       behaviour
+  level shifting       5 V data from a 3.3 V controller; marginal without it
+  first pixel sacrifice  using the first LED as a level shifter; a common
+                       workaround
+  refresh rate         limited by the protocol and the pixel count; single-wire
+                       protocols become slow at high counts
+  thermal              LEDs at full brightness in an enclosed channel overheat and
+                       degrade; derate or provide a heat path
+  diffusion            direct view of individual LEDs is usually unwanted; a
+                       diffuser at an appropriate distance is what makes a strip
+                       read as a line of light
+
+The missing common ground deserves specific emphasis because it produces symptoms that appear to
+be data corruption and is fixed by a wire. If the controller and the LED strip are powered from
+separate supplies with no ground connection between them, the data signal has no defined reference
+at the receiving end, and the behaviour ranges from erratic flickering to apparently random colours
+to intermittent failure that appears when someone touches the installation. Connecting the grounds
+resolves it, and checking for it first saves hours of investigating the data.
+
+## Projection
+
+Projection places light on surfaces, and the fundamental constraint is that a projector adds light
+and cannot remove it — so black in a projected image is whatever the ambient light makes the
+surface, and contrast depends entirely on controlling that ambient. An installation in a bright
+space will have washed-out projection regardless of the projector's specification, and darkening
+the space is more effective than any increase in brightness.
+
+Throw ratio relates the projection distance to the image width and determines whether a projector
+fits a space. A standard lens might have a ratio around 1.5, so a three-metre-wide image requires
+4.5 metres of throw. Short-throw and ultra-short-throw lenses reduce this substantially, which
+matters when the space is small or when people would otherwise walk through the beam and cast
+shadows.
+
+Keystone correction compensates for projecting at an angle, and it should be understood as a
+compromise rather than a solution. Correcting geometrically in software means discarding pixels —
+the projected rectangle becomes a trapezoid within the available resolution — so the image loses
+brightness and resolution. Physical alignment, lens shift, and mounting the projector on the
+optical axis are preferable where possible.
+
+Projection mapping projects onto non-flat surfaces so that the imagery aligns with the geometry,
+and the technique is what permits projection onto buildings, sculptures, and irregular objects.
+The alignment is achieved by warping the source image to match the surface, either by manually
+adjusting a mesh or by structured-light scanning that determines the correspondence
+automatically.
+
+Projection:
+  additive only        a projector cannot make black; contrast depends on ambient
+                       light
+  control the ambient  more effective than any brightness increase
+  lumens               brightness; ANSI lumens is the comparable measure and
+                       marketing figures frequently are not
+  throw ratio          distance over image width; determines whether it fits
+  short throw          large image at short distance; avoids shadows from people
+  lens shift           offset the image optically without distortion; preferable
+                       to keystone correction
+  keystone correction  compensates for angle in software; costs pixels and
+                       brightness
+  edge blending        overlap several projectors with a gradient in the overlap;
+                       requires matched brightness and colour
+  projection mapping   warp to match a non-flat surface
+  structured light     project patterns to determine the surface correspondence
+                       automatically
+  surface material     matte and light-coloured for a screen; specular surfaces
+                       produce hotspots
+  rear projection      no shadows from viewers; requires depth behind the surface
+  projector heat and noise  a real constraint in a quiet installation; consider
+                       an enclosure with acoustic treatment and ducted airflow
+  lamp life            and its cost; laser sources have largely displaced lamps
+                       for installation use
+
+Edge blending deserves note because it is how large projected surfaces are built and because its
+difficulty is in matching rather than in blending. Overlapping two projectors and applying a
+gradient in the overlap region so their contributions sum to the correct level is geometrically
+straightforward. Making the seam invisible requires the two projectors to match in brightness,
+colour, and black level — and projectors of the same model differ, drift over time, and age
+differently, so the matching requires measurement and periodic adjustment rather than being a
+one-time setup.
+
+[user] My projection installation looks great in the studio and washed out in the gallery, and the
+gallery says they can't turn the lights down.
+[assistant] tool_call projection.contrast_analysis({"projector_lumens": 4000,
+"image_width_m": 4, "image_height_m": 2.25, "surface_gain": 1.0,
+"ambient_lux_studio": 20, "ambient_lux_gallery": 300, "content": "dark_with_bright_elements"})
+[tool] {"image_area_m2": 9, "projected_illuminance_lux": 444,
+"studio_contrast_ratio": 23, "gallery_contrast_ratio": 2.5,
+"verdict": "ambient_dominates", "options": ["reduce_ambient_locally",
+"high_gain_or_ambient_rejecting_surface", "increase_brightness", "redesign_content"]}
+[assistant] The arithmetic is stark: your ambient went from 20 lux to 300, and your projector puts
+about 444 lux on the surface. In the studio the contrast ratio was 23 to 1, which reads as
+properly black. In the gallery it is 2.5 to 1, which reads as grey with slightly brighter grey on
+it.
+
+You cannot fix this with brightness alone. Matching the studio contrast at 300 lux ambient would
+require about 6,700 lux on the surface, which is fifteen times your current projector — a
+sixty-thousand-lumen machine, which is a different order of installation.
+
+Four approaches, and the first two are the realistic ones.
+
+Reduce the ambient locally rather than globally. The gallery cannot darken the whole space and can
+frequently accommodate a local intervention: a partial enclosure, a light-blocking baffle above and
+around the projection surface, redirecting or shading the specific fixtures illuminating that wall,
+or a fabric surround. Reducing the ambient on the surface from 300 to 60 lux restores most of the
+contrast and is a fraction of the cost of a larger projector.
+
+Change the surface. An ambient-light-rejecting screen material accepts light from the projector's
+direction and rejects light from other angles, which improves the contrast ratio by a factor of
+several in exactly your situation. It is directional, so the viewing positions must be considered,
+and it is substantially cheaper than the projector upgrade.
+
+Increase brightness, which helps proportionally and does not solve it alone. Going to 10,000
+lumens takes your contrast from 2.5 to about 4.7, which is better and still not what the studio
+looked like.
+
+Redesign the content. Imagery designed for a low-contrast environment — bright content on a
+mid-tone base rather than bright elements on black — reads well where black is unattainable. This
+is a legitimate response rather than a compromise, and content designed for the actual condition
+will look better than content designed for a dark room and shown in a bright one.
+
+The general principle to carry forward: measure the ambient illuminance at the installation site
+before finalizing the design. It is a two-minute measurement with a meter or a phone app, and it
+determines what is achievable in a way that no projector specification does.
+
+## Kinetic Elements and Fabrication
+
+Kinetic work adds mechanical motion, and the engineering requirements are unforgiving because the
+piece runs continuously and is accessible to the public. The duty cycle question dominates: a
+mechanism running eight hours a day for three months completes an enormous number of cycles, and
+components adequate for a demonstration wear out or overheat within days.
+
+Actuator selection follows from the motion required and from the duty cycle. Hobby servos hold
+position by drawing current continuously and overheat when loaded; they suit intermittent motion
+and not sustained holding. Steppers hold position with current and also run hot, and they lose
+steps silently under overload. Geared DC motors with position feedback suit continuous rotation.
+Solenoids must be duty-limited or they burn out. And for slow silent motion, shape memory alloys
+and pneumatics have their niches.
+
+Noise is a design parameter in a gallery and is frequently discovered late. A stepper motor's
+characteristic whine, a servo's chatter as it hunts around a position, a fan, a relay click, and a
+mechanism's vibration transmitted into a plinth are all audible in a quiet space and all read as
+technical noise rather than as part of the work. Compliant mounting, quieter actuators,
+microstepping, and mechanical damping address them, and considering them at the design stage
+avoids a rebuild.
+
+Kinetic and fabrication:
+  duty cycle           the dominant question; a demonstration is not a run
+  servo                intermittent motion; overheats holding a load
+  stepper              holds with current, runs hot, loses steps under overload
+  geared DC            continuous rotation; needs feedback for position
+  solenoid             discrete actuation; duty limited or it burns out
+  noise                a design parameter in a gallery; discovered late by default
+  compliant mounting   isolates vibration from the structure
+  bearings and wear    the failure point in continuous motion; specify for the
+                       cycle count
+  end stops            mechanical limits independent of the software; a software
+                       limit fails when the software does
+  fail safe            what happens on power loss; define it
+  laser cutting        fast, precise, flat sheet; kerf compensation and material
+                       limits
+  CNC routing          larger and thicker; three-dimensional forms
+  3D printing          complex geometry, small parts, prototypes; anisotropic
+                       strength along the layer direction
+  tolerances           digital fabrication is precise and not exact; design in
+                       clearance rather than assuming a press fit
+  material behaviour   wood moves with humidity, acrylic crazes under solvent and
+                       stress, MDF absorbs water; each fails in a characteristic
+                       way
+  finishing            the difference between a prototype and a work; and it takes
+                       longer than expected
+
+The anisotropy of 3D printed parts deserves emphasis because it produces failures that seem
+inexplicable. A part printed by fused deposition is strong within each layer and weak between
+layers, so the strength depends entirely on the print orientation relative to the load. A bracket
+that would carry the load if printed one way snaps at a layer boundary if printed another, and the
+part looks identical. Designing with the load path in mind and orienting the print accordingly is
+what makes printed parts structural rather than decorative.
+
+## Power, Safety, and Production
+
+Electrical safety in installation work is a legal and ethical requirement rather than a matter of
+diligence, because the public will touch the work and the installer is not present. Anything
+connected to mains voltage requires appropriate isolation, enclosure, earthing, and protection, and
+in most jurisdictions requires appropriately qualified work and testing.
+
+Power calculation should be done for the simultaneous worst case rather than for typical
+operation. An LED installation at full white draws several times its average, a motor's inrush
+current is many times its running current, and a projector's startup draw exceeds its steady
+consumption. Sizing for the average produces a supply that trips or sags at the moment everything
+runs together, which is typically the opening.
+
+Cable management is both a safety requirement and a visual one. Cables on the floor are a trip
+hazard and are also visible, and both are addressed by the same interventions — routing within
+structure, under covers, or overhead. Strain relief at every connection prevents the most common
+physical failure, which is a cable pulled until the conductor breaks inside the insulation where
+it cannot be seen.
+
+Power, safety, and production:
+  mains voltage        qualified work, enclosure, earthing, protection, and
+                       testing; a legal requirement in most jurisdictions
+  extra-low voltage    under 50 V AC or 120 V DC; substantially fewer
+                       requirements, and it is why most installation electronics
+                       runs at 12 or 24 V
+  RCD protection       residual current device; required and cheap
+  worst case power     simultaneous peak, not average; inrush and full-brightness
+                       cases
+  inrush current       motors and supplies draw many times their running current
+                       at startup; sequence them or use soft start
+  cable management     safety and appearance; the same interventions serve both
+  strain relief        at every connection; the most common physical failure
+  fire rating          materials and their treatment; galleries and public venues
+                       have requirements
+  structural loading   anything suspended requires calculation and appropriate
+                       hardware; the consequences of failure are severe
+  insurance and permits  the practical constraints that determine what is
+                       installable
+  documentation        a start and stop procedure, a wiring diagram, and a fault
+                       guide for the venue
+  spares               on site with instructions a non-specialist can follow
+  build time           consistently underestimated; the fabrication and
+                       installation take longer than the software
+
+The rigging point deserves the closing emphasis because it is the one where a mistake is
+catastrophic rather than merely inconvenient. Anything suspended above people is a structural
+element requiring calculation, appropriate rated hardware, secondary retention in case the primary
+fails, and in most venues sign-off by someone qualified. The consequences of a failure are entirely
+different in kind from a piece that stops working, and the temptation to improvise under time
+pressure at install is exactly when the risk is greatest. Determining the rigging approach and the
+hardware early, and treating it as a fixed constraint rather than as something to resolve on site,
+is the practice that prevents the situation arising.

@@ -222,7 +222,7 @@ def test_quantize_filename_includes_variant(tmp_path, monkeypatch):
     quantized: list[Path] = []
     monkeypatch.setattr(
         gguf_mod, "quantize",
-        lambda src, out, qtype, imatrix=None, log=None: (out.touch(), out)[1],
+        lambda src, out, qtype, **kw: (out.touch(), out)[1],
     )
 
     ws = pipeline.prepare_workspace(_make_cfg(tmp_path, {}))

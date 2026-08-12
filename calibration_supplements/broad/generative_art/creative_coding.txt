@@ -1,0 +1,309 @@
+================================================================================
+AREA: Generative Art and Creative Technology
+SUBJECT: Creative Coding and Generative Systems
+Subtopics: generative practice, randomness and control, algorithms of form,
+plotter and physical output, animation and timing, tooling, curation.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Generative Practice
+
+Generative art is work whose form is determined in part by an autonomous system the
+artist designs but does not fully specify. The artist writes rules; the rules produce
+outputs; the artist judges, revises, and re-runs. What distinguishes it from procedural
+production is that the artist cedes real authority to the system — if every output could
+have been predicted, the system is a drawing tool rather than a collaborator.
+
+The central practical skill is not writing the algorithm but tuning the space of outputs.
+A generative system defines a distribution over possible pieces, and the work of making
+it good is narrowing that distribution so that samples are reliably interesting. A system
+whose outputs are all nearly identical has too little variance and reads as a template
+with noise applied. A system whose outputs range from striking to incoherent has too
+much, and hand-picking the good ones means the artist rather than the system is doing the
+composition. Between those failures lies the craft.
+
+Parameter ranges are where most of that tuning happens, and the discipline is to
+constrain rather than to filter. If a colour parameter sometimes produces an ugly
+combination, the answer is to restrict the range, or to sample from a curated palette,
+or to enforce a relationship between hues — not to generate freely and discard. Every
+constraint encoded in the system is a decision made once that applies to every future
+output; every rejection made by hand is a decision that must be remade forever and that
+does not transfer when the piece becomes a long-form series.
+
+Practice principles:
+  constrain, do not filter    encode taste into the sampling, not into rejection
+  seed everything             a piece you cannot reproduce is a piece you cannot
+                              refine; log the seed with every output
+  vary one axis at a time     grid renders across a single parameter reveal what
+                              that parameter actually controls
+  build a contact sheet       judge a system by a hundred outputs at thumbnail
+                              size, never by one at full size
+  separate composition        structure, palette, and texture as independent
+                              layers so each can be tuned without disturbing the
+                              others
+  keep the failures           the interesting bugs are the main source of new
+                              directions; screenshot before fixing
+  fix the output size late    resolution independence forces you to express
+                              everything in relative units, which is good hygiene
+
+The contact sheet is the single most useful habit. A generative system is a distribution,
+and judging a distribution from one sample is a category error. Rendering a hundred
+outputs at small size shows immediately whether the variety is real, whether some region
+of parameter space produces failures, and whether the pieces are recognizably from one
+family — which is what makes a series cohere. Most systems look far better in a single
+cherry-picked render than they do across a hundred, and the gap between those two
+impressions is the work remaining.
+
+## Randomness and Its Control
+
+Randomness in generative work is a material with texture, and different sources have
+different character. Uniform random is flat and structureless, producing clumps and gaps
+that read as noise rather than as distribution. Gaussian random clusters around a mean
+and is what you want for natural variation around an intended value. Perlin and simplex
+noise are spatially coherent, so nearby points get similar values, which is what makes
+them read as organic rather than as static. Blue noise is uniformly distributed but with
+no two points close together, producing the even scattering that looks deliberately
+placed — the reason it is used for stippling, sampling, and dithering.
+
+The distinction between white noise and blue noise is worth dwelling on because it
+explains a common disappointment. Scattering points with uniform random placement
+produces visible clumps and voids; the eye reads them as clustering with meaning that is
+not there. Poisson disc sampling, or a relaxation process like Lloyd's algorithm applied
+to a Voronoi diagram, enforces a minimum separation and produces the even-but-irregular
+distribution that reads as natural. Almost every time "random placement" looks wrong, the
+fix is a blue-noise distribution rather than more randomness.
+
+Seeded pseudorandom generation is non-negotiable for serious practice. A piece produced
+by an unseeded generator cannot be reproduced, refined, or printed at a different
+resolution, and in long-form generative work — where a collector mints a token and the
+piece is derived from it — determinism from the seed is the entire contract. This
+requires care: the built-in random function in most environments cannot be seeded, so a
+small explicit PRNG must be used, and every consumer of randomness must draw from that
+one stream in a fixed order. Adding a new random draw in the middle of the code changes
+every subsequent value and therefore every previously generated piece, which is why
+mature systems draw all parameters up front from a fixed sequence.
+
+Randomness techniques:
+  seeded PRNG           sfc32, mulberry32, xorshift; small, fast, deterministic
+  uniform               structureless; use for choices, not for placement
+  gaussian              natural variation around an intended value
+  weighted choice       curated options with probabilities; how rarity tiers work
+  Perlin / simplex      spatially coherent; the basis of organic form
+  blue noise            even irregular spacing; Poisson disc or Lloyd relaxation
+  Levy flight           mostly small steps with rare large jumps; produces natural
+                        foraging and exploration patterns
+  Markov chain          state-dependent transitions; good for sequences and grammars
+  jitter                small random offset applied to a regular structure; the
+                        cheapest way to make a grid feel hand-made
+
+Controlled randomness — where the random value is constrained by context — produces far
+better results than free randomness. Sampling a colour from a palette rather than from
+the full gamut, choosing an angle from multiples of fifteen degrees rather than from a
+continuum, selecting a length from a small set of related values: each constraint makes
+the output more coherent while retaining variety. This is the generative equivalent of a
+design system, and systems that use it look designed while systems that sample freely
+look computed.
+
+## Algorithms of Form
+
+A relatively small set of algorithms generates most of the vocabulary of the medium, and
+knowing them as a repertoire matters more than knowing any one deeply.
+
+Flow fields assign a direction to every point in space, typically from noise, and trace
+particles along them. The result is the characteristic flowing filament imagery that
+defines much of the field. Variations come from how the field is constructed — noise,
+mathematical functions, image-derived gradients — from how particles are seeded and
+terminated, and from how the traces are rendered. Curl noise produces a divergence-free
+field, so particles neither converge nor spread, which reads as incompressible fluid.
+
+Reaction-diffusion simulates two chemicals that react and spread at different rates,
+producing spots, stripes, and labyrinthine patterns from a homogeneous start. The
+Gray-Scott model is the standard formulation, and its parameter space contains sharply
+distinct regimes — a small change in the feed and kill rates moves from stable spots to
+growing mitosis to chaotic turbulence. It is a good example of a system whose interest
+lies almost entirely in exploring a two-dimensional parameter space rather than in the
+algorithm itself.
+
+Cellular automata evolve a grid by local rules applied simultaneously. Conway's Game of
+Life is the famous instance, but the more useful generative property is that
+extraordinarily simple rules produce unbounded complexity — Rule 30 generates sequences
+passing statistical randomness tests from a single seed cell. For visual work, continuous
+and multi-state variants (SmoothLife, Lenia) produce organic forms that discrete
+automata cannot.
+
+Generative algorithm repertoire:
+  flow field            trace particles along a noise-derived vector field
+  reaction-diffusion    Gray-Scott; spots, stripes, labyrinths
+  cellular automata     local rules, global complexity
+  L-systems             string rewriting interpreted as turtle graphics; plants,
+                        branching structures, space-filling curves
+  differential growth   a curve that lengthens and repels itself; coral, cortex,
+                        wrinkle patterns
+  Voronoi / Delaunay    space partition from points; cells, cracking, adjacency
+  circle packing        fill a region with non-overlapping circles of varying size
+  physarum              agent-based slime mould simulation; emergent networks
+  strange attractors    Lorenz, Clifford, De Jong; dense parametric point clouds
+  Wave Function Collapse constraint propagation over tile adjacency; coherent
+                        structured layouts from a small example
+  Truchet tiles         a small tile set placed with random rotation; continuous
+                        curves emerge from discrete pieces
+
+Differential growth deserves particular mention because it produces forms that look
+biological in a way few algorithms do. A closed polyline repeatedly inserts new points
+where segments grow too long, and each point is pushed away from its near neighbours
+while being pulled toward its immediate ones along the curve. The curve lengthens faster
+than the space allows, so it buckles and folds, producing exactly the convoluted
+boundaries seen in coral, in brain cortex, and in leaf margins — for the same underlying
+reason, which is growth constrained by space.
+
+Layering algorithms is where distinctive work usually comes from. A flow field whose
+directions are derived from a reaction-diffusion pattern; a Voronoi partition whose seed
+points come from circle packing; an L-system whose growth is deflected by a noise field.
+The individual algorithms are widely known and produce recognizable results on their own;
+composition is where an individual voice appears.
+
+[user] My flow field looks like everyone else's — the standard curved-lines-over-noise
+thing. How do I get away from that?
+[assistant] tool_call art.system_analysis({"algorithm": "flow_field",
+"field_source": "perlin_2d", "particle_seed": "uniform_random", "step": "constant",
+"lifetime": "constant", "render": "constant_width_line", "palette_size": 5})
+[tool] {"distinctiveness_score": 0.21, "generic_markers": ["perlin_direct",
+"uniform_seeding", "constant_step", "constant_stroke", "no_termination_rule"],
+"variation_axes_unused": 7}
+[assistant] Everything in your pipeline is the default choice, which is why it looks
+like the default result. Each stage has a decision you have not made yet.
+
+The field itself. Perlin noise mapped directly to angle is where everyone starts.
+Alternatives that change the character completely: derive the field from the gradient of
+an image, so the flow follows real structure; use curl noise for incompressible motion;
+build the field from a sum of point sources and sinks so it has singularities that
+particles spiral into; or make the field time-varying so traces from different moments
+disagree.
+
+Seeding. Uniform random seeding produces even coverage, which is why the output reads as
+a texture rather than as a composition. Seed along a shape, seed with blue noise so
+spacing is controlled, seed densely in one region and sparsely elsewhere, or seed from
+the bright areas of a source image.
+
+Termination. Constant lifetime is why every line is the same length. Terminate when a
+particle enters a region, when it comes too close to an existing trace (which produces
+the packed non-overlapping look), when its speed drops below a threshold, or
+probabilistically so lengths vary.
+
+Rendering. This is where the largest gain usually is and where the least attention
+usually goes. Constant-width lines are the generic marker. Vary width with speed or with
+distance travelled; render as tapering strokes; accumulate density into a buffer and map
+it to colour so overlap is visible; draw with many short transparent segments so
+crossings build up; or do not draw lines at all and instead deposit particles as points
+or as textured stamps.
+
+Pick two of those four to change, not all four — changing everything at once gives you a
+different system you understand no better than this one. My suggestion for the largest
+distinctiveness gain per unit effort: proximity-based termination plus speed-varying
+stroke width. That combination alone produces the packed, organic, varied-weight look
+that reads as considered rather than as generated.
+
+## Physical Output and Plotters
+
+Pen plotters have become central to the medium because they impose constraints that
+improve the work. A plotter draws lines with a physical pen, so there is no fill, no
+transparency, no anti-aliasing, and no colour blending — everything must be expressed as
+strokes. That constraint forces decisions about mark-making that screen work allows you
+to avoid, and it connects generative practice to the whole history of drawing.
+
+Designing for a plotter means thinking in paths rather than pixels. Shading becomes
+hatching, and the hatching angle, spacing, and variation become expressive choices.
+Texture becomes stroke quality. Overlap becomes visible layering, since a pen crossing
+its own line deposits more ink. Colour becomes discrete pen changes, so a palette is
+literally a set of physical objects and the number of colours is bounded by patience.
+
+The practical pipeline is SVG-centric. The generative program outputs SVG paths, those
+paths are optimized — merged, ordered to minimize travel, deduplicated where lines
+overlap — and then converted to G-code or sent to the plotter. Path optimization matters
+more than it sounds: a naively ordered drawing spends most of its time with the pen up,
+moving between unrelated segments, and reordering can cut plot time by more than half.
+
+Plotter workflow considerations:
+  output format        SVG with paths in real-world units; set width/height and
+                       viewBox consistently or scaling surprises you
+  line merging         join segments sharing endpoints into continuous polylines;
+                       fewer pen lifts, cleaner joins
+  travel optimization  greedy nearest-neighbour reordering is enough; 2-opt if the
+                       drawing is large
+  overdraw             repeated strokes darken; use deliberately, avoid accidentally
+  pen choice           fineliners for detail, gel and rollerball for saturation,
+                       fountain pens for line variation, brush pens for expression
+  paper                heavier stock resists bleed and cockling; texture affects
+                       line quality substantially
+  registration         multi-colour work needs the paper to return to the same
+                       position; tape or a jig, and plot all of one colour first
+  bleed and dry time   dense hatching floods the paper; sequence regions so wet ink
+                       is not revisited
+  plot time            estimate before committing; complex pieces run for hours
+
+The failure that catches everyone once is generating a drawing whose complexity is
+invisible on screen and ruinous on paper. Ten thousand short segments look like a smooth
+gradient at screen resolution and take six hours to plot while shredding the paper under
+a repeatedly lifting pen. Estimating total path length and pen-lift count before plotting,
+and previewing at true physical scale rather than fit-to-window, prevents this.
+
+Beyond plotters, the same generative output feeds laser cutters, CNC routers, embroidery
+machines, and 3D printers, each with its own constraint set that shapes the work.
+Embroidery imposes stitch direction and density limits; laser cutting requires closed
+paths and kerf compensation; 3D printing requires manifold geometry and overhang limits.
+In every case the constraint is generative in itself — the requirement that geometry be
+manifold, for instance, rules out whole families of form and pushes toward others.
+
+## Animation, Timing, and Tooling
+
+Motion in generative work is governed by the same principles as in traditional animation,
+and easing is the most important. Linear interpolation between states reads as mechanical
+because nothing in the physical world starts and stops instantaneously. Ease-in-out
+functions — smoothstep being the simplest — give acceleration and deceleration that read
+as physical. Overshoot and settle read as elastic. The choice of easing curve carries more
+expressive weight than the motion path in most cases.
+
+Frame-rate independence is a correctness requirement, not an optimization. Animation
+driven by "add 2 to x each frame" runs at different speeds on different machines and
+stutters when a frame is dropped. Driving motion by elapsed time — multiplying velocity
+by delta time — makes speed consistent, and for deterministic output (essential for
+rendering to video or for reproducible generative work) driving by a fixed logical
+timestep independent of real time is better still.
+
+Loops that read as seamless require the state at the end to match the state at the
+beginning exactly. The reliable technique is to parameterize motion by an angle that
+completes a full revolution over the loop, so every quantity is a periodic function of
+that angle. For noise-driven animation, sampling noise along a circular path in a
+higher-dimensional noise space gives a value that returns exactly to its start — a
+four-dimensional noise sampled around a circle in two of its dimensions produces
+seamlessly looping two-dimensional noise, which is the standard trick.
+
+Tools and where each fits:
+  p5.js / Processing   the teaching standard; immediate mode, huge community, ideal
+                       for sketching and for learning
+  openFrameworks       C++; performance, hardware access, installation work
+  three.js             WebGL scene graph; 3D in the browser
+  GLSL / shadertoy     pure fragment-shader work; maximum GPU throughput
+  TouchDesigner        node-based, real-time, projection and installation
+  Houdini              procedural 3D; the deepest node-based toolkit
+  Blender + geometry nodes  procedural 3D, free, increasingly capable
+  vsvg / vpype         SVG optimization for plotting
+  Cairo / skia         high-quality 2D rasterization from any language
+  numpy + PIL          when the piece is fundamentally array manipulation
+
+Choosing a tool by what the piece needs rather than by familiarity is worth some
+discomfort. Work that is fundamentally about per-pixel computation belongs in a fragment
+shader and will be a hundred times faster there than in a CPU loop. Work that is about
+manipulating a few thousand geometric primitives belongs in a vector environment. Work
+that must run in a browser for an audience has different constraints from work that
+renders overnight to a print file.
+
+Finally, the curatorial layer is part of the practice. Long-form generative work — where
+a single system produces hundreds of outputs that are all released — makes this explicit,
+because the artist cannot select and every output must stand. The discipline this imposes
+is valuable regardless of whether the work is released that way: build the system so that
+its worst output is acceptable, rather than so that its best output is impressive.
+Systems tuned to the best case have a long tail of failures; systems tuned to the worst
+case tend to have a coherent identity across every sample, which is what makes a body of
+work rather than a collection of images.

@@ -1,0 +1,314 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: Time Series Analysis and Forecasting
+Subtopics: components and stationarity, classical models, evaluation, machine
+learning approaches, hierarchical and probabilistic forecasting, anomaly detection.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Components, Stationarity, and Structure
+
+A time series is a sequence of observations ordered in time, and the ordering is what makes
+it a distinct subject. Observations are not independent — that is the entire point — so
+every technique built on the independence assumption needs modification or replacement.
+
+Decomposition separates a series into interpretable components. Trend is the long-run
+direction. Seasonality is periodic variation at a fixed known frequency — day of week,
+month of year, hour of day — and a series can carry several seasonal periods
+simultaneously. Cyclical variation is longer-term oscillation without a fixed period, such
+as business cycles, and is distinguished from seasonality precisely by that irregularity.
+The remainder is what the components do not explain.
+
+The additive versus multiplicative distinction matters practically. In an additive
+decomposition the seasonal swing has constant absolute magnitude; in a multiplicative one it
+scales with the level. Retail sales usually behave multiplicatively — a December uplift is
+a percentage, not a fixed number of units — and applying an additive model produces
+systematic errors that grow with the level. Taking logs converts a multiplicative structure
+to additive, which is why log transforms are so common in this field.
+
+Stationarity is the property most classical methods require. A series is weakly stationary
+when its mean, variance, and autocovariance structure do not change over time. Most real
+series are not: they trend, their variance grows with their level, their seasonal pattern
+evolves. Differencing removes a trend, seasonal differencing removes a seasonal pattern,
+and a log or Box-Cox transform stabilizes variance. The number of differences required is
+the integration order, and over-differencing is a real error that introduces artificial
+negative autocorrelation and inflates forecast variance.
+
+Core concepts and diagnostics:
+  autocorrelation (ACF)    correlation with lagged values; decays slowly for a
+                           trending series, spikes at seasonal lags
+  partial autocorr (PACF)  correlation at a lag after removing shorter lags;
+                           identifies AR order
+  white noise              no autocorrelation at any lag; what residuals should be
+  random walk              each value is the last plus noise; ACF decays very
+                           slowly, and the best forecast is the last observation
+  ADF / KPSS tests         stationarity tests with opposite null hypotheses; run
+                           both, since they disagree informatively
+  differencing             y_t - y_{t-1};  removes a linear trend
+  seasonal differencing    y_t - y_{t-m};  removes a seasonal pattern of period m
+  Ljung-Box test           tests whether residual autocorrelation is jointly zero
+  spurious regression      two independent trending series correlate strongly;
+                           the classic trap that motivates stationarity
+
+Spurious regression deserves emphasis because it produces confident nonsense. Two
+independent random walks will typically show a high R-squared and a highly significant
+coefficient when regressed on each other, because both are trending and the standard errors
+computed under independence are badly wrong. This is why regressions on levels of
+non-stationary series are untrustworthy and why the analysis is done on differences, or
+within a cointegration framework when the series genuinely share a long-run relationship.
+
+Q: A series' ACF decays very slowly and its PACF has a single large spike at lag 1. The
+series most plausibly:
+A. Is white noise
+B. Requires differencing; it behaves like a random walk or strongly autoregressive process
+C. Has strong seasonality at lag 1
+D. Is over-differenced
+Reasoning: Slow ACF decay indicates non-stationarity or a near-unit-root autoregressive
+process; a single PACF spike at lag 1 with slow ACF decay is the signature of an AR(1) with
+coefficient near one, which is effectively a random walk. Differencing once should produce a
+stationary series with no remaining structure. Over-differencing shows the opposite pattern:
+a large negative ACF at lag 1. Answer: B.
+
+## Classical Forecasting Models
+
+Exponential smoothing forecasts by weighting past observations with exponentially decaying
+weights, so recent data matters more. Simple exponential smoothing handles a level with no
+trend or seasonality, using one smoothing parameter. Holt's method adds a trend component
+with a second parameter. Holt-Winters adds seasonality with a third, in additive or
+multiplicative form. The family is organized systematically by the error, trend, and
+seasonal specification, giving a set of models from which one can be selected by information
+criterion.
+
+Damped trend variants deserve specific mention because they are consistently better in
+practice. An undamped linear trend extrapolates indefinitely, which produces absurd
+long-horizon forecasts — a product growing at last quarter's rate for five years. Damping
+the trend so it flattens toward the horizon is more realistic and empirically improves
+accuracy across large forecasting competitions, and it should generally be the default.
+
+ARIMA models the series as a combination of autoregressive terms (regression on its own
+past values), differencing for integration, and moving average terms (regression on past
+forecast errors). Seasonal ARIMA adds the same three components at the seasonal lag. Order
+selection was traditionally done by inspecting ACF and PACF plots and remains a useful
+diagnostic skill, though automated selection by information criterion is now standard and
+performs comparably.
+
+Classical model families:
+  naive                 forecast equals the last value; the benchmark every model
+                        must beat, and frequently does not for financial series
+  seasonal naive        forecast equals the value from the same season last cycle;
+                        a strong benchmark for seasonal data
+  drift                 naive plus the average historical change
+  simple exp smoothing  level only; one parameter
+  Holt                  level and trend
+  Holt-Winters          level, trend, seasonality; additive or multiplicative
+  damped trend          flattens the extrapolated trend; usually better
+  ARIMA(p,d,q)          autoregressive, integrated, moving average
+  SARIMA                plus seasonal terms at lag m
+  ARIMAX / dynamic reg  ARIMA errors around a regression on external predictors
+  TBATS                 multiple and non-integer seasonal periods
+  state space / structural  components as latent states; handles missing data and
+                        irregular sampling naturally
+
+The benchmark discipline is the most important practice in the field and the most
+frequently skipped. Any forecasting model must be compared against naive, seasonal naive,
+and a simple exponential smoothing baseline on the same evaluation protocol. Complex models
+routinely fail to beat seasonal naive on real data, and a project that reports only its own
+model's error has not established that the model is worth deploying. For many financial
+series the naive forecast is genuinely difficult to beat, which is informative about the
+series rather than about the modeller.
+
+## Evaluation
+
+Evaluation of forecasts requires a protocol respecting time. Random cross-validation
+splits are invalid because they train on the future to predict the past, and any temporal
+autocorrelation converts that leakage into an inflated score. The correct approach is
+rolling-origin evaluation: train on data up to a point, forecast the following horizon,
+score it, advance the origin, and repeat. This produces many forecasts at each horizon and
+reflects how the model will actually be used.
+
+The forecast horizon must match the decision. A model evaluated on one-step-ahead accuracy
+tells you nothing about its twelve-step performance, and the two can rank models
+differently — a model capturing short-run momentum wins at one step and loses at twelve
+where the level matters more. Accuracy should be reported per horizon, not averaged into a
+single number that obscures where the model is useful.
+
+Metric choice interacts with the data's properties in ways that cause real mistakes.
+Percentage errors are undefined at zero and explode near it, which makes them unusable for
+intermittent demand. They are also asymmetric, penalizing over-forecasts more than
+under-forecasts, which biases model selection toward under-forecasting. Scale-dependent
+metrics cannot be aggregated across series with different magnitudes.
+
+Forecast evaluation:
+  rolling origin         train, forecast, advance; the only valid protocol
+  per-horizon reporting  accuracy at h=1 says nothing about h=12
+  MAE                    scale-dependent, robust, optimal for the median
+  RMSE                   scale-dependent, penalizes large errors, optimal for the
+                         mean
+  MAPE                   scale-free, undefined at zero, asymmetric; avoid despite
+                         its popularity
+  sMAPE                  symmetric variant; still unstable near zero
+  MASE                   error scaled by the naive method's in-sample error;
+                         scale-free, defined at zero, interpretable — below 1 beats
+                         naive. The best general default.
+  pinball loss           for quantile forecasts; the proper scoring rule
+  CRPS                   for full predictive distributions
+  coverage               fraction of actuals within the prediction interval;
+                         should match the nominal level
+
+The choice between MAE and RMSE is not stylistic: they are minimized by different
+predictions. MAE is minimized by the conditional median and RMSE by the conditional mean, so
+for a skewed distribution they call for different forecasts. If the business cost of error
+is roughly linear, optimize MAE; if large errors are disproportionately costly, optimize
+RMSE. Reporting one and optimizing the other produces a model that is systematically
+mistuned for its own evaluation.
+
+Prediction intervals matter more than point forecasts for most decisions and are the part
+most often wrong. Intervals from classical models assume the model is correctly specified
+and the parameters known, so they systematically understate uncertainty — empirical coverage
+of nominal 95 percent intervals is frequently near 80. Intervals should be validated against
+actual coverage on held-out data, and if they are too narrow, widened empirically or
+replaced with conformal methods that provide distribution-free coverage guarantees.
+
+[user] Our demand forecast has a MAPE of 18% and the business says it's unusable. The model
+looks fine to me.
+[assistant] tool_call ts.forecast_audit({"metric": "mape", "value": 0.18,
+"series_count": 2400, "zero_fraction": 0.31, "intermittent": true,
+"benchmark_seasonal_naive_mape": 0.16, "horizon_days": 14, "eval": "random_split"})
+[tool] {"issues": ["mape_unsuitable_for_intermittent", "31pct_zeros_excluded_from_metric",
+"underperforms_seasonal_naive", "random_split_invalid"], "mase_model": 1.09,
+"mase_seasonal_naive": 1.0, "verdict": "model_worse_than_naive_metric_hid_it"}
+[assistant] The business is right and the metric is hiding it. Three problems compound.
+
+MAPE is the wrong metric for your data. Thirty-one percent of your series-periods are zero,
+and MAPE is undefined there, so those observations are silently dropped from the
+calculation. You are therefore reporting 18% error on the 69% of cases where demand was
+nonzero — which are the easy cases — and reporting nothing at all about the zeros, which for
+intermittent demand are most of the forecasting problem.
+
+On MASE, which is defined at zero and scaled to the naive benchmark, your model scores 1.09
+against seasonal naive's 1.0. Above one means worse than the benchmark. You have a model
+that is slightly worse than repeating last week's value, and MAPE presented it as an 18%
+error which sounded reasonable.
+
+Your evaluation protocol is also invalid. A random split trains on future periods to predict
+past ones, and with autocorrelated demand that inflates the score. Redo it with
+rolling-origin evaluation at your actual 14-day horizon, reporting accuracy per horizon
+day rather than averaged.
+
+What to do differently. Switch to MASE or to a scaled MAE as the headline metric. For
+intermittent demand specifically, consider Croston's method or its variants, which model
+the demand size and the inter-arrival interval separately rather than trying to forecast a
+mostly-zero series directly. And check whether the business decision actually needs a point
+forecast at all — for inventory it usually needs a quantile, since the cost of understocking
+and overstocking differ, in which case you should be forecasting the relevant quantile
+directly with pinball loss and not the mean at all.
+
+That last point may be the whole issue. A mean forecast optimized for MAPE is close to the
+wrong quantity for a stocking decision even when it is accurate.
+
+## Machine Learning Approaches
+
+Machine learning methods for time series reframe forecasting as supervised learning by
+constructing features from the history. Lagged values, rolling statistics over various
+windows, calendar features, and external regressors become the feature matrix, and any
+standard regressor can be applied. Gradient-boosted trees on well-constructed features are
+a very strong baseline and win a large share of forecasting competitions, particularly for
+many related series where a single global model can be trained across all of them.
+
+Feature construction for this framing has one dominant rule: every feature must be computable
+at forecast time using only information available then. A rolling mean must be lagged so it
+does not include the target period. A feature derived from a variable that is itself
+forecast must account for that variable's forecast error. Violating this produces
+spectacular backtest results and production failure, and it is the single most common error
+in machine learning applied to forecasting.
+
+The global versus local model distinction is where machine learning offers a genuine
+advantage over classical methods. Classical models are fit per series, so a series with
+short history cannot be modelled well. A global model trained across thousands of related
+series learns shared patterns and transfers them, which is why global models dominate in
+retail and demand forecasting where there are many series each with limited history. Series
+identity enters as a categorical feature or an embedding.
+
+Approaches and where each fits:
+  gradient boosting     on lag and calendar features; the strongest general
+                        baseline, especially for many related series
+  linear with features  fast, interpretable, surprisingly competitive
+  RNN / LSTM            sequential; largely superseded
+  temporal convolution  dilated causal convolutions; parallel training, long
+                        receptive field
+  transformer variants  attention over the sequence; strong at scale, and often
+                        beaten by simpler methods on modest data
+  N-BEATS / N-HiTS      deep architectures with basis expansion; competitive and
+                        interpretable in components
+  DeepAR                probabilistic global model; outputs distributions
+  foundation models     pretrained across many series, zero-shot forecasting;
+                        promising and not yet dominant
+  hybrid                classical model for structure, ML for the residual
+
+The consistent empirical finding across competitions deserves stating plainly: simple
+methods, properly evaluated, are hard to beat, and combining forecasts beats individual
+models reliably. A simple average of several reasonable models almost always outperforms
+the best individual one selected on validation data, because model selection overfits the
+validation set while averaging reduces variance. The winning entries in large forecasting
+competitions have repeatedly been ensembles of relatively simple methods rather than single
+sophisticated ones.
+
+## Hierarchical, Probabilistic, and Anomaly Detection
+
+Hierarchical forecasting arises when series aggregate — products into categories into
+regions into totals — and forecasts must be coherent, meaning the parts sum to the whole.
+Forecasting each level independently produces incoherent results, since the sum of
+independently forecast components will not equal the independently forecast total.
+
+Three reconciliation strategies exist and the third dominates. Bottom-up forecasts the
+lowest level and aggregates, which preserves detail and is noisy where individual series are
+sparse. Top-down forecasts the total and disaggregates by historical proportions, which is
+stable and loses series-specific information. Optimal reconciliation forecasts every level
+independently and then projects the whole set onto the coherent subspace, using the
+forecast error covariance to weight the adjustment — which uses information from all levels
+and empirically beats both simpler approaches.
+
+Probabilistic forecasting outputs a distribution rather than a point, and it is what most
+decisions actually require. An inventory decision needs a high quantile of demand, not the
+mean, because the costs of stockout and overstock are asymmetric. A capacity decision needs
+the tail. Quantile regression targets specific quantiles directly using pinball loss;
+distributional models output parameters of an assumed family; ensemble and simulation
+approaches generate sample paths, which is the most flexible representation since any
+functional of the distribution can be computed from samples. Conformal prediction provides
+finite-sample coverage guarantees under exchangeability with adaptations for the temporal
+setting.
+
+Anomaly detection and change points:
+  point anomaly        a single unusual observation; a spike or a sensor error
+  contextual anomaly   normal in isolation, unusual in context — a value normal
+                       for July occurring in January
+  collective anomaly   a subsequence unusual as a group though each point is
+                       ordinary
+  level shift          a permanent change in the mean
+  variance change      a change in volatility, often preceding a level change
+  forecast residual    the general-purpose method: model the series, flag large
+                       standardized residuals
+  seasonal-hybrid ESD  decompose, then test residuals for outliers
+  CUSUM                cumulative sum of deviations; detects small persistent
+                       shifts efficiently
+  Bayesian changepoint  posterior over change locations; handles multiple changes
+  matrix profile       finds motifs and discords by subsequence similarity
+
+The practical difficulty in anomaly detection is not the algorithm but the definition. A
+spike may be an error to be removed, a genuine event to be explained, or the very thing the
+system exists to detect, and no algorithm distinguishes these. The consequential decision is
+what happens after a detection — page a human, suppress the value, retrain, or record it —
+and designing that response first usually clarifies what should be detected. A detector
+tuned without reference to the response either produces alerts nobody acts on, which
+trains people to ignore it, or misses the cases that mattered.
+
+Concept drift is the time series analogue of model staleness and requires monitoring rather
+than a one-time fix. The relationship between features and target changes — consumer
+behaviour shifts, a competitor enters, a pandemic occurs — and a model trained on the old
+relationship degrades. Detecting it requires tracking forecast error over time and comparing
+against its historical distribution, since a sustained rise in error is the signal. The
+response is usually periodic retraining on a rolling window, with the window length itself a
+tradeoff: short windows adapt quickly and use less data, long windows are more stable and
+slower to adapt. Where the change is abrupt and identifiable, an explicit intervention
+variable or a regime-switching model is preferable to hoping the retraining absorbs it.

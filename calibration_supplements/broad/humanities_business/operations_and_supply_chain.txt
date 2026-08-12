@@ -1,0 +1,239 @@
+================================================================================
+AREA: Humanities and Business
+SUBJECT: Operations and Supply Chain
+Subtopics: process analysis, inventory and variability, forecasting, lean and quality,
+supply network design, logistics, procurement and risk.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Process Analysis and Flow
+
+Operations management analyses how work flows through a system and where it does not. The
+fundamental quantities are throughput — the rate of output — flow time, the duration a unit spends
+in the system, and inventory, the number of units in it at any moment. These three are linked by
+Little's law, which states that inventory equals throughput times flow time and holds for any stable
+process regardless of its internal complexity.
+
+The bottleneck is the resource with the least capacity relative to demand, and it determines the
+throughput of the entire process. Improvements anywhere else change nothing, which sounds obvious
+and is routinely violated in practice — investment in a non-bottleneck resource is a common and
+expensive mistake. The corollary is that time lost at the bottleneck is lost permanently for the
+whole system while time lost elsewhere is usually recoverable.
+
+Utilization and responsiveness trade against each other in a way that surprises people who have not
+seen the queueing result. As a resource's utilization approaches its capacity, waiting time grows
+hyperbolically rather than linearly, so the last few percent of utilization cost enormously in flow
+time. A process designed to keep every resource fully busy will have long and unpredictable lead
+times, and deliberately leaving capacity idle is what buys responsiveness.
+
+Process fundamentals:
+  throughput           the output rate
+  flow time            duration a unit spends in the system
+  inventory            units in the system
+  Little's law         inventory equals throughput times flow time
+  the generality       any stable process, no distributional assumptions
+  bottleneck           the capacity-constraining resource
+  the throughput determination  the bottleneck sets it for the whole process
+  improvements elsewhere  change nothing; a common expensive mistake
+  bottleneck time loss  permanent for the system
+  utilization          the fraction of capacity used
+  the hyperbolic waiting  time growing steeply as utilization approaches one
+  the design implication  full utilization means long unpredictable lead times
+  idle capacity        what buys responsiveness
+  variability          the other driver of waiting; reducing it shortens queues
+                       at the same utilization
+  the three levers     capacity, utilization, and variability, and variability
+                       reduction is usually the cheapest of the three
+
+Q: A factory adds capacity to a machine that is not the bottleneck. What happens to throughput?
+A. It increases proportionally
+B. Nothing — throughput is set by the bottleneck, so capacity added elsewhere only increases idle
+   time or accumulates work-in-progress inventory ahead of the constraint
+C. It decreases
+D. It increases slightly
+Reasoning: The constraining resource determines system output. Non-bottleneck capacity that was
+already sufficient remains sufficient. The visible effect is usually more inventory piling up before
+the bottleneck, which is a cost rather than a benefit. Answer: B.
+
+## Inventory and Variability
+
+Inventory exists for identifiable reasons and each reason implies a different management approach.
+Cycle stock results from ordering in batches larger than immediate need. Safety stock buffers
+uncertainty in demand and supply. Pipeline stock is material in transit. Anticipation stock is built
+ahead of known demand peaks or supply interruptions. Inventory held for none of these reasons is
+waste, and classifying what is on hand by reason is a useful diagnostic exercise.
+
+The economic order quantity balances ordering cost against holding cost and yields a square-root
+relationship: the optimal batch size grows with the square root of demand and of ordering cost. The
+practical implication is that the total cost curve is flat near the optimum, so an order quantity
+within a wide band of the calculated value costs almost the same — which means precision in the
+calculation matters far less than getting the order of magnitude right, and that reducing setup or
+ordering cost shifts the optimum substantially.
+
+Safety stock is determined by the variability of demand during the replenishment lead time and by
+the service level chosen. Both drivers are worth noting: halving the lead time reduces the required
+safety stock by more than half because the variability accumulates over a shorter window, and
+increasing the service level target has an accelerating cost because the normal tail requires
+disproportionately more stock for each additional increment of coverage. Lead time reduction is
+therefore usually a better investment than accepting a lower service level.
+
+Inventory:
+  cycle stock          from batching
+  safety stock         buffering demand and supply uncertainty
+  pipeline stock       material in transit
+  anticipation stock   built ahead of known peaks
+  unexplained inventory  waste; classify by reason as a diagnostic
+  economic order quantity  balancing ordering against holding cost
+  the square-root relationship  optimal batch grows with the square root of
+                       demand
+  the flat cost curve  precision matters less than order of magnitude
+  setup cost reduction  shifts the optimum toward smaller batches; the lever
+                       behind small-lot production
+  safety stock drivers  lead time variability and service level
+  the lead time effect  reducing it helps more than proportionally
+  the service level cost  accelerating as the target approaches complete coverage
+  the practical preference  reduce lead time rather than accept lower service
+  pooling              aggregating demand across locations reduces total safety
+                       stock, because independent variations partially cancel
+  the pooling tradeoff  central stock is cheaper and further from the customer
+  the bullwhip effect  demand variability amplifying upstream through the chain,
+                       caused by batching, forecasting on orders rather than
+                       consumption, price promotions, and rationing behaviour
+
+## Forecasting and Planning
+
+Forecasting supports every planning decision and is always wrong; the useful question is how wrong
+and in which direction. A forecast without an error estimate cannot support an inventory decision,
+because the safety stock depends entirely on the forecast error distribution rather than on the
+forecast itself. Measuring and tracking forecast error is therefore more valuable than improving the
+point forecast, and it is more often neglected.
+
+Two properties of forecasting are worth internalizing. Aggregate forecasts are more accurate than
+disaggregated ones, because individual variations partially cancel, so a total is predictable when
+its components are not. And shorter horizons are more accurate than longer ones, roughly
+proportionally to the square root of the horizon for many series. Together these say that the
+planning system should commit to specifics as late as possible and at as aggregate a level as the
+decision permits.
+
+Planning hierarchies reflect this. Aggregate planning sets capacity and workforce over months at a
+product-family level. Master scheduling commits to specific products over weeks. Detailed scheduling
+sequences work over days and hours. Each level constrains the next, and the discipline is to make
+each decision at the latest level where it can still be executed — a commitment made earlier than
+necessary is a forecast error waiting to be paid for.
+
+Forecasting and planning:
+  every forecast is wrong  the question is how wrong and in which direction
+  error distribution   what inventory decisions actually depend on
+  measuring error      more valuable than improving the point forecast
+  bias                 systematic over- or under-forecasting; correctable and
+                       frequently unmeasured
+  aggregation accuracy  totals are more predictable than components
+  horizon accuracy     shorter is better, roughly with the square root
+  the joint implication  commit late and at an aggregate level
+  aggregate planning   capacity and workforce over months
+  master scheduling    specific products over weeks
+  detailed scheduling  sequencing over days and hours
+  the latest-possible principle  an early commitment is a forecast error waiting
+                       to be paid
+  postponement         delaying differentiation until demand is known; the design
+                       lever that makes late commitment possible
+  demand shaping       pricing and promotion changing demand rather than
+                       predicting it
+  collaborative planning  sharing actual consumption upstream; the direct
+                       countermeasure to the bullwhip effect and the reason
+                       point-of-sale data sharing matters more than better
+                       forecasting algorithms
+
+## Lean, Quality, and Improvement
+
+Lean thinking defines value from the customer's perspective and treats everything else as waste to
+be eliminated. The waste categories — overproduction, waiting, transport, over-processing,
+inventory, motion, and defects — are a checklist for examining a process, and overproduction is
+singled out as the worst because it generates the others: producing more than needed creates
+inventory, which requires transport and storage and conceals defects until much later.
+
+Flow and pull are the structural principles. Flow means work moves continuously without accumulating
+between steps, which requires balanced capacity and small batches. Pull means downstream demand
+triggers upstream production rather than a schedule pushing material forward, which prevents
+overproduction by construction. The two together produce a system where problems are visible
+immediately, because there is no inventory buffer concealing them — which is uncomfortable and is
+precisely the point.
+
+Quality management shifted from inspecting defects out to building processes that do not produce
+them. The insight underlying it is that inspection is expensive, imperfect, and occurs after the cost
+has been incurred, while process control prevents the defect. Statistical process control
+distinguishes common-cause variation inherent in the process from special-cause variation from an
+identifiable source, and this distinction is the practical core: reacting to common-cause variation
+as though it had a specific cause adds variation rather than reducing it, which is one of the most
+common and least recognized management errors.
+
+Lean and quality:
+  value                defined from the customer's perspective
+  waste categories     overproduction, waiting, transport, over-processing,
+                       inventory, motion, defects
+  overproduction       the worst; it generates the others
+  flow                 continuous movement without accumulation
+  pull                 downstream demand triggering upstream production
+  the visibility consequence  problems surface immediately with no buffer
+  the discomfort       intended; a buffer conceals the problem it absorbs
+  setup reduction      what makes small batches economical
+  standard work        the documented current best method; the baseline for
+                       improvement rather than a constraint on it
+  continuous improvement  small changes by the people doing the work
+  quality at the source  building processes that do not produce defects
+  the inspection limitation  expensive, imperfect, and after the cost is incurred
+  common-cause variation  inherent in the process
+  special-cause variation  from an identifiable source
+  the critical distinction  reacting to common-cause variation as though it had a
+                       cause adds variation
+  process capability   whether the process spread fits within the specification;
+                       a capable process centred correctly produces conforming
+                       output without inspection
+
+## Supply Networks, Logistics, and Risk
+
+Supply network design decides where facilities are, what each does, and how material moves between
+them, and the decisions are long-lived and expensive to reverse. The recurring tradeoff is between
+centralization, which pools demand variability and concentrates fixed costs efficiently, and
+distribution, which reduces transport cost and lead time to customers. The optimum depends on the
+ratio of inbound to outbound transport cost, on the value density of the product, and on the service
+level required.
+
+Transportation mode selection follows a consistent cost-speed relationship, and the total cost
+comparison must include inventory. A slower mode has lower freight cost and more material in transit,
+which is inventory the business is financing, and for high-value goods the inventory carrying cost
+can exceed the freight saving entirely. Comparing modes on freight cost alone systematically favours
+slow modes for products where it should not.
+
+Supply risk received sustained attention after a sequence of disruptions demonstrated that
+efficiency-optimized chains are fragile. The vulnerabilities are concentration — single sources,
+single facilities, single regions — and lack of visibility, since most organizations know their
+direct suppliers and not their suppliers' suppliers, where the actual concentration frequently lies.
+The mitigations all cost something: dual sourcing, buffer inventory, qualified alternates, and
+regional redundancy each trade efficiency for resilience, and the honest framing is that resilience
+is purchased rather than achieved through better management.
+
+Networks, logistics, and risk:
+  network design       facility locations, roles, and flows; long-lived decisions
+  centralization       pools variability, concentrates fixed cost
+  distribution         reduces outbound transport and lead time
+  the deciding factors  transport cost ratio, value density, service requirement
+  mode selection       a consistent cost-speed relationship
+  in-transit inventory  a financing cost that must enter the comparison
+  the systematic error  comparing modes on freight cost alone
+  cross-docking        transferring without storing; requires reliable timing
+  consolidation        combining shipments; the main freight cost lever
+  the last mile        disproportionately expensive and the focus of most
+                       logistics innovation
+  concentration risk   single sources, facilities, or regions
+  visibility           most organizations do not know their suppliers' suppliers
+  the hidden concentration  frequently several tiers down, where multiple
+                       apparently independent suppliers share one source
+  dual sourcing        capacity and qualification maintained at more than one
+                       supplier
+  buffer inventory     the simplest resilience mechanism and a direct cost
+  the honest framing   resilience is purchased, not achieved by management
+                       quality, and deciding how much to buy is a risk appetite
+                       question that belongs with executives rather than with the
+                       operations function alone

@@ -1,0 +1,343 @@
+================================================================================
+AREA: Physics
+SUBJECT: Electromagnetism
+Subtopics: electrostatics, conductors and dielectrics, circuits, magnetostatics,
+induction, Maxwell's equations, electromagnetic waves, radiation and antennas.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Electrostatics
+
+Coulomb's law gives the force between two point charges as k q1 q2 / r^2 along the line
+joining them, with k = 1/(4 pi eps_0) approximately 8.99e9 N m^2/C^2. Its inverse-square
+form is not an approximation but has been verified to extraordinary precision, and that
+precision matters because the exponent being exactly two is equivalent to the photon
+being exactly massless. The law's structural similarity to Newtonian gravitation is
+useful, but the differences dominate practice: charge comes in two signs so
+electrostatic forces can cancel, and the electric force between two protons is roughly
+10^36 times their gravitational attraction, which is why gravity is irrelevant at
+atomic scales and why bulk matter is electrically neutral to extraordinary accuracy.
+
+The electric field E is force per unit charge, a vector field defined at every point
+whether or not a test charge is present. Treating the field as physically real rather
+than as a bookkeeping device is not merely a preference: fields carry energy and
+momentum, and they propagate at finite speed, so the interaction between two charges is
+mediated locally rather than acting at a distance. Field lines visualize the field —
+originating on positive charge, terminating on negative, never crossing, with density
+indicating magnitude.
+
+Gauss's law states that the electric flux through any closed surface equals the enclosed
+charge divided by eps_0. It is equivalent to Coulomb's law for static fields but is far
+more powerful when symmetry is available, because a well-chosen surface makes the flux
+integral trivial. Three canonical results follow in a line each: a spherically symmetric
+charge distribution produces an external field identical to a point charge at its
+centre; an infinite line of charge gives a field falling as 1/r; an infinite plane gives
+a uniform field independent of distance. That last result is the basis of the
+parallel-plate capacitor and is worth internalizing because the distance-independence
+surprises people every time.
+
+Electrostatics reference:
+  Coulomb force          F = k q1 q2 / r^2,  k = 1/(4 pi eps_0) ≈ 8.99e9
+  electric field         E = F/q;  point charge E = k q / r^2
+  Gauss's law            flux of E through closed surface = Q_enc / eps_0
+  potential              V = k q / r;  E = -grad V
+  potential energy       U = q V;  for two charges U = k q1 q2 / r
+  capacitance            C = Q/V;  parallel plate C = eps_0 eps_r A / d
+  stored energy          U = (1/2) C V^2 = (1/2) Q V = Q^2/(2C)
+  energy density         u = (1/2) eps_0 E^2
+  dipole moment          p = q d;  torque in a field = p cross E
+
+Electric potential is the potential energy per unit charge and is a scalar, which makes
+it far easier to work with than the field. Superposition of potentials is a simple sum
+where superposition of fields requires vector addition, so the standard technique for a
+complicated charge distribution is to compute the potential and then take the negative
+gradient. Only potential differences are physical; the zero point is a convention,
+usually taken at infinity for localized distributions and at "ground" in circuits.
+
+Q: A hollow conducting sphere carries charge Q. The electric field inside the cavity,
+with no charge in the cavity, is:
+A. kQ/r^2 pointing outward   B. Zero   C. Uniform and nonzero   D. Infinite at the
+centre
+Reasoning: Apply Gauss's law to a surface inside the conductor's material: the field
+there is zero in electrostatic equilibrium, so the enclosed charge is zero, so all
+charge resides on the outer surface. A Gaussian surface inside the cavity encloses no
+charge and by symmetry the field vanishes. This is electrostatic shielding — the
+principle behind the Faraday cage and behind shielded cable. Answer: B.
+
+Q: Two capacitors, 2 uF and 4 uF, are connected in series across 12 V. The charge on
+the 2 uF capacitor is:
+A. 24 uC   B. 16 uC   C. 48 uC   D. 8 uC
+Reasoning: Series capacitors carry equal charge. The equivalent capacitance is
+(2*4)/(2+4) = 4/3 uF, so Q = C V = (4/3)(12) = 16 uC on each. Note this is the reverse
+of resistors, where series elements share current and parallel ones share voltage; for
+capacitors the series combination adds reciprocals. Answer: B.
+
+## Conductors, Dielectrics, and Circuits
+
+In electrostatic equilibrium a conductor has zero internal field, since any field would
+drive its free charges until it is cancelled. Three consequences follow: all excess
+charge resides on the surface, the surface is an equipotential, and the field just
+outside is perpendicular to the surface with magnitude sigma/eps_0. Charge concentrates
+where curvature is greatest, so the field is strongest at points and edges — which is
+why lightning rods are pointed, why high-voltage hardware uses large-radius corona
+rings, and why a sharp burr on a PCB trace is where dielectric breakdown starts.
+
+A dielectric placed in a field polarizes: its molecules develop or align dipole moments,
+producing a bound surface charge that partially cancels the applied field. The internal
+field is reduced by the relative permittivity eps_r, so a capacitor with a dielectric
+holds eps_r times more charge at the same voltage. Real dielectrics also have a
+breakdown strength — air about 3 kV/mm, common polymers 15-25 kV/mm — beyond which they
+ionize and conduct, which together with eps_r sets the fundamental size-versus-voltage
+tradeoff for every capacitor.
+
+Circuit analysis reduces field theory to lumped elements under the quasi-static
+approximation, valid when the circuit is small compared with the wavelength at the
+operating frequency. Ohm's law V = IR is a material property rather than a law of
+nature, holding for ohmic conductors over a limited range and failing for
+semiconductors, gas discharges, and anything heated by its own current. Kirchhoff's laws
+are the real foundation: current into a node equals current out (charge conservation),
+and voltages around a loop sum to zero (energy conservation, or equivalently the
+electrostatic field being conservative).
+
+Circuit relations:
+  Ohm's law            V = I R
+  power                P = V I = I^2 R = V^2 / R
+  resistance           R = rho L / A
+  series resistors     R = R1 + R2 + ...
+  parallel resistors   1/R = 1/R1 + 1/R2 + ...
+  series capacitors    1/C = 1/C1 + 1/C2 + ...
+  parallel capacitors  C = C1 + C2 + ...
+  RC time constant     tau = RC; 63% in one tau, 99% in five
+  RL time constant     tau = L/R
+  inductor voltage     V = L dI/dt
+  capacitor current    I = C dV/dt
+  impedance            Z_R = R, Z_C = 1/(j omega C), Z_L = j omega L
+  resonance            omega_0 = 1/sqrt(LC)
+
+Impedance extends resistance to sinusoidal steady state by using complex numbers, which
+turns differential equations into algebra. A capacitor's impedance falls with frequency,
+so it blocks DC and passes high frequencies; an inductor's rises, so it passes DC and
+blocks high frequencies. This immediately gives filters: a series resistor with a shunt
+capacitor is a low-pass with corner frequency 1/(2 pi RC), and swapping them gives a
+high-pass. Series RLC resonance occurs where the capacitive and inductive reactances
+cancel, leaving only resistance, so the impedance is minimized and current peaks.
+
+The quasi-static assumption fails as frequency rises and is the boundary between circuit
+theory and transmission-line theory. The rule of thumb is that a conductor must be
+treated as a transmission line when its length exceeds roughly a tenth of the signal
+wavelength — or, for digital signals, when the propagation delay exceeds about a sixth
+of the edge rise time, since a fast edge contains high-frequency content regardless of
+the clock rate. This is why a 10 MHz clock on a short board is a simple net while a 1 ns
+edge on the same trace requires controlled impedance and termination.
+
+## Magnetostatics and Induction
+
+Magnetic fields are produced by moving charge. The Biot-Savart law gives the field from
+a current element, and Ampere's law — the circulation of B around a closed loop equals
+mu_0 times the enclosed current — plays the role Gauss's law plays in electrostatics,
+making symmetric problems easy. A long straight wire gives B = mu_0 I/(2 pi r); a
+solenoid gives a nearly uniform interior field B = mu_0 n I depending only on turns per
+unit length; a toroid confines the field entirely within itself, which is why toroidal
+inductors radiate so little and are preferred where interference matters.
+
+The magnetic force on a moving charge is q v cross B, perpendicular to both velocity and
+field. Because it is always perpendicular to velocity, the magnetic force does no work —
+it changes direction but never speed. A charge moving perpendicular to a uniform field
+therefore travels in a circle of radius r = mv/(qB), the cyclotron radius, at a
+frequency independent of speed, which is what makes the cyclotron work and what
+determines confinement in magnetic traps and mass spectrometers.
+
+There are no magnetic monopoles, so far as any experiment has shown, which is the
+content of Gauss's law for magnetism: the flux of B through any closed surface is zero.
+Field lines therefore always close on themselves. The simplest magnetic source is the
+dipole, produced by a current loop, and its field falls as 1/r^3 rather than the 1/r^2
+of an electric monopole — which is why magnetic interactions fall off faster with
+distance and why magnetic shielding works differently from electrostatic shielding,
+requiring high-permeability material to redirect flux rather than a conductor to
+terminate field lines.
+
+Faraday's law of induction states that a changing magnetic flux through a circuit
+induces an electromotive force equal to the negative rate of change of flux. Lenz's law
+is the meaning of that minus sign: the induced current opposes the change producing it,
+which is required by energy conservation — an induced current that reinforced its cause
+would produce runaway energy from nothing. Flux can change by changing the field, the
+area, or the orientation, which correspond respectively to transformers, to sliding-bar
+generators, and to rotating-coil alternators.
+
+Magnetic quantities:
+  force on charge        F = q v cross B
+  force on wire          F = I L cross B
+  Biot-Savart            dB = (mu_0/4 pi) I dl cross r_hat / r^2
+  Ampere's law           circulation of B = mu_0 I_enc
+  long wire              B = mu_0 I / (2 pi r)
+  solenoid               B = mu_0 n I  (interior, long solenoid)
+  Faraday's law          emf = -d(flux)/dt
+  motional emf           emf = B L v
+  inductance             L = flux linkage / I;  emf = -L dI/dt
+  stored energy          U = (1/2) L I^2
+  energy density         u = B^2 / (2 mu_0)
+  mutual inductance      transformer: V_s/V_p = N_s/N_p
+
+Eddy currents are induced in any bulk conductor experiencing changing flux, and they
+dissipate energy resistively. This is a loss mechanism in transformer cores, addressed
+by laminating the core so induced current paths are interrupted, or by using ferrite
+whose high resistivity suppresses them. It is also the operating principle of induction
+heating, induction cooktops, metal detectors, eddy-current brakes, and the damping in
+analog meter movements — a good example of the same physics being a defect in one
+context and the product in another.
+
+[user] I'm getting 40 mV of noise on a sensor line running parallel to a motor cable
+for about 300 mm. What's coupling in and how do I fix it?
+[assistant] tool_call em.coupling_analysis({"parallel_length_mm": 300,
+"separation_mm": 8, "aggressor": {"type": "pwm_motor", "current_a": 3.2,
+"di_dt_a_us": 45, "freq_khz": 20}, "victim": {"impedance_ohms": 10000,
+"observed_noise_mv": 40}})
+[tool] {"mutual_inductance_nh": 62, "inductive_coupling_mv": 2.8,
+"capacitive_coupling_pf": 4.1, "capacitive_noise_mv": 37, "dominant":
+"capacitive", "victim_impedance_note": "high_z_amplifies_capacitive_coupling"}
+[assistant] It is capacitive coupling, not magnetic, and your 10 kilohm sensor
+impedance is what makes it severe.
+
+The breakdown: mutual inductance between the two runs is about 62 nH, and at your 45
+A/us switching rate that induces only 2.8 mV. Capacitive coupling through roughly 4 pF
+of mutual capacitance accounts for 37 mV of the 40 you measured. The reason capacitive
+coupling dominates is your victim impedance — displacement current through the mutual
+capacitance develops a voltage across whatever impedance it finds, and 10 kilohms
+develops a thousand times more voltage than 10 ohms would for the same current.
+
+Fixes, in order of effectiveness for capacitive coupling specifically:
+
+Lower the victim impedance. This is the biggest lever and often the easiest. Buffer the
+sensor with an op-amp near the sensor itself so the long run is driven from a low
+impedance. Dropping from 10 k to 100 ohms cuts the coupled voltage by a factor of a
+hundred.
+
+Add an electrostatic shield. A grounded shield around the sensor line intercepts the
+displacement current and returns it to ground instead of to your signal. Ground the
+shield at one end only for low-frequency signals to avoid a ground loop. Note this is
+the fix for capacitive coupling; it does almost nothing for magnetic coupling, which
+needs twisted pair or a high-permeability shield instead.
+
+Increase separation and reduce parallel run length. Capacitance falls with separation,
+so routing the sensor line away from the motor cable — ideally crossing at right angles
+rather than running parallel — helps directly.
+
+Add a low-pass filter at the receiver. Your signal is presumably far below 20 kHz, so an
+RC filter with a corner around 1 kHz removes the switching noise entirely. Do this even
+after the other fixes; it costs two components.
+
+If it had been inductive coupling the prescription would be different — twisted pair,
+minimized loop area, and slower switching edges — which is why identifying which
+mechanism dominates is the first step rather than applying all the remedies at once.
+
+## Maxwell's Equations and Electromagnetic Waves
+
+Maxwell's four equations describe all classical electromagnetism. Gauss's law relates
+electric flux to charge. Gauss's law for magnetism states that magnetic flux through a
+closed surface is zero, encoding the absence of monopoles. Faraday's law relates the
+circulation of E to changing magnetic flux. The Ampere-Maxwell law relates the
+circulation of B to current plus the rate of change of electric flux.
+
+That last term, the displacement current, was Maxwell's addition and it is the one that
+changed physics. Ampere's law as originally stated is inconsistent for time-varying
+currents — apply it to a surface passing between the plates of a charging capacitor and
+it gives a different answer than a surface cutting the wire. Adding a term proportional
+to the rate of change of electric flux restores consistency, and it makes the equations
+symmetric: a changing magnetic field produces an electric field, and a changing electric
+field produces a magnetic field. Each sustaining the other permits a self-propagating
+disturbance.
+
+Maxwell's equations, differential form in vacuum:
+  div E   = rho / eps_0                      Gauss
+  div B   = 0                                no monopoles
+  curl E  = -dB/dt                           Faraday
+  curl B  = mu_0 J + mu_0 eps_0 dE/dt        Ampere-Maxwell
+  Lorentz force  F = q(E + v cross B)
+  wave speed     c = 1/sqrt(mu_0 eps_0) ≈ 2.998e8 m/s
+  in a medium    v = c/n,  n = sqrt(eps_r mu_r)
+  impedance of free space  Z_0 = sqrt(mu_0/eps_0) ≈ 377 ohms
+
+Taking the curl of Faraday's law and substituting Ampere-Maxwell yields the wave
+equation, with propagation speed 1/sqrt(mu_0 eps_0). That this computed number matched
+the measured speed of light was the moment optics became a branch of electromagnetism —
+one of the great unifications in physics, and one obtained by manipulating equations
+rather than by experiment.
+
+Electromagnetic waves are transverse, with E and B perpendicular to each other and to
+the direction of propagation, in phase, with magnitudes related by E = cB. They carry
+energy at a rate given by the Poynting vector S = (1/mu_0) E cross B, and they carry
+momentum, which is why radiation pressure exists and why solar sails work. The full
+spectrum from radio through gamma rays differs only in frequency; the same equations
+govern all of it, and the apparent differences in behaviour come from how each frequency
+range interacts with matter of a given structure size.
+
+Polarization describes the orientation of the E field. Unpolarized light has random
+orientation; a linear polarizer transmits one component, giving Malus's law where the
+transmitted intensity is proportional to cos^2 of the angle between the polarizer and
+the incident polarization. Circular polarization results from two perpendicular
+components of equal amplitude and 90 degrees relative phase. Polarization is why
+sunglasses reduce glare (light reflected at shallow angles is partially polarized
+horizontally), how LCD displays work, and how radio links reuse frequency by
+transmitting orthogonal polarizations on the same channel.
+
+## Radiation and Antennas
+
+Accelerating charge radiates. A static charge has a static field, a uniformly moving
+charge carries its field along with it, but an accelerating charge produces a
+disturbance that detaches and propagates away carrying energy. The Larmor formula gives
+the radiated power as proportional to the square of the acceleration, which is why
+radiation is negligible for slowly varying currents and dominant at high frequency.
+This single fact is why classical physics fails for atoms — an orbiting electron
+accelerates and should radiate away its energy in about 10^-11 seconds — and it was one
+of the principal motivations for quantum mechanics.
+
+An antenna converts guided waves on a transmission line into radiated waves in space,
+and reciprocity guarantees that its transmitting and receiving properties are identical.
+The half-wave dipole is the reference element: a conductor about half a wavelength long,
+fed at the centre, with a radiation resistance near 73 ohms — conveniently close to
+common coaxial cable impedances — and a doughnut-shaped pattern with nulls along its
+axis. A quarter-wave monopole over a ground plane behaves like half a dipole, with about
+36 ohms radiation resistance, and its performance depends critically on the ground plane
+being adequate, which is why a handheld radio's antenna works differently depending on
+how it is held.
+
+Antenna gain is not amplification; it is a redistribution of the same radiated power
+into a narrower beam. An antenna with 10 dBi gain concentrates power ten times more
+intensely in its main lobe than an isotropic radiator would, necessarily at the expense
+of other directions. Directivity and beamwidth are inversely related — higher gain means
+a narrower beam and tighter pointing requirements — which is the central tradeoff in
+link design, and why a satellite dish must be aimed carefully while an omnidirectional
+whip need not.
+
+Antenna and link quantities:
+  wavelength             lambda = c / f;  300/f_MHz gives lambda in metres
+  half-wave dipole       L ≈ 0.48 lambda, R_rad ≈ 73 ohms, gain 2.15 dBi
+  quarter-wave monopole  L ≈ 0.24 lambda over a ground plane, R_rad ≈ 36 ohms
+  gain vs aperture       G = 4 pi A_eff / lambda^2
+  free-space path loss   FSPL_dB = 20 log10(d) + 20 log10(f) + 32.45  (km, MHz)
+  Friis equation         P_r = P_t G_t G_r (lambda / (4 pi d))^2
+  VSWR                   ratio of max to min standing-wave voltage; 1:1 is a
+                         perfect match, 2:1 reflects about 11% of power
+  return loss            dB below incident power reflected; higher is better
+  skin depth             delta = sqrt(2 rho / (omega mu)); current flows in a thin
+                         surface layer at high frequency
+
+Impedance matching is what determines whether power reaches the antenna or reflects
+back down the feedline. A mismatch creates standing waves, so some power returns to the
+transmitter — potentially damaging it — and the mismatch loss compounds with cable loss.
+Matching networks, baluns, and antenna tuners all exist to transform the antenna's
+complex impedance to the system impedance, conventionally 50 ohms for radio and 75 ohms
+for video. The 50 ohm convention is itself a compromise: minimum coaxial cable
+attenuation occurs near 77 ohms and maximum power handling near 30 ohms, and 50 is
+roughly the geometric compromise between them.
+
+Skin effect concentrates high-frequency current in a thin surface layer, so the
+effective resistance rises with the square root of frequency. At 1 MHz in copper the
+skin depth is about 65 micrometres and at 1 GHz about 2 micrometres, which means the
+interior of a conductor is entirely unused at radio frequencies. The practical
+consequences: hollow tubing performs as well as solid rod for RF, silver plating on
+a base conductor is effective because only the surface carries current, litz wire with
+many individually insulated strands reduces loss at intermediate frequencies, and PCB
+trace surface roughness becomes a significant loss mechanism in multi-gigahertz designs
+because the current is forced to follow the longer rough path.

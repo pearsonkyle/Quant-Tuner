@@ -1,0 +1,329 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: Bayesian Modeling
+Subtopics: the Bayesian framework, priors, conjugacy, computation, hierarchical models,
+model checking and comparison, decision theory, practical workflow.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## The Bayesian Framework
+
+Bayesian modeling treats unknown quantities as random variables with probability
+distributions expressing uncertainty, and updates those distributions as data arrives. The
+mechanic is Bayes' theorem: the posterior is proportional to the likelihood times the prior.
+Everything else in the subject is the consequence of that single relation applied carefully.
+
+The framework's practical advantage is that it answers the question people actually ask. A
+frequentist confidence interval is a statement about a procedure's long-run behaviour — that
+intervals constructed this way contain the true value 95% of the time — and it is not a
+statement about the particular interval in hand. A Bayesian credible interval states that given
+the data and the prior, there is a 95% probability the parameter lies in the interval. The
+second is what practitioners almost always intend, and the routine misinterpretation of the
+first as the second is evidence for how natural the Bayesian reading is.
+
+The framework also handles several situations that are awkward otherwise. Uncertainty
+propagates automatically through any derived quantity, since the posterior over parameters
+induces a posterior over any function of them. Prior information from previous studies or from
+domain knowledge enters explicitly rather than informally. Small samples are handled without
+asymptotic approximations. And nuisance parameters are eliminated by integration rather than by
+plug-in estimates that understate uncertainty.
+
+Framework concepts:
+  prior                 belief before the data; a modelling choice requiring
+                        justification
+  likelihood            the probability of the data given the parameters; the same
+                        object frequentist inference uses
+  posterior             belief after the data; proportional to likelihood times
+                        prior
+  marginal likelihood   the normalizing constant; the probability of the data
+                        under the model, and the basis of Bayes factors
+  credible interval     a probability statement about the parameter given the data
+  confidence interval   a statement about the procedure's long-run coverage
+  posterior predictive  the distribution of new data, integrating over parameter
+                        uncertainty; what forecasting should use
+  marginalization       integrate out nuisance parameters rather than plugging in
+                        estimates
+  exchangeability       the assumption justifying a shared prior across units;
+                        weaker than independence and the actual basis of
+                        hierarchical modelling
+  updating              yesterday's posterior is today's prior; sequential
+                        analysis is natural rather than a special case
+
+The posterior predictive distribution deserves emphasis because it is where the framework's
+advantage is most concrete. A prediction from a fitted model that plugs in point estimates
+understates uncertainty, because it ignores that the parameters themselves are uncertain. The
+posterior predictive integrates over the parameter posterior, so the resulting intervals include
+both the inherent variability of new observations and the uncertainty about the parameters. For
+small samples the difference is substantial, and it is exactly the difference between intervals
+that achieve their nominal coverage and intervals that are systematically too narrow.
+
+Q: A model is fit and a 95% credible interval for a parameter is [2.1, 4.8]. The correct
+interpretation is:
+A. Repeated sampling would produce intervals containing the true value 95% of the time
+B. Given the data and the prior, there is a 95% probability the parameter lies between 2.1 and
+   4.8
+C. 95% of observations fall in this range
+D. The parameter is definitely in this range
+Reasoning: A credible interval is a direct probability statement about the parameter
+conditional on the observed data and the assumed prior. Option A describes a confidence
+interval's frequentist coverage property. Option C describes a prediction interval, which
+concerns observations rather than parameters. Answer: B.
+
+## Priors
+
+The prior is the framework's most discussed feature and its most misunderstood. It is a
+modelling choice requiring justification in the same way a likelihood does, and the objection
+that it introduces subjectivity applies with equal force to the choice of likelihood, of
+variables, of transformations, and of which analyses to report — all of which are made in every
+analysis regardless of framework and most of which are less visible.
+
+Priors range from strongly informative, encoding substantial knowledge, to weakly informative,
+constraining the parameter to a plausible range without asserting much within it, to flat, which
+is frequently a poor choice despite its appearance of neutrality. A flat prior on an unbounded
+parameter is improper — it does not integrate to a finite value — which may still yield a proper
+posterior and may not, and a flat prior on one parameterization is informative on another, so
+its neutrality is illusory.
+
+Weakly informative priors are the practical default and are worth stating as such. A prior that
+rules out physically impossible or implausible values — a negative variance, a treatment effect
+of a thousand standard deviations, a probability outside the unit interval — costs nothing when
+the data is informative and regularizes usefully when it is not. It also improves computation
+substantially, since a sampler exploring a region the prior excludes is wasting effort in a
+region the analyst would reject anyway.
+
+Prior specification:
+  informative           encodes real knowledge; requires and repays justification
+  weakly informative    constrains to plausible ranges; the practical default
+  flat / uniform        appears neutral, is not; parameterization-dependent and
+                        often improper
+  improper prior        does not integrate to one; may still give a proper
+                        posterior, and must be checked
+  Jeffreys prior        invariant under reparameterization; the standard
+                        objective choice for a single parameter
+  reference priors      constructed to be minimally informative in a defined
+                        sense
+  conjugate prior       the posterior stays in the same family; analytically
+                        convenient and rarely the right belief
+  regularizing prior    equivalent to a penalty; ridge regression is a Gaussian
+                        prior and lasso is a Laplace prior on the coefficients
+  prior predictive check  simulate data from the prior and inspect it; the most
+                        useful tool for judging whether a prior is reasonable
+  sensitivity analysis  refit under alternative priors and report how much the
+                        conclusion moves
+
+The prior predictive check is the technique that makes prior specification tractable. Rather
+than reasoning directly about whether a prior on a coefficient is reasonable, simulate parameter
+values from the prior, generate datasets from the model, and look at them. If the simulated data
+includes people two hundred metres tall, treatment effects larger than any ever observed, or
+probabilities concentrated at zero and one, the prior is unreasonable regardless of how neutral
+it appeared. This converts an abstract judgment into a concrete one.
+
+The connection between priors and regularization is worth making explicit because it dissolves
+an apparent disagreement. Ridge regression's L2 penalty is exactly the maximum a posteriori
+estimate under a Gaussian prior on the coefficients, and the lasso's L1 penalty corresponds to a
+Laplace prior. Practitioners who use regularization while objecting to priors are using priors
+and not calling them that, and the Bayesian version has the advantage of producing a full
+posterior rather than a point estimate, so the uncertainty is available.
+
+## Computation
+
+The posterior is analytically tractable only in special cases, so computation dominates
+practice. Conjugate models — beta-binomial, gamma-Poisson, normal-normal — give closed forms and
+are valuable for intuition and for components of larger models, and the requirement that the
+prior be conjugate is a mathematical convenience rather than a statement about belief.
+
+Markov chain Monte Carlo constructs a chain whose stationary distribution is the posterior,
+then samples from it. Metropolis-Hastings proposes a move and accepts it with a probability that
+enforces detailed balance with respect to the target, which requires the target only up to a
+normalizing constant — and that is precisely why the method works, since the marginal likelihood
+is the intractable part. Gibbs sampling updates each parameter from its full conditional, which
+is efficient when those conditionals are tractable and mixes poorly when parameters are strongly
+correlated.
+
+Hamiltonian Monte Carlo uses gradient information to propose distant moves with high acceptance,
+which makes it dramatically more efficient than random-walk methods in high dimensions. The
+No-U-Turn Sampler removes the need to tune the trajectory length, and together they are what made
+Bayesian inference practical for models with hundreds or thousands of parameters. The requirement
+is that the posterior be differentiable, which excludes discrete parameters — handled by
+marginalizing them out where possible.
+
+Computation and diagnostics:
+  conjugate             closed form; useful for intuition and as components
+  grid approximation    evaluate on a grid; only for one or two parameters
+  Metropolis-Hastings   propose and accept; needs the target only up to a constant
+  Gibbs sampling        update from full conditionals; poor mixing under
+                        correlation
+  Hamiltonian MC        gradient-informed proposals; efficient in high dimension
+  NUTS                  removes trajectory tuning; the modern default
+  variational inference  optimize an approximating family; fast, and systematically
+                        underestimates posterior variance because the reverse-KL
+                        objective is mode-seeking
+  Laplace approximation  a Gaussian at the posterior mode; cheap and adequate when
+                        the posterior is near-Gaussian
+  R-hat                 compares within- and between-chain variance; should be
+                        below 1.01
+  effective sample size  accounts for autocorrelation; hundreds at minimum, and
+                        report it for the quantities you care about rather than
+                        only for the parameters
+  trace plots           should look like white noise; wandering indicates poor
+                        mixing
+  divergent transitions  HMC failing in a high-curvature region; a warning that
+                        the sampler is not exploring correctly and the results
+                        cannot be trusted
+  non-centred parameterization  the standard fix for divergences in hierarchical
+                        models
+
+Divergent transitions deserve specific emphasis because they are the diagnostic most likely to
+be ignored and most likely to indicate real bias. They occur when the sampler's numerical
+integration fails in a region of high curvature, typically the narrow neck of a funnel-shaped
+posterior that arises in hierarchical models when a group-level variance approaches zero. The
+sampler cannot explore that region, so the posterior is systematically misrepresented — and the
+chains may otherwise look healthy, with acceptable R-hat and reasonable trace plots. The remedy
+is reparameterization, and treating divergences as a tuning nuisance to be suppressed by
+increasing the target acceptance rate frequently hides the problem rather than fixing it.
+
+## Hierarchical Models
+
+Hierarchical modelling is where the framework's practical advantage is largest, and the problem
+it solves is ubiquitous: estimating a parameter for each of many related groups, some of which
+have abundant data and some almost none. The two obvious approaches both fail. Complete pooling
+estimates one parameter for all groups and ignores real heterogeneity. No pooling estimates each
+group independently and produces wildly noisy estimates for small groups.
+
+Partial pooling estimates each group's parameter while shrinking it toward the population mean,
+with the degree of shrinkage determined by the data rather than chosen. A group with abundant
+data barely moves; a group with little data shrinks substantially toward the population. This is
+the correct answer rather than a compromise between two wrong ones, and it follows directly from
+modelling the group parameters as drawn from a common distribution whose parameters are also
+estimated.
+
+The consequences are visible in any ranking problem. Ranking hospitals by mortality rate,
+schools by test scores, players by performance, or products by rating produces top and bottom
+positions dominated by small samples under no pooling, because extreme observed values arise
+most easily where the sample is smallest. Partial pooling corrects this automatically, and the
+resulting rankings are both more accurate and more stable.
+
+Hierarchical modelling:
+  complete pooling      one parameter for all; ignores heterogeneity
+  no pooling            independent per group; noisy for small groups
+  partial pooling       shrinkage toward the population, data-determined
+  hyperparameters       the population distribution's parameters, also estimated
+  shrinkage factor      depends on the group's sample size and on the ratio of
+                        within- to between-group variance
+  borrowing strength    small groups gain precision from the population
+  varying intercepts    group-specific baselines
+  varying slopes        group-specific effects; requires modelling the correlation
+                        between intercepts and slopes
+  centred parameterization  natural, and samples poorly when the group-level
+                        variance is small
+  non-centred           reparameterize so the group effects are standardized
+                        deviations; fixes the funnel geometry
+  multilevel regression  the general framework; the same model appears as mixed
+                        effects in the frequentist literature
+  post-stratification   combine multilevel estimates with population weights; the
+                        standard method for small-area estimation from
+                        non-representative samples
+
+[user] I'm estimating conversion rates for 400 landing pages. Some have 50,000 visits and some
+have 30. The small ones show rates of 0% and 100%.
+[assistant] tool_call bayes.model_recommend({"units": 400, "outcome": "binomial",
+"n_range": [30, 50000], "current": "independent_estimates",
+"observed_extremes": ["0.00", "1.00"], "goal": "rank_and_select"})
+[tool] {"issue": "no_pooling_extreme_small_sample_estimates",
+"recommended": "hierarchical_beta_binomial", "shrinkage_at_n30": 0.82,
+"shrinkage_at_n50000": 0.003, "note": "ranking_by_raw_rate_selects_smallest_samples"}
+[assistant] The 0% and 100% rates are almost certainly not real, and they are an artifact of
+estimating each page independently. A page with 30 visits and zero conversions is entirely
+consistent with a true rate of 3%, and a page with 30 visits and 30 conversions is consistent
+with a true rate of 90%. Independent estimation reports the observed proportion as if it were
+the parameter.
+
+Use a hierarchical beta-binomial model. Each page has its own conversion rate, and those rates
+are drawn from a common beta distribution whose parameters are estimated from all 400 pages
+jointly. The result is that each page's estimate is a compromise between its own data and the
+population, weighted by how much information its own data carries.
+
+The shrinkage is automatic and appropriate. Your 30-visit pages will shrink roughly 82% toward
+the population mean, so a page with zero conversions out of 30 will be estimated near the
+population rate rather than at zero. Your 50,000-visit pages barely move at all, shrinking about
+0.3%, because their own data is overwhelming. You do not choose these weights; they follow from
+the estimated between-page variance relative to the within-page sampling variance.
+
+The ranking consequence is the one that matters most for your stated goal. Ranking by raw
+observed rate systematically selects pages with the smallest samples, because extreme values
+arise most easily where n is small — so your top-ranked pages are mostly a list of pages you know
+little about. Ranking by posterior mean corrects this, and ranking by the posterior probability
+of exceeding a threshold is better still if the decision is which pages to keep.
+
+Two extensions worth considering. If you have page attributes — template, traffic source,
+product category — add them as predictors, which lets pages borrow strength from similar pages
+rather than from the global mean and improves the small-sample estimates further. And report
+the full posterior interval rather than the point estimate for each page, because a page
+estimated at 4% with an interval from 1% to 12% supports a different decision than one estimated
+at 4% with an interval from 3.8% to 4.2%.
+
+## Checking, Comparison, and Decisions
+
+Model checking asks whether the model can reproduce the data's relevant features, and posterior
+predictive checking is the primary tool. Simulate replicated datasets from the fitted model,
+compute a summary statistic on each and on the observed data, and compare. If the observed value
+falls in the tail of the replicated distribution, the model fails to reproduce that feature —
+which is informative regardless of whether any parameter appears significant.
+
+The choice of summary statistic determines what is checked, and it should reflect what the
+model is for. A model reproducing the mean and failing on the variance, on the number of zeros,
+on the extremes, or on the autocorrelation may be adequate or inadequate depending on the use.
+Checking several statistics addressing different aspects, including ones the model was not fit to
+match, is what makes the check informative.
+
+Model comparison in the Bayesian framework has several tools with different properties. Bayes
+factors compare marginal likelihoods and are theoretically clean and notoriously sensitive to
+prior specification, including to the priors on parameters that both models share — which means
+a Bayes factor can be dominated by a prior choice that the posterior is insensitive to.
+Information criteria estimate out-of-sample predictive accuracy, with leave-one-out
+cross-validation approximated by importance sampling being the modern standard, and it reports
+diagnostics indicating when the approximation is unreliable.
+
+Checking, comparison, and decisions:
+  posterior predictive check  simulate and compare; the primary diagnostic
+  choice of statistic   check what the model is for, including features it was not
+                        fit to match
+  graphical checks      overlay replicated and observed distributions; more
+                        informative than a single p-value
+  Bayes factor          marginal likelihood ratio; prior-sensitive, including to
+                        shared priors
+  WAIC and PSIS-LOO     estimate out-of-sample predictive density; report the
+                        diagnostics indicating unreliability
+  model averaging       weight predictions by model plausibility rather than
+                        selecting one
+  stacking              optimize predictive weights directly; usually better than
+                        weights derived from information criteria
+  decision theory       choose the action minimizing expected loss under the
+                        posterior; the natural completion of the framework
+  loss function         encodes the asymmetry of consequences; a symmetric loss is
+                        an assumption rather than a default
+  value of information  the expected improvement in decision quality from more
+                        data; determines whether to collect it
+  reporting             the posterior distribution, not only a point and an
+                        interval; and the prior, so the analysis is reproducible
+
+Decision theory is the framework's natural completion and is underused. Having a posterior
+distribution over an unknown quantity and a loss function describing the consequences of each
+action makes the optimal action a computation: choose the action minimizing expected loss under
+the posterior. This handles asymmetric consequences naturally — where over-estimating costs more
+than under-estimating, the optimal point estimate is not the posterior mean — and it makes
+explicit that the summary statistic to report depends on what will be done with it. The posterior
+mean minimizes squared error loss, the median minimizes absolute error, and a quantile minimizes
+the asymmetric loss appropriate to an inventory decision, so reporting the mean by default embeds
+an unstated assumption about consequences.
+
+The practical workflow that has emerged in the field is worth stating as a sequence. Specify the
+model and the priors; check the priors by simulating from them; fit to simulated data with known
+parameters and confirm the parameters are recovered, which validates the implementation; fit to
+the real data; check the computational diagnostics before looking at any result; perform
+posterior predictive checks; compare against alternative models; and conduct sensitivity analysis
+on the choices that were least well justified. Skipping the simulation-based validation is the
+most commonly omitted step and the one most likely to leave an implementation error undetected,
+because a model with a coding error frequently produces plausible-looking results on real data
+where the truth is unknown.

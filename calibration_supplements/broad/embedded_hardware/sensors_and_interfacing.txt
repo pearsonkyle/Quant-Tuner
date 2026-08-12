@@ -1,0 +1,309 @@
+================================================================================
+AREA: Embedded Systems and Hardware
+SUBJECT: Sensors and Signal Interfacing
+Subtopics: sensor physics, measurement chains, temperature and strain, inertial and
+magnetic, optical and imaging, environmental and chemical, calibration and fusion.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Sensor Fundamentals and the Measurement Chain
+
+A sensor converts a physical quantity into an electrical signal, and every specification
+that matters describes how faithfully it does so. Sensitivity is the output change per unit
+input. Range is the span over which the relationship holds. Resolution is the smallest
+detectable change. Accuracy is closeness to the true value and is a systematic property;
+precision is repeatability and is a statistical one. A sensor can be precise and inaccurate,
+returning consistently wrong values, which is the case a single calibration point fixes and
+that repeated measurement never will.
+
+The measurement chain from physical quantity to usable number has several stages, and error
+introduced at any stage is generally irrecoverable downstream. The sensing element responds
+to the measurand. Signal conditioning amplifies, filters, and level-shifts. The converter
+digitizes. Digital processing linearizes, compensates, and filters further. The chain's
+overall performance is bounded by its weakest stage, and the recurring error is investing in
+a high-resolution converter behind a noisy, poorly conditioned front end — the extra bits
+digitize noise with great precision.
+
+Noise and bandwidth are inseparable. Thermal noise power is proportional to bandwidth, so
+restricting the bandwidth to what the signal actually occupies directly improves
+signal-to-noise ratio. A sensor measuring a quantity that changes over seconds gains nothing
+from a kilohertz bandwidth and pays for it in noise. Filtering must occur in analog before
+digitization where aliasing is concerned, since once high-frequency content has folded into
+the band no digital filter can separate it.
+
+Sensor specification vocabulary:
+  sensitivity        output per unit input
+  range / span       the valid input interval
+  resolution         smallest distinguishable change
+  accuracy           closeness to truth; systematic
+  precision          repeatability; statistical
+  linearity          deviation from a straight-line response, as % of full scale
+  hysteresis         output depends on approach direction
+  drift              slow change with time or temperature
+  offset / zero      output at zero input
+  response time      typically the time to reach 63% (one time constant)
+  cross-sensitivity  response to quantities other than the intended one
+  self-heating       excitation power warming the element and biasing the reading
+
+Cross-sensitivity is the specification most often ignored and most often responsible for
+puzzling field behaviour. A pressure sensor responds to temperature. A gas sensor responds to
+humidity. A strain gauge responds to temperature far more strongly than to the strain being
+measured. Each requires either compensation using a second measurement or a differential
+configuration that cancels the interfering quantity structurally — which is why so many
+precision sensors are built as bridges.
+
+Q: A 16-bit ADC is used with a sensor whose analog front end has 8 mV of noise on a 3.3 V
+range. The effective resolution is closest to:
+A. 16 bits   B. 12 bits   C. 9 bits   D. 8 bits
+Reasoning: One LSB of a 16-bit converter over 3.3 V is 50 microvolts, far below the 8 mV of
+noise. The noise spans about 160 LSBs, so roughly 7-8 bits of the converter output are noise.
+Effective resolution is about 16 minus log2(160), or approximately 8.7 bits. The remaining
+converter bits digitize noise. Fixing the front end is the only path to better resolution.
+Answer: C.
+
+## Temperature and Strain
+
+Temperature is the most commonly measured physical quantity and has several sensor families
+with genuinely different tradeoffs.
+
+Thermocouples exploit the Seebeck effect, generating a small voltage at the junction of two
+dissimilar metals that depends on the temperature difference between that junction and the
+reference. They cover enormous ranges, are rugged and cheap, and produce only tens of
+microvolts per degree, which demands careful low-noise amplification. Their defining
+practical requirement is cold junction compensation: the output depends on the difference
+between the measuring and reference junctions, so the reference temperature must be measured
+by some other means and added back. Omitting this is the classic thermocouple error and
+produces readings offset by whatever the ambient temperature happens to be.
+
+Resistance temperature detectors use the predictable resistance change of pure metal,
+usually platinum. They are the most accurate and stable option, nearly linear, and slow and
+expensive. Their measurement requires excitation current, which causes self-heating, and lead
+resistance becomes significant relative to the element's resistance — which is why three-wire
+and four-wire configurations exist, cancelling lead resistance by measurement rather than by
+assumption.
+
+Thermistors are semiconductor devices with a large, strongly nonlinear resistance change.
+The large sensitivity makes them easy to read with simple circuitry, and the nonlinearity
+requires the Steinhart-Hart equation or a lookup table for accuracy. They are cheap, fast
+because they can be made small, and limited in range.
+
+Temperature sensor comparison:
+  thermocouple     -200 to +1800 C, ~1-2 C accuracy, needs cold junction
+                   compensation, microvolt-level signal, very rugged
+  RTD (Pt100)      -200 to +600 C, 0.1 C or better, nearly linear, needs 3- or
+                   4-wire connection, self-heating matters
+  thermistor       -50 to +150 C, 0.1-1 C, very sensitive, strongly nonlinear,
+                   cheap and fast
+  silicon IC       -55 to +150 C, digital output, calibrated, trivially easy;
+                   the right default when the range suffices
+  infrared         non-contact, needs emissivity knowledge; reads the surface
+                   emissivity as much as its temperature
+  thermal time constant  the sensor measures its own temperature, not the
+                   medium's; mass and coupling dominate response speed
+
+The last line deserves emphasis because it causes more temperature measurement error than
+sensor accuracy does. A sensor reports its own temperature, and its agreement with the
+quantity of interest depends on thermal coupling. A probe in flowing air with poor contact
+reads somewhere between the air and whatever it is radiating to and conducting through. A
+sensor on a circuit board reads the board, not the enclosure. Self-heating from excitation
+adds a systematic offset proportional to dissipated power and inversely proportional to
+thermal conductance to the environment. Attention to mounting and to thermal path usually
+matters more than choosing a better sensor.
+
+Strain gauges measure deformation through the resistance change of a foil pattern bonded to
+a surface. The gauge factor relates fractional resistance change to strain and is about two
+for metal foil, meaning that a strain of one part in a million produces a resistance change
+of two parts per million — an extraordinarily small signal that must be extracted from a
+resistance that itself varies strongly with temperature.
+
+The Wheatstone bridge is the solution and is worth understanding as a general technique
+rather than a specific circuit. Four resistances arranged in two dividers produce an output
+proportional to their imbalance, and if all four experience the same temperature change, the
+change cancels in the difference. A quarter bridge with one active gauge compensates nothing
+and needs a separate reference; a half bridge with two gauges in opposite strain states
+cancels temperature and doubles sensitivity; a full bridge with four does better still. This
+differential structure — measure a difference so that common-mode disturbances subtract out —
+recurs throughout instrumentation and is the reason load cells, pressure sensors, and
+precision resistive measurements are almost always bridges.
+
+## Inertial, Magnetic, and Position Sensing
+
+Accelerometers measure proper acceleration, which includes gravity. A device at rest reads
+one g upward, not zero, and this is not an error — it measures the force required to keep the
+proof mass from falling, which at rest is exactly gravity. The consequence is that separating
+gravity from linear acceleration requires knowing the orientation, and knowing the orientation
+requires a gravity reference, which is the circularity that makes inertial navigation hard.
+
+Gyroscopes measure angular rate. Integrating rate gives angle, and integrating a signal with
+any bias produces angle error growing linearly with time, so a gyro alone drifts without
+bound. MEMS gyros have bias stability measured in degrees per hour at best and often per
+minute, so unaided attitude from a MEMS gyro is useful for seconds and useless for minutes.
+
+The complementary strengths of these sensors are why they are always fused. An accelerometer
+gives an absolute gravity reference that is accurate over long periods and corrupted by any
+linear acceleration in the short term. A gyroscope is accurate over short periods and drifts
+over long ones. A complementary filter — high-pass the gyro-integrated angle, low-pass the
+accelerometer-derived angle, and sum — combines them with two lines of code and one tuning
+parameter. A Kalman filter does the same optimally, additionally estimating the gyro bias,
+which is what allows drift to be actively corrected rather than merely filtered.
+
+Inertial and position sensing:
+  accelerometer      measures proper acceleration including gravity; noisy for
+                     orientation under motion
+  gyroscope          angular rate; integrates to angle with unbounded drift
+  magnetometer       heading reference; corrupted by nearby ferrous material and
+                     currents; requires hard- and soft-iron calibration
+  IMU                accelerometer plus gyro; 9-axis adds magnetometer
+  complementary filter  simple fusion; one tuning constant
+  Kalman filter      optimal fusion with bias estimation
+  encoder            incremental gives relative position and needs homing;
+                     absolute gives position at power-on
+  quadrature         two channels 90 degrees apart give direction and 4x
+                     resolution
+  resolver           rugged absolute angle for harsh environments
+  Hall effect        magnetic field or proximity; contactless, robust
+  LVDT               precise linear displacement, contactless, rugged
+  time of flight     distance by light or sound propagation delay
+
+Magnetometer calibration is required rather than optional and is skipped often enough to be
+worth stating explicitly. Hard-iron effects are constant magnetic offsets from permanently
+magnetized material near the sensor, appearing as a displaced centre in the locus of
+measurements taken while rotating the device. Soft-iron effects are distortions from
+ferromagnetic material that concentrates the field, turning the ideal sphere into an
+ellipsoid. Calibration consists of rotating the device through many orientations, fitting an
+ellipsoid to the measurements, and deriving the offset and transformation that maps it back
+to a sphere. Without this, heading error of tens of degrees is normal, and the error varies
+with orientation in a way that looks like random misbehaviour.
+
+[user] My IMU-based tilt reading is stable when the robot is still but swings wildly when it
+accelerates.
+[assistant] tool_call imu.fusion_diagnose({"algorithm": "accel_only_tilt",
+"gyro_present": true, "gyro_used": false, "accel_lp_hz": 5,
+"observed_error_static_deg": 0.4, "observed_error_dynamic_deg": 22})
+[tool] {"cause": "linear_acceleration_indistinguishable_from_gravity",
+"fix": "complementary_or_kalman_fusion", "suggested_tau_s": 0.5,
+"note": "gyro_available_but_unused"}
+[assistant] The accelerometer cannot distinguish gravity from linear acceleration — both are
+forces on the proof mass — so when the robot accelerates, the measured vector is the sum and
+your computed tilt swings by the corresponding angle. At 0.4 degrees static error your sensor
+and mounting are fine; the algorithm is the problem.
+
+You have a gyroscope and are not using it. Fuse them with a complementary filter, which is
+about five lines:
+
+Integrate the gyro rate to get a short-term angle estimate. Compute the accelerometer-derived
+angle as you do now. Then blend: the new estimate is alpha times (previous estimate plus gyro
+rate times dt) plus (1 minus alpha) times the accelerometer angle. Alpha is derived from a
+time constant tau and your sample period: alpha = tau / (tau + dt). Start with tau around 0.5
+seconds.
+
+What this does physically: the gyro dominates over short intervals, where it is accurate and
+the accelerometer is corrupted by motion, while the accelerometer dominates over long
+intervals, where it is accurate and the gyro has drifted. Your 22 degree dynamic error should
+drop to a couple of degrees.
+
+Two refinements once that works. Reject accelerometer updates when the measured magnitude
+departs significantly from one g — during hard acceleration the vector is clearly not gravity,
+so weight it down or skip it entirely for those samples. This is cheap and noticeably
+improves behaviour under aggressive motion.
+
+Then, if you need better, move to a Kalman filter that estimates gyro bias as a state. The
+complementary filter tolerates bias by continuously pulling toward the accelerometer; a
+Kalman filter identifies the bias and subtracts it, so the gyro-only interval over which the
+estimate stays good extends from seconds to minutes. That matters if your robot has periods of
+sustained acceleration where the accelerometer is unusable throughout.
+
+Also lower your accelerometer low-pass from 5 Hz once fusion is in place — the filter was
+compensating for the algorithm, and with proper fusion the extra lag costs you more than the
+noise reduction gains.
+
+## Optical, Environmental, and Chemical Sensing
+
+Photodetectors convert light to electrical signal and differ mainly in sensitivity and speed.
+Photodiodes are linear, fast, and require transimpedance amplification to convert their
+current output to voltage. Phototransistors provide internal gain with slower response and
+poorer linearity. Avalanche photodiodes provide gain through impact ionization at high
+reverse bias, useful when the signal is small, at the cost of excess noise and temperature
+sensitivity. Single-photon avalanche diodes operate above breakdown and detect individual
+photons with picosecond timing, which is what makes direct time-of-flight ranging possible.
+
+Optical measurement is dominated by ambient light rejection in practice. A sensor detecting
+a modest signal against sunlight or fluorescent flicker must separate them, and the standard
+technique is modulation: drive the source with a known carrier frequency and detect
+synchronously, which rejects everything not at that frequency and in phase. This is lock-in
+detection, and it can extract signals far below the noise floor. Optical filters matched to
+the source wavelength, and mechanical baffling, complete the approach.
+
+Environmental and chemical sensors:
+  humidity           capacitive polymer; needs temperature compensation, drifts,
+                     and can be damaged by condensation
+  pressure           piezoresistive or capacitive diaphragm; absolute, gauge, or
+                     differential — specify which
+  gas, MOX           metal oxide semiconductor; cheap, sensitive, poorly selective,
+                     needs a heater and warm-up, drifts substantially
+  gas, electrochemical  selective and accurate, consumable, limited lifetime
+  gas, NDIR          infrared absorption; selective and stable, more expensive;
+                     the right choice for CO2
+  particulate        optical scattering; reports a size-binned count converted to
+                     mass by an assumed density
+  pH                 glass electrode; high impedance, requires frequent
+                     calibration, temperature dependent
+  conductivity       needs cell constant calibration and temperature compensation
+  flow               differential pressure, thermal, turbine, ultrasonic, Coriolis;
+                     Coriolis measures mass flow directly and is the most accurate
+                     and expensive
+
+Low-cost gas sensors deserve a specific caution because their data is frequently
+over-interpreted. Metal oxide sensors respond to a broad class of reducing gases with poor
+selectivity, drift substantially over weeks, depend strongly on humidity and temperature, and
+require significant heater power and warm-up time. They are useful for detecting changes and
+trends in a controlled setting and are not calibrated instruments. Reporting a specific
+concentration in parts per million from an uncalibrated metal oxide sensor implies a
+precision the device cannot deliver, and comparing readings across devices or across weeks
+without recalibration is not meaningful.
+
+## Calibration, Compensation, and Fusion
+
+Calibration establishes the mapping from sensor output to physical quantity. A single-point
+calibration corrects offset only. Two-point calibration corrects offset and gain and is
+sufficient for a linear sensor. Multi-point calibration with interpolation or a fitted
+polynomial handles nonlinearity. The calibration must span the operating range, because
+extrapolating a fit beyond its data is unjustified and often badly wrong.
+
+Temperature compensation is required for nearly every precision measurement, since almost
+every sensing mechanism has a temperature coefficient comparable to or larger than the effect
+being measured. Compensation may be structural, as in a bridge where the effect cancels; it
+may be by explicit modelling, measuring temperature alongside and applying a correction
+derived from characterization; or it may be by control, holding the sensor at a fixed
+temperature with a heater, which is expensive in power and effective.
+
+Calibration practice:
+  single point       offset only
+  two point          offset and gain; sufficient for linear sensors
+  multi point        nonlinearity; interpolate or fit
+  span the range     never extrapolate a calibration
+  reference standard traceability matters when absolute accuracy is claimed
+  temperature comp   structural, modelled, or controlled
+  aging              recalibration interval established by characterization, not
+                     by assumption
+  per-unit vs batch  cheap sensors vary enough that per-unit calibration is often
+                     needed; store coefficients in the device
+  field verification a known reference check in situ, periodically
+
+Sensor fusion combines multiple sensors to produce an estimate better than any individually,
+and it works when the sensors have complementary error characteristics. The general framework
+is probabilistic: each sensor provides a measurement with an uncertainty, and the fused
+estimate weights them inversely to their variances, so a precise sensor pulls the estimate
+strongly and a noisy one barely moves it. The Kalman filter implements this recursively for
+linear Gaussian systems, the extended and unscented variants handle nonlinearity, and
+particle filters handle multimodal distributions where a single Gaussian is inadequate.
+
+Fault detection is the part of fusion most often omitted and most valuable in deployed
+systems. When multiple sensors measure related quantities, their disagreement is
+information: a residual that exceeds what the noise model predicts indicates that one of them
+is wrong. With three or more redundant sensors, voting identifies which. With two, the
+disagreement is detectable and not attributable, which is why safety-critical systems use
+three. Implementing a residual check costs little and converts a sensor failure from silently
+corrupted output into a detected fault — which is the difference between a system that
+degrades gracefully and one that confidently acts on a bad reading.

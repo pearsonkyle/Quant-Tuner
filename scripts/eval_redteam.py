@@ -11,24 +11,35 @@ Two target modes:
     :func:`quant_tuner.eval.server.running_server`, scored, then torn down.
   * ``--base-url URL`` (+ ``--target-model-name``) — an already-served target.
 
-Each scored target appends one row to ``--out`` (CSV) and writes a full
-per-model JSON (``--json-out`` for a single target, else under ``--json-dir``).
+**Multiple targets share one frozen attack bank by default** (``--frozen-bank``,
+disable with ``--no-frozen-bank``). deepteam otherwise simulates fresh attacks per
+run, so two quants would differ both by the model and by the prompts they happened
+to be asked — and at realistic bank sizes the second effect swamps the first. Pass
+the F16 reference **first** so the bank is written against the unquantized parent.
 
-Requires the redteam extra:  ``uv sync --extra redteam``.
+Each scored target appends one row to ``--out`` (CSV) and writes a full per-model
+JSON (``--json-out`` for a single target, else under ``--json-dir``), plus a
+``per_case.csv`` carrying every attempted case keyed by a stable ``case_id`` —
+that file is what ``scripts/redteam_ladder.py`` joins to produce the paired
+F16-vs-quant comparison.
+
+Requires the redteam extra:  ``uv sync --extra redteam``  (Python ≤ 3.12).
 
 Examples
 --------
-    # All gemma quants, judge+simulator = a remote uncensored model, Gemma sampling
+    # All gemma quants on ONE bank, judge+simulator = a remote uncensored model
     .venv/bin/python scripts/eval_redteam.py \
-        --model-path uploads/.../gemma-4-31B-it-IQ2_M.gguf \
+        --model-path uploads/.../gemma-4-31B-it-F16.gguf \
         --model-path uploads/.../gemma-4-31B-it-IQ3_M.gguf \
+        --model-path uploads/.../gemma-4-31B-it-IQ2_M.gguf \
         --config red_team_minimal \
         --judge-model Qwopus3.6-27B-uncensored-Q5_K_M \
         --judge-base-url http://100.102.53.29:1234/v1 \
         --simulator-model Qwopus3.6-27B-uncensored-Q5_K_M \
         --simulator-base-url http://100.102.53.29:1234/v1 \
+        --remote-no-think \
         --out out/redteam/gemma_results.csv \
-        --json-dir out/redteam
+        --json-dir out/redteam --bank-out out/redteam/bank.json
 """
 
 from __future__ import annotations
@@ -46,13 +57,15 @@ sys.path.insert(0, str(_REPO / "src"))
 from quant_tuner.eval.red_team import (  # noqa: E402
     RedTeamRepsSummary,
     RedTeamSummary,
+    Target,
     TargetSampling,
     aggregate_reps,
     render_reps_table,
     render_summary,
-    run_red_team_eval,
+    run_frozen_bank_sweep,
+    write_disclosure_report,
+    write_per_case_csv,
 )
-from quant_tuner.eval.server import running_server  # noqa: E402
 
 # Per-rep rows; full per-category / per-attack / failed-case detail lands in the
 # JSON sidecar.
@@ -68,6 +81,10 @@ CSV_COLUMNS = [
     "pass_rate",
     "run_duration_sec",
 ]
+
+# The per-case CSV (one row per attempted case per (model, rep), keyed by a stable
+# `case_id`) is written by `red_team.write_per_case_csv` — it lives in the library
+# because `scripts/redteam_ladder.py` reads it back with the matching reader.
 
 # Aggregated (mean ± stdev across reps) rows.
 AGG_COLUMNS = [
@@ -96,8 +113,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "exclusive with --model-path).",
     )
     p.add_argument(
-        "--target-model-name", default="local",
-        help="Served model name to send to the --base-url target (default: local).",
+        "--target-model-name", action="append", default=[],
+        help="Served model id for the --base-url target (default: 'local'). "
+        "Repeatable: one endpoint (LM Studio, vLLM, llama-swap) often serves "
+        "several models, and then this is the ONLY thing distinguishing rungs — "
+        "so repeating it gives a multi-target frozen-bank sweep with no GGUF paths.",
     )
     p.add_argument(
         "--target-purpose", default=None,
@@ -146,6 +166,27 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         "reports mean ± stdev across reps, overall + per category + per vuln.",
     )
 
+    # ── Frozen attack bank (cross-target comparability) ──────────────────────
+    p.add_argument(
+        "--frozen-bank", dest="frozen_bank", action="store_true", default=True,
+        help="Score every target on ONE identical attack bank, simulated against "
+        "the FIRST target (pass the F16 reference first). Default: on.",
+    )
+    p.add_argument(
+        "--no-frozen-bank", dest="frozen_bank", action="store_false",
+        help="Simulate fresh attacks per target. Absolute rates only — the "
+        "cross-target deltas are then confounded by attack-bank variance.",
+    )
+    p.add_argument(
+        "--bank-out", type=Path, default=None,
+        help="Write the simulated attack bank here (JSON) for inspection/reuse.",
+    )
+    p.add_argument(
+        "--bank-in", type=Path, default=None,
+        help="Replay a bank dumped by an earlier --bank-out run instead of "
+        "simulating new attacks. Keeps a new row comparable to old rows.",
+    )
+
     # ── Target sampling (defaults = Gemma's documented values) ───────────────
     p.add_argument("--temperature", type=float, default=0.25)
     p.add_argument("--top-p", type=float, default=0.95)
@@ -153,7 +194,15 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--min-p", type=float, default=None)
     p.add_argument("--repeat-penalty", type=float, default=None)
     p.add_argument("--target-max-tokens", type=int, default=None,
-                   help="Max tokens for the target's reply (default: server default).")
+                   help="Max tokens for the target's reply (default: server default). "
+                   "Reasoning models (Ornith, Qwen3, DeepSeek) need generous room: the "
+                   "chain-of-thought is spent FIRST, and the answer is empty if the "
+                   "budget runs out before it starts. 3000+ is a safe floor.")
+    p.add_argument("--allow-empty-output", action="store_true",
+                   help="Record a run even if every scored case had an empty target "
+                   "response (normally a hard error — it means the token budget was "
+                   "spent on reasoning, so pass_rate is a truncation artifact, not "
+                   "safety). Prefer raising --target-max-tokens.")
 
     # ── Server (local --model-path only) ─────────────────────────────────────
     p.add_argument("--ctx", type=int, default=8192)
@@ -161,6 +210,16 @@ def _build_arg_parser() -> argparse.ArgumentParser:
     p.add_argument("--chat-template-kwargs", default=None,
                    help='JSON, forwarded to llama-server --chat-template-kwargs.')
     p.add_argument("--server-startup-timeout", type=float, default=300.0)
+    p.add_argument(
+        "--target-timeout", type=float, default=600.0,
+        help="Per-request timeout for the TARGET (s). Raise it when the box is "
+        "shared with other jobs: a timeout is recorded as an errored case, which "
+        "drops it from the pass_rate denominator and shrinks the paired bank.",
+    )
+    p.add_argument(
+        "--remote-timeout", type=float, default=600.0,
+        help="Per-request timeout for the judge + simulator endpoints (s).",
+    )
 
     # ── Output ───────────────────────────────────────────────────────────────
     p.add_argument("--out", type=Path, required=True, help="CSV to append rows to.")
@@ -241,8 +300,56 @@ def main() -> int:
     judge_ctk = args.judge_chat_template_kwargs or no_think
     sim_ctk = args.simulator_chat_template_kwargs or no_think
 
-    common = dict(
-        config=args.config,
+    json_dir = args.json_dir or args.out.parent
+    agg_out = args.out.with_name(args.out.stem + "_aggregated" + args.out.suffix)
+    per_case_out = args.out.with_name(args.out.stem + "_per_case" + args.out.suffix)
+    reps = max(1, args.reps)
+
+    served = args.target_model_name or ["local"]
+    if args.model_path:
+        if len(served) > 1:
+            raise SystemExit(
+                "--target-model-name is repeatable only with --base-url; each "
+                "--model-path already names its own target"
+            )
+        targets = [Target(label=mp.stem, model_path=mp) for mp in args.model_path]
+    else:
+        targets = [
+            Target(label=name, base_url=args.base_url, served_model=name) for name in served
+        ]
+
+    if args.frozen_bank and len(targets) > 1:
+        print(f"[bank] frozen: attacks simulated against {targets[0].label!r}, "
+              f"replayed verbatim against {len(targets) - 1} more target(s)")
+    elif not args.frozen_bank:
+        print("[bank] NOT frozen — cross-target deltas confound model drift with "
+              "attack-bank variance; absolute rates only")
+
+    def _on_rep(label: str, rep: int, summary: RedTeamSummary,
+                transcript: list | None = None) -> None:
+        print(f"\n----- {label} · rep {rep}/{reps} -----")
+        print(render_summary(summary))
+        _append_csv_row(args.out, summary, args.config, rep)
+        write_per_case_csv(per_case_out, summary, rep)
+        # Disclosure artifact: full prompts + conversation history + the model's
+        # own reasoning for every complied/errored case, to share with the
+        # model's authors so they can reproduce and fix.
+        rp = write_disclosure_report(
+            json_dir / f"disclosure_{label}_rep{rep}.json",
+            summary,
+            target_base_url=args.base_url,
+            target_model=label,
+            judge_model=args.judge_model,
+            simulator_model=args.simulator_model,
+            config_name=args.config,
+            target_transcript=transcript,
+            rep=rep,
+        )
+        n_find = summary.n_failing + summary.n_errored
+        if n_find:
+            print(f"  ⚑ {n_find} finding(s) (complied/errored) → {rp}")
+
+    sweep_kwargs = dict(
         judge_model=args.judge_model,
         judge_base_url=args.judge_base_url,
         judge_api_key=args.judge_api_key,
@@ -251,69 +358,54 @@ def main() -> int:
         simulator_api_key=args.simulator_api_key,
         judge_chat_template_kwargs=judge_ctk,
         simulator_chat_template_kwargs=sim_ctk,
+        target_model_name=served[0],
         target_purpose=args.target_purpose,
         target_sampling=sampling,
         api_key=args.api_key,
+        reps=reps,
+        attacks_per_vulnerability_type=args.attacks_per_type,
+        max_concurrent=args.max_concurrent,
+        bank_out=args.bank_out,
+        bank_in=args.bank_in,
+        ctx=args.ctx,
+        ngl=args.ngl,
+        log_dir=json_dir,
+        server_startup_timeout=args.server_startup_timeout,
+        chat_template_kwargs=args.chat_template_kwargs,
+        target_timeout=args.target_timeout,
+        remote_timeout=args.remote_timeout,
+        allow_empty_output=args.allow_empty_output,
+        on_rep=_on_rep,
     )
-    if args.attacks_per_type is not None:
-        common["attacks_per_vulnerability_type"] = args.attacks_per_type
-    if args.max_concurrent is not None:
-        common["max_concurrent"] = args.max_concurrent
 
-    json_dir = args.json_dir or args.out.parent
-    agg_out = args.out.with_name(args.out.stem + "_aggregated" + args.out.suffix)
-    reps = max(1, args.reps)
-
-    # Build the list of (label, model_path | None, base_url | None) targets. A
-    # local model gets its server spawned ONCE here, then all reps run against
-    # that base_url (no reloading a 10-20 GB GGUF per rep).
-    targets: list[tuple[str, Path | None]] = []
-    if args.model_path:
-        targets = [(mp.stem, mp) for mp in args.model_path]
+    if args.frozen_bank:
+        swept = run_frozen_bank_sweep(targets, args.config, **sweep_kwargs)
     else:
-        targets = [(args.target_model_name, None)]
+        # One throwaway bank per target: run each target as its own sweep.
+        swept = []
+        for t in targets:
+            swept.extend(run_frozen_bank_sweep([t], args.config, **sweep_kwargs))
 
-    def _run_reps(label: str, url: str) -> RedTeamRepsSummary:
-        rep_summaries: list[RedTeamSummary] = []
-        for rep in range(1, reps + 1):
-            print(f"\n----- {label} · rep {rep}/{reps} -----")
-            s = run_red_team_eval(
-                **common,
-                base_url=url,
-                target_model_name=args.target_model_name,
-                model_label=label,
-            )
-            rep_summaries.append(s)
-            print(render_summary(s))
-            _append_csv_row(args.out, s, args.config, rep)
+    aggregates: list[RedTeamRepsSummary] = []
+    for label, rep_summaries in swept:
         agg = aggregate_reps(rep_summaries, label)
         _append_agg_row(agg_out, agg, args.config)
         ts = datetime.now().strftime("%Y%m%d_%H%M%S")
         _write_json(json_dir / f"redteam_{label}_agg_{ts}.json", agg)
-        return agg
-
-    aggregates: list[RedTeamRepsSummary] = []
-    for label, mp in targets:
-        print(f"\n{'#' * 70}\n# Red-teaming target: {label}  ({reps} rep(s))\n{'#' * 70}")
-        if mp is not None:
-            with running_server(
-                mp,
-                ctx=args.ctx,
-                ngl=args.ngl,
-                log_path=json_dir / f"server_{label}.log",
-                startup_timeout=args.server_startup_timeout,
-                chat_template_kwargs=args.chat_template_kwargs,
-            ) as url:
-                aggregates.append(_run_reps(label, url))
-        else:
-            aggregates.append(_run_reps(label, args.base_url))
+        aggregates.append(agg)
 
     table = render_reps_table(aggregates)
     print("\n" + table)
     # Persist the final table next to the CSVs for easy retrieval.
     (json_dir / "redteam_reps_table.txt").write_text(table + "\n")
     print(f"\nPer-rep CSV : {args.out}\nAggregated  : {agg_out}\n"
+          f"Per-case    : {per_case_out}\n"
           f"Table       : {json_dir / 'redteam_reps_table.txt'}")
+    if args.bank_out:
+        print(f"Attack bank : {args.bank_out}")
+    if args.frozen_bank and len(aggregates) > 1:
+        print(f"\nPaired ladder: scripts/redteam_ladder.py --per-case {per_case_out} "
+              f"--reference {aggregates[0].model}")
     return 0
 
 

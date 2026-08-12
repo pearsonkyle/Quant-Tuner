@@ -1,0 +1,321 @@
+================================================================================
+AREA: Humanities, Business, and Social Science
+SUBJECT: Negotiation and Decision-Making
+Subtopics: decision framing, probability and expected value, biases in decisions,
+group decisions, negotiation preparation, negotiation process, difficult conversations,
+decisions under deep uncertainty.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Decision Framing
+
+The framing of a decision determines its outcome more than the analysis applied within the frame,
+and the most common failure is answering a well-posed version of the wrong question. A decision
+framed as whether to do a specific thing admits only yes or no; the same situation framed as how
+to achieve an underlying objective admits the alternatives that were never considered.
+
+The distinction between a good decision and a good outcome is the discipline that makes decision
+quality assessable. A decision is made with the information available at the time; the outcome
+depends additionally on chance and on factors outside the decision-maker's control. A good decision
+can produce a bad outcome and a bad decision can produce a good one, and evaluating decisions by
+their outcomes — resulting — systematically rewards luck and punishes sound reasoning under
+uncertainty.
+
+This matters organizationally because it determines what is learned from experience. An
+organization that reviews decisions by their outcomes teaches its people to avoid decisions with
+variance rather than decisions with poor expected value, and it teaches them to construct
+justifications after the fact. Reviewing the process — what was known, what alternatives were
+considered, how the uncertainty was assessed — is what produces improvement.
+
+Decision framing:
+  frame                the set of alternatives considered and the objective; it
+                       determines the answer more than the analysis does
+  yes-or-no framing    admits only one alternative; reframing to the objective
+                       surfaces others
+  decision versus outcome  a good decision can produce a bad outcome
+  resulting            evaluating a decision by its outcome; rewards luck
+  process review       what was known, what was considered, how uncertainty was
+                       assessed
+  reversibility        the primary sort; reversible decisions should be fast and
+                       delegated
+  the cost of delay    not deciding is a decision with its own cost, and it is
+                       frequently uncounted
+  opportunity cost     the forgone alternative; not visible in any account and
+                       relevant to every choice
+  sunk cost            already spent and unrecoverable; irrelevant to the forward
+                       decision
+  decision record      what was decided, why, what was assumed, what would change
+                       it; the mechanism for learning
+  premortem            imagine it failed and explain why; surfaces risks that
+                       optimism suppresses
+  the null option      explicitly include doing nothing as an alternative; it is
+                       frequently the best and is frequently not considered
+
+Q: A project has consumed two years and substantial budget. Completing it requires another six
+months and would deliver value below the remaining cost. The correct decision is:
+A. Complete it, since abandoning wastes the two years
+B. Abandon it; the two years are sunk and irrelevant, and the forward comparison is the remaining
+   cost against the remaining value
+C. Complete it to preserve credibility
+D. Reduce scope and complete
+Reasoning: The two years are spent regardless of what is decided now, so they are identical under
+both options and cannot distinguish between them. The comparison is the remaining six months of
+cost against the value delivered, which is unfavourable. Option D may be correct if the reduced
+scope changes the forward economics, which is a different calculation. Answer: B.
+
+## Probability, Expected Value, and Biases
+
+Reasoning under uncertainty requires quantifying it, and the most useful discipline is stating
+probabilities explicitly rather than using verbal terms. Studies of verbal probability expressions
+consistently find enormous variation in how they are interpreted — "likely" spans roughly
+fifty to ninety percent across readers, and "a real possibility" spans nearly the whole range — so a
+document using them communicates far less than its author believes.
+
+Expected value combines outcomes with their probabilities and is the correct basis for repeated
+decisions. Its limitation is that it is a long-run average, and a decision made once with a small
+probability of ruin should not be evaluated on expected value alone — a bet with positive expected
+value and a ten percent chance of bankruptcy is a bad bet for someone who cannot afford
+bankruptcy. Utility rather than money is the quantity to maximize, and utility is concave in
+wealth, which is what makes risk aversion rational rather than a bias.
+
+Base rate neglect is the most consequential probabilistic error. Given a diagnostic test result,
+people reason from the test's accuracy and ignore the prior prevalence, which produces confident
+conclusions that are wrong by an order of magnitude. The corrective is to reason in frequencies
+rather than probabilities — out of ten thousand people, how many have the condition, how many test
+positive, and what fraction of those actually have it — which people handle far more reliably.
+
+Probability and biases:
+  explicit probabilities  verbal terms vary enormously in interpretation
+  calibration          a well-calibrated forecaster's 70% claims are right 70% of
+                       the time; it is trainable and rarely trained
+  expected value       correct for repeated decisions; inadequate where ruin is
+                       possible
+  utility              concave in wealth; risk aversion is rational
+  ruin risk            a small probability of an unrecoverable loss dominates the
+                       expected value calculation
+  base rate neglect    ignoring prior prevalence; the most consequential error
+  frequency framing    natural frequencies are handled far better than
+                       probabilities
+  availability         judging frequency by ease of recall; media coverage
+                       distorts risk perception
+  anchoring            initial values contaminate estimates even when known to be
+                       irrelevant
+  confirmation bias    seeking and weighting supportive evidence; the most
+                       pervasive
+  overconfidence       intervals are too narrow; ask for the ninety percent range
+                       and observe how often the truth falls outside
+  hindsight bias       the outcome makes the decision look obvious; corrupts
+                       reviews
+  loss aversion        losses weigh about twice gains; explains status quo bias
+  framing effects      identical options described as gains or losses produce
+                       different choices
+
+Calibration deserves emphasis because it is measurable and trainable and is almost never
+practised. A forecaster who assigns seventy percent to a set of claims should be right about
+seventy percent of the time, and most people are substantially overconfident — their ninety
+percent intervals contain the truth perhaps fifty percent of the time. Practice with prompt
+feedback improves this measurably within a few sessions, and an organization whose people are
+calibrated can aggregate their estimates meaningfully, which an organization of overconfident
+estimators cannot.
+
+## Group Decisions
+
+Groups can decide better than individuals and frequently decide worse, and which occurs depends on
+process. The advantage available is aggregation of independent information and perspectives; the
+mechanisms destroying it are the social dynamics that make the judgments non-independent.
+
+Anchoring on the first opinion voiced is the most mechanical failure. Whoever speaks first sets a
+reference point, and subsequent contributions cluster around it, so the group's apparent consensus
+reflects the ordering rather than the balance of views. Collecting written independent judgments
+before any discussion eliminates it and takes minutes.
+
+Status effects compound this. When a senior person states a view early, disagreement carries a
+cost and the information held by others does not surface. The remedy is procedural — the most
+senior person speaks last — and it is effective and requires the senior person to enforce it, since
+the group will defer to them regardless of instruction if they volunteer a view.
+
+Groupthink is the failure of a cohesive group under pressure to converge on a position without
+adequate examination, and its signature is the absence of dissent rather than its resolution.
+Assigning someone to argue the opposing case makes dissent a role rather than a personal position,
+which removes the social cost, and the technique works even when everyone knows the assignment is
+artificial.
+
+Group decisions:
+  independent judgments first  before discussion; eliminates anchoring
+  senior speaks last   otherwise the group converges on the stated view
+  designated dissent   makes disagreement a role rather than a position
+  groupthink           convergence without examination; the signature is absent
+                       dissent
+  shared information bias  groups discuss what everyone already knows and neglect
+                           what only one person holds, which is exactly the
+                           information the group was assembled to aggregate
+  diversity            heterogeneous perspectives outperform homogeneous ability
+                       on complex judgment tasks
+  diffusion of responsibility  a group decision has no owner; name one
+  consensus            not the same as agreement; commitment to proceed differs
+                       from believing it optimal
+  disagree and commit  proceed with full effort after losing the argument
+  decision rights      who decides, who is consulted, who is informed; ambiguity
+                       causes relitigation and stalling
+  meeting design       the format determines what is possible; a discussion
+                       without written material anchors on whoever is most fluent
+  written proposals    force the reasoning to be explicit and give quieter
+                       participants equal weight
+
+Shared information bias deserves specific attention because it defeats the purpose of assembling a
+group. Discussion disproportionately covers information that several members already hold, because
+each mention is recognized and validated, while information held by only one person is mentioned
+once and not taken up. The group therefore converges on what was already common knowledge and
+neglects the unique information that motivated bringing several people together. Structuring the
+discussion to explicitly solicit what each person knows that others may not is the corrective.
+
+## Negotiation Preparation and Process
+
+Preparation determines negotiation outcomes more than technique, and the single most important
+preparation is knowing the alternative to agreement. The best alternative to a negotiated agreement
+defines the walk-away point: any agreement better than it is worth accepting and any agreement
+worse is not. A party who has not determined theirs cannot know when to accept and negotiates from
+anxiety rather than from position.
+
+Improving the alternative improves the negotiating position more than any tactic. Developing a
+second supplier, a competing offer, or an internal capability changes what agreement is necessary,
+and it does so before the negotiation begins. This is why preparation time spent on alternatives
+returns more than preparation time spent on arguments.
+
+The distinction between positions and interests is what makes value creation possible. A position
+is what someone says they want; an interest is why they want it. Two parties with incompatible
+positions frequently have compatible interests, and the classic illustration — two people wanting
+the same orange, one for the juice and one for the peel — is trite and captures the mechanism
+exactly. Asking why, and understanding the constraint or objective behind a demand, is what
+surfaces the trades that make both parties better off.
+
+Negotiation preparation and process:
+  BATNA                the best alternative to agreement; defines the walk-away
+  improve the alternative  changes the position before negotiating; the highest
+                       return preparation
+  reservation value    the worst acceptable terms; derived from the alternative
+  ZOPA                 the zone of possible agreement between the two reservation
+                       values; if it is empty, no agreement should occur
+  positions            what is demanded
+  interests            why; where compatible trades are found
+  ask why              the question that converts a position into an interest
+  multiple issues      a single-issue negotiation is distributive; adding issues
+                       permits trades and creates value
+  differing priorities  each party concedes what it values less for what it
+                       values more; the mechanism of value creation
+  anchoring            the first offer sets a reference; the evidence favours
+                       making it when you have good information about the range
+  concession pattern   diminishing concessions signal approach to a limit
+  contingent agreement  when parties disagree about a future fact, structure the
+                       agreement to depend on it rather than arguing
+  MESO                 multiple equivalent simultaneous offers; the response
+                       reveals priorities without requiring disclosure
+  reciprocity          concessions invite concessions; unilateral concession
+                       invites further demands
+
+Multiple equivalent simultaneous offers deserve emphasis because they solve a real information
+problem. Both parties want to know the other's priorities and neither wants to disclose them, since
+disclosure appears to weaken their position. Presenting two or three packages of equal value to
+oneself but different composition — more of one thing and less of another — and observing which the
+other party prefers reveals their relative priorities without any disclosure of one's own
+valuations. It also signals flexibility and seriousness, and it moves the conversation from
+haggling over one number to comparing structures.
+
+[user] I'm negotiating a supplier contract and they've opened with a price 40% above our budget.
+How should I respond?
+[assistant] tool_call negotiation.assess({"situation": "supplier_contract",
+"their_opening_above_budget_pct": 40, "our_batna": "unknown", "issues_on_table": 1,
+"relationship": "ongoing_multi_year", "information_asymmetry": "they_know_our_timeline"})
+[tool] {"gaps": ["batna_not_established", "single_issue_negotiation",
+"timeline_pressure_disclosed"], "recommendations": ["establish_alternatives_first",
+"expand_the_issue_set", "explore_interests_behind_the_price"],
+"caution": "counter_anchoring_before_understanding_the_structure"}
+[assistant] Do not counter yet. Three things need establishing first, and the second is where the
+agreement is likely to be found.
+
+You do not know your alternative. Before responding, determine what you do if this negotiation
+fails — another supplier, an internal option, delaying, a reduced specification. That defines your
+walk-away and it is what lets you negotiate from a position rather than from anxiety. If the
+answer is that you have no alternative and they know it, that is the problem to fix and it may be
+worth accepting a worse near-term outcome to develop one.
+
+You are negotiating a single issue, which makes it purely distributive — every pound you gain they
+lose, so it is a contest rather than a problem to solve. Expand the issue set. Contract length,
+payment terms, volume commitments, delivery schedule, service levels, exclusivity, minimum order
+quantities, and who holds inventory are all negotiable and are valued differently by the two
+parties. A supplier may accept a lower unit price for a longer commitment, or for faster payment,
+or for a volume guarantee that lets them plan production — all of which may cost you far less than
+the price difference.
+
+Then understand what is behind their number. Ask what drives it. A price 40% above your budget may
+reflect their cost structure at the volume you specified, a risk premium for an uncertain
+commitment, an assumption about your requirements that is not actually necessary, or an opening
+position with substantial room. These require entirely different responses, and you cannot tell
+which without asking.
+
+On the anchoring question specifically: their opening anchors the discussion, and countering
+immediately with a number anchors it in return and locks both parties into a range before either
+understands the structure. Responding with questions rather than a number is not weakness — it
+delays the anchoring until you have information, and it signals that you are solving a problem
+rather than haggling.
+
+One caution from the assessment: they appear to know your timeline, which is leverage. If you have
+disclosed urgency, that is difficult to retract, and the counter is developing an alternative
+quickly enough that the timeline binds them as much as you.
+
+## Difficult Conversations and Deep Uncertainty
+
+Difficult conversations fail predictably, and the structure that makes them productive separates
+three things that get conflated. The substance is what happened and what should happen. The
+feelings are the emotional content, which is present whether or not it is acknowledged and which
+distorts the substance when suppressed. The identity content is what the conversation implies
+about each person's competence or character, and it is why conversations that appear to be about a
+small matter become disproportionate.
+
+Separating the observable from the interpretation is the technique that most reduces defensiveness.
+Stating what was observed — a deadline was missed, a message was not answered, a decision was made
+without consultation — is factual and disputable only on the facts. Stating the interpretation — you
+do not respect this project — is an attribution the other person will contest, and the conversation
+becomes about whether the attribution is fair rather than about the observable problem.
+
+Decisions under deep uncertainty, where the probabilities themselves are unknown, require
+different approaches from decisions under risk. Expected value calculations require probabilities;
+when those are not available, the useful criteria change. Robustness asks which option performs
+acceptably across the plausible range of futures rather than optimally in the expected one.
+Flexibility asks which option preserves the ability to adjust as information arrives. And staging
+asks whether the decision can be broken into steps with information gathered between them.
+
+Difficult conversations and deep uncertainty:
+  three conversations  substance, feelings, and identity; conflating them is why
+                       they go badly
+  observation versus interpretation  state what was observed; the interpretation
+                       will be contested
+  curiosity first      understand their account before advancing yours; it is also
+                       the most effective way to be heard
+  acknowledge feelings  suppressed emotional content distorts the substance
+  identity content     what the conversation implies about competence or
+                       character; why small matters become disproportionate
+  shared purpose       establish what both want before discussing what differs
+  the third story      how a neutral observer would describe the situation
+  risk                 probabilities known; expected value applies
+  uncertainty          probabilities unknown; expected value does not
+  robustness           acceptable across the plausible range rather than optimal
+                       in the expected case
+  flexibility          preserves the ability to adjust; real option value
+  staging              break the decision into steps with information between
+  reversibility        prefer the reversible option under deep uncertainty, even
+                       at some expected cost
+  scenario planning    several coherent futures; test whether the decision holds
+                       across them rather than predicting which occurs
+  regret minimization  choose the option whose worst outcome you could live with
+
+Preferring reversible options under deep uncertainty deserves the closing emphasis because it
+inverts the ordinary optimization. Where probabilities are known, the expected value calculation is
+correct and a reversible option costing more has to justify the difference. Where the probabilities
+are genuinely unknown, the expected value calculation cannot be performed honestly, and the option
+preserving the ability to change course as information arrives has value that the calculation
+cannot express. Paying something for reversibility is therefore rational rather than timid, and
+the amount worth paying rises with how uncertain the situation genuinely is — which is a judgment
+that should be made explicitly rather than smuggled into a probability estimate that nobody
+believes.

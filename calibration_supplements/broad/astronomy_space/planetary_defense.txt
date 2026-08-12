@@ -1,0 +1,241 @@
+================================================================================
+AREA: Astronomy and Space
+SUBJECT: Planetary Defense and Small Bodies
+Subtopics: asteroid and comet populations, discovery surveys, orbit determination,
+impact risk assessment, deflection techniques, atmospheric entry, response planning.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Small Body Populations
+
+The solar system contains an enormous population of small bodies left over from its formation, and
+their distribution reflects the dynamical history that placed them. The main asteroid belt between
+Mars and Jupiter holds the majority of catalogued asteroids, sculpted by Jupiter's gravity into
+families and gaps at resonant orbital periods. The Kuiper belt beyond Neptune holds icy bodies, and
+the Oort cloud far beyond it is the inferred source of long-period comets.
+
+Near-Earth objects are those whose orbits bring them close to Earth's, and they are not a separate
+population but main-belt asteroids and extinct comets that have been perturbed into new orbits.
+Resonances with Jupiter act as escape routes, delivering material inward over millions of years,
+which means the near-Earth population is continuously replenished and any given object has been in
+its current orbit for a geologically short time.
+
+Composition varies systematically and matters for both science and deflection. Stony objects are the
+most numerous among near-Earth objects. Carbonaceous objects are darker, more primitive, and
+underrepresented in discovery precisely because they reflect little light. Metallic objects are rarer
+and much denser. And a substantial fraction of asteroids above a few hundred metres appear to be
+rubble piles — gravitationally bound aggregates rather than monolithic rock — which changes how they
+respond to any attempt to move them.
+
+Small body populations:
+  main belt            the majority of catalogued asteroids
+  resonances           Jupiter's gravity creating gaps and escape routes
+  Kuiper belt          icy bodies beyond Neptune
+  Oort cloud           inferred source of long-period comets
+  near-Earth objects   perturbed into Earth-approaching orbits
+  the replenishment    delivered inward over millions of years
+  the implication      current orbits are geologically recent
+  stony objects        the most numerous near-Earth type
+  carbonaceous         dark, primitive, and underrepresented in surveys
+  the discovery bias   dark objects are harder to find, not rarer
+  metallic             rare and much denser
+  rubble piles         gravitationally bound aggregates
+  the deflection consequence  a rubble pile responds very differently from a
+                       monolith
+  binary systems       a substantial fraction have satellites, which provides a
+                       direct mass measurement and complicates mission design
+  comets               volatile-rich, active near the Sun, and their non-
+                       gravitational acceleration from outgassing makes their
+                       orbits harder to predict than asteroid orbits
+
+Q: A newly discovered near-Earth asteroid is dark and was found only when it was relatively close.
+This suggests:
+A. It recently formed
+B. It is likely carbonaceous, and its low reflectivity is exactly why it was not detected earlier;
+   optical surveys are biased toward bright objects, so dark objects of a given size are
+   systematically underrepresented in the catalogue
+C. It is very small
+D. It came from outside the solar system
+Reasoning: Optical detection depends on reflected sunlight, so brightness confounds size and albedo.
+A dark object must be substantially larger than a bright one to be equally detectable. This bias is
+a known limitation of visible-light surveys and is the principal argument for infrared survey
+instruments, which detect thermal emission and are far less albedo-dependent. Answer: B.
+
+## Discovery Surveys and Orbit Determination
+
+Finding near-Earth objects is a survey problem: repeatedly image large areas of sky, detect points
+that move against the star background between exposures, and link detections across nights into
+orbits. The observable population is limited by the survey's depth, its sky coverage rate, and the
+observing geometry — objects in the direction of the Sun are effectively invisible from the ground,
+which is a permanent blind spot for a class of approaching objects.
+
+Orbit determination from a short observation arc is poorly constrained, and the resulting
+uncertainty is the central quantity in impact assessment. A few nights of observation give an orbit
+with a large uncertainty region that grows rapidly when propagated forward. Additional observations
+shrink it, and recovering the object in archival imagery from previous oppositions — a precovery —
+can extend the arc by years and collapse the uncertainty dramatically. Radar ranging, where the
+object passes close enough, improves the orbit by orders of magnitude in a single observation.
+
+The uncertainty region propagated to a future close approach forms an elongated volume, and the
+probability of impact is the fraction of that volume intersecting Earth. This is why impact
+probabilities characteristically rise and then fall as observations accumulate: the uncertainty
+region shrinks while still containing Earth, so the fraction rises, and then Earth falls outside it
+entirely and the probability drops to zero. A rising probability is therefore the expected behaviour
+of an object that will miss, not evidence that it will hit.
+
+Discovery and orbits:
+  the survey method    repeated wide imaging, moving object detection, linkage
+  survey limits        depth, coverage rate, and observing geometry
+  the solar blind spot  objects approaching from sunward are invisible from the
+                       ground
+  the space-based case  an infrared survey inside Earth's orbit addresses both
+                       the albedo bias and the sunward blind spot
+  short arc uncertainty  poorly constrained and rapidly growing when propagated
+  additional observations  shrink the region
+  precovery            recovering the object in archival imagery; extends the arc
+                       by years
+  radar ranging        orders of magnitude improvement in one observation
+  the uncertainty region  an elongated volume at a future close approach
+  impact probability   the fraction of that volume intersecting Earth
+  the rise-then-fall pattern  expected for an object that will miss
+  the communication problem  a rising probability reads as increasing danger and
+                       usually means the opposite
+  keyholes             small regions where a close approach would perturb the
+                       object onto an impacting trajectory at a later encounter
+  the keyhole implication  a deflection before the first approach requires far
+                       less energy than one after, because it only needs to miss
+                       a small region rather than to miss Earth
+
+## Impact Risk Assessment
+
+Impact consequence scales steeply with size because kinetic energy scales with mass and therefore
+with the cube of diameter. Objects a few metres across enter the atmosphere regularly and produce
+bright fireballs. Tens of metres can produce an airburst causing local damage. Hundreds of metres
+produce regional devastation and, if oceanic, tsunami. A kilometre or more approaches globally
+consequential, and above a few kilometres the effects are civilization-scale.
+
+Frequency scales inversely, and the relationship between size and interval is what determines where
+the risk actually concentrates. Small impacts are frequent and individually minor; large ones are
+catastrophic and rare. Integrating consequence against frequency shows that expected annual damage
+is dominated by neither extreme but by intermediate sizes — objects large enough to cause regional
+damage and small enough to occur on timescales of centuries, which is precisely the size range that
+is least completely catalogued.
+
+The completeness picture reflects survey effort. Objects above a kilometre are largely catalogued,
+with the survey having found the great majority and none of the known ones posing a threat this
+century. Objects in the hundred-metre range are substantially incomplete. Objects in the tens of
+metres are almost entirely undiscovered, and the events that have actually occurred in recent decades
+were in this range and were not detected in advance.
+
+Risk assessment:
+  energy scaling       with the cube of diameter
+  metres               regular fireballs; no ground effect
+  tens of metres       airburst with local damage
+  hundreds of metres   regional devastation; tsunami if oceanic
+  a kilometre          globally consequential
+  several kilometres   civilization-scale
+  frequency scaling    inverse; small frequent, large rare
+  expected damage      dominated by intermediate sizes
+  the least-catalogued range  overlaps the highest expected-damage range
+  kilometre completeness  largely achieved; no known threat this century
+  hundred-metre completeness  substantially incomplete
+  tens of metres       almost entirely undiscovered
+  the recent events    the airbursts that have occurred were in this range and
+                       were not detected in advance
+  warning time         the single most valuable quantity; decades permits
+                       deflection, days permits only evacuation
+  the asymmetry        detection capability rather than deflection capability is
+                       the binding constraint on planetary defense
+
+## Deflection Techniques
+
+Deflecting an object requires changing its velocity, and the required change is remarkably small
+when applied long in advance. A velocity change of centimetres per second, applied years before a
+predicted impact, accumulates into a position change of thousands of kilometres. The relationship is
+linear in lead time, which is why every deflection technique's feasibility depends more on warning
+time than on the energy available.
+
+Kinetic impact is the technique that has been demonstrated. A spacecraft strikes the object at high
+relative velocity, transferring momentum. The transfer exceeds the spacecraft's own momentum because
+ejected material carries additional momentum away, and the multiplication factor depends on the
+object's structure and composition in ways that were uncertain until measured directly. The
+demonstrated result confirmed both the technique's viability and that the multiplication factor can
+be substantial for a rubble-pile target.
+
+Gravity tractor uses a spacecraft's own gravitational attraction, station-keeping near the object and
+pulling it slowly. The force is tiny and the technique requires years, and its advantage is precision
+and complete independence from the object's structure — it works identically on a rubble pile and a
+monolith, which no impulsive technique does. Nuclear options deliver the largest energy and are
+reserved for short-warning or large-object scenarios, with a standoff burst vaporizing surface
+material to produce thrust being preferred over a surface or subsurface detonation that risks
+fragmenting the object into multiple still-threatening pieces.
+
+Deflection techniques:
+  the required change  centimetres per second, applied years in advance
+  the linear relationship  effect proportional to lead time
+  the dominant variable  warning time rather than available energy
+  kinetic impact       momentum transfer by collision; demonstrated
+  momentum multiplication  ejecta carrying additional momentum away
+  the structure dependence  the factor varies with composition and cohesion
+  gravity tractor      the spacecraft's own gravity pulling slowly
+  the tractor advantage  precise and independent of the object's structure
+  the tractor cost     years of station-keeping
+  ion beam shepherd    a related concept directing thrust at the surface
+  nuclear standoff     surface vaporization producing thrust; the highest energy
+                       option
+  the fragmentation risk  disruption producing multiple threatening pieces rather
+                       than one
+  the preference       deflect intact rather than disrupt, unless warning time
+                       leaves no alternative
+  characterization first  composition, structure, spin state, and mass must be
+                       known before a deflection can be designed, which means a
+                       reconnaissance mission is part of any realistic response
+                       and adds years to the timeline
+
+## Atmospheric Entry and Response Planning
+
+An object entering the atmosphere is decelerated by drag and heated intensely, and what happens next
+depends on its strength and entry angle. Weak objects fragment at high altitude, converting kinetic
+energy into a blast wave in the air rather than a ground impact. Strong objects — metallic bodies
+particularly — survive to the surface. The airburst mode is the more common outcome for stony objects
+in the tens-of-metres range, and it produces damage over a wide area from the blast wave without any
+crater at all.
+
+The damage mechanisms differ by scale and by mode. An airburst produces overpressure and thermal
+radiation, with window breakage and injuries extending far beyond any structural collapse. A ground
+impact produces a crater, seismic effects, and ejecta. An ocean impact produces a wave whose
+propagation and coastal amplification are the dominant concern and are difficult to model reliably.
+Very large impacts inject material into the stratosphere with global climatic effects that dominate
+the direct damage entirely.
+
+Response planning distinguishes sharply by warning time. Decades permits characterization,
+deflection design, and execution with verification. Years permits a deflection attempt with less
+margin. Months permits evacuation planning and civil preparation. Days permits only warning and
+sheltering. Since the most likely event in any given period is a small object detected shortly
+before entry, civil defence preparation for that case has better expected value than any deflection
+capability, and the two are complementary rather than competing.
+
+Entry and response:
+  atmospheric deceleration  drag and intense heating
+  fragmentation        weak objects breaking up at altitude
+  airburst             energy released as a blast wave in the air
+  the common outcome   airburst for stony objects in the tens-of-metres range
+  strong objects       metallic bodies reaching the surface
+  overpressure         the primary airburst damage mechanism
+  thermal radiation    burns and ignition at closer range
+  the window effect    breakage and injuries far beyond structural damage
+  ground impact        crater, seismic effects, ejecta
+  ocean impact         wave propagation and coastal amplification; hard to model
+  stratospheric injection  global climatic effects dominating for very large
+                       impacts
+  decades of warning   characterization, deflection design, execution,
+                       verification
+  years                a deflection attempt with less margin
+  months               evacuation and civil preparation
+  days                 warning and sheltering only
+  the expected-value argument  civil preparation for small detected objects has
+                       better expected value than deflection capability, and the
+                       international coordination structures that exist are
+                       primarily about ensuring that warnings are shared and acted
+                       on rather than about who would launch what

@@ -1,0 +1,238 @@
+================================================================================
+AREA: Astronomy and Space
+SUBJECT: Orbital Debris and Space Traffic
+Subtopics: the debris environment, orbit regimes, tracking and catalogues, conjunction
+assessment, collision physics, mitigation and remediation, policy and coordination.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## The Debris Environment
+
+Orbital debris is any human-made object in orbit that serves no useful purpose, and the population
+spans from intact derelict spacecraft and spent rocket bodies down to paint flecks. The size
+distribution is steeply weighted toward small objects, and the hazard distribution is not the same
+as the population distribution: large objects are few and are the reservoir that generates future
+debris, while small objects are numerous and are what actually strikes operating spacecraft.
+
+Debris originates from several distinct mechanisms. Mission-related objects are released
+deliberately during operations — separation hardware, covers, and similar items. Fragmentation
+events, whether from collisions, deliberate destruction, or the explosion of residual propellant or
+pressurized systems in derelict upper stages, produce the largest single contributions. Surface
+degradation releases paint and insulation over years of exposure. And a substantial contribution
+comes from a small number of individual events, so the population's history is dominated by
+specific incidents rather than by a steady accumulation.
+
+The energy involved makes size a poor guide to danger. Orbital velocities are several kilometres per
+second and closing speeds in a collision can approach twice that, so a centimetre-scale fragment
+carries kinetic energy comparable to a substantial explosive charge and will destroy a spacecraft.
+A millimetre fragment penetrates and damages. Only sub-millimetre particles are routinely survivable,
+and the shielding that stops them works by breaking the impactor into a spreading cloud with a thin
+outer layer before a spaced inner wall absorbs it.
+
+The debris environment:
+  the definition       human-made objects serving no purpose
+  the size distribution  steeply weighted toward small objects
+  the hazard asymmetry  large objects generate future debris, small objects strike
+                       spacecraft
+  mission-related objects  hardware released during operations
+  fragmentation events  collisions, deliberate destruction, and derelict
+                       explosions
+  residual propellant  the cause of many upper-stage explosions years after use
+  surface degradation  paint and insulation released over time
+  the event dominance  a few incidents account for much of the population
+  closing velocities   several kilometres per second, up to about twice that
+  centimetre fragments  comparable to a substantial explosive charge; destructive
+  millimetre fragments  penetration and damage
+  sub-millimetre       survivable with shielding
+  spaced shielding     an outer layer fragmenting the impactor, an inner wall
+                       absorbing the cloud
+  the shielding limit  effective against small particles and impractical against
+                       anything centimetre-scale, which is why avoidance rather
+                       than protection is the strategy above that size
+
+Q: A spacecraft is shielded against millimetre-scale debris. Why is shielding not the general
+solution to the debris problem?
+A. Shielding is too expensive
+B. Kinetic energy scales with mass, so centimetre-scale objects carry energy comparable to
+   explosives at orbital closing speeds; shielding against them would require impractical mass, which
+   is why larger objects are tracked and avoided instead
+C. Shielding does not work in vacuum
+D. Debris is too fast to shield against at any size
+Reasoning: Whipple-type shielding is effective and mass-efficient for small particles because it
+converts a compact impactor into a diffuse cloud. The energy scales with mass, so an object a factor
+of ten larger in each dimension carries a thousand times the energy, and no practical shield
+addresses it. The response above that threshold is tracking and manoeuvring. Answer: B.
+
+## Orbit Regimes and Their Behaviour
+
+Debris behaviour depends strongly on altitude, and the regimes are qualitatively different. Low
+Earth orbit retains a residual atmosphere whose drag removes objects over time, with the lifetime
+ranging from days at the lowest altitudes to centuries at the upper end of the regime. Drag varies
+substantially with solar activity, since a more active Sun heats and expands the upper atmosphere,
+so a debris object's lifetime depends on where in the solar cycle it spends its time.
+
+Medium altitudes, where navigation constellations operate, have essentially no drag, and objects
+there persist for many thousands of years. Geostationary orbit is a unique resource because it is a
+single ring at one specific altitude where a satellite remains fixed relative to the ground, and the
+slots along it are a finite allocated resource. Objects there also persist indefinitely and drift
+along the ring, so a derelict geostationary satellite periodically passes through every occupied slot.
+
+The consequence is that mitigation requirements differ by regime. Low orbit objects can be disposed
+of by lowering them into a regime where drag removes them within a bounded period, and the
+convention has been twenty-five years with pressure to shorten it substantially. Geostationary
+objects cannot be deorbited economically and are instead raised into a graveyard orbit above the
+operational ring. Medium altitudes have no cheap disposal option at all, which is an unresolved
+problem as constellations there grow.
+
+Orbit regimes:
+  low Earth orbit      residual atmospheric drag removes objects over time
+  lifetime range       days to centuries depending on altitude
+  solar activity       an active Sun expands the atmosphere and shortens lifetimes
+  the variability      lifetime predictions carry large uncertainty from this
+  medium altitudes     no meaningful drag; persistence over millennia
+  geostationary        a single ring at one altitude; slots are an allocated
+                       resource
+  the drift            a derelict there passes through every occupied slot
+  disposal in low orbit  lowering into a regime where drag removes it
+  the twenty-five year convention  under pressure to shorten
+  graveyard orbits     raising geostationary objects above the operational ring
+  the medium altitude gap  no economical disposal option
+  sun-synchronous orbits  a heavily used low-orbit band where traffic density is
+                       concentrated
+  constellation growth  thousands of satellites in specific shells, changing the
+                       traffic problem from occasional to continuous
+  the density concentration  debris and traffic risk is not uniform with altitude
+                       but concentrated in specific bands, which is where the
+                       management effort must go
+
+## Tracking, Catalogues, and Conjunction Assessment
+
+Tracking debris means detecting objects and maintaining orbit estimates for them. Radar dominates in
+low orbit, where the range is short enough for returns from small objects, and optical telescopes
+dominate at higher altitudes, where objects are detected by reflected sunlight against the night sky.
+The detection threshold is roughly ten centimetres in low orbit and considerably larger higher up,
+so the catalogued population is a small fraction of the total and statistical models estimate the
+rest from sampling observations and returned surfaces.
+
+Orbit determination from tracking produces a state estimate with an associated covariance describing
+its uncertainty, and the uncertainty is anisotropic — much larger along the orbit than across it,
+because a small error in the orbital period accumulates into a large along-track position error. The
+covariance grows with the time since the last observation and shrinks when new observations arrive,
+and it depends on how well the object's drag characteristics are known, which for a tumbling
+fragment of unknown shape and mass is poorly.
+
+Conjunction assessment propagates catalogued objects forward, identifies close approaches, and
+computes a probability of collision from the combined covariance and the objects' sizes. The
+resulting probability has a counterintuitive property: it is not monotonic in the uncertainty. A very
+large covariance spreads the probability over a wide volume and yields a low collision probability,
+so a poorly tracked object can appear safe. Reducing the uncertainty by tasking additional
+observations can therefore raise the computed probability, which is the correct behaviour and
+confuses everyone the first time they encounter it.
+
+Tracking and assessment:
+  radar                dominant in low orbit
+  optical              dominant at higher altitudes
+  detection thresholds  roughly ten centimetres low, larger higher
+  the uncatalogued population  the majority, estimated statistically
+  returned surfaces    hardware brought back and examined for impacts; the direct
+                       evidence about small debris
+  state and covariance  the estimate and its uncertainty
+  anisotropic uncertainty  much larger along track than across
+  the mechanism        period error accumulating into along-track position error
+  covariance growth    with time since the last observation
+  drag uncertainty     large for tumbling fragments of unknown properties
+  conjunction assessment  propagate, screen, compute
+  collision probability  from combined covariance and object sizes
+  the non-monotonic property  large uncertainty yields low probability
+  the counterintuitive consequence  better tracking can raise the computed risk
+  the dilution effect  the same phenomenon named; and it is why probability alone
+                       is an inadequate decision criterion without the covariance
+                       behind it
+
+## Collision Physics and the Cascade
+
+A hypervelocity collision between orbiting objects is not a mechanical impact but a shock event.
+The materials behave as fluids at the pressures involved, both objects are largely fragmented, and
+the resulting cloud of debris spreads along and around the original orbits. A single collision
+between two intact objects produces thousands of trackable fragments and vastly more untrackable
+ones, and the fragments occupy a range of orbits centred on the collision point.
+
+The cascade concern is that the debris population above a certain density becomes self-sustaining:
+collisions generate fragments faster than drag removes them, so the population grows even with no
+further launches. The modelling suggests that some altitude bands may already be at or near this
+condition, which means that stopping launches would not stabilize the environment there and active
+removal would be required.
+
+The number of objects that must be removed to stabilize a regime is smaller than intuition suggests
+and the targets are specific. Because large intact derelicts are the reservoir that future collisions
+would fragment, removing a handful of the highest-risk objects per year — massive derelict upper
+stages in congested bands — has a disproportionate effect on the long-run population. This is a more
+tractable problem than removing debris generally, and it is still unsolved because no legal,
+financial, or operational mechanism exists to do it.
+
+Collision physics and cascade:
+  hypervelocity impact  a shock event; materials behave as fluids
+  fragmentation        both objects largely destroyed
+  fragment count       thousands trackable, far more not
+  the resulting orbits  centred on the collision point and spreading
+  the cascade condition  fragments generated faster than removed
+  self-sustaining growth  population increasing with no further launches
+  the modelling suggestion  some bands may already be at this condition
+  the implication      halting launches would not stabilize those regions
+  active removal       required if the assessment is correct
+  the reservoir        large intact derelicts awaiting fragmentation
+  targeted removal     a handful of highest-risk objects per year
+  the disproportionate effect  removing reservoir objects prevents many future
+                       fragments
+  the tractability     a smaller problem than general debris removal
+  the obstacle         no legal, financial, or operational mechanism exists
+  ownership            objects remain the property and responsibility of the
+                       launching state indefinitely, so removing someone else's
+                       derelict is not something a third party may simply do
+
+## Mitigation, Remediation, and Coordination
+
+Mitigation prevents debris creation and is far cheaper than remediation. The established practices
+are passivation — venting residual propellant and discharging batteries in derelict stages so they
+cannot explode — designing for disposal at end of life, limiting deliberately released hardware,
+and demonstrating a high probability of successful disposal. These are guidelines in most
+jurisdictions and increasingly conditions of launch licensing, which is the mechanism that gives them
+force.
+
+Remediation removes existing debris and remains largely demonstration-stage. The proposed methods
+include capture by net, harpoon, or robotic arm followed by a controlled deorbit, drag augmentation
+by deploying a large surface, and contactless methods using ion beams or lasers to impart momentum.
+Each faces the same difficulties: the targets are tumbling, uncooperative, of uncertain condition,
+and legally owned by someone else, and the cost per object removed is high enough that no commercial
+model works without a public mechanism.
+
+Space traffic coordination is the operational layer, and it is under-institutionalized relative to
+the traffic level. Operators receive conjunction warnings and decide independently whether to
+manoeuvre, with no authority resolving cases where both operators might manoeuvre into each other or
+where one is unresponsive. Automated collision avoidance in large constellations changes the problem
+again, since an operator that manoeuvres frequently and automatically is difficult for others to
+predict. The direction of development is toward shared catalogues, standardized data exchange, and
+coordination mechanisms, and the gap between the traffic growth rate and the institutional
+development rate is the actual risk.
+
+Mitigation and coordination:
+  mitigation           preventing creation; far cheaper than removal
+  passivation          venting propellant and discharging batteries
+  the explosion prevention  addresses a major historical debris source
+  disposal design      built in rather than attempted at end of life
+  disposal success probability  a licensing condition in some jurisdictions
+  licensing            the mechanism giving guidelines force
+  capture methods      net, harpoon, robotic arm, then controlled deorbit
+  drag augmentation    a deployed surface shortening the lifetime
+  contactless methods  ion beams and lasers imparting momentum
+  the shared difficulties  tumbling, uncooperative, uncertain, and owned
+  the economic gap     no commercial model without a public mechanism
+  conjunction warnings  provided to operators who decide independently
+  the coordination gap  no authority resolving conflicting manoeuvre decisions
+  automated avoidance  frequent autonomous manoeuvres are hard for others to
+                       predict
+  shared catalogues and data standards  the direction of development
+  the actual risk      the traffic growth rate exceeding the institutional
+                       development rate, which is a governance problem that no
+                       amount of tracking capability resolves on its own

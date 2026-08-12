@@ -1,0 +1,298 @@
+================================================================================
+AREA: Embedded Systems and Hardware
+SUBJECT: Analog Electronics
+Subtopics: passive components, diodes and transistors, operational amplifiers,
+filters, power supplies, noise, sensor interfacing, PCB layout for analog.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Passive Components and Their Non-Idealities
+
+Every real component is a network rather than an ideal element, and analog design is
+largely the discipline of knowing which parasitic matters where. A resistor has series
+inductance from its leads and body and parallel capacitance across it, so its impedance
+rises then falls with frequency rather than staying flat. A capacitor has equivalent
+series resistance and equivalent series inductance, so above its self-resonant frequency
+it behaves as an inductor. An inductor has winding resistance, inter-winding capacitance,
+and a core that saturates.
+
+Capacitor dielectric choice matters far more than the capacitance value suggests. Class 1
+ceramics such as C0G/NP0 are stable with temperature and voltage, have very low loss, and
+are available only at small values — these are the right choice for filters and timing.
+Class 2 ceramics such as X7R and Y5V achieve much higher capacitance in the same package
+and lose a large fraction of it under DC bias: an X7R rated 10 microfarads at 16 volts may
+deliver under 3 microfarads at 12 volts applied, and Y5V is worse still. This DC bias
+derating is not on the front page of most datasheets and is a recurring cause of
+supply-decoupling designs that measure far worse than they simulate.
+
+Electrolytic capacitors provide bulk capacitance cheaply, with high ESR, limited
+lifetime that halves for every ten degrees of temperature rise, and polarity that must be
+respected. Film capacitors have excellent stability and low loss at larger sizes.
+Tantalum offers high density with a failure mode that is a short circuit, sometimes
+energetic, which is why they are derated heavily in voltage. Choosing a capacitor by
+capacitance and voltage alone, ignoring dielectric and ESR, is the most common passive
+component error.
+
+Component non-idealities:
+  resistor       series L, parallel C; tolerance, tempco, voltage coefficient,
+                 thermal and excess noise, self-heating shifts value
+  capacitor      ESR, ESL, DC bias derating (class 2 ceramics), dielectric
+                 absorption, aging, temperature coefficient
+  inductor       DCR, self-resonant frequency, core saturation, EMI radiation
+  self-resonance every capacitor is inductive above it; parallel different values
+                 to extend the low-impedance band, watching for anti-resonance
+  ceramic piezo  class 2 ceramics are microphonic and generate voltage under
+                 mechanical stress; a real problem in low-noise circuits
+  tolerance stack combine tolerances in RSS for typical, worst-case for guaranteed
+
+Decoupling capacitor placement is governed entirely by inductance. The impedance the chip
+sees is dominated not by the capacitor's value but by the loop inductance of the path
+through the capacitor, so a 100 nF part placed two centimetres away with a long via stub
+is far worse than a 10 nF part placed adjacent with short vias to solid planes. The
+practical rules follow: place the smallest, closest capacitor nearest the pin, minimize
+the loop area formed by the pin, capacitor, and return path, and use multiple vias to
+reduce via inductance. Values matter less than layout, which is a difficult idea for
+people accustomed to schematic-level thinking.
+
+Q: A 10 uF X7R ceramic rated for 16 V is used on a 12 V rail and the supply still shows
+excessive ripple. The most likely cause is:
+A. The capacitor is defective
+B. DC bias derating has reduced the effective capacitance by more than half
+C. The voltage rating is insufficient
+D. The ripple frequency is too low
+Reasoning: Class 2 ceramic dielectrics lose capacitance substantially under applied DC
+bias, often 60-80% at three-quarters of rated voltage. The part is functioning as
+specified; the specification simply does not describe the operating condition. Choosing a
+higher voltage rating in a larger package, or a different dielectric, restores the
+capacitance. Answer: B.
+
+## Diodes, Transistors, and Discrete Design
+
+A diode conducts in one direction, with an exponential current-voltage relation described
+by the Shockley equation. The "0.7 volt drop" is a linearization convenient for hand
+analysis and misleading when precision matters: the forward voltage depends
+logarithmically on current and falls about 2 millivolts per degree Celsius of temperature
+rise. That temperature coefficient is exploited deliberately in bandgap references and
+causes trouble in bias circuits where it is ignored.
+
+Diode variants serve distinct purposes. Schottky diodes have lower forward drop, around
+0.3 volts, and much faster recovery, making them the choice for rectification in
+switching supplies and for clamping — at the cost of higher reverse leakage. Zener diodes
+conduct in reverse above a defined breakdown voltage and provide simple voltage
+references, with a temperature coefficient that changes sign around 5.6 volts, which is
+why references near that value are the most stable. Light-emitting diodes require a
+current limit because their forward voltage is nearly fixed, so a small voltage change
+produces a large current change, and driving them from a voltage source without a
+resistor or current regulator destroys them.
+
+Bipolar junction transistors are current-controlled: the collector current is
+approximately beta times the base current, with beta varying widely between devices, with
+temperature, and with current. Robust designs therefore avoid depending on beta,
+typically by using emitter degeneration where a resistor in the emitter sets the current
+by voltage division rather than by current gain. The base-emitter voltage has the same
+-2 mV per degree coefficient as a diode, which is what causes thermal runaway in power
+stages: rising temperature increases current at fixed drive, which raises dissipation,
+which raises temperature further. Emitter resistors provide the negative feedback that
+prevents this.
+
+Field-effect transistors are voltage-controlled, with gate current essentially zero at DC.
+MOSFETs dominate switching applications because they turn fully on with a low
+drain-source resistance and require no continuous drive current. The gate is capacitive,
+so switching speed is set by how fast the gate charge can be delivered — which is why gate
+drivers exist and why a MOSFET driven directly from a microcontroller pin switches slowly
+and dissipates heavily during the transition.
+
+Discrete device essentials:
+  diode equation       I = I_s (exp(V/(n V_T)) - 1);  V_T ≈ 25.85 mV at 300 K
+  forward drop tempco  about -2 mV/K
+  BJT regions          cutoff, active (amplification), saturation (switch on)
+  BJT current          I_C ≈ beta I_B;  never design assuming a specific beta
+  transconductance     g_m = I_C / V_T for a BJT; sets small-signal gain
+  MOSFET threshold     V_GS must exceed V_th; check the datasheet at your drive
+                       voltage, not the typical value
+  MOSFET on-resistance R_DS(on) rises substantially with temperature — roughly
+                       doubling from 25 C to 125 C for silicon
+  gate charge          Q_g determines drive current needed for a given switching
+                       speed; the real figure of merit, not gate capacitance
+  body diode           intrinsic in a MOSFET; conducts in reverse, matters in
+                       bridge circuits and synchronous rectification
+  safe operating area  the combined voltage, current, and time limits; exceeding
+                       it destroys the device even within individual ratings
+
+Level shifting and switching topology deserve attention because they are where discrete
+design most often goes wrong. A low-side N-channel MOSFET switching a load to ground is
+simple, since the source is at ground and the gate drive is referenced to it. A high-side
+switch requires either a P-channel device, whose gate must be pulled below the supply, or
+an N-channel device with a gate driven above the supply rail — which requires a bootstrap
+capacitor or an isolated supply. Attempting a high-side N-channel switch driven from a
+logic-level signal referenced to ground produces a device that never fully turns on and
+dissipates enormously.
+
+## Operational Amplifiers
+
+An operational amplifier is a differential amplifier with very high open-loop gain,
+intended to be used with negative feedback. The two golden rules for analysis under
+negative feedback are that no current flows into the inputs and that the amplifier drives
+its output so as to make the input voltages equal. These are approximations that hold
+extremely well within the amplifier's bandwidth and current limits, and nearly all
+op-amp circuit analysis reduces to applying them.
+
+The canonical configurations follow directly. An inverting amplifier has gain -R_f/R_in
+with a virtual ground at the inverting input and an input impedance equal to R_in. A
+non-inverting amplifier has gain 1 + R_f/R_g and very high input impedance. A voltage
+follower is the unity-gain case, used as a buffer to drive a low impedance from a high one.
+A difference amplifier subtracts two inputs, with common-mode rejection limited by
+resistor matching — which is why an instrumentation amplifier, with matched resistors on
+one die, achieves far better rejection than a discrete implementation can.
+
+Real op-amps depart from ideal in ways that matter differently by application. Input
+offset voltage produces an output error multiplied by the noise gain, and its drift with
+temperature is usually more troublesome than its initial value, since the initial value
+can be trimmed. Input bias current flows through source impedances and produces an error
+voltage, which is why bipolar-input amplifiers need matched impedances at both inputs and
+why FET-input amplifiers are preferred for high-impedance sources. Finite gain-bandwidth
+product means closed-loop bandwidth equals gain-bandwidth divided by the closed-loop
+gain, so a 1 MHz part configured for a gain of 100 has only 10 kHz of bandwidth. Slew rate
+limits how fast the output can change regardless of bandwidth, and exceeding it produces
+distortion that a small-signal bandwidth specification does not predict.
+
+Op-amp parameters and what each governs:
+  input offset voltage    DC accuracy;  multiplied by noise gain at the output
+  offset drift            accuracy over temperature; usually the binding limit
+  input bias current      error through source impedance; FET input for high-Z
+  input offset current    the mismatch; what remains after impedance balancing
+  gain-bandwidth product  closed-loop BW = GBW / closed-loop gain
+  slew rate               large-signal speed;  full-power bandwidth = SR/(2 pi V_p)
+  CMRR                    rejection of common-mode input; falls with frequency
+  PSRR                    rejection of supply variation; also falls with frequency
+  output swing            rail-to-rail or not; check the loaded specification
+  input common-mode range not all parts include the rails; violating it can cause
+                          phase inversion in older designs
+  noise                   voltage noise density and current noise density; which
+                          dominates depends on source impedance
+
+Stability is the failure mode that surprises people because the schematic looks correct.
+Negative feedback becomes positive if the loop accumulates 180 degrees of additional phase
+shift while the loop gain still exceeds unity, and the circuit oscillates. The most common
+cause in practice is capacitive loading on the output: the amplifier's output impedance
+plus the load capacitance forms a pole inside the feedback loop. The standard remedies are
+a small series resistor isolating the capacitive load, a feedback capacitor providing
+phase lead, or selecting an amplifier specified as stable into the load. Long feedback
+traces and stray capacitance at the inverting input cause the same problem, which is why
+that node should be kept physically small.
+
+[user] My transimpedance amplifier for a photodiode oscillates and I get 200 mV of ringing
+on every pulse.
+[assistant] tool_call analog.tia_stability({"photodiode_capacitance_pf": 120,
+"feedback_resistor_ohm": 1000000, "opamp_gbw_mhz": 10, "feedback_cap_pf": 0,
+"input_capacitance_pf": 8})
+[tool] {"total_input_cap_pf": 128, "noise_gain_zero_hz": 1243,
+"intersection_freq_khz": 892, "phase_margin_deg": 12, "stable": false,
+"recommended_cf_pf": 0.57, "resulting_bandwidth_khz": 279,
+"note": "cf_below_stray_capacitance_use_layout_control"}
+[assistant] Classic transimpedance instability. Your phase margin is 12 degrees, which is
+why it rings rather than settles.
+
+The mechanism: the photodiode's 120 pF plus the amplifier's 8 pF of input capacitance
+forms a zero in the noise gain with your 1 megohm feedback resistor, at about 1.2 kHz.
+Above that frequency the noise gain rises at 20 dB per decade while the amplifier's open
+loop gain falls at 20 dB per decade, so they close at 40 dB per decade — which
+corresponds to two poles and hence 180 degrees of phase shift inside the loop. That is an
+oscillator.
+
+The fix is a feedback capacitor across the feedback resistor, which flattens the noise
+gain above its corner and restores single-pole closure. The value for 45 degrees of phase
+margin is about 0.57 pF, giving you 279 kHz of bandwidth.
+
+That number is the practical problem: 0.57 pF is below the stray capacitance of a typical
+feedback resistor footprint, which is often 0.1 to 0.3 pF and poorly controlled. Three
+responses, in order of preference.
+
+Reduce the source capacitance. This is the highest-leverage change. Reverse-bias the
+photodiode — even a few volts typically cuts its capacitance by half or more — or select a
+smaller-area diode if your optical design permits. Halving the capacitance directly
+improves both stability and noise.
+
+Use a faster amplifier. The required feedback capacitor scales inversely with the square
+root of gain-bandwidth, so moving from 10 MHz to 100 MHz lets you use a larger, more
+controllable capacitor while getting more bandwidth. Make sure the part is
+low-input-capacitance and low-bias-current, since a fast general-purpose amplifier may
+lose you more in offset than it gains in speed.
+
+Split the gain. Use a lower feedback resistor — say 100 kilohms — followed by a voltage
+gain stage of ten. The lower resistor moves the noise gain zero up by a decade and makes
+the required feedback capacitor about ten times larger and easily realizable. The cost is
+slightly worse noise, since the feedback resistor's thermal noise is referred to the input
+with less gain ahead of it.
+
+Whatever you choose, guard the inverting input node: keep it physically tiny, surround it
+with a guard ring driven to the same potential, and do not run it over a plane. Stray
+capacitance there is directly in the destabilizing path.
+
+## Filters, Power, and Noise
+
+Active filters use op-amps to realize responses that passive networks cannot achieve
+without inductors. The Sallen-Key topology implements a second-order section with one
+amplifier and is the common choice for low-pass and high-pass; the multiple-feedback
+topology inverts and offers better high-frequency behaviour. Higher orders are built by
+cascading second-order sections, and the section parameters are taken from tables for the
+chosen response.
+
+Response family selection is a real design decision rather than a default. Butterworth
+gives maximally flat passband with moderate rolloff. Chebyshev accepts passband ripple in
+exchange for a sharper transition. Elliptic accepts ripple in both bands for the sharpest
+transition of all. Bessel sacrifices rolloff sharpness for maximally flat group delay,
+preserving pulse shape — which makes it the correct choice whenever the time-domain
+waveform matters, as in data links and instrumentation, and the wrong choice when
+stopband rejection is what matters.
+
+Power supply design divides into linear and switching approaches with a clear tradeoff.
+A linear regulator drops the difference between input and output across a pass element,
+dissipating the difference times the current as heat, so efficiency is roughly the ratio
+of output to input voltage. It is quiet, simple, and fast-responding, which is why analog
+and RF sections are often fed from a linear regulator downstream of a switcher. A
+switching regulator stores energy in an inductor and transfers it in packets, achieving
+efficiencies above ninety percent independent of the voltage ratio, at the cost of
+switching noise, layout sensitivity, and design complexity.
+
+Power and noise reference:
+  linear regulator eff.   ~ V_out / V_in;  dissipation = (V_in - V_out) * I
+  LDO dropout             the minimum headroom; check at your load current and
+                          temperature, not typical
+  buck / boost / buck-boost   step down / up / either
+  switcher layout         the high di/dt loop — input capacitor, switch, diode or
+                          synchronous FET — must be physically tiny; this loop is
+                          the dominant EMI source and the most common design error
+  thermal noise           v = sqrt(4 k T R B);  ~4 nV/sqrt(Hz) for 1 kohm at 300 K
+  shot noise              i = sqrt(2 q I B);  in currents crossing a junction
+  flicker (1/f) noise     dominant at low frequency; corner frequency varies by
+                          device technology, low for JFET, higher for CMOS
+  noise figure            degradation of SNR through a stage; the first stage
+                          dominates the whole chain (Friis)
+  noise bandwidth         for a single pole, 1.57 times the -3 dB bandwidth
+
+The Friis noise formula has a consequence that governs all low-noise design: the noise of
+the first amplifying stage dominates the entire chain, because subsequent noise is
+referred to the input divided by the preceding gain. Spend the effort and the component
+budget on the first stage; a mediocre second stage after a good first one costs almost
+nothing. Correspondingly, any loss before the first amplifier — a lossy cable, a
+resistive attenuator, a poorly matched connection — degrades the noise figure directly and
+cannot be recovered afterward.
+
+Analog PCB layout is where careful designs are commonly ruined. Ground is not a
+node but a distributed conductor with impedance, and return currents flow in the path of
+least impedance — which at high frequency means directly beneath the outgoing trace, not
+by the shortest resistive route. A split in the ground plane under a signal trace forces
+the return current to detour, creating a large loop that both radiates and receives.
+Keeping a continuous reference plane beneath every signal is more important than any
+grounding scheme.
+
+Separating analog and digital returns is standard advice that is frequently applied
+incorrectly. The goal is to prevent digital return currents from flowing through the
+analog reference, which is achieved by controlling where currents flow — placing the
+converter so its analog and digital sections straddle a single continuous plane, keeping
+digital traces off the analog region — rather than by cutting the plane and joining the
+halves at one point. A split plane with a trace crossing it is worse than no split at all.
+Star grounding at a single point works at low frequency and fails at high frequency,
+where the inductance of the star arms dominates.

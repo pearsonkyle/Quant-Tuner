@@ -1,0 +1,246 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: Multimodal Learning
+Subtopics: encoders and fusion, contrastive pretraining, vision-language models,
+audio and video, alignment and projection, evaluation, deployment.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Encoders and Fusion
+
+A multimodal model consumes more than one input type — images, text, audio, video, tabular data,
+sensor streams — and the central design question is where and how the modalities are combined.
+Every architecture is some answer to that question, and the answer determines what the model can
+learn and what it cannot.
+
+Early fusion concatenates raw or lightly processed features and lets a single network learn
+across them. It permits fine-grained interaction between modalities but requires them to be
+aligned and present together, and it scales poorly when the modalities have very different
+dimensionality or sampling rate. Late fusion runs a separate model per modality and combines the
+outputs, typically by averaging or a small learned head. It is robust to missing modalities and
+trivially parallel, but it cannot represent interactions — a feature that is only meaningful in
+combination with another modality is unavailable to it.
+
+Intermediate fusion is what most current systems use. Each modality passes through its own encoder
+to a shared representation space, and cross-modal interaction happens in that space via
+concatenation, cross-attention, or a shared transformer stack. This preserves the ability to use
+modality-appropriate architectures — a vision transformer for images, a text transformer for
+language — while allowing the interaction that late fusion forgoes.
+
+Fusion strategies:
+  early fusion         combine raw features; fine-grained interaction, brittle to
+                       misalignment and missing inputs
+  late fusion          combine per-modality predictions; robust, no interaction
+  intermediate fusion  per-modality encoders into a shared space, then interact
+  cross-attention      one modality queries the other; the dominant mechanism
+  concatenation        simplest interaction; often surprisingly competitive
+  gated fusion         learned weights over modalities; helps with variable
+                       reliability
+  modality dropout     train with modalities randomly withheld; produces a model
+                       that degrades gracefully rather than failing when one is
+                       absent
+  the missing modality problem  at inference some inputs are unavailable;
+                       design for it rather than assuming completeness
+  modality imbalance   one modality dominates the gradient and the others are
+                       under-trained; a common and easily missed failure
+
+Modality imbalance is worth watching for because it produces a model that is nominally multimodal
+and effectively unimodal. If one modality is more predictive on the training distribution, the
+optimization finds the solution that uses it and the other encoder receives little gradient signal.
+The diagnostic is straightforward: ablate each modality at evaluation time and measure the drop. If
+removing one changes nothing, the model is not using it, and no amount of architectural
+multimodality has made it multimodal.
+
+Q: A vision-language model performs identically when the image is replaced with noise. The most
+likely explanation is:
+A. The vision encoder is broken
+B. The task is solvable from text alone on the evaluation distribution, so the model learned to
+   ignore the image; this is a property of the data and objective rather than of the architecture
+C. The images contain no information
+D. The fusion mechanism is wrong
+Reasoning: If text alone suffices for the training and evaluation distribution, gradient descent
+has no reason to use the image, and the model will not. The fix is data — examples that require
+the image — or an objective that forces visual grounding, not a different fusion layer.
+Answer: B.
+
+## Contrastive Pretraining
+
+Contrastive learning aligns modalities by pulling matched pairs together in a shared embedding
+space and pushing mismatched pairs apart. It requires only paired data, which is abundantly
+available on the web as images with captions, video with transcripts, and audio with text, and it
+produces representations that transfer to a wide range of downstream tasks without task-specific
+labels.
+
+The mechanics are simple. A batch of N paired examples is encoded to N image embeddings and N text
+embeddings; the N×N similarity matrix should be large on the diagonal and small off it, and the
+loss is symmetric cross-entropy over rows and columns with a learned temperature. The negatives
+come free from the other examples in the batch, which is why batch size matters so much for this
+objective — more negatives means a harder and more informative discrimination task.
+
+The resulting embedding space supports zero-shot classification by construction. Encode the class
+names as text prompts, encode the image, and take the nearest class embedding. No classification
+head, no fine-tuning, and the class set can be changed at inference. This capability is the reason
+contrastive pretraining changed the field, and its limits are equally worth knowing: the model
+matches surface descriptions well and struggles with compositional relations, counting, spatial
+arrangement, and negation, because the caption distribution it learned from rarely disambiguates
+those.
+
+Contrastive pretraining:
+  the objective        matched pairs together, mismatched apart
+  in-batch negatives   free negatives from the rest of the batch
+  batch size           larger is materially better; the primary scaling lever
+  temperature          learned; controls the sharpness of the distribution
+  symmetric loss       both directions, image-to-text and text-to-image
+  zero-shot transfer   classify by nearest text embedding; no head, changeable
+                       class set
+  prompt sensitivity   the phrasing of the class prompt affects accuracy
+                       substantially; prompt ensembling helps
+  retrieval            the same embedding space serves search in both directions
+  known weaknesses     compositionality, counting, spatial relations, negation,
+                       fine-grained attributes
+  the cause            captions describe what is present, rarely the arrangement
+                       or the absence, so the objective never requires it
+  data scale           the method depends on very large noisy paired corpora;
+                       curation quality matters more than raw count past a point
+  hard negative mining  explicitly constructed confusable pairs; addresses some
+                       compositional weakness
+
+## Vision-Language Models
+
+The generative vision-language model is the architecture behind current image-understanding
+assistants, and its structure is consistent across implementations: a pretrained vision encoder, a
+projection module mapping visual features into the language model's embedding space, and a
+pretrained language model that consumes the projected features as if they were tokens.
+
+The projection module is the piece doing the alignment work and it is where the design choices
+live. A linear layer is the minimal option and works better than expected. A small multilayer
+perceptron is the common default. A resampler with learned queries — a fixed number of output
+tokens attending over a variable number of patch features — controls the token budget, which
+matters because visual features otherwise consume a large fraction of the context.
+
+Training proceeds in stages. Alignment pretraining freezes both encoders and trains only the
+projection on a large caption corpus, teaching the mapping without disturbing either pretrained
+model. Instruction tuning then unfreezes the language model and trains on multimodal instruction
+data, teaching the model to follow visual instructions rather than merely caption. Whether to
+unfreeze the vision encoder is a genuine tradeoff — doing so improves fine-grained perception and
+risks degrading the general representation.
+
+Vision-language architecture:
+  vision encoder       usually a contrastively pretrained ViT; frozen initially
+  projection           linear, MLP, or a query-based resampler
+  the token budget     visual tokens compete with text for context; a resampler
+                       caps them at a fixed count
+  dynamic resolution   tile a high-resolution image and encode tiles; needed for
+                       documents, charts, and small text
+  stage one            freeze both, train projection on captions
+  stage two            instruction tuning on multimodal instruction data
+  unfreezing the vision encoder  better fine detail, risk of representation drift
+  resolution           the dominant factor for OCR, charts, and small objects;
+                       more impactful than model size for those tasks
+  interleaved data     images and text alternating in sequence; required for
+                       multi-image reasoning and in-context visual learning
+  hallucination        describing objects not present; correlates with the
+                       language prior overriding weak visual evidence
+  the mitigation       stronger visual grounding in the training data and
+                       negative examples; decoding tricks help marginally
+
+Hallucination in vision-language models has a specific and diagnosable cause. The language model is
+a strong prior over what tends to appear in a described scene, and when the visual signal is weak —
+low resolution, unusual composition, an object at the edge — the prior fills in. A model asked
+whether a kitchen image contains a refrigerator will often say yes because kitchens contain
+refrigerators. The evaluation that catches it is a balanced set of presence and absence questions,
+and a model scoring well on presence and poorly on absence is exhibiting exactly this failure.
+
+## Audio, Video, and Beyond
+
+Audio and video introduce the temporal dimension, which changes both the encoder design and the
+data problem. Audio is typically converted to a spectrogram and treated as an image, which works
+well and lets vision architectures transfer, or processed directly as a waveform by a convolutional
+front end. Speech models add a text decoder and become transcription systems; general audio models
+learn representations covering speech, music, and environmental sound.
+
+Video is the expensive modality. A naive treatment as a sequence of image frames produces token
+counts that are infeasible for anything beyond a few seconds, so every practical system subsamples
+aggressively, pools temporally, or uses a compressed representation. The design question is how
+much temporal resolution the task actually requires, and the answer is usually much less than
+intuition suggests — many video tasks are solvable from a handful of well-chosen frames, which is
+itself a useful benchmark check on whether a video model is using time at all.
+
+Cross-modal generation is the other direction: text to image, text to audio, image to text, and
+combinations. Diffusion models dominate generation to continuous modalities, with the text
+conditioning entering through cross-attention to an encoded prompt. The quality of the text
+encoder matters more than is often assumed — prompt adherence in image generation is substantially
+a function of how well the conditioning representation captures compositional structure.
+
+Temporal and generative modalities:
+  spectrogram          audio as an image; transfers vision architectures well
+  waveform front end   learned filters on raw audio; more flexible, more data
+  speech recognition   audio encoder plus text decoder; weakly supervised at
+                       scale works remarkably well
+  audio events         non-speech classification; different label distribution,
+                       same architecture
+  video token explosion  frames × patches; every practical system subsamples
+  frame selection      choosing informative frames beats uniform sampling
+  temporal pooling     compress across time; loses ordering unless designed for
+  the single-frame baseline  many video benchmarks are near-solved by one frame;
+                       always run it before claiming temporal modelling
+  text-to-image        diffusion with cross-attention to a text encoding
+  prompt adherence     limited by the conditioning representation as much as by
+                       the generator
+  text-to-audio        same structure; music and speech have different demands
+  any-to-any models    a shared space with multiple encoders and decoders;
+                       elegant, and typically weaker per-modality than
+                       specialists
+  the practical tradeoff  a unified model is easier to serve; specialists are
+                       better per task, and the gap is narrowing
+
+## Evaluation and Deployment
+
+Evaluating multimodal systems is harder than evaluating unimodal ones, because the failure modes
+include a category that unimodal evaluation cannot express: the model producing a correct answer
+without using one of its inputs. Every evaluation suite should therefore include modality ablations
+alongside the task metrics, and a benchmark that does not distinguish grounded from unground
+answers is measuring something other than multimodal capability.
+
+The standard benchmarks each measure something narrow. Visual question answering measures short
+factual grounding. Captioning measures description, and its automatic metrics correlate weakly with
+human judgement. Retrieval measures embedding alignment. Document understanding measures
+resolution and OCR capability more than reasoning. Reading a model's scores requires knowing which
+of these it is actually testing, and a strong aggregate can hide a specific weakness that matters
+for the deployment.
+
+Deployment concerns are dominated by the cost of the non-text modality. Images consume many tokens,
+video consumes many more, and the latency of encoding is added to generation. Caching the vision
+encoding for repeated queries about the same image is the highest-value optimization and is often
+overlooked. Resolution is the second lever, and it is a direct quality-cost tradeoff that should be
+set per use case rather than globally.
+
+Evaluation and deployment:
+  modality ablation    the essential check; replace each input with noise and
+                       measure the drop
+  VQA                  short factual grounding; saturating and gameable
+  captioning metrics   weak correlation with human judgement; use sparingly
+  retrieval            measures embedding alignment specifically
+  document tasks       measure resolution and OCR more than reasoning
+  hallucination sets   balanced presence and absence questions
+  compositional sets   attributes, relations, counting; where contrastive models
+                       are weakest
+  human evaluation     still necessary for generation quality; automate the
+                       screening, not the judgement
+  visual token cost    the dominant serving expense; measure it explicitly
+  encoding cache       reuse the vision encoding across turns about one image;
+                       large and easy win
+  resolution tuning    per use case; document tasks need it, general description
+                       does not
+  quantization         vision encoders are often more sensitive than the language
+                       model at the same bit width; evaluate them separately
+                       rather than assuming a uniform setting transfers
+
+The quantization observation matters for anyone deploying these models compressed. The language
+model and the vision encoder do not degrade at the same rate, and applying a single bit width
+across both frequently produces a model whose text quality is fine and whose perception has
+quietly gotten worse — a failure that text-only evaluation will not surface. Benchmark the
+perception path separately, and be prepared to keep the vision tower at a higher precision than the
+trunk; it is a small fraction of the parameters and a large fraction of the capability that
+distinguishes the model from a text-only one.

@@ -1,0 +1,230 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: Synthetic Data and Simulation
+Subtopics: why synthesize, generation methods, sim-to-real transfer, privacy-preserving
+synthesis, augmentation, evaluation of synthetic data, failure modes.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Why Synthesize, and What It Can and Cannot Fix
+
+Synthetic data is generated rather than collected, and the reasons to use it fall into a few
+distinct categories that call for different methods. Scarcity — the real data does not exist in
+sufficient quantity, particularly for rare events. Cost — collecting or labelling is expensive
+while generating is cheap. Privacy — the real data cannot be shared. Coverage — the real data
+lacks the edge cases the system must handle. Control — an experiment requires knowing the ground
+truth exactly, which real data never provides.
+
+The critical constraint is that synthetic data contains only the information put into the generator.
+A generator trained on real data can reproduce and interpolate its patterns; it cannot introduce
+patterns absent from its training source. This means synthetic data multiplies the utility of
+existing information and does not create new information, and any claim that it solves a data
+scarcity problem needs to specify which of these two things is meant.
+
+The corollary is that synthetic data inherits the biases of its source. A generator trained on a
+dataset that underrepresents a population produces synthetic data that underrepresents it, usually
+more severely, because generative models allocate capacity to the modes and smooth away the tails.
+Using synthesis to address representation problems requires explicitly conditioning generation on
+the underrepresented categories rather than expecting the generator to fix the imbalance.
+
+Motivations and limits:
+  scarcity             rare events with insufficient real examples
+  cost                 collection or labelling expensive relative to generation
+  privacy              real data cannot be shared
+  coverage             edge cases absent from real data
+  control              exact ground truth for controlled experiments
+  the fundamental constraint  a generator contains only the information given to
+                       it
+  interpolation not creation  patterns can be recombined, not invented
+  bias inheritance     source biases are reproduced and usually amplified
+  mode collapse toward the majority  generative models smooth away tails
+  the representation fix  explicit conditioning, not expecting the generator to
+                       correct imbalance
+  the honest framing   synthesis multiplies existing information; state which
+                       problem it is solving
+  hybrid use           synthetic for pretraining and coverage, real for
+                       fine-tuning and evaluation; the configuration that works
+                       most reliably
+
+Q: A team synthesizes additional examples of a rare class from a model trained on the existing
+imbalanced data, and classifier performance on that class does not improve. Why?
+A. The synthesizer is broken
+B. The generator learned the rare class from the same few examples the classifier already had, so
+   its samples carry no information the classifier lacked; the bottleneck is information, not
+   example count
+C. Not enough synthetic data was generated
+D. The classifier is too small
+Reasoning: Generating more samples from a model fit to a handful of real examples produces
+variations on those examples. The classifier already had access to that information. Real
+additional examples, a generator informed by domain knowledge, or a physics-based simulator can
+add information; resampling a fitted model cannot. Answer: B.
+
+## Generation Methods
+
+Rule-based and procedural generation constructs data from explicit specifications: grammars,
+templates, physical models, or programmatic composition. Its advantages are complete control,
+guaranteed label correctness, unlimited volume, and the ability to produce configurations that have
+never occurred. Its limitation is that it produces only what was specified, so the realism gap is
+exactly the gap between the specification and reality.
+
+Simulation is procedural generation with a physical or behavioural model underneath — rendering
+engines for images, physics engines for dynamics, agent models for behaviour, discrete event models
+for systems. It is the dominant approach where the underlying process is well understood, and its
+quality is bounded by the fidelity of the model rather than by any statistical property.
+
+Learned generative models fit a distribution to real data and sample from it. Diffusion models
+dominate for continuous modalities, autoregressive models for sequences, and each produces samples
+that resemble the training distribution closely. Their advantage is realism without needing to
+specify the process; their disadvantages are that labels must come from somewhere, that
+out-of-distribution generation is unreliable, and that memorization of training examples is a real
+possibility with privacy consequences.
+
+Generation methods:
+  rule-based           grammars, templates, programmatic composition
+  the advantages       control, correct labels, unlimited volume, novel
+                       configurations
+  the limitation       only what was specified
+  simulation           a physical or behavioural model underneath
+  domain suitability   dominant where the process is understood
+  fidelity bound       quality limited by the model, not by statistics
+  learned generators   fit a distribution and sample from it
+  diffusion models     the current default for continuous modalities
+  autoregressive models  for sequences and text
+  the label problem    generated samples need labels from somewhere
+  conditional generation  labels specified as the condition; the usual solution
+  out-of-distribution weakness  learned generators extrapolate unreliably
+  memorization         training examples reproduced verbatim; a real privacy risk
+                       requiring explicit testing
+  hybrid pipelines     simulate the structure, learn the appearance; frequently
+                       the best of both
+  model-based versus data-driven  the choice hinges on whether the process is
+                       better understood than it is observed
+
+## Sim-to-Real Transfer
+
+Training in simulation and deploying in reality is the central problem in robotics and in several
+perception domains, and the obstacle is the reality gap — the systematic difference between
+simulated and real observations and dynamics. A policy or model that exploits any artifact of the
+simulator will fail on contact with reality, and simulators have many artifacts.
+
+Domain randomization is the technique that works most reliably. Rather than making the simulation
+match reality precisely, it randomizes the simulation's parameters — textures, lighting, friction,
+masses, sensor noise, latency — across a range wide enough that reality falls somewhere inside it.
+The model then cannot rely on any particular parameter value and learns features robust across the
+whole range, so reality is just another sample from a distribution it has already seen.
+
+The complementary approach is system identification: measuring the real system's parameters and
+tuning the simulator to match. It produces a more accurate simulator and is limited by what can be
+measured and by the aspects of reality the simulator cannot represent at all. In practice both are
+used — identify what can be identified, randomize what cannot — and the residual gap is closed by
+fine-tuning on a small amount of real data.
+
+Sim-to-real:
+  the reality gap      systematic differences in observation and dynamics
+  simulator artifacts  a model will exploit them and fail on transfer
+  domain randomization  randomize parameters so reality is inside the training
+                       distribution
+  what to randomize    appearance, physics, sensor characteristics, timing
+  the randomization range  wide enough to contain reality, narrow enough to
+                       remain learnable
+  system identification  measure and match the real parameters
+  the combination      identify what you can, randomize what you cannot
+  real fine-tuning     a small amount of real data closing the residual gap
+  domain adaptation    aligning feature distributions between simulated and real
+  the unmodelled residual  aspects reality has that the simulator does not
+                       represent at all; randomization does not help with these
+  the evaluation rule  measure on real data, always; simulated evaluation of a
+                       simulation-trained model measures only self-consistency
+  latency and control  timing differences between simulator and hardware are a
+                       frequently overlooked component of the gap
+  progressive transfer  simulation, then a controlled real setting, then
+                       deployment; each stage catching a different failure class
+
+## Privacy-Preserving Synthesis
+
+Synthetic data is frequently proposed as a privacy solution: generate data resembling the real data
+and share that instead. The reasoning is intuitive and the guarantee it provides by default is
+none. A generative model fit to real records can memorize and reproduce them, and even without
+verbatim reproduction, the synthetic data reflects the training data closely enough that membership
+inference — determining whether a particular record was in the training set — is often successful.
+
+A formal guarantee requires training the generator under differential privacy, which bounds how much
+any single record can influence the output. This provides a quantified guarantee at a real utility
+cost, and the cost falls unevenly: common patterns survive and rare ones — which are exactly the
+records most identifiable and often most interesting — are suppressed. That suppression is the
+privacy mechanism working as intended and it is also a limitation on what the synthetic data can be
+used for.
+
+Empirical privacy evaluation should accompany any synthetic release regardless of the method.
+Nearest-neighbour distance between synthetic and real records detects near-duplicates. Membership
+inference attacks estimate whether training membership is detectable. Attribute inference tests
+whether sensitive fields can be predicted from released ones. A synthetic dataset that has not been
+tested this way is a claim rather than a guarantee.
+
+Privacy synthesis:
+  the intuition        share generated data instead of real data
+  the default guarantee  none
+  memorization         verbatim reproduction of training records
+  membership inference  detecting whether a record was in the training set
+  differential privacy  a formal bound on any single record's influence
+  the utility cost     real, and it falls on rare patterns
+  the uneven suppression  rare records are both the most identifiable and often
+                       the most interesting
+  the privacy-utility frontier  the honest way to present the tradeoff
+  nearest-neighbour testing  detects near-duplicate synthetic records
+  attribute inference  predicting sensitive fields from released ones
+  the testing obligation  untested synthesis is a claim, not a guarantee
+  regulatory position  synthetic data is not automatically outside data
+                       protection scope; the determination depends on whether
+                       individuals remain identifiable
+  the practical recommendation  formal guarantees where the data is sensitive,
+                       empirical testing always, and explicit documentation of
+                       what was and was not verified
+
+## Evaluation and Failure Modes
+
+Evaluating synthetic data means answering three separate questions, and conflating them is the
+usual source of overclaiming. Fidelity asks whether the synthetic data resembles the real
+distribution. Utility asks whether models trained on it perform well on real data. Privacy asks
+whether it leaks information about individuals. High fidelity does not imply high utility — a
+generator can match marginal distributions while destroying the correlations a model needs — and
+high utility does not imply privacy.
+
+Utility is the measure that matters most for machine learning applications, and the definitive test
+is direct: train on synthetic, evaluate on real, and compare against training on real. The reverse
+comparison — train on real, evaluate on synthetic — measures whether the synthetic data is
+representative and is a useful complementary check. Both should be run because they fail
+differently.
+
+The failure modes worth screening for recur across domains. Mode collapse produces samples covering
+only part of the distribution, which is invisible in aggregate statistics and obvious in a coverage
+analysis. Distributional shift means the synthetic data differs systematically in ways that matter
+downstream. Correlation destruction means the marginals are right and the joint structure is wrong.
+Label noise from an imperfect generation process silently caps achievable accuracy. And the most
+insidious is the feedback loop: training a generator on data that included previous synthetic
+output progressively narrows the distribution over generations.
+
+Evaluation and failures:
+  three questions      fidelity, utility, privacy; distinct and often conflated
+  fidelity             resemblance to the real distribution
+  utility              performance on real data after training on synthetic
+  privacy              leakage about individuals
+  the definitive utility test  train synthetic, evaluate real, compare with real
+                       training
+  the reverse test     train real, evaluate synthetic; checks representativeness
+  marginal comparison  necessary and far from sufficient
+  joint structure      correlations and interactions; where marginal-matching
+                       generators fail
+  coverage analysis    whether the full support is represented
+  mode collapse        partial coverage; invisible in aggregate statistics
+  distributional shift  systematic difference in a downstream-relevant direction
+  label noise          an imperfect generation process capping achievable accuracy
+  discriminability     whether a classifier can separate real from synthetic; a
+                       useful single-number fidelity proxy
+  the feedback loop    generators trained on prior synthetic output progressively
+                       narrowing the distribution
+  provenance tracking  recording what is synthetic and from what; the practical
+                       defence against that loop and increasingly necessary as
+                       generated content accumulates in the corpora that future
+                       models are trained on

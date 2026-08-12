@@ -1,0 +1,330 @@
+================================================================================
+AREA: Astronomy and Space
+SUBJECT: Observational Astronomy and Instrumentation
+Subtopics: coordinates and time, magnitudes and photometry, telescopes and optics,
+detectors, spectroscopy, atmospheric effects, data reduction, surveys.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Coordinates, Time, and the Sky
+
+The equatorial coordinate system projects Earth's latitude and longitude onto the sky.
+Declination is the angular distance north or south of the celestial equator, from -90 to
++90 degrees, and behaves exactly like latitude. Right ascension is the angular
+coordinate along the equator measured eastward from the vernal equinox, conventionally
+in hours, minutes, and seconds where 24 hours spans the full circle, so one hour of
+right ascension equals 15 degrees. The hour convention exists because the sky rotates
+at about 15 degrees per hour, making right ascension differences directly readable as
+observing time.
+
+Precession means these coordinates drift. Earth's axis traces a cone with a period of
+roughly 26,000 years, so the equinox moves and the coordinate grid moves with it. Any
+position must therefore be qualified by an epoch — J2000.0 is the current standard, with
+ICRS the modern realization tied to distant quasars rather than to Earth's orientation
+at all. Mixing epochs produces position errors of tens of arcminutes over decades, which
+is enormous by modern standards and is a genuine source of failed observations when old
+catalogue positions are used without conversion.
+
+The horizontal system of altitude and azimuth is what a telescope on the ground actually
+points to, and it depends on the observer's location and the time. Converting between
+equatorial and horizontal requires the local sidereal time, which tracks the stars
+rather than the Sun. A sidereal day is 23 hours 56 minutes 4 seconds — about four
+minutes shorter than a solar day, because Earth must rotate slightly more than 360
+degrees to bring the Sun back to the meridian after having moved along its orbit. This
+is why a given star rises four minutes earlier each night and why the visible
+constellations change through the year.
+
+Coordinate and time reference:
+  right ascension       hours:min:sec, eastward from the vernal equinox; 1h = 15 deg
+  declination           degrees north/south of the celestial equator
+  epoch                 J2000.0 standard; ICRS is the modern quasar-based frame
+  altitude / azimuth    local, time-dependent; what the mount actually points to
+  hour angle            HA = LST - RA; zero at the meridian, the best time to observe
+  airmass               sec(z) approximately; 1.0 at zenith, 2.0 at 60 deg zenith
+                        angle, rising steeply below ~20 deg altitude
+  sidereal day          23h 56m 04s
+  Julian date           continuous day count; JD 2451545.0 = 2000 Jan 1.5 TT
+  angular units         1 deg = 60 arcmin = 3600 arcsec;  1 rad ≈ 206265 arcsec
+
+The number 206,265 — arcseconds per radian — is the most useful constant in
+observational astronomy, because it converts between the small-angle physical and
+angular scales constantly. An object of physical size s at distance d subtends s/d
+radians, which is 206265 s/d arcseconds. It is also where the parsec comes from: the
+distance at which one astronomical unit subtends one arcsecond, about 3.086e16 metres or
+3.26 light-years. Parallax distance in parsecs is simply the reciprocal of the parallax
+angle in arcseconds, which is why the unit exists at all.
+
+Q: A star has a measured parallax of 0.025 arcseconds. Its distance is:
+A. 25 pc   B. 40 pc   C. 0.025 pc   D. 400 pc
+Reasoning: Distance in parsecs is 1/parallax in arcseconds, so 1/0.025 = 40 pc, about
+130 light-years. Parallax measurement is the only direct geometric distance method and
+the foundation of the entire distance ladder; Gaia has extended reliable parallaxes to
+microarcsecond precision, reaching across much of the galaxy. Answer: B.
+
+## Magnitudes and Photometry
+
+The magnitude system is logarithmic, inverted, and historically arbitrary, which makes
+it perpetually confusing and unavoidable. It originates with Hipparchus ranking naked-eye
+stars from first magnitude (brightest) to sixth (faintest), later formalized so that a
+difference of five magnitudes corresponds to exactly a factor of 100 in flux. One
+magnitude is therefore a factor of 100^(1/5) ≈ 2.512, and brighter objects have smaller —
+sometimes negative — magnitudes.
+
+Apparent magnitude measures how bright an object appears from Earth, conflating its
+intrinsic luminosity with its distance. Absolute magnitude is the apparent magnitude the
+object would have at a standard distance of 10 parsecs, so it measures intrinsic
+luminosity. The difference between them, the distance modulus m - M = 5 log10(d/10 pc),
+is the workhorse of distance determination: measure the apparent magnitude, know the
+absolute magnitude by some means, and the distance follows. Everything in the cosmic
+distance ladder is a method for learning M.
+
+Photometry through filters gives colour, and colour gives temperature. A blue-sensitive
+filter and a red-sensitive filter measure different parts of the spectrum, and their
+magnitude difference — the colour index — is a proxy for the effective temperature of
+the emitting surface, since hot objects peak at shorter wavelengths. The B-V index is
+about -0.3 for the hottest O stars, 0.0 for A stars, 0.65 for the Sun, and above 1.5 for
+cool M dwarfs. The colour-magnitude diagram built from these quantities is the
+Hertzsprung-Russell diagram, the single most information-dense plot in astronomy.
+
+Photometry reference:
+  magnitude difference     m1 - m2 = -2.5 log10(F1/F2)
+  flux ratio               F1/F2 = 10^(-0.4 (m1 - m2))
+  distance modulus         m - M = 5 log10(d_pc) - 5
+  with extinction          m - M = 5 log10(d_pc) - 5 + A
+  absolute magnitude       apparent magnitude at 10 pc
+  Sun                      V = -26.74 apparent, +4.83 absolute
+  full Moon                V ≈ -12.7
+  naked-eye limit          V ≈ +6 in dark sky
+  Vega system              Vega defined as ~0 in all bands
+  AB system                zero point tied to a constant flux density; preferred
+                           for modern surveys
+  signal-to-noise          SNR = S / sqrt(S + n_pix (B + D + R^2))
+
+That last expression is the CCD equation and it governs every exposure-time
+calculation. The signal S grows linearly with exposure time while the noise from source
+photons grows as its square root, so signal-to-noise improves as sqrt(t) in the
+source-limited regime — meaning four times the exposure for twice the precision. In the
+background-limited regime, typical for faint objects, the background term dominates and
+the same sqrt(t) scaling holds but with a much larger constant. Read noise R enters
+once per readout regardless of exposure length, which is why many short exposures are
+worse than one long exposure for faint targets, and why the optimal strategy is
+exposures long enough that background noise exceeds read noise but short enough to
+avoid saturation and tracking errors.
+
+Extinction from dust dims and reddens light, and neglecting it causes distances to be
+systematically overestimated. Dust scatters and absorbs blue light preferentially, so
+distant objects appear both fainter and redder than they are. The reddening is what
+makes correction possible: comparing an object's observed colour to its expected
+intrinsic colour gives the colour excess, and a fairly universal extinction law converts
+that into the total dimming. In the galactic plane extinction can exceed 30 magnitudes
+in visible light, which is why the galactic centre is studied in infrared and radio,
+where dust is transparent.
+
+## Telescopes and Optics
+
+A telescope does two things: it collects light and it resolves detail. Light-gathering
+power scales with the square of the aperture diameter, so a 10-metre telescope collects
+100 times the light of a 1-metre. This is the primary reason apertures keep growing, and
+it is why aperture rather than magnification is the meaningful specification — a claim
+about magnification says nothing about whether an object will be visible at all.
+
+Angular resolution is limited by diffraction. The Rayleigh criterion gives the minimum
+resolvable separation as 1.22 lambda/D radians, which for visible light and a 1-metre
+aperture is about 0.13 arcseconds. Resolution improves with aperture and degrades with
+wavelength, which is why radio telescopes must be enormous or must be linked
+interferometrically to achieve comparable resolution — a radio array's resolution is set
+by the separation between its elements rather than by the size of any one, which is how
+very-long-baseline interferometry achieves microarcsecond resolution using dishes
+scattered across continents.
+
+Reflectors dominate modern astronomy over refractors for several converging reasons.
+Mirrors have no chromatic aberration, since reflection is wavelength-independent, while
+lenses focus different colours at different points unless corrected with multiple
+elements. Mirrors can be supported across their entire back surface, while a lens can
+only be held at its edge and sags under its own weight beyond about a metre. And only
+one surface must be figured to optical precision rather than two per element. The largest
+refractor ever built is about 1 metre; segmented mirrors now exceed 10 metres and 30-metre
+class instruments are under construction.
+
+Optical configurations and their tradeoffs:
+  Newtonian         parabolic primary, flat diagonal; simple, cheap, coma off-axis
+  Cassegrain        parabolic primary, hyperbolic secondary; long focal length in a
+                    short tube
+  Ritchey-Chretien  hyperbolic primary and secondary; coma-free wide field, the
+                    professional standard
+  Schmidt-Cassegrain corrector plate plus spherical mirrors; compact, popular for
+                    amateur use, some field curvature
+  refractor         no central obstruction, high contrast; chromatic aberration
+                    unless apochromatic, size-limited
+  focal ratio       f/D; low f-number gives a wide field and fast imaging, high
+                    f-number gives higher magnification and easier optical tolerance
+  plate scale       206265 / f_mm arcsec per mm at the focal plane
+
+Aberrations each have a characteristic signature that identifies them at the eyepiece or
+in an image. Spherical aberration puts light from different annuli at different focal
+points, producing a soft image that will not come to a sharp focus anywhere — the defect
+that afflicted Hubble before correction. Coma makes off-axis stars look like small
+comets with tails pointing radially outward. Astigmatism gives stars that elongate in
+perpendicular directions on either side of focus. Field curvature means the focal
+surface is not flat, so the centre and edge cannot be simultaneously in focus on a flat
+detector. Chromatic aberration produces coloured halos. Diagnosing which is present is
+mostly a matter of examining star images inside and outside focus.
+
+[user] I want to image a galaxy that's 4 arcminutes across with a 200 mm f/5 scope and a
+camera with 3.76 micron pixels. Will it fit and will I be sampling properly?
+[assistant] tool_call optics.imaging_setup({"aperture_mm": 200, "focal_ratio": 5,
+"pixel_um": 3.76, "sensor_px": [6248, 4176], "target_arcmin": 4, "seeing_arcsec": 2.5})
+[tool] {"focal_length_mm": 1000, "plate_scale_arcsec_per_mm": 206.3,
+"pixel_scale_arcsec": 0.776, "fov_arcmin": [80.8, 54.0], "target_fraction": 0.05,
+"sampling_ratio": 3.2, "verdict": "oversampled", "dawes_limit_arcsec": 0.58}
+[assistant] It fits with enormous room to spare, and you are significantly oversampled.
+
+Your focal length is 1000 mm, giving a plate scale of 206 arcsec/mm, so each 3.76 micron
+pixel covers 0.776 arcseconds. Your field of view is about 81 by 54 arcminutes — the
+galaxy occupies roughly 5% of the frame width. That is a lot of empty sky, though it
+does give you plenty of stars for calibration and plate solving.
+
+The sampling is the part worth acting on. Under 2.5 arcsecond seeing, your stars will be
+about 3.2 pixels across at full width half maximum. Nyquist sampling requires about 2
+pixels per FWHM, so you are oversampled by roughly 60%. Oversampling is not a
+correctness problem but it costs you: you are spreading the same photons over more
+pixels, so each pixel has lower signal and read noise is incurred more times per unit of
+collected light. Faint detail suffers.
+
+Two straightforward improvements. Bin 2x2 — this gives 1.55 arcsec/pixel, still adequately
+sampled at 1.6 pixels per FWHM under your seeing, and quadruples the signal per pixel
+while reading out once per binned pixel. On a CMOS sensor the read-noise benefit is
+smaller than on a CCD since binning is usually done in software, but the signal-to-noise
+per pixel still improves and files shrink by a factor of four.
+
+Alternatively use a focal reducer to bring you to about f/3.5, which would give roughly
+1.1 arcsec/pixel natively, a brighter image per pixel, and shorter exposures for the same
+depth. This is the better option if you image a lot of extended faint objects.
+
+One caution: your Dawes limit is 0.58 arcseconds, so the optics can in principle resolve
+far finer detail than the 2.5 arcsecond seeing permits. On an exceptional night with 1.2
+arcsecond seeing your native sampling would be closer to correct, so if you bin, do it in
+software after capture rather than in hardware — that keeps the option open.
+
+## Detectors and Spectroscopy
+
+Charge-coupled devices and CMOS sensors convert photons into measurable charge through
+the photoelectric effect. Quantum efficiency — the fraction of incident photons producing
+a detected electron — reaches above 90% in modern back-illuminated devices, against a few
+percent for photographic emulsion, which is the single technological change that
+transformed observational astronomy in the 1980s. The device is linear over most of its
+range, meaning measured signal is proportional to incident light, which is what makes
+quantitative photometry straightforward.
+
+Noise sources are distinct and must be handled separately. Photon shot noise is
+irreducible, arising from the Poisson statistics of photon arrival, with standard
+deviation equal to the square root of the count. Read noise is added once per readout by
+the amplifier, typically a few electrons in modern devices. Dark current accumulates
+thermally in proportion to exposure time and roughly doubles every 6-7 degrees Celsius,
+which is why scientific cameras are cooled. Fixed-pattern effects — pixel-to-pixel
+sensitivity variation, dust shadows, vignetting — are systematic rather than random and
+are removed by calibration rather than by averaging.
+
+The standard calibration sequence removes each systematic in turn. Bias frames, taken at
+zero exposure, capture the electronic offset. Dark frames, taken with the shutter closed
+at the same exposure and temperature as the science frames, capture thermal signal. Flat
+fields, taken on a uniformly illuminated surface, capture the multiplicative response
+variation including dust and vignetting. The reduction is then science minus bias minus
+dark, all divided by the normalized flat. Getting the order wrong, or flat-fielding
+before subtracting the additive terms, leaves residual structure that limits precision.
+
+Calibration and reduction:
+  bias        zero-second exposure; electronic offset, additive
+  dark        shutter closed, matched exposure and temperature; thermal, additive
+  flat        uniform illumination; response variation, multiplicative
+  reduction   (raw - bias - dark) / normalized_flat
+  cosmic rays sharp single-pixel events; rejected by median-combining dithered
+              frames, or by morphology-based algorithms on single frames
+  dithering   shift pointing slightly between exposures so detector defects land on
+              different sky positions and average out
+  stacking    combines frames; SNR improves as sqrt(N); sigma-clipping rejects
+              transient outliers
+  plate solve matches detected stars to a catalogue to derive an exact world
+              coordinate solution
+
+Spectroscopy disperses light by wavelength and is where most astrophysics actually
+happens, since an image tells you where something is while a spectrum tells you what it
+is made of, how hot it is, how fast it is moving, and often how massive it is. A
+diffraction grating or prism spreads the light, and the resolving power R = lambda /
+delta_lambda characterizes the instrument. Low resolution, R of a few hundred,
+classifies objects and gives redshifts. Medium resolution, a few thousand, measures
+line strengths and abundances. High resolution, tens of thousands and above, resolves
+line profiles and measures radial velocities to metres per second — the precision that
+makes Doppler exoplanet detection possible.
+
+Spectral lines encode enormous information. Their wavelengths identify elements, since
+each has a unique pattern. Their shift gives radial velocity through the Doppler
+relation, with cosmological redshift for distant objects. Their strength gives abundance
+and excitation conditions. Their width encodes temperature through thermal broadening,
+pressure through collisional broadening, and rotation or turbulence through kinematic
+broadening. Emission lines indicate hot diffuse gas, absorption lines indicate a cooler
+medium in front of a continuum source, and the distinction is Kirchhoff's laws applied
+to astrophysical sources.
+
+## Atmosphere, Surveys, and Modern Practice
+
+The atmosphere degrades ground-based observation in several distinct ways. Absorption
+blocks entire wavelength ranges — ultraviolet by ozone, much of the infrared by water
+vapour, and everything shortward of the near-ultraviolet — which is why space telescopes
+exist and why infrared observatories are placed on high dry sites. Emission from the
+sky itself, including airglow and scattered light, sets the background against which
+faint sources must be detected. Refraction bends light and displaces objects toward the
+zenith, differentially with wavelength, producing atmospheric dispersion that elongates
+star images near the horizon.
+
+Seeing is the most operationally important effect: turbulent cells of varying refractive
+index scramble the incoming wavefront, so a point source is smeared into a blob typically
+0.5 to 2 arcseconds across regardless of aperture. Beyond a modest size, larger
+telescopes therefore gain light-collecting power but not resolution from the ground. The
+site's median seeing is the primary criterion for observatory placement, which is why
+major facilities sit on isolated high peaks with laminar airflow — Mauna Kea, the
+Atacama, La Palma.
+
+Adaptive optics defeats seeing by measuring the distorted wavefront hundreds of times
+per second and correcting it with a deformable mirror. A bright reference source is
+required, and since one rarely lies near the target, laser guide stars create an
+artificial reference by exciting sodium atoms in the mesosphere. The correction is best
+in the infrared, where the wavefront distortion is a smaller fraction of a wavelength and
+the isoplanatic patch — the angular region over which the correction remains valid — is
+larger. A well-corrected 8-metre telescope reaches its diffraction limit, resolving
+detail an order of magnitude finer than the natural seeing permits.
+
+Observational limits and mitigations:
+  atmospheric absorption   space, or high dry sites for infrared
+  sky background           dark sites, narrowband filters, space
+  seeing                   adaptive optics, lucky imaging, speckle interferometry,
+                           or space
+  light pollution          site selection, narrowband filters; a growing problem
+                           near populated areas
+  satellite trails         increasingly severe with large constellations; mitigated
+                           by masking and by scheduling around predicted passes
+  radio interference       protected frequency bands, remote radio-quiet zones
+
+Modern astronomy is increasingly survey-driven and data-dominated rather than
+target-driven. Rather than pointing at chosen objects, wide-field surveys image large
+sky areas repeatedly and build catalogues that thousands of researchers mine. Gaia
+measured positions, parallaxes, and proper motions for nearly two billion stars. The
+Vera Rubin Observatory will image the entire southern sky every few nights, producing
+tens of terabytes nightly and millions of transient alerts. The scientific bottleneck has
+shifted from photon collection to data management, classification, and the automated
+triage of alert streams — which is why machine learning has become a standard tool in
+the field, applied to variable-star classification, transient identification, photometric
+redshift estimation, and gravitational lens discovery.
+
+Multi-messenger astronomy adds channels beyond electromagnetic radiation. Neutrino
+detectors observed the burst from Supernova 1987A hours before the light arrived, since
+neutrinos escape the collapsing core promptly while photons diffuse out. Gravitational
+wave detectors observed the neutron star merger GW170817 in coincidence with a
+short gamma-ray burst and a kilonova, confirming the origin of heavy elements and
+constraining the speed of gravitational waves to match light to within one part in
+10^15. Cosmic rays provide a fourth channel, though magnetic deflection destroys their
+directional information except at the highest energies. Combining channels constrains
+physics that no single one can, and the coordination problem — distributing alerts fast
+enough for other facilities to respond within hours — has become a substantial part of
+the field's infrastructure.

@@ -1,0 +1,236 @@
+================================================================================
+AREA: Physics
+SUBJECT: Lasers and Nonlinear Optics
+Subtopics: laser fundamentals, cavity modes and beam quality, pulsed operation,
+nonlinear processes, frequency conversion, ultrafast optics, applications.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Laser Fundamentals
+
+A laser produces light through stimulated emission, in which a photon passing an excited atom
+triggers the emission of a second photon identical in frequency, phase, direction, and
+polarization. This copying process is what distinguishes laser light from thermal light: the
+photons are coherent, so the output is directional, monochromatic, and capable of being focused to
+a spot limited only by diffraction.
+
+Three components are required. A gain medium supplies the excited atoms; a pump supplies the energy
+to excite them; and a resonator — typically two mirrors — returns light through the gain medium
+repeatedly so that amplification compounds. Oscillation begins when the round-trip gain exceeds the
+round-trip loss, which defines the threshold, and above threshold the output rises approximately
+linearly with pump power while the internal field clamps the gain at the loss value.
+
+Population inversion — more atoms in the upper state than the lower — is required for net
+amplification, and it cannot be achieved in a two-level system by optical pumping, because the same
+transition that excites also stimulates emission and the populations equalize at best. Three-level
+and four-level schemes solve this by using separate transitions for pumping and lasing, and the
+four-level arrangement is markedly better because its lower laser level empties rapidly, so
+inversion is achieved at low pump power rather than requiring more than half the population to be
+excited.
+
+Laser fundamentals:
+  stimulated emission  a photon triggering an identical copy
+  coherence            the property distinguishing laser from thermal light
+  spatial coherence    directionality and focusability
+  temporal coherence   monochromaticity and interference over long paths
+  gain medium          the excited atoms supplying amplification
+  pump                 optical, electrical, or chemical energy input
+  resonator            mirrors returning light through the gain
+  threshold            round-trip gain equal to round-trip loss
+  gain clamping        above threshold the gain is pinned at the loss value
+  population inversion  more atoms above than below
+  the two-level impossibility  optical pumping cannot invert a two-level system
+  three-level scheme   requires more than half the population excited; inefficient
+  four-level scheme    a rapidly emptying lower level; low threshold
+  linewidth            set by the gain bandwidth and the cavity; narrower with a
+                       longer, more selective cavity
+  the efficiency chain  pump to upper state, upper state to photons, photons out
+                       of the cavity; each stage has its own loss and the product
+                       is what the specification reports
+
+Q: A laser's output power rises steeply above a certain pump power and is essentially zero below
+it. This threshold occurs because:
+A. The gain medium activates suddenly
+B. Below it, round-trip gain is less than round-trip loss, so oscillation cannot build; above it,
+   the field grows until gain saturates back down to equal the loss
+C. The mirrors change reflectivity
+D. The pump is nonlinear
+Reasoning: Laser oscillation requires net round-trip gain exceeding unity. Below that condition
+spontaneous emission is not amplified into a coherent field. Above it the intracavity intensity
+grows until saturation clamps the gain at exactly the loss, and additional pump power appears as
+output. Answer: B.
+
+## Cavity Modes and Beam Quality
+
+The resonator supports discrete modes, and they divide into two families. Longitudinal modes are
+the standing-wave patterns along the cavity axis, spaced in frequency by the inverse round-trip
+time, and a typical cavity supports many of them within the gain bandwidth. Transverse modes
+describe the intensity pattern across the beam, and the fundamental one has a Gaussian profile that
+is the most useful in nearly every application.
+
+A Gaussian beam has a specific propagation behaviour that must be understood to use lasers
+correctly. It has a minimum radius at the waist, expands hyperbolically away from it, and
+approaches a constant far-field divergence angle inversely proportional to the waist size. Tight
+focusing and low divergence are therefore in direct opposition — a beam focused to a small spot
+diverges rapidly, and a collimated beam cannot be focused arbitrarily small.
+
+Beam quality quantifies departure from the ideal Gaussian, expressed as a factor describing how much
+worse the beam's focusability is than the diffraction limit. It matters because it determines the
+minimum achievable spot size and therefore the achievable intensity, and a high-power laser with
+poor beam quality can be less useful for cutting or for coupling into a fibre than a lower-power
+one with a clean mode. Power alone is not the specification that matters.
+
+Modes and beams:
+  longitudinal modes   standing waves along the axis; spaced by the inverse
+                       round-trip time
+  single frequency operation  achieved by an intracavity selective element
+  transverse modes     the intensity pattern across the beam
+  the fundamental mode  Gaussian; the most useful in nearly all applications
+  waist                the minimum beam radius
+  Rayleigh range       the distance over which the beam stays approximately
+                       collimated
+  divergence           inversely proportional to waist size
+  the fundamental tradeoff  tight focus and low divergence oppose each other
+  beam quality factor  how much worse than the diffraction limit
+  the practical consequence  focusability, not power, determines achievable
+                       intensity
+  mode matching        coupling into a fibre or cavity requires matching the mode,
+                       not merely aiming
+  thermal lensing      pump-induced index gradients acting as a lens; degrades
+                       mode quality at high power and shifts the cavity design
+                       point with pump level
+  stability criterion  which mirror curvature and spacing combinations support a
+                       confined mode; a cavity outside the stable region does not
+                       oscillate in a useful mode at all
+
+## Pulsed Operation
+
+Continuous operation is limited in peak power by the pump. Pulsed operation concentrates energy in
+time, achieving peak powers orders of magnitude above the average, and the two dominant techniques
+achieve very different regimes.
+
+Q-switching holds the cavity loss high while the gain medium accumulates inversion, then abruptly
+lowers it, releasing the stored energy in a single short pulse. The pulse duration is set by the
+cavity round-trip time and the gain, typically nanoseconds, and the peak power is the stored energy
+divided by that duration — kilowatts to megawatts from a modest average power. It is the standard
+approach for material processing, ranging, and pumping other nonlinear processes.
+
+Mode-locking is different in mechanism and produces much shorter pulses. If the many longitudinal
+modes of a cavity are forced into a fixed phase relationship, they interfere constructively at one
+point per round trip and destructively elsewhere, producing a single circulating pulse whose
+duration is inversely proportional to the number of locked modes. A broad gain bandwidth therefore
+permits a short pulse, which is why titanium-doped sapphire with its enormous bandwidth is the
+classic ultrafast medium and why femtosecond pulses require materials chosen for bandwidth rather
+than for efficiency.
+
+Pulsed operation:
+  Q-switching          store inversion, then release abruptly
+  pulse duration       nanoseconds; set by cavity time and gain
+  peak power           stored energy over pulse duration
+  applications         processing, ranging, pumping nonlinear stages
+  mode-locking         fixing the phase relationship among longitudinal modes
+  the resulting pulse  a single circulating pulse
+  duration relation    inversely proportional to the locked bandwidth
+  the bandwidth requirement  short pulses need broad gain bandwidth
+  active mode-locking  an intracavity modulator at the round-trip frequency
+  passive mode-locking  a saturable absorber favouring high intensity; produces
+                       the shortest pulses
+  Kerr lens mode-locking  self-focusing acting as an effective fast absorber
+  chirped pulse amplification  stretch, amplify, recompress; permits amplifying
+                       ultrashort pulses without destroying the amplifier
+  the reason it was necessary  peak intensity in an amplifier exceeds the damage
+                       threshold unless the pulse is stretched first
+  repetition rate      set by the cavity length in mode-locked operation
+  pulse energy versus rate  a fixed average power divides between them, and the
+                       application determines which matters
+
+## Nonlinear Optics and Frequency Conversion
+
+At ordinary intensities a material's polarization response to a field is linear, which is why
+optical frequencies do not mix and superposition holds. At the intensities lasers provide the
+response acquires higher-order terms, and those terms couple different frequencies, allowing light
+to generate light at new frequencies. Nonlinear optics is the study of these processes and it is
+what makes laser wavelengths available outside the wavelengths that lasing media naturally provide.
+
+Second-order processes require a material without inversion symmetry, which restricts them to
+certain crystal classes. Second harmonic generation converts two photons into one at double the
+frequency, and it is the standard way to reach green from infrared. Sum and difference frequency
+generation combine two inputs. Parametric processes split one photon into two, and an optical
+parametric oscillator built around this is a widely tunable source.
+
+Phase matching is the practical requirement that determines whether any of these work. The generated
+wave must stay in phase with the driving polarization over the interaction length, which requires
+the refractive indices at the involved frequencies to satisfy a specific relationship. Since
+dispersion normally prevents this, the standard techniques exploit birefringence — using different
+polarizations whose indices can be matched by choosing the crystal angle — or quasi-phase-matching,
+which periodically reverses the crystal's nonlinear coefficient so that the accumulated phase error
+resets before it cancels the output.
+
+Nonlinear optics:
+  the linear regime    polarization proportional to field; no frequency mixing
+  higher-order terms   significant at laser intensities
+  second-order processes  require a material without inversion symmetry
+  second harmonic generation  two photons into one at double frequency
+  sum and difference frequency  combining two inputs
+  parametric processes  one photon splitting into two
+  optical parametric oscillator  a widely tunable source built on that process
+  third-order processes  available in all materials, including glass and gases
+  self-phase modulation  intensity-dependent index modulating the pulse's own
+                       phase; broadens the spectrum
+  four-wave mixing     the third-order frequency mixing process
+  Kerr effect          intensity-dependent refractive index
+  self-focusing        the beam creating its own lens; leads to filamentation and
+                       damage
+  phase matching       the generated wave staying in phase with its source
+  birefringent phase matching  index matching by polarization and crystal angle
+  quasi-phase-matching  periodic reversal of the nonlinear coefficient
+  conversion efficiency  scales with intensity and interaction length; why pulsed
+                       sources are used for conversion
+  the practical design  the crystal choice, its length, the focusing, and the
+                       temperature all interact and are optimized together
+
+## Ultrafast Optics and Applications
+
+Ultrashort pulses have properties that follow directly from their bandwidth. A pulse of femtosecond
+duration necessarily spans a broad spectrum, and any dispersive element stretches it because
+different frequencies travel at different speeds. Managing this dispersion is the central practical
+task in ultrafast optics, and it requires compensating elements — prism or grating pairs, chirped
+mirrors — that introduce the opposite sign of dispersion.
+
+The peak intensities available from short pulses open regimes inaccessible otherwise. Material
+processing with ultrashort pulses removes material before heat diffuses out of the interaction
+region, producing clean features with no melted rim, which is why they are used for precision
+machining and for surgery on transparent tissue. High harmonic generation drives electrons in a gas
+so violently that they radiate at very high harmonic orders, producing coherent extreme ultraviolet
+light and attosecond pulses that resolve electron motion.
+
+Frequency combs connect the optical and microwave domains and earned recognition as a
+transformative measurement tool. A mode-locked laser's spectrum is a comb of evenly spaced lines
+whose spacing is the repetition rate and whose offset can be measured and stabilized. Once both are
+locked to a radio-frequency reference, every optical line has a precisely known frequency, which
+turns optical frequency measurement from a heroic undertaking into a routine one and is what made
+optical atomic clocks practical.
+
+Ultrafast and applications:
+  bandwidth-duration relation  short pulses necessarily span broad spectra
+  dispersion           different frequencies travelling at different speeds
+  chirp                the resulting time-ordering of frequencies within a pulse
+  compensation         prism pairs, grating pairs, chirped mirrors
+  the practical burden  every optical element in the path contributes dispersion
+  ultrashort processing  material removed before heat diffuses; no melted rim
+  multiphoton absorption  enables processing inside transparent materials
+  high harmonic generation  extreme ultraviolet and attosecond pulses
+  pump-probe spectroscopy  one pulse initiates, a delayed pulse observes; the
+                       standard method for resolving fast dynamics
+  frequency comb       evenly spaced optical lines from a mode-locked laser
+  the two parameters   repetition rate and carrier-envelope offset
+  self-referencing     measuring the offset by comparing a doubled low-frequency
+                       part of the comb with its high-frequency part
+  the consequence      optical frequencies measured against a radio reference
+  optical clocks       enabled by comb-based frequency counting
+  spectroscopy         broadband and high-resolution simultaneously
+  the general pattern  laser development has repeatedly turned measurements that
+                       were feasibility demonstrations into routine instruments,
+                       and the applications that follow are usually not the ones
+                       the developers anticipated

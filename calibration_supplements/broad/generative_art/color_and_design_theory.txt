@@ -1,0 +1,288 @@
+================================================================================
+AREA: Generative Art and Creative Technology
+SUBJECT: Colour and Design Theory
+Subtopics: colour perception and spaces, palette construction, composition, typography,
+layout systems, visual hierarchy, accessibility, applied practice.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Colour Perception and Spaces
+
+Colour is a perceptual construction rather than a property of light. The retina contains
+three cone types with broad overlapping sensitivities, and colour is the brain's
+interpretation of their relative responses — which is why entirely different spectra can look
+identical, a phenomenon called metamerism. Two paint samples matching under daylight can
+differ visibly under incandescent light, because their spectra differ while their cone
+responses happened to coincide under one illuminant. This is a practical problem in printing,
+manufacturing, and any situation where colours are matched under one condition and viewed
+under another.
+
+Colour constancy is the perceptual system's compensation for illumination. A white sheet
+looks white in warm indoor light and in blue shade despite reflecting very different spectra,
+because the visual system estimates the illuminant and discounts it. The compensation is
+imperfect and context-dependent, which is why identical pixel values can appear as different
+colours depending on surrounding content, and why simultaneous contrast effects are so
+robust: a grey patch appears lighter against dark surroundings and darker against light ones.
+
+Colour spaces organize colour numerically, and choosing the wrong one for a task is the most
+common source of poor colour work. RGB is device-oriented and additive, matching how displays
+emit light. CMYK is subtractive and matches how ink absorbs it, which is why the two gamuts
+differ and why saturated RGB colours cannot be printed. HSL and HSV are convenient
+reparameterizations of RGB and are not perceptually uniform: their lightness axis does not
+correspond to perceived brightness, so a fully saturated yellow and a fully saturated blue at
+the same nominal lightness differ enormously in how bright they look.
+
+Colour spaces and their proper use:
+  RGB             additive, device-dependent; capture and display
+  sRGB            the standard consumer space; gamma-encoded, limited gamut
+  Display P3      wider gamut, now common on modern screens
+  CMYK            subtractive; print, with a smaller and differently shaped gamut
+  HSL / HSV       intuitive parameterization of RGB; not perceptually uniform
+  CIELAB          designed for perceptual uniformity; the classical choice for
+                  colour difference
+  OKLab / OKLCH   modern perceptually uniform space; better hue linearity than
+                  Lab, and interpolation in it produces predictable gradients
+  linear RGB      proportional to light; required for any arithmetic on colour
+  gamut           the representable range; conversion requires mapping
+                  out-of-gamut colours, which is a lossy decision
+  white point     the reference for what counts as neutral; D65 is standard
+  delta E         perceptual colour difference; below about 1 is imperceptible
+
+The practical recommendation that follows is to work in a perceptually uniform space for
+anything involving interpolation, comparison, or systematic variation. Generating a gradient
+in sRGB passes through dark muddy midpoints because the encoding is nonlinear; generating it
+in linear RGB avoids that and still produces hue shifts; generating it in OKLCH produces even
+lightness steps with stable hue. Similarly, building a palette by varying lightness in HSL
+gives swatches that do not look equally spaced, while doing it in OKLCH does.
+
+Q: Interpolating between blue and yellow in sRGB produces a desaturated grey midpoint. The
+best fix is:
+A. Add more intermediate stops
+B. Interpolate in a perceptually uniform space such as OKLCH, which preserves chroma through
+   the transition
+C. Increase saturation on both endpoints
+D. Use CMYK
+Reasoning: The straight line between two hues in a device RGB cube passes near the neutral
+axis, so chroma collapses at the midpoint. Interpolating in a space with separate lightness,
+chroma, and hue axes takes a path around the hue circle at maintained chroma, which is what
+the eye expects. Adding stops in the same space merely samples the same bad path more
+finely. Answer: B.
+
+## Palette Construction
+
+A palette is a constrained set of colours used consistently, and constraint is what makes a
+design read as designed. The most common failure in generative and amateur work is sampling
+colours freely, which produces combinations that are individually plausible and collectively
+incoherent.
+
+Harmony schemes provide starting structures based on relationships around the hue circle.
+Monochromatic uses one hue with varied lightness and chroma, which is always safe and can be
+dull. Analogous uses neighbouring hues, giving a coherent and often naturalistic result.
+Complementary uses opposite hues for maximum contrast, and works best with one dominant and
+one accent rather than equal weight. Split-complementary softens that contrast. Triadic uses
+three evenly spaced hues, which is vibrant and difficult to balance.
+
+These schemes are starting points rather than rules, and the more durable principle is
+proportion. A palette in which every colour occupies equal area reads as chaotic regardless of
+harmony; one with a clear dominant, a secondary, and a small accent reads as deliberate. The
+often-cited sixty-thirty-ten proportion is a heuristic expressing this, and the specific
+numbers matter less than the presence of a clear hierarchy.
+
+Palette construction:
+  monochromatic       one hue, varied lightness and chroma; safe
+  analogous           neighbouring hues; coherent, naturalistic
+  complementary       opposite hues; maximum contrast, use unequally
+  split-complementary softer than complementary
+  triadic             three evenly spaced; vibrant, hard to balance
+  proportion          a dominant, a secondary, a small accent
+  neutrals            most palettes need them; slightly tinted neutrals read as
+                      more considered than pure grey
+  warm and cool       warm advances, cool recedes; the basis of depth in painting
+  chroma control      high chroma everywhere is exhausting; reserve it for focus
+  lightness ramp      build a systematic ramp per hue, spaced perceptually
+  semantic mapping    in interfaces, colour must carry consistent meaning
+  culture             colour associations are not universal; verify assumptions for
+                      the intended audience
+
+The systematic lightness ramp is the technique that distinguishes a professional colour
+system from an ad hoc collection. Rather than choosing individual colours, define a set of
+lightness steps and generate each hue at each step, holding perceived lightness constant
+across hues. This yields a grid in which any two colours at the same step have the same
+contrast against a background, so substitutions are safe, dark mode is a systematic
+transformation rather than a redesign, and accessibility contrast checks pass or fail
+predictably by step rather than per pair.
+
+## Composition and Visual Hierarchy
+
+Composition arranges elements to guide attention and communicate structure. The eye does not
+scan uniformly; it is drawn to contrast, to faces, to isolated elements, and to the
+intersections of implied lines, and composition works by placing what matters where attention
+naturally goes.
+
+Visual hierarchy is the ordering of elements by importance, expressed through the tools that
+create emphasis. Size is the most direct. Contrast against the surroundings — in lightness,
+in chroma, in hue — is the most powerful, since the eye is fundamentally a contrast detector.
+Position matters, with the top-left of a left-to-right reading order receiving attention
+first. Isolation makes an element prominent regardless of its other properties, because
+whitespace around it removes competition. Repetition creates grouping, and breaking a
+repetition creates emphasis.
+
+The Gestalt principles describe how the visual system groups elements before conscious
+inspection, and they operate whether or not a designer accounts for them. Proximity groups
+nearby elements, which means spacing communicates relationship more strongly than any label —
+a form field closer to the wrong label will be misread regardless of what the label says.
+Similarity groups elements sharing appearance. Closure completes implied shapes. Continuity
+follows implied lines. Common region groups elements sharing an enclosure or background.
+
+Composition tools:
+  size                the most direct emphasis
+  contrast            the most powerful; the eye detects difference
+  position            reading order determines default scan path
+  isolation           whitespace creates prominence
+  repetition          creates grouping and rhythm
+  breaking repetition creates emphasis
+  alignment           creates invisible structure; misalignment reads as error
+  proximity           spacing communicates relationship more strongly than labels
+  similarity          shared appearance implies shared kind
+  figure-ground       what is object and what is background; ambiguity is
+                      uncomfortable unless intended
+  rule of thirds      a heuristic for placing interest off-centre
+  visual weight       dark, saturated, detailed, and large elements weigh more
+  negative space      an active compositional element, not leftover area
+
+Whitespace deserves its own note because it is consistently undervalued by non-designers,
+who read it as waste. It is what creates grouping, what establishes hierarchy through
+isolation, and what gives the eye rest. Reducing whitespace to fit more content reliably
+reduces how much of that content is actually read, because the structure that made it
+scannable is gone. The instruction to fill empty space is almost always a request to make a
+design worse.
+
+[user] My data dashboard is technically correct but people say it's overwhelming and they
+can't find anything.
+[assistant] tool_call design.audit({"element_count": 34, "colors_used": 19,
+"font_sizes": 11, "type_families": 3, "chart_types": 8, "whitespace_ratio": 0.12,
+"has_primary_metric": false, "alignment_grid": false})
+[tool] {"issues": ["no_visual_hierarchy", "excessive_color_variety",
+"too_many_type_sizes", "insufficient_whitespace", "no_focal_point"],
+"priority": ["establish_hierarchy", "reduce_palette", "add_whitespace"]}
+[assistant] Everything on the page is competing at the same level, so nothing wins and the
+viewer has to read all of it to find anything. That is what "overwhelming" describes.
+
+The diagnostic numbers: 19 colours, 11 type sizes, 34 elements, and 12% whitespace, with no
+designated primary metric. When every element is emphasized, none is.
+
+Three changes, in this order, because each one makes the next easier to judge.
+
+Establish a hierarchy. Decide what the single most important number on this dashboard is —
+the one a person glancing for two seconds should leave with — and make it substantially larger
+than everything else. Then a second tier of three to five supporting metrics, then everything
+else. This is the change that will produce the biggest perceived improvement, and it requires
+a decision about priority rather than a design skill.
+
+Reduce the palette to about five colours plus neutrals. Use colour to carry meaning
+consistently — one colour for positive, one for negative, one accent for the focal element,
+and neutral grey for everything that is context rather than signal. Most of your 19 colours
+are probably decorating chart series that could be neutral, since a chart with one highlighted
+series and the rest in grey communicates far more than a chart where every series is a
+different bright colour.
+
+Add whitespace by grouping. At 12% whitespace the elements have no perceptual grouping, so
+the viewer sees 34 things rather than 5 groups. Increase spacing between groups substantially
+more than within them — the ratio matters more than the absolute amount — and the structure
+will become visible without removing any content.
+
+Two smaller things: reduce to three or four type sizes with clear roles, and align everything
+to a grid. Misalignment does not register consciously as misalignment; it registers as the
+design being sloppy, which reduces trust in the data.
+
+Eight chart types is also worth revisiting. Each type a viewer must interpret costs attention.
+Using bar and line for nearly everything, with a deliberate exception where a different form
+genuinely communicates better, will read as more coherent and be faster to scan.
+
+## Typography
+
+Typography carries a large share of a design's character and readability, and most of the
+craft is in a small number of decisions.
+
+Typeface classification provides the vocabulary. Serifs have small terminal strokes and carry
+associations of tradition and formality; their utility for long-form reading on screen is a
+matter of the specific face and rendering rather than a general rule. Sans-serifs are cleaner
+at small sizes and on low-resolution displays. Slab serifs have heavy rectangular serifs and
+read as sturdy. Monospaced faces give every character the same width, which is essential for
+code where alignment carries meaning, and they are poor for prose because the spacing is
+uneven.
+
+Readability is governed by measurable properties. Line length in the range of 45 to 75
+characters is the well-established comfortable range, because much longer lines make the
+return sweep to the next line error-prone and much shorter ones break reading rhythm. Line
+height should increase with line length, since a longer line needs more vertical separation
+to keep the return sweep accurate. Contrast must be sufficient, and light grey text on white
+is the most common readability failure in contemporary interfaces, chosen for aesthetic
+lightness at the cost of legibility for anyone with less than excellent vision.
+
+Typography practice:
+  measure             45-75 characters per line for body text
+  line height         1.4-1.6 for body; more for longer lines, less for headings
+  type scale          a systematic ratio between sizes; 1.2 to 1.33 are common
+  hierarchy           three or four sizes with clear roles, not eleven
+  weight              a more efficient hierarchy tool than size for small
+                      differences
+  tracking            tighten for large display sizes, loosen for small caps
+  kerning             pair-specific spacing; matters at display sizes
+  alignment           left-aligned ragged right for most text; justified text needs
+                      hyphenation to avoid rivers of whitespace
+  widows and orphans  single lines separated from their paragraph; avoid
+  font pairing        contrast the pair clearly, or use one family's full range;
+                      two similar faces read as a mistake
+  loading             web fonts cause layout shift; match fallback metrics or use
+                      font-display settings
+  contrast            4.5:1 minimum for body text; light grey on white is the most
+                      common accessibility failure
+
+## Accessibility and Systematic Practice
+
+Accessible design is not a separate mode but a set of constraints that improve the design
+generally. Sufficient contrast helps everyone in bright sunlight. Clear hierarchy helps
+everyone scanning. Not relying on colour alone helps colourblind users and also helps in
+greyscale printing and on poor displays.
+
+Colour vision deficiency affects roughly eight percent of men and half a percent of women in
+populations of European descent, with red-green confusion being by far the most common. A
+design distinguishing states by red and green alone is unreadable for those users, and the
+remedy is redundant encoding: pair colour with shape, position, label, or pattern so that
+colour is confirming rather than carrying the information. This is a general principle worth
+applying regardless — colour is a weak channel for precise discrimination even for viewers
+with typical vision.
+
+Contrast ratios are specified numerically and are worth checking rather than judging by eye,
+since perceived contrast is affected by size, weight, and surroundings. The standard
+thresholds are 4.5 to 1 for body text, 3 to 1 for large text and for interface components and
+graphical objects. Meeting them is a floor rather than a target, and text at exactly the
+minimum is legible rather than comfortable.
+
+Accessibility and systems:
+  contrast ratios     4.5:1 body text, 3:1 large text and UI components
+  never colour alone  pair with shape, label, position, or pattern
+  colour blindness    ~8% of men; red-green most common; simulate to check
+  focus indicators    visible and never removed without replacement
+  motion              respect reduced-motion preferences; vestibular disorders
+                      make parallax and large transitions genuinely harmful
+  text size           must scale with user settings; avoid fixed pixel sizing
+  touch targets       at least 44 by 44 points
+  design tokens       named values for colour, spacing, and type; the mechanism by
+                      which a system stays consistent
+  spacing scale       a consistent set of values, often a geometric progression;
+                      arbitrary spacing is what makes layouts feel unresolved
+  component library   consistent implementations of recurring patterns
+  documentation       when to use each component and why; a library without it
+                      gets used inconsistently
+
+The systematic approach is what separates a design that scales from one that does not.
+Defining tokens — a spacing scale, a type scale, a colour ramp, a set of radii and shadows —
+and building from them means that consistency is structural rather than maintained by
+vigilance. It also makes global changes tractable: a shift in brand colour or a dark mode
+becomes a token remapping rather than a review of every screen. The constraint of choosing
+from a defined scale rather than from a continuum feels limiting initially and reliably
+produces more coherent work, for the same reason that a constrained palette does — the
+constraint is where the coherence comes from.

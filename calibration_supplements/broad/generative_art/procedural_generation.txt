@@ -1,0 +1,296 @@
+================================================================================
+AREA: Generative Art and Creative Technology
+SUBJECT: Procedural Generation
+Subtopics: grammars and rewriting, constraint-based generation, terrain and worlds,
+graphs and dungeons, agent-based methods, controllability, evaluation.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Grammars and Rewriting Systems
+
+Procedural generation creates content algorithmically rather than by hand, and the oldest
+family of techniques is rewriting: start from a symbol and repeatedly replace symbols
+according to rules until a terminal string remains, then interpret that string as structure.
+
+L-systems, developed to model plant growth, rewrite all symbols in parallel at each step,
+which is what distinguishes them from ordinary formal grammars and what makes them model
+biological growth well — every cell divides simultaneously rather than one at a time. The
+resulting string is interpreted by a turtle: symbols command forward movement, rotation,
+and the pushing and popping of state that produces branching. A handful of rules and a few
+iterations produce convincing trees, ferns, and space-filling curves.
+
+The extensions are what make L-systems practical rather than merely elegant. Stochastic
+rules select among alternatives by probability, so repeated generation gives variety rather
+than identical copies. Context-sensitive rules let a symbol's rewriting depend on its
+neighbours, which models signal propagation through a growing structure. Parametric systems
+attach numeric parameters to symbols — length, width, age — so that rules can express
+continuous change and conditional behaviour, which is how realistic tapering and
+age-dependent branching are obtained.
+
+Shape grammars apply the same idea to geometry directly rather than through a string,
+rewriting shapes into arrangements of shapes. Split grammars, their architectural
+specialization, repeatedly subdivide a mass into floors, then into bays, then into window
+and wall elements, which is how procedural building generation works and why it produces
+plausible facades: real buildings genuinely are organized by hierarchical subdivision.
+
+Rewriting system components:
+  alphabet             the symbols
+  axiom                the starting string
+  production rules     symbol to string replacements
+  parallel rewriting   all symbols rewritten simultaneously; the L-system defining
+                       property
+  turtle interpretation F forward, +/- rotate, [ ] push/pop state
+  stochastic rules     multiple productions with probabilities; variety
+  context sensitive    rewriting depends on neighbours
+  parametric           symbols carry numeric parameters
+  shape grammar        rewriting on geometry rather than symbols
+  split grammar        hierarchical subdivision; facades and interiors
+  wave function collapse  constraint propagation over local adjacency rules
+
+The characteristic failure of grammar-based generation is that local rules do not guarantee
+global properties. An L-system tree can grow branches that intersect, because no rule
+considers what other branches are doing. A split grammar can produce a building whose
+windows do not align between floors. The remedies are post-processing to detect and repair
+violations, adding environmental sensitivity so that rules query the surrounding geometry
+before firing, or moving to a formulation where global constraints are expressed directly —
+which is what constraint-based methods do.
+
+Q: An L-system produces identical output on every run. The most direct way to get variety
+while preserving the same structural character is:
+A. Increase the iteration count
+B. Add stochastic productions with weighted alternatives
+C. Change the axiom each run
+D. Add more symbols to the alphabet
+Reasoning: Stochastic productions replace a symbol with one of several alternatives chosen
+by probability, so the structural grammar is preserved while the specific realization varies.
+More iterations produce a larger structure of the same character; changing the axiom changes
+the starting point rather than the variation; more symbols changes the grammar itself.
+Answer: B.
+
+## Constraint-Based Generation
+
+Constraint-based methods invert the grammar approach: rather than specifying how content is
+built, specify what must be true of it and let a solver find something satisfying the
+requirements. This is attractive because designers naturally think in constraints — every
+room must be reachable, the key must be findable before the door, no two adjacent tiles may
+be incompatible — and because it guarantees the constraints rather than hoping the generative
+process happens to satisfy them.
+
+Wave function collapse is the technique that popularized this framing in generative art. It
+takes an example input, extracts the set of local patterns and their adjacency
+compatibilities, then fills an output grid by repeatedly choosing the cell with fewest
+remaining possibilities, collapsing it to one option, and propagating the consequences to
+neighbours. The result resembles the input locally everywhere while being globally novel.
+Its appeal is that the designer specifies the style by drawing an example rather than by
+writing rules.
+
+The technique's characteristic problem is contradiction: propagation can reach a state where
+some cell has no valid options, and the generation fails. The standard responses are
+backtracking, which is expensive; restarting, which is simple and wasteful; and constraint
+relaxation, which permits an imperfect result rather than none. In practice, careful design
+of the tile set to avoid over-constraining, plus restart-on-failure, is what most
+implementations do.
+
+Answer set programming and SAT-based approaches generalize this. Content requirements are
+expressed as logical constraints and a general-purpose solver finds satisfying assignments,
+with the ability to enumerate distinct solutions for variety. This handles global constraints
+that local propagation cannot — that a level must be completable, that a puzzle must have
+exactly one solution, that a quest chain must be acyclic — at the cost of much heavier
+computation and the difficulty of expressing aesthetic preferences as logic.
+
+Constraint approaches:
+  wave function collapse  local adjacency from an example; fast, style-driven
+  model synthesis         the predecessor; similar idea with different propagation
+  answer set programming  full logical constraints; global guarantees, slower
+  SAT / SMT               constraint satisfaction with rich theories
+  constraint propagation  arc consistency; prune impossible options early
+  backtracking            recover from contradictions at some cost
+  soft constraints        preferences with weights rather than hard requirements
+  generate and test       simple, effective when the acceptance rate is decent,
+                          hopeless when constraints are tight
+  repair-based            generate freely, then fix violations; often the most
+                          practical hybrid
+
+The choice between generate-and-test and constraint solving comes down to the acceptance
+rate. If a naive generator produces a valid artifact most of the time, testing and rejecting
+is far simpler than building a solver. If valid artifacts are rare — a level that must be
+completable, a puzzle with a unique solution — rejection sampling never terminates and a
+constructive or constraint-based method is required. Estimating that acceptance rate early is
+worth doing before committing to an architecture.
+
+## Terrain, Worlds, and Continuous Content
+
+Terrain generation is the most visible application and rests on noise. A heightmap generated
+from fractal Brownian motion — layered noise octaves at increasing frequency and decreasing
+amplitude — produces plausible rolling landscape immediately. The refinements are what turn
+that into something with character.
+
+Ridged noise, taking one minus the absolute value of noise and squaring, produces sharp
+ridgelines resembling mountain ranges rather than rounded hills. Domain warping, evaluating
+noise at coordinates displaced by another noise field, produces the flowing, folded
+structure of real geology rather than isotropic bumps. Erosion simulation — either
+hydraulic, moving material downhill with simulated water flow, or thermal, relaxing slopes
+beyond an angle of repose — produces the drainage networks, valleys, and talus slopes that
+make terrain read as having a history rather than as noise.
+
+Erosion deserves emphasis because it is the single highest-impact addition. Pure fractal
+noise produces terrain that is statistically self-similar and geologically impossible: no
+drainage, no valleys converging, no sediment deposition in basins. Even a crude hydraulic
+erosion pass — drop particles, let them pick up and deposit material according to slope and
+capacity, repeat — transforms the result, because real terrain is shaped overwhelmingly by
+water and the eye recognizes drainage structure even without knowing why.
+
+Terrain and world generation:
+  fractal noise         layered octaves; the base heightmap
+  ridged noise          sharp crests; mountain ranges
+  domain warping        folded, flowing structure; the highest-value cheap addition
+  hydraulic erosion     drainage networks, valleys, sediment; transformative
+  thermal erosion       talus slopes at the angle of repose
+  Voronoi regions       tectonic plates, biomes, political territories
+  Whittaker biomes      assign biome from temperature and precipitation fields
+  rivers                trace downhill from high points; carve and widen
+  masks and gradients   island shapes, continental outlines, playable-area limits
+  chunked generation    generate on demand from position-seeded noise; enables
+                        effectively infinite worlds with no storage
+  level of detail       resolution scaled by distance; essential at world scale
+
+Infinite world generation requires that content be a pure function of position and seed,
+computable independently of any other chunk. This is why noise functions rather than
+simulation are the base layer: noise is evaluable at any coordinate in isolation, while
+erosion is inherently global. The standard compromise is a noise base that is
+position-independent, plus locally-simulated detail within a chunk, plus careful handling of
+chunk boundaries so that features crossing them remain continuous — which usually means
+generating with overlap and blending, or restricting cross-boundary features to the base
+layer.
+
+[user] My generated terrain looks like noise, not landscape. What's the highest-impact
+change?
+[assistant] tool_call procgen.terrain_audit({"base": "perlin_fbm", "octaves": 6,
+"erosion": false, "domain_warp": false, "river_network": false, "biome_assignment":
+"height_only", "ridged": false})
+[tool] {"realism_score": 0.28, "missing": ["erosion", "domain_warp",
+"drainage_structure"], "highest_impact": "hydraulic_erosion",
+"cheapest_impact": "domain_warp", "note": "height_only_biomes_produce_banding"}
+[assistant] Two changes, and I would do the cheap one first to see immediate improvement.
+
+Domain warping costs almost nothing and changes the character immediately. Instead of
+sampling noise at position p, sample it at p plus a vector derived from another noise field.
+That converts isotropic bumpiness into folded, flowing structure with directionality, which
+is what real geology has and pure fractal noise does not. Two lines of code and a warp
+strength parameter to tune.
+
+Hydraulic erosion is the bigger win and costs more. Your terrain has no drainage — no
+valleys converging into larger valleys, no ridgelines separating watersheds, no sediment
+deposited in flat basins. The eye recognizes drainage structure even without knowing what it
+is looking at, and its absence is the main reason fractal terrain reads as noise. A
+particle-based erosion pass is straightforward: drop a droplet at a random point, let it flow
+downhill accumulating sediment proportional to speed and slope, deposit when it slows or
+pools, and run a few hundred thousand droplets. Even a crude implementation transforms the
+result.
+
+Two smaller things while you are in there. Add ridged noise to at least the high-frequency
+octaves — one minus the absolute value of noise, squared — which gives sharp crests instead
+of rounded lumps. And your biomes are assigned from height alone, which produces the
+characteristic horizontal banding that immediately reads as generated. Generate separate
+temperature and moisture fields (temperature falling with height and latitude, moisture
+from a noise field modified by prevailing wind and rain shadow) and assign biomes from that
+two-dimensional space. Rain shadow especially — drier on the lee side of a range — is a
+strong realism cue that is nearly free once you have a wind direction.
+
+Order: domain warp, then ridged octaves, then biome fields, then erosion. Each is visible on
+its own so you learn what each contributes.
+
+## Graphs, Dungeons, and Discrete Structure
+
+Discrete content — level layouts, dungeon maps, quest structures, skill trees — is naturally
+represented as a graph, and generating it well means generating the graph first and the
+geometry afterward. The mistake that produces incoherent levels is generating rooms and
+corridors geometrically and hoping the connectivity turns out interesting.
+
+The graph-first approach generates the intended structure — a critical path with branches,
+optional loops, gated sections — as an abstract graph, verifies its properties, and only then
+embeds it in space. This guarantees that the level is completable, that keys precede their
+doors, that optional content is genuinely optional, and that the difficulty progression is
+what was intended, because all of those are graph properties checked before any geometry
+exists.
+
+Space partitioning generates layouts by recursive subdivision. Binary space partitioning
+splits a rectangle repeatedly, placing a room in each leaf and connecting siblings, which
+produces the characteristic rectangular dungeon efficiently and with guaranteed
+connectivity. Cellular automata smoothing produces organic cave systems from random noise by
+repeatedly applying a rule that turns a cell into whatever most of its neighbours are, and
+requires a connectivity check afterward since it readily produces isolated pockets.
+
+Discrete generation techniques:
+  BSP subdivision       rectangular rooms with guaranteed connectivity
+  cellular automata     organic caves; needs a flood fill to verify connectivity
+  random walk / drunkard  simple tunnelling; produces winding organic paths
+  Delaunay + MST        connect rooms by minimum spanning tree, then add a few
+                        extra edges for loops; produces good connectivity structure
+  graph grammar         rewrite an abstract mission graph, then embed
+  lock and key          gating structure; verify solvability on the graph
+  Poisson disc          room or object placement with minimum spacing
+  flood fill            connectivity verification; run it always
+  A-star / pathfinding  verify traversability and measure path length as a
+                        difficulty proxy
+
+The minimum spanning tree plus extra edges pattern is worth knowing because it produces
+good level connectivity with two lines of reasoning. A minimum spanning tree over room
+centres guarantees every room is reachable with no redundant connections, which is a
+tree — and a pure tree level is frustrating, because every dead end must be backtracked. Adding
+back a small fraction of the discarded edges, chosen from the shortest, introduces loops that
+make navigation pleasant without making the space incomprehensible. The fraction of extra
+edges is a single tunable parameter controlling how maze-like versus how open the level
+feels.
+
+## Controllability and Evaluation
+
+The central tension in procedural generation is between variety and control. A system with
+no constraints produces varied and mostly bad output; a heavily constrained system produces
+reliably acceptable and boringly similar output. The design work is finding the parameterization
+where the achievable outputs are all acceptable and meaningfully different.
+
+Controllability techniques give a designer authority over the result without abandoning
+generation. Seeded determinism allows a specific output to be recovered and refined.
+Exposed parameters with meaningful names let a designer steer at a high level. Authored
+constraints let specific content be pinned while the rest generates around it — a hand-built
+boss room embedded in a generated dungeon. Mixed-initiative tools let a designer edit a
+generated result and regenerate the remainder consistently with the edit, which is the
+interaction model that has proven most usable in practice.
+
+Evaluation is where procedural generation is weakest, because the quality criteria are
+usually aesthetic and the output space is too large to inspect. Automated metrics can
+capture some properties objectively: connectivity, path length, symmetry, density,
+compressibility as a proxy for structure, and expressive range — the region of a metric space
+the generator actually covers, which reveals whether the variety is real or nominal.
+
+Evaluation approaches:
+  hard constraints       completability, connectivity, reachability; verify always
+  expressive range       plot outputs in a two-dimensional metric space; a
+                         generator clustering tightly has less variety than it
+                         appears to
+  diversity metrics      pairwise distance between outputs under some
+                         representation
+  playtesting            for interactive content, the ground truth
+  contact sheet          judge a hundred outputs at small size, never one at full
+  worst-case review      inspect the least good outputs; a system is only as good
+                         as its floor if outputs cannot be curated
+  A-star difficulty      path length and branching as a difficulty proxy
+  designer review        a domain expert rating a sample; expensive and honest
+
+Expressive range analysis is the most useful evaluation tool and the least used. Generate a
+few hundred artifacts, compute two or three meaningful metrics on each, and plot them.
+Generators that feel varied frequently occupy a small tight cluster, which explains why their
+output starts to feel repetitive after a while even though no two artifacts are identical.
+Seeing the covered region also shows which parameter changes move the generator into new
+territory and which merely jiggle it within the same cluster, which is far more actionable
+than a general impression that the output needs more variety.
+
+The final practical principle is to design for the worst case rather than the best. A
+generator producing an occasional spectacular result alongside frequent failures is only
+usable if a human curates the output, and that curation does not scale and does not work at
+all for content generated at runtime. A generator whose worst output is acceptable can run
+unattended, and the accumulated experience of the field is that constraining the system until
+its floor is acceptable — even at the cost of lowering its ceiling — produces more usable work
+than the reverse.

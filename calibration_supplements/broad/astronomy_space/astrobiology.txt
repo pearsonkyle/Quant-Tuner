@@ -1,0 +1,243 @@
+================================================================================
+AREA: Astronomy and Space
+SUBJECT: Astrobiology
+Subtopics: origin of life, habitability, extreme environments, biosignatures,
+solar system targets, exoplanet atmospheres, technosignatures and inference.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## The Origin of Life and What Life Requires
+
+Astrobiology asks whether life exists beyond Earth, and every part of the question depends on
+premises drawn from a single example. This is the field's defining epistemic problem: with a sample
+size of one, it is impossible to distinguish the requirements of life in general from the
+particular contingencies of terrestrial life. Careful astrobiology therefore distinguishes claims
+about what life needs from claims about what our life happens to use.
+
+What appears genuinely general is a short list. Life requires a source of free energy maintaining
+a system away from thermodynamic equilibrium, a medium in which chemistry can occur, and a set of
+elements capable of forming complex structures. Carbon's capacity for stable four-bonded chains and
+rings is unusual and not obviously replaceable; silicon is the usual proposed alternative and forms
+weaker bonds whose oxide is a solid rather than a gas, which is a significant handicap. Liquid
+water's properties as a solvent are similarly favourable, though ammonia and hydrocarbons are
+plausible alternatives at other temperatures.
+
+The origin of life on Earth occurred early — within a few hundred million years of conditions
+permitting it — which is suggestive but not conclusive about how likely the transition is. The
+major open questions concern the sequence: whether metabolism or replication came first, where the
+energy gradient was, and how the transition from chemistry to a system with heritable variation
+occurred. Hydrothermal alkaline vents supply a persistent proton gradient across mineral membranes,
+which is a compelling setting because it resembles the chemiosmotic mechanism all cells still use.
+
+Requirements and origins:
+  the sample-size problem  one example; requirements and contingencies are
+                       confounded
+  free energy          a gradient maintained away from equilibrium
+  a solvent            water on Earth; ammonia and hydrocarbons as alternatives
+  complex chemistry    carbon's four-bond versatility is hard to replace
+  silicon's handicap   weaker bonds and a solid oxide
+  the early appearance  life arose quickly once conditions allowed; suggestive
+                       about probability, not decisive
+  RNA world            replication first; RNA as both information and catalyst
+  metabolism first     self-sustaining reaction networks preceding replication
+  alkaline vents       a natural proton gradient across mineral membranes,
+                       resembling the mechanism cells still use
+  the hard transition  from chemistry to heritable variation
+  panspermia           life transported between bodies; relocates the origin
+                       rather than explaining it
+  the shadow biosphere  the possibility of a second, undetected origin on Earth;
+                       untested because our detection methods assume our
+                       biochemistry
+
+Q: Searches for life often target liquid water specifically. The strongest justification is:
+A. Life requires water as a matter of physical law
+B. Water is an excellent solvent with unusual properties, it is abundant, and it is what our only
+   known example uses — so it is the best-motivated search target, though not a demonstrated
+   requirement
+C. No other solvent exists
+D. Water is easiest to detect
+Reasoning: The water assumption is a well-motivated prior from the one example available plus
+water's genuinely favourable chemistry and cosmic abundance, not a proven necessity. Stating it as
+a requirement overclaims; stating it as the best available search heuristic is accurate.
+Answer: B.
+
+## Habitability and Extreme Environments
+
+The habitable zone is defined as the orbital range where a planet with an Earth-like atmosphere
+could sustain liquid water at its surface. It is a useful first filter and it is much narrower than
+the actual range of habitable conditions, because it considers only surface water warmed by
+starlight. Subsurface oceans heated by tidal flexing or radioactive decay lie far outside it and
+may be the more common habitat.
+
+Stellar type shapes habitability substantially. Small cool stars are the most numerous, have very
+long lifetimes, and place their habitable zone close in, which makes planets there easier to detect
+and also tidally locked, with permanent day and night sides. Whether that is fatal depends on
+atmospheric heat transport, which modelling suggests can be adequate. The larger concern with these
+stars is flare activity, which can strip atmospheres over time, and the extended pre-main-sequence
+phase during which the planet is subjected to a much brighter star than it will eventually orbit.
+
+The study of terrestrial extremophiles has repeatedly widened the envelope of conditions known to
+support life. Organisms grow above the boiling point of water at pressure, below its freezing point
+in brines, at pH values spanning most of the scale, at radiation doses that shatter chromosomes,
+and kilometres underground on chemical energy alone with no connection to sunlight. Each discovery
+expands where it is reasonable to look, and the deep subsurface biosphere is particularly relevant
+because analogous environments plausibly exist on Mars and on icy moons.
+
+Habitability:
+  habitable zone       surface liquid water from starlight; a first filter only
+  the narrowness       ignores subsurface and non-stellar heat sources
+  tidal heating        orbital flexing as an energy source; independent of
+                       distance from the star
+  radiogenic heating   decay in the interior; long-lived
+  small cool stars     numerous, long-lived, close-in zones, tidally locked
+  flare activity       atmospheric stripping; the main concern for these systems
+  pre-main-sequence    an early bright phase that may desiccate inner planets
+                       before the star settles
+  magnetic field       shields the atmosphere from stellar wind; how necessary is
+                       debated
+  plate tectonics      recycles carbon and stabilizes climate over geological
+                       time
+  the carbonate-silicate cycle  a negative feedback regulating temperature across
+                       hundreds of millions of years
+  extremophiles        the envelope of known-survivable conditions, repeatedly
+                       widened
+  hyperthermophiles    above boiling at pressure
+  psychrophiles and brines  active metabolism below zero
+  radiation resistance  organisms surviving doses that destroy their genomes and
+                       reassembling them
+  deep subsurface      chemical energy, no sunlight; the best analogue for
+                       subsurface life elsewhere
+
+## Solar System Targets
+
+Mars is the most accessible target and the case for past habitability is strong. The surface
+records long-lived standing water, clay minerals requiring sustained aqueous alteration, and river
+and lake sediments. The present surface is hostile — thin dry atmosphere, ionizing radiation,
+strongly oxidizing chemistry — but the subsurface is shielded and briny water may be present.
+Sample return is the decisive step, because the instruments needed to distinguish biological from
+abiotic organic chemistry are not ones that can be flown.
+
+Europa and Enceladus are the icy moon targets, both with subsurface liquid water oceans in contact
+with a rocky floor, which is the configuration that supplies chemical energy. Enceladus is
+extraordinary because it vents ocean material into space through south polar plumes, and a
+spacecraft can therefore sample the ocean without landing or drilling. Those plumes have been shown
+to carry salts, silica particles indicative of hydrothermal activity, molecular hydrogen implying an
+available redox gradient, and complex organic molecules.
+
+Titan is the outlier and the more interesting case conceptually, because it tests whether the water
+assumption is a requirement or a parochialism. It has a dense nitrogen atmosphere, an active
+methane cycle with rain, rivers, and lakes of liquid hydrocarbon, abundant complex organic
+chemistry produced in its atmosphere, and a subsurface water ocean beneath the ice. Life in the
+hydrocarbon lakes would have to be built on entirely different chemistry, and finding it — or
+convincingly failing to — would be far more informative about the generality of life than another
+water-based example.
+
+Solar system targets:
+  Mars                 strong evidence of past surface water; hostile present
+                       surface, shielded subsurface
+  the oxidizing surface  perchlorates and radiation destroying organics
+  sample return        the decisive step; the required instruments cannot be flown
+  Europa               subsurface ocean, rocky floor, surface chemistry hinting at
+                       ocean composition; a thick ice shell is the access problem
+  Enceladus            plumes vent ocean material into space; sampleable without
+                       landing
+  plume findings       salts, silica, molecular hydrogen, complex organics
+  molecular hydrogen   implies an unexploited chemical energy gradient
+  Titan                methane cycle, hydrocarbon lakes, dense organic
+                       atmosphere, subsurface water ocean
+  the Titan question   whether life requires water at all
+  Venus                a hostile surface and a cloud layer with contested
+                       anomalies; the atmosphere is the only plausible niche
+  planetary protection  avoiding contamination in both directions; a genuine
+                       constraint on mission design, not a formality
+  the contamination risk  a false positive from terrestrial hitchhikers would be
+                       difficult to distinguish and would poison the result
+
+## Biosignatures and Exoplanet Atmospheres
+
+A biosignature is an observable that is better explained by life than by anything else, and the
+qualifier carries all the weight. Every proposed biosignature has abiotic pathways, so the inference
+is comparative rather than definitive, and it depends on context — the same molecule is
+compelling in one planetary setting and unremarkable in another.
+
+Atmospheric disequilibrium is the strongest general principle. An atmosphere containing gases that
+should react with each other requires continuous replenishment, and life is one mechanism that
+maintains such disequilibrium. Earth's simultaneous abundance of oxygen and methane is the standard
+example, since they react on geologically short timescales and both are biologically produced.
+
+Exoplanet atmospheres are characterized by transmission spectroscopy: starlight passing through the
+atmosphere during transit acquires absorption features from its constituents. The signal is
+extremely small, the observations are photon-starved, and clouds and hazes mute the features, which
+is why atmospheric detections remain difficult even for the best targets. Directly imaged planets
+allow reflection and emission spectroscopy instead, which is more informative and currently
+restricted to young, wide-orbit giants.
+
+Biosignatures and detection:
+  the definition       better explained by life than by anything else
+  abiotic pathways     every candidate has them; context decides
+  disequilibrium       coexisting gases that should react; the strongest general
+                       argument
+  oxygen and methane   the terrestrial example
+  oxygen false positives  photolysis of water with hydrogen escape can produce it
+                       abiotically; the surrounding context distinguishes them
+  seasonal variation   a temporal signal harder to produce abiotically
+  surface reflectance  a spectral edge from pigments; weak and model-dependent
+  transmission spectroscopy  starlight filtered through the atmosphere during
+                       transit
+  the signal size      parts in ten thousand of the stellar flux
+  clouds and hazes     mute features and are the dominant practical obstacle
+  direct imaging       reflection and emission; better information, restricted
+                       targets
+  stellar contamination  spots and faculae imprinting features that mimic
+                       planetary ones
+  the standard of proof  an extraordinary claim requires independent lines and
+                       exhaustive elimination of abiotic explanations, and the
+                       history of the field contains several claims that did not
+                       survive that process
+
+## Technosignatures and Inference
+
+Searching for technology rather than biology changes the target from chemistry to artifacts.
+Narrowband radio emission remains the canonical signature because such signals do not occur
+naturally and propagate efficiently across interstellar distances. Optical pulses, waste heat in
+the infrared, atmospheric industrial pollutants, and megastructures transiting a star are
+alternatives, each with a distinct detection strategy and a distinct set of natural mimics.
+
+The Fermi question — given the age and size of the galaxy, why no evidence — has many proposed
+resolutions and no way to choose among them. Life may be extremely rare. The transition to complex
+life may be the bottleneck. Technological civilizations may be short-lived. Interstellar travel and
+communication may be less attractive than assumed. Our searches may have covered a negligible
+fraction of the parameter space, which is straightforwardly true: the total sky, frequency, and time
+coverage of radio searches to date is a small fraction of what would be required to draw any
+conclusion from absence.
+
+The Drake formulation is often misread as an estimate and is better understood as a decomposition.
+Its value is in identifying which terms are measurable and which are not. The astronomical terms —
+star formation rate, planet frequency, habitable-zone occurrence — have moved from speculation to
+measurement over the past few decades. The biological and social terms remain entirely unconstrained,
+which means the product is unconstrained, and any specific number produced from it reflects the
+assumptions inserted rather than anything learned.
+
+Technosignatures and inference:
+  narrowband radio     the canonical signature; no natural analogue
+  optical pulses       nanosecond laser pulses outshining the star briefly
+  waste heat           thermodynamically unavoidable for large energy use
+  industrial pollutants  long-lived artificial molecules in an atmosphere
+  megastructures       anomalous transit shapes; every candidate so far has had a
+                       natural explanation
+  radio frequency interference  the dominant false-positive source; the
+                       verification protocol is mostly about eliminating it
+  the Fermi question   no evidence despite the galaxy's age and size
+  candidate resolutions  rarity, a late bottleneck, short lifetimes, weak
+                       incentives to expand or signal
+  search coverage      a small fraction of the parameter space; absence of
+                       evidence carries very little weight here
+  the Drake equation   a decomposition, not an estimate
+  measured terms       the astronomical ones, now genuinely constrained
+  unconstrained terms  the biological and social ones
+  the honest summary   we have learned that planets are common and that habitable
+                       conditions are plausibly common, and we have learned
+                       essentially nothing yet about whether life follows from
+                       them, which is why the next decade of atmospheric
+                       characterization matters so much

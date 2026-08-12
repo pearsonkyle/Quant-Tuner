@@ -1,0 +1,235 @@
+================================================================================
+AREA: Embedded and Hardware Engineering
+SUBJECT: Hardware Test and Manufacturing
+Subtopics: design for test, assembly processes, inspection, functional test systems,
+calibration and traceability, yield and failure analysis, production ramp.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Design for Test
+
+Testability is a design property, not a manufacturing activity, and a board designed without it can
+be effectively untestable at any cost. The decisions that determine this are made during schematic
+capture and layout, months before the first unit is built, which is why test engineering
+participation early is worth far more than any amount of effort later.
+
+Test points are the most basic requirement: accessible pads on every net that needs to be probed,
+sized and spaced for the fixture technology, and on one side of the board where possible since
+double-sided fixtures cost several times more. Nets without access can only be tested indirectly if
+at all, and the common regret is a design where a fault can be detected but not localized, so a
+failing board is scrapped rather than repaired.
+
+Boundary scan provides access without physical probes by shifting test data through a chain of cells
+at device pins, which is how dense boards with no physical access to interior nets are tested at
+all. It requires the devices to support it and requires the chain to be routed and terminated
+correctly, and a broken chain makes the whole facility unavailable — so its continuity is itself the
+first thing a test programme checks.
+
+Design for test:
+  testability is designed  a board without it is untestable at any cost
+  early involvement    test engineering during schematic and layout
+  test points          accessible pads sized and spaced for the fixture
+  single-sided access  double-sided fixtures cost several times more
+  the localization requirement  detecting a fault is not enough if it cannot be
+                       located
+  boundary scan        test data shifted through cells at device pins
+  chain integrity      a broken chain disables the whole facility
+  in-circuit test access  isolating components electrically for individual
+                       measurement
+  built-in self test   the device testing itself and reporting; free coverage
+                       where available
+  test modes           firmware entry points exercising hardware directly
+  the debug interface  kept accessible in production or fault analysis becomes
+                       guesswork
+  provisioning access  serial numbers, calibration data, and keys written during
+                       test; the mechanism must exist before the first unit
+  coverage analysis    which faults the test set would detect; a number worth
+                       computing rather than assuming
+
+Q: A production board fails functional test with a symptom that could be caused by any of six
+components, and there is no way to distinguish among them. This indicates:
+A. A manufacturing defect
+B. A design-for-test deficiency — the test strategy can detect the fault but not localize it, so
+   every failure becomes a scrapped board rather than a repaired one, and adding access at design
+   time would have prevented it
+C. An inadequate test program
+D. Poor component quality
+Reasoning: Fault localization is a property of the access the design provides and the structure of
+the test set. Without measurement points between the candidate components, no test program can
+distinguish them. This is the standard consequence of designing the test strategy after the layout
+is complete. Answer: B.
+
+## Assembly Processes
+
+Surface mount assembly is a sequence of processes each with characteristic defects. Solder paste is
+printed through a stencil onto the pads; components are placed by machine; the assembly passes
+through a reflow oven whose thermal profile melts the solder and forms the joints. The great
+majority of assembly defects originate in the printing step, which makes stencil design, paste
+condition, and print inspection disproportionately important.
+
+The reflow profile is a temperature-versus-time curve with distinct zones: preheat raising the
+assembly gradually, soak allowing temperature to equalize and flux to activate, reflow above the
+solder's melting point for a controlled duration, and cooling at a controlled rate. Deviations cause
+specific defects — insufficient soak causes voiding and poor wetting, excessive time above melting
+degrades the joint, and rapid cooling induces stress. The profile must be measured on an actual
+assembly with attached thermocouples, since the oven's setpoints and the board's actual temperature
+differ substantially and unpredictably with thermal mass.
+
+Through-hole components are placed and soldered separately, by wave soldering or by selective
+soldering or by hand, which is why a mixed-technology board costs more than its component count
+suggests. Reducing the number of process steps is a real cost lever, and choosing surface-mount
+alternatives for the few through-hole parts on an otherwise surface-mount board frequently saves
+more than the component price difference.
+
+Assembly processes:
+  the sequence         print, place, reflow
+  the defect origin    the majority originate in printing
+  stencil design       aperture size and shape per pad; not simply the pad outline
+  paste condition      temperature, age, and handling affect print quality
+  print inspection     measuring deposited volume; catches defects before
+                       components are placed
+  placement accuracy   machine capability versus component pitch
+  reflow profile       preheat, soak, reflow, cooling
+  profile measurement  thermocouples on an actual assembly, not oven setpoints
+  thermal mass effects  large components lag; the profile must satisfy both
+                       extremes
+  insufficient soak    voiding and poor wetting
+  excessive reflow time  degraded joints
+  tombstoning          a small component standing up when one end wets first
+  the pad symmetry cause  asymmetric thermal mass at the two pads
+  through-hole processes  wave, selective, or hand soldering
+  the mixed-technology cost  extra process steps beyond the component price
+  cleaning             required for some flux chemistries and not others; the
+                       choice affects both process cost and long-term reliability
+
+## Inspection and Functional Test
+
+Inspection and test form a sequence, each catching what the previous stage cannot and each more
+expensive per unit. Automated optical inspection compares the assembly against a reference image and
+catches presence, orientation, and gross placement and solder defects quickly and cheaply. X-ray
+inspection sees joints hidden beneath package bodies, which is the only way to inspect the
+increasingly common packages with connections underneath. In-circuit test measures components
+individually through the fixture. Functional test operates the board as a product.
+
+The economic principle governing this sequence is that the cost of a defect rises by roughly an
+order of magnitude at each stage it escapes — cheap at inspection, more at test, much more at system
+assembly, and enormous in the field. This is what justifies inspection stages that seem redundant,
+and it is the argument to make when inspection is proposed for removal on cost grounds.
+
+Functional test verifies the board does what it is supposed to do, and its design is a real
+engineering problem. It must be fast, since test time multiplies by production volume; it must be
+deterministic, since intermittent test failures are indistinguishable from intermittent product
+faults and destroy confidence in the whole line; and it must diagnose rather than merely pass or
+fail, since a failure with no diagnostic information is a scrapped board. Test fixtures themselves
+wear and drift and require their own calibration and periodic verification against known-good and
+known-bad units.
+
+Inspection and test:
+  optical inspection   presence, orientation, gross defects; fast and cheap
+  X-ray inspection     joints hidden beneath packages
+  in-circuit test      components measured individually through a fixture
+  functional test      the board operated as a product
+  the escape cost      roughly an order of magnitude per stage
+  the redundancy argument  apparently overlapping stages are economically
+                       justified by that escalation
+  test time            multiplied by volume; a first-order cost
+  determinism          intermittent test failures destroy line confidence
+  diagnostics          a pass-fail result with no information means scrap
+  fixture wear         probes and contacts degrade; scheduled replacement
+  fixture verification  against known-good and known-bad units
+  false failure rate   the fraction of good units failing; costs yield directly
+  false pass rate      the fraction of bad units passing; costs field returns
+  the tuning tension   tightening limits reduces escapes and increases false
+                       failures, and the correct setting depends on the relative
+                       costs, which should be estimated rather than guessed
+  guard banding        test limits tightened relative to specification limits by
+                       the measurement uncertainty
+
+## Calibration, Traceability, and Data
+
+Any measurement in a production process is only as good as the calibration of the instrument making
+it, and calibration must be traceable — linked through an unbroken chain of comparisons to a
+recognized standard, each with stated uncertainty. An instrument with an expired calibration
+invalidates every measurement made with it since it was last verified, which is why the calibration
+schedule is enforced administratively rather than left to judgement.
+
+Measurement system analysis quantifies whether a measurement process is adequate for the tolerance
+it is checking. Repeatability is variation when the same operator measures the same unit
+repeatedly; reproducibility is variation between operators or between instruments. Their combined
+magnitude relative to the tolerance determines whether the measurement can distinguish good from
+bad, and a measurement system consuming a large fraction of the tolerance produces false
+acceptances and rejections regardless of how well the process itself performs.
+
+Production data collection is what makes everything else improvable. Recording every measurement
+against a unit serial number produces a dataset supporting yield analysis, trend detection, failure
+correlation, and field return investigation. The discipline is to record measured values rather than
+pass-fail results, because a value near the limit is information about a drifting process while a
+pass is not, and a line that records only pass-fail cannot detect a problem until it is producing
+failures.
+
+Calibration and data:
+  traceability         an unbroken chain to a recognized standard
+  stated uncertainty   at every link in the chain
+  the expiry consequence  measurements since the last verification are invalid
+  administrative enforcement  schedules rather than judgement
+  measurement system analysis  is the measurement adequate for the tolerance
+  repeatability        same operator, same unit, repeated
+  reproducibility      between operators and instruments
+  the tolerance fraction  a measurement consuming much of the tolerance produces
+                       false results regardless of process quality
+  record values not verdicts  a value near the limit is information
+  serial number association  every measurement tied to a unit
+  yield analysis       what fails, where, and how often
+  trend detection      drift caught before it produces failures
+  statistical process control  control limits derived from the process, not from
+                       the specification; the two are frequently confused and
+                       they answer different questions
+  the specification-control distinction  control limits describe what the process
+                       does, specification limits describe what is acceptable, and
+                       a process in control can still be producing out-of-
+                       specification units
+
+## Yield, Failure Analysis, and Ramp
+
+Yield is the fraction of units passing at each stage, and the compound yield across a multi-stage
+process is the product of the stage yields, which means that several stages at ninety-five percent
+compound to something considerably worse than any of them individually suggests. Improving the worst
+stage first is usually correct and requires knowing which it is, which requires the per-stage data.
+
+Failure analysis determines why a unit failed, and its discipline is to establish the mechanism
+rather than to find something that looks wrong. The sequence is non-destructive first — visual
+inspection, electrical characterization, X-ray — then progressively destructive: decapsulation,
+cross-sectioning, microscopy. Reversing this order destroys the evidence that would have identified
+the cause, and the most common failure analysis error is opening the part before characterizing it
+electrically.
+
+Production ramp is the transition from prototype to volume, and its difficulties are consistently
+underestimated. Processes that work at low volume with attentive engineers fail at volume with
+operators following procedures. Components sourced in tens have different availability and variation
+in tens of thousands. Yield at pilot volume is not yield at production volume. The practical
+mitigations are building pilot runs on production tooling with production procedures, qualifying
+alternative components before they are needed, and treating the first production run as a test of the
+process rather than as a source of shippable product.
+
+Yield, analysis, and ramp:
+  stage yield          the fraction passing at each stage
+  compound yield       the product; worse than any stage suggests
+  the improvement target  the worst stage, which requires per-stage data
+  first pass yield     passing without rework; the honest measure
+  rework               costs more than it appears and introduces its own defects
+  failure analysis     establish the mechanism, not merely find something wrong
+  the sequence         non-destructive before destructive
+  the common error     opening the part before characterizing it electrically
+  cross-sectioning     the definitive view of a solder joint or a via
+  root cause versus contributing factor  usually several factors, and stopping at
+                       the first plausible one is how problems recur
+  corrective action    addressing the mechanism; verification that it worked
+  production ramp      prototype to volume
+  the underestimation  processes working with engineers fail with operators
+  pilot runs           production tooling, production procedures, production
+                       operators
+  second sourcing      qualified before it is needed, not during a shortage
+  the first run framing  a test of the process rather than a source of shippable
+                       product, which is the expectation-setting that determines
+                       whether the ramp is managed or endured

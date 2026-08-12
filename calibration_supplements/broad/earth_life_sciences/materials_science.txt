@@ -1,0 +1,343 @@
+================================================================================
+AREA: Earth and Life Sciences
+SUBJECT: Materials Science and Engineering
+Subtopics: structure-property relationships, metals and alloys, ceramics, polymers,
+composites, phase diagrams and processing, failure, characterization and selection.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Structure and Property Relationships
+
+Materials science rests on a single organizing principle: properties follow from structure,
+structure follows from processing, and performance follows from properties. This
+processing-structure-property-performance chain is the framework the field uses, and its value
+is that it makes properties designable — changing how a material is made changes its internal
+structure, which changes what it does.
+
+Structure spans length scales, and each contributes different properties. Atomic bonding
+determines stiffness, melting point, and electrical behaviour. Crystal structure determines how
+deformation proceeds and whether the material is ductile. Microstructure — grain size, phase
+distribution, defect density — determines strength, toughness, and fatigue resistance, and it
+is the scale most amenable to processing control. Macrostructure determines component-level
+behaviour.
+
+The distinction between intrinsic and structure-sensitive properties is worth making early
+because it determines what can be engineered. Stiffness, density, melting point, and thermal
+expansion are intrinsic — set by bonding, essentially fixed for a given composition, and not
+improvable by processing. Strength, toughness, hardness, and fatigue life are
+structure-sensitive, varying by an order of magnitude or more across processing conditions for
+the same composition. Steel of a given composition can be soft and ductile or hard and brittle
+depending entirely on heat treatment, while its stiffness barely changes.
+
+Structure-property relationships:
+  processing to structure  heat treatment, deformation, solidification rate
+  structure to properties  grain size, phases, defects, texture
+  intrinsic properties     stiffness, density, melting point, thermal expansion;
+                           set by bonding, not improvable by processing
+  structure-sensitive      strength, toughness, hardness, fatigue; vary by an order
+                           of magnitude with processing
+  stiffness vs strength    stiffness resists elastic deformation, strength resists
+                           permanent deformation; they are independent and are
+                           routinely conflated
+  strength vs toughness    strength resists deformation, toughness resists crack
+                           propagation; they generally trade against each other
+  hardness                 resistance to indentation; correlates with strength and
+                           is far easier to measure
+  specific properties      property divided by density; what matters when weight
+                           is constrained
+  anisotropy               direction-dependent properties; from crystal texture,
+                           fibre orientation, or processing direction
+
+The strength-toughness tradeoff is the most consequential relationship in structural
+materials and follows from the same mechanism in every case. Strength comes from impeding
+dislocation motion, and toughness comes from plastic deformation absorbing energy at a crack
+tip, which is dislocation motion. Anything that raises strength therefore tends to lower
+toughness. Materials that achieve both do so by introducing mechanisms that absorb energy
+without general plasticity — transformation toughening in zirconia, crack deflection in
+composites, or fine dispersed second phases that impede dislocations while permitting local
+plasticity.
+
+Q: A steel component is too soft. Heat treating it to increase hardness would most likely:
+A. Increase both strength and toughness
+B. Increase strength and hardness while reducing toughness and ductility
+C. Have no effect on toughness
+D. Increase toughness only
+Reasoning: Hardening mechanisms work by impeding dislocation motion, and dislocation motion is
+what absorbs energy ahead of a crack. Increasing hardness therefore reduces the material's
+capacity to deform plastically and absorb energy, lowering toughness and ductility. This is why
+hardened components are tempered afterward, deliberately sacrificing some hardness to recover
+toughness. Answer: B.
+
+## Metals and Alloys
+
+Metals are characterized by delocalized bonding, which makes them electrically and thermally
+conductive, opaque and reflective, and — most importantly for structural use — ductile, since
+the non-directional bonding permits atomic planes to slide without breaking bonds.
+
+Alloying is the primary tool for modifying metal properties. Substitutional solid solutions
+replace host atoms with similar-sized ones, and interstitial solutions place small atoms in the
+gaps between host atoms. Both strengthen the material because the size mismatch creates local
+strain fields that impede dislocation motion, and interstitial solution strengthening is
+particularly effective, which is why the small amount of carbon in steel transforms iron's
+properties so dramatically.
+
+Steel is the archetype and its behaviour illustrates the whole framework. Iron with under about
+two percent carbon, its properties depend far more on heat treatment than on the precise
+composition. Slow cooling from the austenite phase produces soft ferrite and pearlite. Rapid
+quenching traps the carbon in a distorted structure called martensite, which is very hard and
+very brittle because the trapped carbon severely impedes dislocation motion. Tempering the
+martensite by reheating allows some carbon to precipitate as fine carbides, recovering
+toughness at some cost in hardness — and the tempering temperature selects the balance.
+
+Metals and strengthening:
+  solid solution        size mismatch strain fields impede dislocations
+  interstitial          small atoms in gaps; very effective, as carbon in iron
+  work hardening        dislocation density impedes further motion; from cold
+                        working
+  grain refinement      boundaries block dislocations; Hall-Petch, strength scales
+                        as inverse square root of grain size; the only mechanism
+                        that improves strength and toughness together
+  precipitation         fine second-phase particles; aluminium and nickel alloys
+  martensite            trapped supersaturated carbon; very hard, very brittle
+  tempering             reheat to recover toughness; the temperature selects the
+                        balance
+  annealing             soften and relieve stress; recrystallization removes
+                        work hardening
+  quenching             rapid cooling; the rate determines which phases form
+  ferrous alloys        steels and cast irons; cheap, strong, dense, corrode
+  aluminium             low density, corrosion resistant via a passive oxide,
+                        lower stiffness and strength than steel
+  titanium              excellent specific strength, corrosion resistant,
+                        biocompatible, expensive and difficult to machine
+  nickel superalloys    retain strength at high temperature; turbine blades
+  copper                conductivity; electrical and thermal applications
+
+Grain refinement deserves particular emphasis because it is the one strengthening mechanism
+that improves toughness as well as strength. Every other mechanism impedes dislocation motion
+in a way that also impedes the plasticity that provides toughness. Finer grains provide more
+boundaries to block dislocations while also deflecting cracks and requiring more energy for
+propagation. This is why grain refinement through controlled rolling and through alloying
+additions that pin grain boundaries is central to modern high-strength structural steel.
+
+Corrosion is the degradation of a metal by reaction with its environment, and it is
+electrochemical: an anodic region oxidizes and dissolves while a cathodic region reduces
+something, usually oxygen or hydrogen ions, with an electrolyte connecting them. This framing
+explains the mitigations. Galvanic corrosion occurs when dissimilar metals contact in an
+electrolyte, and the more active one corrodes preferentially — which is a failure mode when
+unintended and the basis of sacrificial anode protection when deliberate. Passivation occurs
+when the corrosion product forms a coherent adherent film that blocks further reaction, which
+is why aluminium and stainless steel resist corrosion despite being thermodynamically reactive.
+
+## Ceramics, Polymers, and Composites
+
+Ceramics have ionic or covalent bonding, giving high melting points, high stiffness and
+hardness, chemical inertness, and electrical insulation. Their defining limitation is
+brittleness: the directional bonding means dislocation motion requires far more energy than in
+metals, so the material cannot deform plastically and instead fails by crack propagation from
+pre-existing flaws.
+
+That flaw sensitivity has a statistical consequence unfamiliar to anyone accustomed to metals.
+A ceramic's strength depends on its largest flaw, which varies between nominally identical
+specimens, so the measured strength is a distribution rather than a value and is described by
+Weibull statistics. Design cannot use a single strength number with a safety factor; it must
+use a survival probability at a stress level, and the effective strength decreases with the
+stressed volume because a larger volume is more likely to contain a large flaw.
+
+Polymers consist of long chain molecules, and their properties are dominated by chain
+behaviour rather than by the atoms. Thermoplastics have chains held together by weak secondary
+forces, so heating allows the chains to slide and the material to be reshaped repeatedly, which
+makes them recyclable and limits their temperature capability. Thermosets have chains
+covalently cross-linked into a network, so they cannot be remelted and are more rigid and more
+temperature resistant. Elastomers are lightly cross-linked chains above their glass transition,
+so they deform enormously and recover, with the elasticity arising from entropy — stretching
+aligns the chains into a less probable configuration and they recoil to regain disorder.
+
+Ceramics, polymers, and composites:
+  ceramic bonding       ionic and covalent; hard, stiff, inert, brittle
+  flaw sensitivity      strength set by the largest flaw; Weibull distributed
+  size effect           larger stressed volume means lower effective strength
+  transformation toughening  zirconia; a stress-induced phase change absorbs
+                        energy at the crack tip
+  glass                 amorphous; no grain boundaries, and no crystal planes to
+                        deflect a crack either
+  thermoplastic         reshapeable, recyclable, temperature limited
+  thermoset             cross-linked network; rigid, not remeltable
+  elastomer             lightly cross-linked; entropy-driven elasticity
+  glass transition      the temperature at which an amorphous polymer changes from
+                        glassy to rubbery; the most important polymer property
+  crystallinity         semi-crystalline polymers are stronger and less
+                        transparent than amorphous ones
+  creep                 polymers deform under sustained load at room temperature;
+                        a design consideration metals rarely require
+  composite             a matrix plus reinforcement; properties neither has alone
+  rule of mixtures      properties along the fibres are the volume-weighted
+                        average; transverse properties are dominated by the matrix
+  anisotropy            composites are far stronger along the fibres; laminate
+                        layup controls the directional properties
+  interface             load transfers from matrix to fibre through it; the
+                        interface usually determines the composite's toughness
+                        and its failure mode
+
+Composites achieve property combinations unavailable in any single material by combining a
+stiff strong reinforcement with a matrix that transfers load and protects it. Carbon fibre in
+epoxy has specific stiffness and strength several times steel's, which is why it dominates where
+weight is expensive. The costs are anisotropy requiring careful design, sensitivity to
+out-of-plane loading and impact where the matrix rather than the fibres carries the load,
+difficulty in inspection since damage may be internal and invisible, and expense in both
+material and manufacturing.
+
+## Phase Diagrams, Processing, and Failure
+
+Phase diagrams map which phases are thermodynamically stable as a function of composition and
+temperature, and reading them is a core skill because processing is largely the business of
+moving a material through the diagram. The lever rule gives the proportions of coexisting
+phases from the diagram's geometry. Eutectic points are compositions melting at a single
+temperature below either component's melting point, which is why solder alloys have eutectic
+compositions. Eutectoid points are the solid-state analogue and are where steel's transformation
+behaviour originates.
+
+Phase diagrams describe equilibrium, and processing frequently exploits departures from it.
+Rapid cooling prevents the equilibrium phases from forming and traps metastable structures,
+which is exactly what martensite is. Time-temperature-transformation diagrams describe what
+actually forms at a given cooling rate, and they are the practical tool for heat treatment
+design where the equilibrium diagram is the theoretical starting point.
+
+Failure analysis identifies why a component broke, and the fracture surface carries the
+evidence. Ductile fracture shows substantial plastic deformation, necking, and a dimpled surface
+from void coalescence. Brittle fracture shows little deformation and a faceted or river-pattern
+surface. Fatigue shows beach marks radiating from an initiation site with a final fast fracture
+region. Corrosion fatigue and stress corrosion cracking show branching cracks and corrosion
+products. Reading the surface generally identifies the mechanism before any analysis of the
+loading.
+
+Processing and failure:
+  phase diagram        equilibrium phases versus composition and temperature
+  lever rule           phase proportions from the diagram
+  eutectic             a single melting temperature below both components
+  eutectoid            the solid-state analogue; steel's pearlite reaction
+  TTT diagram          what forms at a given cooling rate; the practical heat
+                       treatment tool
+  casting              solidification from melt; grain structure follows the
+                       cooling pattern
+  forming              rolling, forging, extrusion; work hardens and produces
+                       texture
+  powder metallurgy    and additive manufacturing; near-net shape, distinctive
+                       porosity and anisotropy
+  heat treatment       anneal, quench, temper, age
+  surface treatment    carburizing, nitriding, shot peening; hard surface with a
+                       tough core, and compressive surface stress that resists
+                       fatigue crack initiation
+  ductile fracture     necking, dimples, substantial deformation
+  brittle fracture     little deformation, faceted surface, fast
+  fatigue              cyclic loading below yield; beach marks from an initiation
+                       site
+  creep                time-dependent deformation at high temperature
+  stress corrosion     a susceptible alloy, a specific environment, and tensile
+                       stress together; each alone is harmless
+  ductile-brittle transition  some steels become brittle below a transition
+                       temperature; the cause of several historic structural
+                       failures in cold conditions
+
+Fatigue deserves emphasis because it accounts for the majority of service failures in
+structural components and because it occurs at stresses well below the yield strength, so a
+static strength calculation does not predict it. Cracks initiate at stress concentrations —
+holes, fillets, surface scratches, inclusions — and grow incrementally with each cycle until the
+remaining section fails suddenly. The design responses are eliminating sharp geometric
+transitions, improving surface finish since most cracks initiate at the surface, introducing
+compressive surface residual stress by shot peening or nitriding which must be overcome before a
+crack can open, and specifying inspection intervals based on crack growth rate for
+damage-tolerant designs.
+
+[user] A bracket keeps cracking after about six months in service. It's well within its yield
+strength under maximum load.
+[assistant] tool_call materials.failure_analysis({"component": "bracket",
+"material": "6061_T6_aluminium", "max_stress_mpa": 140, "yield_mpa": 276,
+"loading": "cyclic_vibration", "cycles_estimated": 2.6e7,
+"crack_origin": "fillet_radius_2mm", "surface_finish": "as_machined"})
+[tool] {"failure_mode": "high_cycle_fatigue", "stress_concentration_kt": 2.9,
+"local_stress_mpa": 406, "endurance_behaviour": "aluminium_has_no_fatigue_limit",
+"recommendations": ["increase_fillet_radius", "improve_surface_finish",
+"shot_peening", "reduce_vibration_input"]}
+[assistant] This is high-cycle fatigue, and the static strength calculation was never going to
+predict it.
+
+Two things combine. First, aluminium has no fatigue limit — unlike many steels, it will
+eventually fail at any cyclic stress amplitude given enough cycles, so there is no stress below
+which the component is safe indefinitely. At 26 million cycles you are well into the regime
+where this matters. Second, your 2 mm fillet radius produces a stress concentration factor of
+about 2.9, so the nominal 140 MPa becomes roughly 406 MPa locally — above the yield strength at
+that point, which is where the crack initiated.
+
+Fixes in order of effectiveness per unit effort.
+
+Increase the fillet radius. Stress concentration falls steeply with radius, and going from 2 mm
+to 6 mm typically drops the factor from around 2.9 to around 1.8, which reduces the local
+stress by nearly 40%. Since fatigue life varies with roughly the fifth to tenth power of stress
+amplitude in this regime, that is a very large life improvement for a geometry change.
+
+Improve the surface finish at the fillet. Fatigue cracks initiate at surface irregularities,
+and an as-machined finish contains tool marks that act as micro-notches. Polishing or a
+controlled finish in the critical region alone is cheap and effective.
+
+Shot peen the fillet. This introduces compressive residual stress in the surface layer, which a
+crack must overcome before it can open. It is standard practice for fatigue-critical components
+and typically improves life by a factor of several.
+
+Then look upstream at the input. Twenty-six million cycles in six months is roughly 1.7 Hz
+continuous, which suggests a resonance rather than an operational cycle. If the bracket or its
+mounting has a natural frequency near an excitation frequency, damping the mount or shifting
+the stiffness to move the resonance is the fix that addresses the cause rather than the
+symptom. Measure the actual vibration spectrum at the mount before redesigning the part.
+
+## Characterization and Selection
+
+Characterization determines what a material's structure and properties actually are, and the
+techniques divide by what length scale and what property they probe. Optical microscopy resolves
+grain structure after etching. Scanning electron microscopy resolves finer features and, with an
+attached spectrometer, gives elemental composition. Transmission electron microscopy resolves
+dislocations and precipitates. X-ray diffraction identifies crystalline phases and measures
+residual stress and texture. Mechanical testing measures the properties directly.
+
+The distinction between destructive and non-destructive evaluation matters operationally.
+Tensile testing, impact testing, and metallography destroy the specimen and are used on samples
+representing a batch. Ultrasonic inspection, radiography, dye penetrant, eddy current, and
+acoustic emission examine components without damaging them, and they are what permit
+in-service inspection of critical parts. Their sensitivity determines the minimum detectable
+flaw, which in a damage-tolerant design determines the inspection interval — the component must
+be inspected often enough that a flaw growing from just below the detection threshold cannot
+reach critical size before the next inspection.
+
+Material selection is a constrained optimization, and the systematic approach is to identify
+the function, the constraints, the objective, and the free variables, then derive a material
+index combining properties in the way the problem requires. A beam of specified stiffness with
+minimum mass is optimized by maximizing the square root of the modulus divided by density — not
+by maximizing stiffness or minimizing density alone, which is why the index approach reaches
+conclusions that intuition does not.
+
+Characterization and selection:
+  optical microscopy   grain structure after etching; micrometre scale
+  SEM                  surface topography and fracture surfaces; with EDS,
+                       composition
+  TEM                  dislocations and precipitates; nanometre scale
+  XRD                  phase identification, residual stress, texture
+  tensile test         modulus, yield, ultimate strength, elongation
+  hardness             fast, nearly non-destructive, correlates with strength
+  impact test          toughness and the ductile-brittle transition temperature
+  fatigue test         stress-life or strain-life curves; expensive and slow
+  ultrasonic           internal flaws; non-destructive
+  radiography          internal structure; non-destructive
+  dye penetrant        surface-breaking cracks; cheap and effective
+  eddy current         surface and near-surface flaws in conductors
+  material index       the property combination that the problem maximizes
+  Ashby chart          property space plots; visual selection against indices
+  full cost            material, processing, joining, finishing, inspection,
+                       maintenance, and disposal; material price alone misleads
+
+The final consideration is that material cost is rarely the dominant cost. A material that is
+twice the price and requires half the machining time, or that eliminates a coating operation, or
+that extends the inspection interval, may be cheaper in total. Titanium is expensive per
+kilogram and is chosen where its corrosion resistance eliminates maintenance that would cost
+more over the component's life. Selecting on material price rather than on total lifecycle cost
+is the most common error in the process, and it is why the selection exercise should include the
+processing route rather than treating the material as an isolated choice.

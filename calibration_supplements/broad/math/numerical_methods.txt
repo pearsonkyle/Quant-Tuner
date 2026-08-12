@@ -1,0 +1,324 @@
+================================================================================
+AREA: Mathematics
+SUBJECT: Numerical Methods
+Subtopics: floating point, error analysis, root finding, interpolation, numerical
+linear algebra, differential equations, spectral methods, validation.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Floating Point Arithmetic
+
+Real numbers cannot be represented exactly on a finite machine, and floating point is the
+compromise: a sign, a fixed-width significand, and an exponent, giving roughly constant
+relative precision across an enormous dynamic range. IEEE 754 defines the formats, and
+understanding its properties is a prerequisite for trusting any numerical result.
+
+Double precision provides 53 bits of significand, about 15.95 decimal digits, with machine
+epsilon — the gap between 1.0 and the next representable number — at about 2.22e-16. Single
+precision provides 24 bits, about 7.2 digits, with epsilon around 1.19e-7. Half precision
+and the machine learning formats bfloat16 and fp8 trade precision for memory bandwidth,
+which is acceptable for neural network inference and unacceptable for most scientific
+computation. The key property in all of them is that relative rather than absolute error is
+bounded: the spacing between representable numbers scales with their magnitude, so 1e10 and
+1e10 plus 1 may be the same number while 1e-10 is represented with full relative precision.
+
+The consequences that surprise people follow from this. Floating point addition is not
+associative, so summation order changes the result and parallel reductions are not
+bit-reproducible against serial ones. The decimal value 0.1 has no exact binary
+representation, so accumulating it ten times does not give exactly 1.0, and equality
+comparison of floats is therefore almost always a bug. Subtracting nearly equal numbers
+produces catastrophic cancellation, where the leading digits cancel and the result is
+dominated by the rounding error in the operands — an absolute error that was negligible
+becomes a relative error that is total.
+
+Floating point facts worth internalizing:
+  double epsilon        2.22e-16;  single 1.19e-7;  bfloat16 ~7.8e-3
+  double range          ~1e-308 to ~1e308
+  not associative       (a+b)+c may differ from a+(b+c)
+  equality              never compare with ==; compare with a tolerance scaled to
+                        the magnitudes involved
+  catastrophic cancel.  subtracting nearly equal values destroys relative accuracy
+  absorption            adding a tiny value to a huge one changes nothing
+  special values        inf, -inf, NaN;  NaN != NaN, which is how you test for it
+  subnormals            gradual underflow near zero; often much slower in hardware
+  Kahan summation       compensated summation recovering most lost precision
+  fused multiply-add    a*b+c with one rounding; more accurate and faster
+
+The classic demonstration of cancellation is the quadratic formula. Computing the root
+(-b + sqrt(b^2 - 4ac))/(2a) when b is positive and much larger than the discriminant term
+subtracts two nearly equal numbers and loses most of the significant digits. The stable
+algorithm computes the root of larger magnitude by the standard formula, choosing the sign
+that avoids cancellation, and obtains the other from the product of the roots being c/a.
+The mathematics is identical and the numerical behaviour is completely different, which is
+the recurring theme of the subject.
+
+Q: Summing one million values of 0.1 in double precision and comparing to 100000.0 with ==
+returns false. The best fix is:
+A. Use single precision
+B. Compare with a tolerance proportional to the magnitude, and consider compensated
+   summation
+C. Round the result
+D. Use integers throughout
+Reasoning: 0.1 is not exactly representable, so each addition introduces a rounding error
+and a million of them accumulate. Exact equality is the wrong test. A relative tolerance
+handles the comparison; Kahan or pairwise summation reduces the accumulated error itself
+from O(n) to O(log n) or better. Option D is genuinely correct when the quantities are
+inherently discrete, such as currency in cents. Answer: B.
+
+## Error Analysis and Conditioning
+
+Numerical error has two distinct sources that must be kept separate. Truncation error
+comes from approximating a mathematical operation — replacing a derivative by a difference
+quotient, an integral by a finite sum, an infinite series by finitely many terms — and it
+decreases as the discretization is refined. Round-off error comes from finite precision
+arithmetic and generally increases as more operations are performed. The total error is
+their sum, and it typically has a minimum at some intermediate step size, below which
+refining further makes the answer worse.
+
+The finite difference derivative illustrates this exactly. The forward difference has
+truncation error proportional to the step size and round-off error proportional to machine
+epsilon divided by the step size, so the total is minimized around the square root of
+epsilon — about 1e-8 in double precision, giving roughly eight correct digits at best. The
+central difference has truncation error proportional to the step squared, so its optimum is
+near the cube root of epsilon, around 6e-6, and it achieves about eleven digits. Choosing a
+step size of 1e-15 because "smaller is more accurate" produces an answer that is entirely
+round-off noise.
+
+Conditioning describes the problem; stability describes the algorithm. A problem is
+ill-conditioned when small changes in the input produce large changes in the output,
+measured by the condition number. No algorithm can produce an accurate answer to an
+ill-conditioned problem, because the input uncertainty alone is amplified. An algorithm is
+unstable when it introduces error beyond what the conditioning requires — so an unstable
+algorithm can produce a bad answer to a well-conditioned problem, which is entirely the
+implementer's fault and entirely fixable.
+
+Error concepts:
+  absolute error       |computed - exact|
+  relative error       absolute error divided by |exact|; usually the meaningful one
+  truncation error     from the mathematical approximation; falls with refinement
+  round-off error      from finite precision; grows with operation count
+  condition number     amplification of input perturbation to output
+  backward stability   the computed answer is the exact answer to a nearby problem;
+                       the strongest practical guarantee an algorithm can offer
+  forward error        the error you care about; equals backward error times
+                       condition number
+  order of accuracy    error proportional to h^p; p is the order
+  Richardson extrap.   combine results at two step sizes to cancel the leading
+                       error term and raise the order
+
+Backward stability is the right criterion for judging an algorithm, and it takes some
+getting used to because it does not promise an accurate answer. It promises that the
+computed answer is the exact solution to a problem within rounding distance of the one
+posed. If the problem is well conditioned, that implies an accurate answer; if it is
+ill-conditioned, no algorithm can do better and the fault lies with the problem. This is
+why Gaussian elimination with partial pivoting, QR factorization, and the standard
+eigenvalue algorithms are considered reliable — each is backward stable, and their
+occasional inaccurate results reflect ill-conditioned inputs.
+
+## Root Finding and Interpolation
+
+Root finding solves f(x) = 0. Bisection brackets a root between points of opposite sign
+and halves the interval repeatedly. It is guaranteed to converge given a valid bracket, at
+a slow linear rate of one bit per iteration, and it cannot fail. Newton's method uses the
+derivative to take a tangent-line step, converging quadratically near a simple root, and
+can diverge or cycle from a poor start or where the derivative is small. The secant method
+approximates the derivative by a difference quotient, achieving superlinear convergence
+without requiring the derivative.
+
+Production root finders combine these. Brent's method maintains a bracket, guaranteeing
+convergence, while attempting inverse quadratic interpolation for speed and falling back to
+bisection whenever the fast step would leave the bracket or converge too slowly. This is
+the right default: it has bisection's robustness and nearly the secant method's speed, and
+it is what any good library provides.
+
+Multiplicity degrades Newton's method in a way worth knowing. At a root of multiplicity m,
+convergence drops from quadratic to linear with rate (m-1)/m, so a double root converges at
+half a bit per iteration and the achievable accuracy is limited to about the square root of
+machine epsilon, since the function is flat near the root and round-off dominates. The
+modified Newton step, multiplying the correction by m, restores quadratic convergence when
+the multiplicity is known.
+
+Root finding and interpolation:
+  bisection           guaranteed, linear, needs a sign-change bracket
+  Newton              quadratic near a simple root, needs f', can diverge
+  secant              superlinear (~1.618), no derivative needed
+  Brent               bracketed, guaranteed, near-superlinear; the default
+  fixed point         converges if |g'| < 1 near the fixed point
+  multiple roots      Newton degrades to linear; accuracy limited to sqrt(eps)
+  polynomial interp.  unique degree n-1 polynomial through n points
+  Runge phenomenon    equispaced high-degree interpolation oscillates wildly at
+                      the endpoints; use Chebyshev nodes instead
+  cubic spline        piecewise cubic, C2 continuous; the general-purpose choice
+  monotone spline     PCHIP; preserves monotonicity, no overshoot
+  barycentric form    the numerically stable way to evaluate an interpolant
+
+The Runge phenomenon is the counterintuitive result that matters most in interpolation.
+Increasing the polynomial degree through more equispaced points makes the approximation
+worse, not better, with oscillations near the interval ends growing without bound. The
+cause is that the interpolation error involves a product over the node positions, which is
+badly behaved for equispaced nodes. Chebyshev nodes, clustered toward the endpoints,
+minimize that product and give convergence for any analytic function — which is why
+spectral methods use them and why high-degree equispaced interpolation should simply never
+be attempted.
+
+## Numerical Linear Algebra and ODEs
+
+The core rules of numerical linear algebra follow from conditioning. Never compute an
+explicit matrix inverse to solve a system: factor and use triangular solves, which is
+faster, more accurate, and just as convenient for multiple right-hand sides. Never form the
+normal equations for least squares: A transpose A squares the condition number, so use QR,
+or SVD when the matrix may be rank deficient. Prefer orthogonal transformations —
+Householder reflections and Givens rotations — because they have condition number exactly
+one and therefore do not amplify existing error.
+
+For large sparse systems, direct factorization suffers fill-in, where the factors acquire
+nonzeros in positions the original matrix did not have, sometimes catastrophically. Iterative
+methods take over, using only matrix-vector products. Conjugate gradients handles symmetric
+positive definite systems with a convergence rate governed by the square root of the
+condition number, which makes preconditioning essential rather than optional — a
+preconditioner approximating the matrix but cheap to invert can reduce iteration counts by
+orders of magnitude, and choosing one is usually more consequential than choosing the
+iterative method.
+
+Ordinary differential equation solvers advance a solution in time. Explicit methods compute
+the next state directly from the current one and are cheap per step; implicit methods
+require solving an equation at each step and are far more expensive per step. The reason
+implicit methods exist is stiffness.
+
+ODE methods:
+  forward Euler        first order, explicit, tiny stability region; a teaching
+                       method, not a working one
+  backward Euler       first order, implicit, unconditionally stable, very
+                       dissipative
+  RK4                  fourth order, explicit, the classic general-purpose method
+  Dormand-Prince       embedded RK pair giving an error estimate for adaptive
+                       stepping; what most libraries mean by a default solver
+  adaptive stepping    adjust step size to a local error tolerance; essential for
+                       efficiency
+  BDF methods          implicit multistep; the standard for stiff problems
+  Rosenbrock           linearly implicit; good for moderately stiff systems
+  symplectic           preserve phase-space volume; for long-time Hamiltonian
+                       integration, energy stays bounded rather than drifting
+  stiffness            widely separated timescales force explicit methods to take
+                       steps set by the fastest mode even after it has decayed
+
+Stiffness is the property that makes solver selection matter. A chemical kinetics problem
+with reactions on microsecond and hour timescales requires an explicit method to take
+microsecond steps for the entire hour, since a larger step is unstable regardless of how
+smooth the solution has become — billions of steps to integrate a solution that barely
+changes. Implicit methods are stable at large steps, so they take steps sized by accuracy
+rather than by stability, and they win by many orders of magnitude despite each step
+costing a nonlinear solve. Recognizing stiffness is often a matter of noticing that a
+solver is taking absurdly many tiny steps while the solution is nearly constant.
+
+Symplectic integrators deserve mention for orbital mechanics and molecular dynamics.
+Standard high-order methods have local errors that accumulate as secular drift in conserved
+quantities, so energy in a simulated planetary system slowly increases or decreases and the
+orbit spirals. Symplectic methods preserve the geometric structure of Hamiltonian flow, so
+energy error oscillates within a bound rather than drifting, even over billions of steps.
+A second-order symplectic method beats a fourth-order non-symplectic one for long-time
+integration, which is a rare case where lower order is the correct choice.
+
+[user] My reaction network simulation with RK45 takes forever and the step size collapses
+to 1e-9 even though the solution looks flat.
+[assistant] tool_call ode.stiffness_check({"solver": "rk45", "n_species": 34,
+"step_size": 1e-9, "integration_span": 3600, "jacobian_eigenvalue_ratio": 4.2e8,
+"solution_variation": "slow"})
+[tool] {"stiffness_ratio": 4.2e8, "verdict": "severely_stiff",
+"explicit_steps_required": 3.6e12, "recommended": ["bdf", "radau"],
+"expected_implicit_steps": 4200, "note": "supply_analytic_jacobian_if_available"}
+[assistant] Your system is severely stiff and RK45 is the wrong tool. The Jacobian's
+eigenvalue ratio is 4.2e8, meaning the fastest mode decays 420 million times faster than
+the slowest.
+
+What is happening: RK45 is explicit, and explicit methods have a bounded stability region,
+so the step size is limited by the fastest eigenvalue regardless of how smooth the solution
+has become. Your fast reactions equilibrated in the first microseconds and contribute
+nothing to the answer afterward, but they still dictate the step size for the whole hour.
+That is 3.6e12 steps, which is why it takes forever. The step collapse is not a bug or an
+accuracy problem; it is the stability limit.
+
+Switch to an implicit stiff solver — BDF (the LSODA/CVODE family) or Radau. Implicit
+methods are stable at any step size for decaying modes, so the step is chosen by accuracy
+alone, and your problem should complete in roughly four thousand steps rather than
+trillions. That is a factor of a billion.
+
+Two things that will substantially affect how well this goes. Supply an analytic Jacobian
+if you can derive one — implicit methods solve a nonlinear system each step using the
+Jacobian, and a finite-difference approximation costs 34 extra function evaluations per
+Jacobian and is less accurate, which shows up as more Newton iterations. For a reaction
+network the Jacobian is usually straightforward to write from the stoichiometry, and
+providing it typically gives a two- to fivefold speedup.
+
+Second, exploit sparsity. In a 34-species network each species usually participates in a
+handful of reactions, so the Jacobian is sparse. Passing the sparsity pattern lets the
+solver use a sparse linear solve and colour the finite-difference Jacobian, further reducing
+cost.
+
+If you also need mass conservation to hold exactly, check whether your solver offers
+conservative or projected variants; stiff solvers can drift on conserved quantities, and for
+a reaction network the total element balance is a useful independent check on the result.
+
+## Discretization, Spectral Methods, and Validation
+
+Partial differential equations require discretizing in space as well as time, and the
+three main approaches suit different problems. Finite differences approximate derivatives
+on a structured grid and are simple to implement and reason about, at the cost of poor
+handling of complex geometry. Finite elements express the solution in a basis of local
+functions over an unstructured mesh, handling arbitrary geometry naturally and carrying a
+rigorous variational framework for error estimation. Finite volumes enforce conservation
+laws on control volumes exactly, which makes them the standard for fluid dynamics where
+conservation of mass, momentum, and energy is the point.
+
+Explicit time stepping for PDEs is constrained by the CFL condition, which requires the
+numerical domain of dependence to contain the physical one — practically, that information
+must not travel more than one grid cell per time step. For an advection problem this bounds
+the time step by the cell size divided by the wave speed; for a diffusion problem the bound
+is far more severe, scaling with the square of the cell size, which is why diffusion is
+almost always handled implicitly. Refining the mesh by a factor of two therefore costs
+four times more time steps for diffusion and two for advection, on top of the increased
+work per step.
+
+Spectral methods represent the solution as a global basis expansion — Fourier for periodic
+domains, Chebyshev otherwise — and achieve exponential rather than algebraic convergence
+for smooth solutions. Doubling the number of modes can square the accuracy rather than
+merely quadrupling it, which is why spectral methods dominate in turbulence simulation and
+in any problem where the solution is smooth and high accuracy is required. Their weakness is
+discontinuities, which produce Gibbs oscillations polluting the entire domain, and complex
+geometry, which the global basis cannot easily accommodate.
+
+Validation practices, which matter more than method selection:
+  method of manufactured solutions   choose an exact solution, derive the source
+                                     term that produces it, verify the code
+                                     reproduces it at the expected order
+  convergence study                  halve the discretization and confirm the error
+                                     falls by the predicted factor; the single best
+                                     test that a code is correct
+  conservation checks                verify mass, momentum, energy are conserved to
+                                     round-off where the scheme should conserve them
+  limiting cases                     compare against analytic solutions in regimes
+                                     where they exist
+  independent implementation         a second code, ideally by a different person
+                                     with a different method
+  sensitivity analysis               vary uncertain inputs; if the answer swings,
+                                     the precision of the numerics is irrelevant
+  reproducibility                    fix seeds, record versions, pin compiler flags;
+                                     aggressive floating-point optimization changes
+                                     results
+
+The convergence study is the diagnostic that catches almost everything. A correct
+second-order method shows the error falling by a factor of four when the grid is halved. If
+it falls by two, the implementation is first order somewhere — commonly a boundary
+condition, which is where order is most often silently lost. If it does not fall at all,
+either the solution is under-resolved, the error is dominated by round-off, or there is a
+bug. Running this check costs a few extra runs and is the difference between a code that is
+believed to work and one that is demonstrated to.
+
+The final and most frequently violated principle is that numerical precision is not
+accuracy. A simulation reporting twelve digits is reporting the precision of its
+arithmetic, not the correctness of its model, its parameters, or its boundary conditions.
+Where the physical inputs are known to ten percent, computing the output to twelve digits
+communicates a confidence that does not exist, and effort spent tightening the solver
+tolerance would be better spent on the input uncertainty. Numerical analysis answers how
+accurately a model was solved; it has nothing to say about whether the model was right.

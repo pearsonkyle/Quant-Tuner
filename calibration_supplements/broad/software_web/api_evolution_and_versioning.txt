@@ -1,0 +1,227 @@
+================================================================================
+AREA: Software and Web Engineering
+SUBJECT: API Evolution and Versioning
+Subtopics: compatibility rules, versioning strategies, schema evolution, deprecation,
+client considerations, contract testing, documentation and governance.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Compatibility Rules
+
+An interface's value comes from clients depending on it, and every dependency is a constraint on
+change. Compatibility rules define which changes are safe, and knowing them precisely is what allows
+an interface to evolve for years without breaking anyone. The rules follow from a simple question:
+would existing code, written against the previous version, still work?
+
+Backward compatible changes add capability without altering existing behaviour. Adding an optional
+field, adding a new endpoint or method, adding a new enumeration value that existing clients will
+not receive, and relaxing a validation constraint are all safe. Breaking changes remove or rename
+anything, make an optional field required, narrow a type, change a default, alter the meaning of an
+existing field, or add a validation that previously valid requests would now fail.
+
+Two categories deserve specific attention because they are frequently misclassified. Adding a new
+enumeration value is safe for values a client will never receive and breaking for values it might,
+because clients typically parse enumerations into closed types and fail on unknown members — which
+means the safety depends on the direction of flow. And changing an error condition is a breaking
+change even though the successful path is unaffected, because clients branch on errors and a new one
+they do not handle propagates as an unhandled failure.
+
+Compatibility rules:
+  the governing question  would existing code still work
+  backward compatible  new clients work with old servers and the reverse
+  safe changes         optional fields, new endpoints, relaxed validation
+  breaking changes     removal, renaming, requiring, narrowing, redefining
+  changing a default   breaking, because it changes behaviour for clients that
+                       did not specify
+  tightening validation  breaking; previously valid requests now fail
+  the enumeration case  safe in one direction and breaking in the other
+  the reason           clients parse enumerations into closed types
+  new error conditions  breaking despite the success path being unchanged
+  the semantic change  the worst category, because it passes every type check
+                       and breaks behaviour silently
+  field meaning        changing what a field represents while keeping its name
+                       and type is the most damaging change available
+  the practical rule   if a change requires clients to do anything, it is
+                       breaking regardless of what the type system says
+
+Q: An enumeration field gains a new value, which is only ever sent by clients to the server and
+never returned. Is this breaking?
+A. Yes; all enumeration changes are breaking
+B. No for existing clients, which will never receive the new value and can continue sending the old
+   ones; the server must accept both, and the change would be breaking in the reverse direction
+   where clients would receive a value their parser rejects
+C. Yes, because the schema changed
+D. It depends on the language
+Reasoning: Compatibility depends on who must handle the new value. A client-to-server enumeration
+value only requires the server to accept it, and servers are updated first. A server-to-client value
+requires every client to tolerate an unknown member, which most do not by default. Answer: B.
+
+## Versioning Strategies
+
+Versioning exists because breaking changes eventually become necessary, and the strategy determines
+how much they cost. The options differ in where the version lives and in how many versions must be
+maintained simultaneously.
+
+Path versioning places a version in the address and is the most visible and most common. It is
+simple to route, simple to document, and it encourages coarse-grained versions that bundle many
+changes, which means clients must migrate everything at once. Header versioning keeps addresses
+stable and moves the version into request metadata, which supports finer granularity at the cost of
+being less visible and easier to get wrong through caching layers that ignore the header.
+
+Additive-only evolution avoids versioning altogether by never making breaking changes. New
+capability arrives as new fields and new operations, and old ones remain indefinitely. The cost is
+accumulated surface area that can never be removed, and the benefit is that no client ever migrates
+and no version matrix exists. For interfaces with many uncontrolled clients this is frequently the
+right choice, and the accumulated cruft is cheaper than the coordination that versioning requires.
+
+The version count is what actually determines cost. Each supported version is code to maintain,
+tests to run, documentation to keep accurate, and behaviour to reason about, and the combinations
+multiply when several services version independently. A policy stating how many versions are
+supported and for how long is what prevents unbounded accumulation, and it must be set before the
+second version exists rather than after the fifth.
+
+Versioning strategies:
+  the necessity        breaking changes eventually become unavoidable
+  path versioning      visible, simple to route, coarse-grained
+  the coarse-grain consequence  clients migrate everything at once
+  header versioning    stable addresses, finer granularity, less visible
+  the caching hazard   intermediaries ignoring the version header
+  content negotiation  the version expressed as a media type
+  additive-only        never break; no versioning needed
+  the accumulation cost  surface area that cannot be removed
+  when it is right     many uncontrolled clients, where coordination is expensive
+  the version count    what actually determines maintenance cost
+  the combinatorial problem  independently versioned services multiplying
+  support policy       how many versions and for how long
+  the timing           set before the second version exists
+  version negotiation  the client stating what it supports and the server
+                       responding within it; more complex and more robust than a
+                       fixed version, and worth it only for long-lived
+                       interfaces with diverse clients
+
+## Schema Evolution and Data Formats
+
+Data formats differ substantially in how gracefully they evolve, and the choice constrains what
+changes are possible later. Formats with explicit field identifiers and optional-by-default
+semantics tolerate additions and removals well: an unknown field is ignored and a missing field
+takes a default. Formats with positional encoding tolerate appending and nothing else. Formats
+requiring every field tolerate almost no change.
+
+The two directions of compatibility must both be considered when readers and writers are updated
+independently. Backward compatibility means new readers handle old data. Forward compatibility means
+old readers handle new data, which requires that unknown fields be ignored rather than rejected —
+and this is the property most often absent, because strict parsers that reject unknown fields feel
+safer and make evolution impossible.
+
+Preserving unknown fields through a round trip is a subtler requirement that matters whenever data
+passes through an intermediary. A service that reads a record, modifies a field, and writes it back
+will silently delete any field it does not know about unless it preserves them explicitly. This
+produces data loss that appears long after deployment and is attributed to the wrong component,
+which is why round-trip preservation should be a tested property rather than an assumed one.
+
+Schema evolution:
+  explicit field identifiers  tolerate addition and removal
+  positional encoding  tolerates appending only
+  required fields      tolerate almost nothing
+  backward compatibility  new readers handle old data
+  forward compatibility  old readers handle new data
+  ignoring unknown fields  the property forward compatibility requires
+  strict parsers       feel safer and make evolution impossible
+  the default choice   optional with defaults, unless there is a reason
+  identifier reuse     never reuse a removed field's identifier; old data will be
+                       misinterpreted as the new field
+  reservation          marking removed identifiers as unusable
+  round-trip preservation  intermediaries must retain fields they do not
+                       understand
+  the silent data loss  a service dropping unknown fields on write
+  the attribution difficulty  the loss appears far from its cause
+  the testing requirement  round-trip preservation verified rather than assumed
+  schema registries    compatibility checked mechanically at publish time, which
+                       converts a review discipline into an enforced rule
+
+## Deprecation and Client Migration
+
+Deprecation is the process of removing capability, and it is the part of interface evolution that
+organizations do worst. The typical failure is announcing a deprecation, receiving no response,
+removing the capability, and discovering that clients were still using it — because announcement is
+not communication and nobody read the changelog.
+
+An effective deprecation is driven by measurement rather than by announcement. Instrument the
+deprecated capability so its usage is visible per client. Contact the clients still using it
+directly. Track the usage curve toward zero and remove the capability when it reaches zero rather
+than when the calendar says so. This is more work than an announcement and it is the difference
+between a removal that is a non-event and one that is an incident.
+
+The timeline must reflect the clients' constraints rather than the provider's. A mobile application
+cannot migrate faster than its release and adoption cycle, which is months. An embedded device may
+never migrate at all. An internal service can migrate in a week if someone is available. Setting a
+uniform deprecation period ignores this and produces either an unnecessarily long wait for internal
+consumers or an impossible deadline for external ones.
+
+Deprecation:
+  the typical failure  announce, remove, discover it was still in use
+  announcement is not communication  changelogs are not read
+  measurement-driven   usage instrumented per client
+  direct contact       for the clients still using it
+  removal on zero usage  rather than on a calendar date
+  the effort difference  more work, and the difference between an event and an
+                       incident
+  client constraints   mobile release cycles, embedded devices, internal services
+  uniform periods      too long for some and impossible for others
+  deprecation signalling  headers and response metadata marking a deprecated path
+                       in a way that appears in client logs
+  sunset dates         communicated in the response itself, where an integrator
+                       will encounter them
+  migration guides     the specific mechanical change required, with examples
+  the guide test       could someone perform the migration from the guide alone
+  automated migration  a codemod or a compatibility shim where feasible; the
+                       highest-leverage investment for a widely used interface
+  the reciprocal obligation  a provider that breaks things carelessly loses the
+                       ability to make necessary changes later, because clients
+                       stop trusting the interface and pin themselves to old
+                       versions defensively
+
+## Contract Testing, Documentation, and Governance
+
+Testing an interface's compatibility requires testing against what clients actually depend on rather
+than against its specification, because clients depend on observed behaviour including things never
+specified. Contract testing captures each consumer's expectations as an executable artifact that the
+provider runs, so a change breaking any consumer fails the provider's build rather than the
+consumer's production.
+
+The valuable property is that it inverts the discovery. Without it, the provider changes something,
+deploys, and a consumer discovers the break in production. With it, the provider discovers it before
+merging, while the change is still cheap to reconsider. It also documents what is actually depended
+on, which is frequently a surprise — provider teams routinely find that consumers rely on response
+ordering, on undocumented fields, and on error message text.
+
+Documentation for an interface must cover what the specification does not: the semantics of each
+field, the meaning of each error, the rate limits, the pagination behaviour, the idempotency
+guarantees, and worked examples of common tasks. A generated schema reference is necessary and not
+sufficient, since it states the shape of a request without saying what it does. The distinguishing
+mark of good interface documentation is that a competent integrator can complete a realistic task
+without asking anyone a question, and testing that claim with an actual new integrator is the only
+reliable way to find out.
+
+Contract testing and governance:
+  test against dependence  not against the specification
+  the observed behaviour problem  clients depend on unspecified details
+  contract testing     consumer expectations as executable artifacts
+  the inversion        the provider discovers breaks before merging
+  the surprise         what consumers actually depend on
+  common surprises     response ordering, undocumented fields, error message text
+  schema reference     necessary and not sufficient
+  semantics            what each field means, not its type
+  error documentation  what each error means and what to do about it
+  operational documentation  rate limits, pagination, idempotency, retries
+  worked examples      complete realistic tasks rather than field-by-field
+                       fragments
+  the documentation test  a competent integrator completes a task without asking
+  new-integrator testing  the only reliable way to evaluate it
+  design review        interfaces reviewed before implementation, since they are
+                       far more expensive to change afterward
+  the governance principle  a small number of enforced conventions across all
+                       interfaces is worth more than detailed review of each one,
+                       because consistency is what lets an integrator apply what
+                       they learned from one endpoint to the next

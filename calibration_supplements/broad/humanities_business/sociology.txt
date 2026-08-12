@@ -1,0 +1,292 @@
+================================================================================
+AREA: Humanities, Business, and Social Science
+SUBJECT: Sociology
+Subtopics: theoretical perspectives, methods, social structure and stratification,
+networks and institutions, culture and socialization, deviance, demography, social change.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Theoretical Perspectives
+
+Sociology studies social life at the level of groups, institutions, and societies rather than
+individuals, and its central claim is that social facts — patterns of behaviour, rates, and
+structures — require explanation at the social level rather than reducing to individual
+psychology. Durkheim's study of suicide made the case by showing that suicide rates are stable
+within societies and differ systematically between them, so whatever explains the rate is
+social even though every individual case has a personal story.
+
+Three broad perspectives organize the field, and they are complementary lenses rather than
+competing theories. Structural functionalism examines how institutions contribute to social
+stability, asking what function a practice serves for the system. Conflict theory examines how
+groups with unequal power compete over resources, asking whose interests a practice serves.
+Symbolic interactionism examines how meaning is constructed through interaction, asking how
+people interpret and negotiate situations. The first two operate at the macro level and the third
+at the micro.
+
+Each perspective illuminates what the others obscure. Functionalism explains persistence and
+integration and tends toward treating existing arrangements as necessary. Conflict theory
+explains change and inequality and can reduce every arrangement to interest. Interactionism
+explains how people experience and construct their situations and does not readily scale to
+institutional analysis. Applying one exclusively produces a systematically partial account.
+
+Theoretical concepts:
+  social fact          patterns existing above the individual; rates, norms,
+                       institutions
+  structural functionalism  what function does this serve for the system
+  conflict theory      whose interests does this serve
+  symbolic interactionism  how is meaning constructed in interaction
+  macro and micro      levels of analysis; both are required and neither reduces
+                       to the other
+  agency and structure  individuals act, and structures constrain and enable;
+                       accounts privileging either alone are incomplete
+  structuration        structures are reproduced by the actions they shape; the
+                       standard attempt to integrate agency and structure
+  manifest function    the intended and recognized purpose
+  latent function      the unintended and unrecognized consequence
+  social construction  categories treated as natural are frequently produced and
+                       maintained socially; the claim concerns the category rather
+                       than the underlying phenomenon
+  reflexivity          social knowledge changes the society it describes, which
+                       has no equivalent in the natural sciences
+
+The distinction between manifest and latent functions is worth having because it explains why
+practices persist that appear to fail at their stated purpose. A ritual whose manifest function
+is to bring rain has a latent function of assembling the community at a time when coordination
+matters, and the latter sustains it regardless of the former. An organizational process whose
+manifest purpose is quality control may have a latent function of distributing accountability,
+which is why removing it on the grounds that it does not improve quality frequently meets
+resistance that the stated rationale does not explain.
+
+Q: A study finds that a job training programme does not improve employment outcomes, yet it
+persists and is well supported. A sociological explanation would first consider:
+A. That the study is wrong
+B. What latent functions the programme serves — legitimating institutions, distributing
+   resources, signalling commitment — beyond its manifest purpose
+C. That participants are unmotivated
+D. That funding should be cut
+Reasoning: Practices that fail at their stated purpose and persist are typically serving other
+functions, whether recognized or not. Identifying what they are is the analytical task, and it
+does not settle whether the programme should continue — that requires evaluating those functions
+explicitly. Answer: B.
+
+## Methods
+
+Sociological methods divide by whether they aim to measure and generalize or to interpret and
+understand, and the division is one of purpose rather than of rigour. Quantitative methods use
+surveys, administrative records, and experiments to measure variables across many cases and
+estimate relationships, trading depth for breadth and generalizability. Qualitative methods use
+interviews, ethnography, and document analysis to understand meaning and process in fewer cases,
+trading generalizability for depth and for the ability to discover what was not anticipated.
+
+Sampling determines what a finding generalizes to, and it is where quantitative work most often
+fails. A probability sample permits inference to the population; a convenience sample does not,
+regardless of its size. Non-response is the pervasive practical problem, since those who decline
+to participate differ systematically from those who agree, and response rates in general
+population surveys have fallen dramatically. Weighting adjusts for known differences and cannot
+correct for unmeasured ones.
+
+Measurement is the other recurring difficulty, because sociological concepts are frequently
+abstract and their operationalization is contestable. Social class, religiosity, trust,
+discrimination, and wellbeing each have several defensible measures that produce different
+results, and the choice is a substantive claim rather than a technical detail. Reporting which
+measure was used and how sensitive the conclusion is to that choice is what distinguishes careful
+work.
+
+Methods and their limits:
+  survey               breadth and generalizability; depends on sampling and
+                       response
+  probability sample   permits inference to the population
+  convenience sample   does not, regardless of size
+  non-response bias    those who decline differ; the dominant survey problem today
+  panel study          the same people over time; separates change from cohort
+                       differences, and loses people through attrition
+  ethnography          extended immersion; depth, discovery of the unanticipated
+  interviews           accounts and meaning; what people say is data about what
+                       they say, which is not the same as data about what they do
+  content analysis     systematic coding of texts or media
+  administrative data  large, cheap, and shaped by the administrative process that
+                       produced it
+  natural experiment   an as-if random assignment; the strongest observational
+                       design
+  operationalization   how an abstract concept is measured; a substantive choice
+  reliability          consistency of measurement
+  validity             whether it measures the intended construct
+  ecological fallacy   inferring individual relationships from group-level data;
+                       the relationship can reverse
+  reflexivity          the researcher's position affects access, what is said, and
+                       interpretation; acknowledging it is standard practice
+
+The ecological fallacy deserves emphasis because it is a specific and common inferential error.
+A correlation observed between group-level averages need not hold at the individual level and can
+reverse. Regions with higher average income may vote for one party while higher-income
+individuals within every region vote for another, which is not a paradox — the group-level and
+individual-level relationships are different quantities and there is no general reason they
+should agree. Drawing individual conclusions from aggregate data requires either individual data
+or an argument that the aggregation does not distort.
+
+## Stratification and Inequality
+
+Stratification is the systematic and durable ranking of groups by access to resources,
+opportunity, and status. It is universal across complex societies while its basis and magnitude
+vary enormously, and the questions are what dimensions organize it, how it is transmitted across
+generations, and how it is legitimated.
+
+Class, status, and power are the three dimensions Weber distinguished and they do not coincide.
+Class concerns economic position — ownership, occupation, income. Status concerns social honour
+and lifestyle. Power concerns the ability to realize one's will despite resistance. A
+professional may have high status and modest income, a business owner high income and low status,
+and the divergences are analytically productive rather than complications.
+
+Social mobility measures movement between positions, and the distinction between absolute and
+relative mobility is where public discussion is most confused. Absolute mobility concerns whether
+people do better than their parents, which depends on economic growth and structural change —
+when the occupational structure shifts toward higher-paying work, many people move up without any
+change in the relative advantage of origins. Relative mobility concerns whether origins predict
+destinations, holding the structure constant, and it is the measure of how open a society is.
+Absolute mobility can rise while relative mobility is unchanged, which is what occurred in many
+economies during postwar expansion.
+
+Stratification concepts:
+  class                economic position; ownership, occupation, income
+  status               social honour and lifestyle
+  power                ability to realize one's will despite resistance
+  cultural capital     familiarity with valued cultural forms; transmitted in
+                       families and rewarded by institutions
+  social capital       resources accessible through networks
+  human capital        skills and credentials
+  absolute mobility    doing better than one's parents; driven by growth and
+                       structural change
+  relative mobility    whether origins predict destinations; the measure of
+                       openness
+  intergenerational elasticity  the correlation between parent and child outcomes;
+                       varies substantially between countries
+  Great Gatsby curve   higher inequality is associated with lower relative
+                       mobility across countries
+  intersectionality    disadvantages combine non-additively; the experience at an
+                       intersection is not the sum of its parts
+  meritocracy          the claim that positions reflect ability and effort; a
+                       normative ideal, an empirical claim, and a legitimating
+                       ideology, and distinguishing which is in play matters
+  homophily            association with similar others; reproduces stratification
+                       through networks without any intentional exclusion
+
+Homophily deserves attention because it produces stratified outcomes through mechanisms that
+require no discriminatory intent. People associate disproportionately with others similar to
+themselves in class, education, ethnicity, and occupation, and because networks convey
+information about opportunities, the opportunities circulate within groups. Hiring through
+referrals therefore reproduces the existing composition of an organization even when every
+individual decision is made in good faith, which is why the aggregate outcome can be highly
+unequal while no participant did anything they would recognize as exclusion.
+
+## Networks, Institutions, and Culture
+
+Social network analysis treats relationships as the unit of analysis, and its findings have been
+among the field's most transferable. The strength of weak ties is the best known: close contacts
+tend to know the same people and the same information one already has, while acquaintances bridge
+to different circles and therefore carry novel information. Job opportunities are found
+disproportionately through weak ties for this reason, which inverts the intuition that strong
+relationships are more useful.
+
+Structural holes are the gaps between otherwise disconnected groups, and occupying one confers
+advantage — access to non-redundant information and control over what flows between the groups.
+Brokerage is measured by betweenness centrality, and the finding that brokers accrue advantage
+recurs in organizations, in markets, and in politics.
+
+Institutions are durable patterns of rules, norms, and practices structuring behaviour, and they
+persist beyond the individuals occupying them. Institutional isomorphism is the observed
+tendency of organizations in a field to resemble each other, arising through coercion where
+regulation requires it, through mimicry where uncertainty makes imitating a successful peer
+attractive, and through professional norms where similarly trained people bring the same
+practices. The result is that organizational forms spread through a field for reasons of
+legitimacy rather than efficiency, which explains why practices with no demonstrated benefit
+diffuse widely.
+
+Networks, institutions, and culture:
+  strength of weak ties  acquaintances bridge to novel information
+  structural hole      a gap between groups; brokerage confers advantage
+  betweenness centrality  how much a node lies on paths between others
+  homophily            association with similar others
+  small world          high clustering with short paths
+  diffusion            innovations spread through networks; adoption follows an
+                       S-curve with identifiable early and late adopters
+  institution          durable rules, norms, and practices
+  institutional isomorphism  coercive, mimetic, normative; organizations converge
+                       for legitimacy rather than efficiency
+  path dependence      early contingent choices constrain later ones
+  norms                unwritten rules; enforced by informal sanction and often
+                       more binding than formal rules
+  values               abstract conceptions of the desirable
+  socialization        acquiring the norms and roles of a group; primary in
+                       childhood, and continuing throughout life
+  role                 expected behaviour attached to a position
+  role conflict        incompatible expectations from different roles held
+                       simultaneously
+  subculture           a group with distinctive norms within a larger society
+  cultural lag         material change outpacing normative adjustment
+
+Pluralistic ignorance is worth naming because it explains a specific and consequential
+pattern. It occurs when most members of a group privately reject a norm while believing that most
+others accept it, so each conforms publicly and the appearance of consensus is sustained by
+people who do not hold it. It explains why norms can collapse suddenly once the private
+distribution becomes visible, why anonymous surveys sometimes reveal majorities that no one
+believed existed, and why the first person to speak against a norm has a disproportionate effect.
+
+## Deviance, Demography, and Change
+
+Deviance is behaviour violating norms, and the sociological approach treats it as relational
+rather than intrinsic: what counts as deviant depends on the norms of the group and the
+context, so the analytical question is how definitions are established and applied rather than
+why individuals violate them. Labelling theory adds that being identified as deviant has
+consequences — restricted opportunities, altered self-conception, association with others
+similarly labelled — that can produce further deviance, so the label participates in creating
+what it describes.
+
+Strain theory explains deviance as arising from the gap between culturally promoted goals and
+the legitimate means available to achieve them. Where success is defined by material attainment
+and legitimate routes are blocked, some pursue illegitimate ones, some abandon the goals, and
+some reject both. Its strength is explaining why deviance concentrates where opportunity is
+constrained rather than being distributed randomly.
+
+Demography studies population size and composition, and its dynamics are among the most
+predictable in social science because they follow from birth, death, and migration rates with
+long lags. The demographic transition describes the shift from high birth and death rates to low
+ones, occurring in stages that produce a period of rapid growth when death rates fall before
+birth rates do — which is what drove twentieth-century population growth and which most of the
+world has now passed through.
+
+Deviance, demography, and change:
+  deviance             relational; defined by norms and context
+  labelling theory     the label alters opportunities and self-conception
+  strain theory        the gap between goals and legitimate means
+  social control       formal and informal mechanisms enforcing conformity
+  moral panic          disproportionate reaction to a perceived threat; media
+                       amplification is characteristic
+  demographic transition  high to low birth and death rates, with a growth phase
+                       between
+  total fertility rate  births per woman; replacement is about 2.1 accounting for
+                       mortality
+  population pyramid   age and sex structure; predicts dependency ratios decades
+                       ahead
+  dependency ratio     non-working to working-age population; the mechanism behind
+                       pension and healthcare pressure
+  ageing populations   the consequence of sustained low fertility and rising
+                       longevity; largely determined by births that have already
+                       occurred
+  migration            push and pull factors; the least predictable component
+  modernization        the contested claim that societies follow a common
+                       development path
+  globalization        increasing interconnection; effects are uneven and
+                       contested rather than uniform
+  social movements     collective action for change; resource mobilization and
+                       framing are the standard analytical tools
+
+Demographic momentum deserves the closing emphasis because it makes population projections
+unusually reliable and unusually counterintuitive. A population with a young age structure
+continues growing for decades after fertility falls to replacement, because a large cohort of
+young people is still entering reproductive age. Conversely a population that has aged continues
+shrinking after fertility recovers. The consequence is that many population outcomes decades
+ahead are already substantially determined by births that have occurred, which makes them among
+the most confidently projectable social facts — and it means that policies intended to change
+population trajectories operate with lags of a generation or more, a timescale that political
+cycles do not accommodate.

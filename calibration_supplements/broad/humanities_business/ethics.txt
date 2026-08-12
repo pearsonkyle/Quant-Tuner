@@ -1,0 +1,326 @@
+================================================================================
+AREA: Humanities, Business, and Social Science
+SUBJECT: Ethics and Applied Moral Reasoning
+Subtopics: normative frameworks, metaethics, applied reasoning, professional and
+engineering ethics, technology ethics, research ethics, institutional design.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Normative Frameworks
+
+Ethics asks what one ought to do, and the major frameworks answer by identifying different
+features of an action as morally decisive. They are best treated as complementary lenses that
+surface different considerations rather than as competing theories one of which is correct, since
+each captures something the others handle poorly and each produces conclusions its adherents find
+uncomfortable.
+
+Consequentialism holds that the rightness of an action depends on its outcomes, with utilitarianism
+identifying the relevant outcome as aggregate wellbeing. Its strengths are that it takes
+consequences seriously, that it treats everyone's interests as counting equally, and that it gives
+a determinate answer where other frameworks are silent. Its difficulties are that it permits
+serious harm to individuals when the aggregate improves, that it requires predicting consequences
+that are frequently unknowable, and that aggregating wellbeing across people assumes a comparison
+that may not be well defined.
+
+Deontology holds that some actions are right or wrong independent of their consequences, typically
+grounded in duties or in rights. Its strengths are that it protects individuals against being used
+as means to collective ends, that it does not require predicting the future, and that it captures
+the intuition that some things must not be done regardless of the benefit. Its difficulties are
+that duties conflict with no principled resolution, and that it can require adherence to a rule
+when the consequences of doing so are catastrophic.
+
+Virtue ethics asks what a person of good character would do, shifting attention from the act to
+the agent. Its strengths are that it accounts for the role of character, motivation, and practical
+wisdom, and that it addresses how to become the kind of person who acts well rather than only what
+to do in a given case. Its difficulty is that it provides less guidance in specific cases, since
+determining what a virtuous person would do frequently requires already knowing the answer.
+
+Normative frameworks:
+  consequentialism     outcomes determine rightness
+  utilitarianism       maximize aggregate wellbeing
+  act versus rule      evaluate individual acts or the rules they instantiate
+  the aggregation problem  serious harm to few permitted by benefit to many
+  deontology           some acts are right or wrong independent of consequences
+  categorical imperative  act only on principles you could will to be universal;
+                       treat people as ends and never merely as means
+  rights               claims that constrain what may be done to a person
+  conflicting duties   no principled resolution within the framework
+  virtue ethics        what a person of good character would do
+  practical wisdom     the capacity to judge well in particular cases
+  care ethics          moral significance of relationships and dependency;
+                       corrects an abstraction the others share
+  contractualism       principles no one could reasonably reject
+  moral pluralism      several irreducible considerations; the position most
+                       practitioners actually hold
+  reflective equilibrium  adjusting principles and judgments against each other
+                       until they cohere; the working method
+
+Q: A framework recommends an action that seems clearly wrong on reflection. The appropriate
+response is:
+A. Accept the recommendation, since the framework is systematic
+B. Treat the conflict as evidence about either the framework's application or the judgment, and
+   adjust whichever survives scrutiny less well — the method of reflective equilibrium
+C. Abandon the framework
+D. Ignore the judgment
+Reasoning: Neither principles nor particular judgments have automatic priority. A strong
+considered judgment conflicting with a principle is evidence against the principle or its
+application, and a principle with wide support is evidence against the judgment. Working back and
+forth until they cohere is the standard method, and it treats both as revisable. Answer: B.
+
+## Metaethics and the Limits of Argument
+
+Metaethics asks what moral claims mean and whether they can be true, and the positions matter
+practically because they determine what a moral disagreement is. Moral realism holds that moral
+claims describe objective facts and can be true or false. Anti-realist positions hold variously
+that they express attitudes, that they are systematically false, or that their truth is relative to
+a framework.
+
+The is-ought gap is the observation that a normative conclusion cannot be derived from purely
+descriptive premises. Establishing what is the case does not by itself establish what ought to be
+done, and an argument moving from one to the other has a suppressed normative premise. This is
+worth recognizing because arguments of that form are common — from what is natural, from what is
+statistically typical, from what has historically been done — and identifying the missing premise
+is what permits it to be examined.
+
+The naturalistic fallacy is the related error of inferring goodness from naturalness, and it
+deserves specific mention because it recurs in discussions of technology, medicine, and social
+arrangements. That something occurs in nature, or has evolved, or is traditional, establishes
+nothing about whether it is good — disease is natural, and so is the impulse to treat it.
+
+Metaethics:
+  moral realism        moral claims describe objective facts
+  anti-realism         they express attitudes, or are relative, or are
+                       systematically false
+  moral intuitions     the data any theory must account for; strong widely shared
+                       intuitions carry evidential weight
+  is-ought gap         normative conclusions need a normative premise
+  naturalistic fallacy  inferring good from natural; naturalness establishes
+                       nothing
+  moral relativism     the descriptive claim that moralities differ is
+                       uncontroversial; the normative claim that all are equally
+                       valid does not follow and is rarely held consistently
+  moral uncertainty    acting under uncertainty about which framework is correct;
+                       an active area with practical implications for
+                       hedging across theories
+  moral luck           outcomes outside one's control affect moral assessment; a
+                       genuine tension rather than a confusion
+  the demandingness objection  a theory requiring constant maximal sacrifice is
+                       arguably too demanding to be action-guiding
+  disagreement         persistent moral disagreement is compatible with realism,
+                       as persistent scientific disagreement is
+
+Moral uncertainty deserves attention because it is the practical situation. Someone who finds
+consequentialist reasoning compelling in some cases and deontological constraints compelling in
+others is not confused; they are uncertain which framework is correct, which is a reasonable state
+given that the question has been debated for millennia without resolution. Acting under that
+uncertainty argues for choices that are acceptable across the frameworks one takes seriously rather
+than optimal under one — which is why an action strongly condemned by any major framework warrants
+caution even from someone who does not hold that framework.
+
+## Applied Reasoning and Professional Ethics
+
+Applied ethics addresses specific domains, and the recurring structure is that the difficult cases
+involve genuine conflicts between considerations that all matter rather than a clear right answer
+that someone is failing to see. Recognizing this changes the task from determining who is correct
+to identifying what is at stake on each side and whether an option exists that respects both.
+
+The distinction between an ethical dilemma and a temptation is worth keeping clear. A dilemma is a
+genuine conflict between two obligations, where satisfying one means failing the other and no
+option is fully right. A temptation is a conflict between what one should do and what one wants,
+which is not a dilemma however difficult it feels. Most situations described as ethical dilemmas
+are temptations, and the distinction matters because they require different responses — a dilemma
+requires judgment about which obligation takes precedence, and a temptation requires resolve.
+
+Professional ethics binds practitioners to standards beyond ordinary morality, and the
+justification is asymmetry: a professional has knowledge and power that the person relying on them
+lacks and cannot readily evaluate. The client cannot assess whether the engineering is sound, the
+diagnosis correct, or the advice self-serving, so the profession's standards substitute for the
+scrutiny the client cannot apply.
+
+Engineering ethics has a specific feature that distinguishes it: the primary obligation is to
+public safety, and it takes precedence over obligations to the employer and the client. This is
+stated in essentially every engineering code of ethics and it is what makes the codes
+consequential, since it establishes that an engineer may be professionally required to act against
+their employer's instruction.
+
+Applied and professional ethics:
+  dilemma versus temptation  a genuine conflict of obligations versus a conflict
+                       between duty and desire
+  competing obligations  the structure of genuinely hard cases
+  professional standards  justified by the asymmetry of knowledge and power
+  fiduciary duty       acting in another's interest rather than one's own
+  informed consent     understanding, voluntariness, and capacity; all three
+                       required
+  confidentiality      and its limits; harm to third parties is the standard
+                       exception
+  conflict of interest  a situation, not an act; disclosure and recusal are the
+                       responses, and having one is not itself wrongdoing
+  public safety first  the primary obligation in engineering codes; it takes
+                       precedence over the employer
+  competence           acting only within it; and recognizing its boundary
+  whistleblowing       when internal channels fail; morally permissible under
+                       conditions and personally costly regardless
+  the reasonable person  a standard that avoids requiring heroism while requiring
+                       more than the minimum
+  documentation        recording concerns raised; the practical protection for
+                       someone who raises one
+
+Conflict of interest deserves clarification because it is frequently treated as an accusation. It
+is a situation in which a person's obligations or interests could compromise their judgment, and
+being in one is not wrongdoing — it is a circumstance that arises routinely through ordinary
+professional life. The wrongdoing is failing to disclose it or acting within it when recusal was
+required. Treating the existence of a conflict as an accusation discourages disclosure, which
+produces exactly the undisclosed conflicts the rule exists to prevent.
+
+## Technology Ethics
+
+Technology ethics has become substantively important because technical decisions increasingly
+have consequences at scale, and the person making them frequently has more effective authority
+over the outcome than anyone with formal responsibility. A choice about a default setting, a
+ranking function, a data retention period, or a threshold affects millions of people and is made
+by someone with no mandate to make a policy decision.
+
+The recurring pattern is that a system optimizing a measurable proxy diverges from the intended
+goal, and the divergence is discovered after deployment at scale. Engagement optimization produces
+content that engages and does not satisfy. Efficiency optimization in a decision system reproduces
+the patterns in its training data, which encode historical decisions. Personalization produces
+narrowing. In each case the system did what it was built to do and the specification was
+incomplete.
+
+Privacy has a structure worth understanding beyond the intuitive one. It is not only about
+secrecy but about contextual integrity — information appropriate in one context is a violation in
+another, so the question is whether a flow of information matches the norms of the context it came
+from. Medical information shared with a doctor and then with an insurer violates this without any
+of it being secret. This framing explains why aggregation is a privacy harm even when every
+component was individually public.
+
+Technology ethics:
+  scale                a technical choice affecting millions, made by someone with
+                       no policy mandate
+  proxy divergence     the system optimizes what is measurable, which diverges
+                       from what is intended
+  engagement optimization  produces engagement rather than satisfaction
+  automation bias      people defer to a system's output even when they should not
+  the accountability gap  who is responsible when an automated system causes harm
+  contextual integrity  information appropriate in one context violating in
+                       another; explains aggregation harms
+  data minimization    collect what is needed; the durable protection, since data
+                       not held cannot leak or be repurposed
+  purpose limitation   further use must be compatible with the original purpose
+  consent              necessary and insufficient; the asymmetry of understanding
+                       means agreeing to terms is not informed agreement
+  algorithmic fairness  several mathematically incompatible definitions; the
+                       choice is a policy judgment rather than a technical one
+  proxy variables      removing a protected attribute does not remove its
+                       influence, and removes the ability to measure the disparity
+  dual use             a capability with beneficial and harmful applications; most
+                       capabilities
+  the responsibility of the builder  ordinary professional obligation applies;
+                       "just building the tool" is not a defence recognized in
+                       any other engineering discipline
+
+The proxy divergence pattern deserves emphasis because recognizing it prospectively is the most
+useful contribution a technically informed person can make. Any system optimizing a measurable
+quantity will find the cheapest way to increase it, and if the measurement diverges from the intent
+anywhere, the system will locate and exploit that divergence. Asking, before deployment, what the
+cheapest way to improve the metric would be, and whether that is what is wanted, surfaces most of
+these failures at the design stage rather than at scale.
+
+[user] Our team is building a hiring screening tool. What ethical issues should we be thinking
+about that aren't obvious?
+[assistant] tool_call ethics.system_review({"domain": "employment_screening",
+"automated_decision": true, "training_data": "historical_hiring_outcomes",
+"protected_attributes": "excluded_from_features", "human_review": "final_stage_only",
+"affected_party_recourse": "none_specified"})
+[tool] {"issues": ["historical_data_encodes_past_decisions",
+"exclusion_of_attributes_prevents_measurement_not_influence",
+"human_review_subject_to_automation_bias", "no_recourse_for_affected_individuals",
+"consequential_and_hard_to_contest"], "regulatory": "employment_screening_is_regulated_in_
+most_jurisdictions"}
+[assistant] Four things beyond the obvious, and the second is the one most teams get backwards.
+
+Your training data is historical hiring outcomes, which means the model learns to reproduce past
+hiring decisions rather than to predict job performance. If past decisions reflected bias, the
+model learns the bias and applies it consistently and at scale, with the appearance of objectivity.
+The question to ask is what the labels actually represent — "was hired" and "performed well" are
+different targets, and only the second is what you want. If you only have the first, be explicit
+that you are automating the historical process rather than improving it.
+
+Excluding protected attributes from the features does not remove their influence and does remove
+your ability to measure it. Other features correlate with them — postal code, education history,
+gaps in employment, activities — so the model reconstructs the attribute and its effect persists
+invisibly. You need the attributes available for measurement even if not for prediction, which
+sits awkwardly with regulations restricting their collection and is a tension to resolve
+deliberately rather than by avoidance.
+
+Human review at the final stage is less protective than it appears. Automation bias means
+reviewers defer to the system's ranking, particularly under time pressure and particularly when
+the system is usually right. A reviewer seeing candidates pre-sorted rarely overturns the ordering.
+If the review is meant to be a safeguard, it needs to be structured so that the reviewer forms an
+independent judgment before seeing the score.
+
+There is no recourse specified for affected individuals. Someone screened out has no way to know
+why, to contest it, or to correct an error in the data. This is a substantive fairness question and
+in many jurisdictions a legal requirement, since employment decisions are regulated and automated
+decision-making with significant effects carries specific obligations.
+
+Two process recommendations. Measure the outcome disparity across groups on a held-out set before
+deployment and periodically after, since you cannot address what you do not measure. And write
+down what the system is and is not intended to do, what it was trained on, and its known
+limitations — a model card — because the people who use it in two years will not be the people who
+built it, and they will otherwise assume it does more than it does.
+
+## Research Ethics and Institutional Design
+
+Research ethics developed in response to documented abuses, and the resulting requirements are
+specific and consequential rather than procedural. Informed consent requires that participants
+understand what they are agreeing to, agree voluntarily without coercion, and have the capacity to
+consent. Risks must be minimized and justified by the expected benefit. Vulnerable populations —
+those with limited capacity, those in dependent relationships, those with limited alternatives —
+require additional protection because the voluntariness condition is harder to satisfy.
+
+Research integrity concerns the conduct of the work itself. Fabrication and falsification of data
+and plagiarism are the recognized categories of misconduct, and the far more common problems are
+questionable practices that fall short of them: selective reporting, undisclosed analytic
+flexibility, hypothesizing after results are known, and salami-slicing results across publications.
+These are not misconduct by the formal definition and they distort the literature substantially,
+which is why the reforms have focused on preregistration and disclosure rather than on enforcement.
+
+Institutional design is what determines whether ethical behaviour is the default or requires
+individual heroism, and this is the practical lever. A system where raising a concern is costly
+produces few concerns raised. A system where the incentives reward the outcome regardless of how it
+was achieved produces the outcome achieved however necessary. Designing so that the ethical action
+is the easy one, and that raising a problem is safe and expected, accomplishes more than exhorting
+people to behave well.
+
+Research ethics and institutions:
+  informed consent     understanding, voluntariness, capacity
+  vulnerable populations  additional protection where voluntariness is harder to
+                       establish
+  risk-benefit         minimize risk, justify what remains
+  deception            permitted narrowly, with debriefing and justification
+  data protection      confidentiality, anonymization, and its limits since
+                       re-identification from supposedly anonymous data is
+                       frequently possible
+  fabrication and falsification  the recognized misconduct categories
+  questionable practices  selective reporting, undisclosed flexibility, HARKing;
+                       far more common and more distorting in aggregate
+  preregistration      separates prediction from accommodation
+  authorship           contribution rather than seniority; disputes are common and
+                       are prevented by agreeing early
+  conflict disclosure  funding and interests; disclosure rather than prohibition
+  institutional design  make the ethical action the easy one
+  psychological safety  raising a concern must be safe, or concerns are not raised
+  incentive alignment  what is rewarded is what occurs; exhortation does not
+                       overcome an incentive
+  the practical test   would this be acceptable if it were public, and would you
+                       be comfortable explaining it to the person affected
+
+The final test deserves the closing emphasis because it is the one that generalizes. Formal
+frameworks require interpretation, professional codes cover anticipated situations, and neither
+resolves a novel case under time pressure. Asking whether one would be comfortable with the
+decision being public, and whether one could explain it to the person most affected without
+embarrassment, catches most of what matters. It is not a theory and it is a reliable heuristic,
+and its usefulness comes from the fact that the reasoning that cannot survive being stated plainly
+to the affected party is usually the reasoning that should not have been acted on.

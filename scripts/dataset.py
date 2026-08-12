@@ -43,6 +43,9 @@ def main() -> int:
     p.add_argument("--bump", choices=["major", "minor", "patch"], default="patch")
     p.add_argument("-m", "--note", default="", help="changelog / commit note")
     p.add_argument("--private", action="store_true")
+    p.add_argument("--include-withheld", action="store_true",
+                   help="also upload publish=False splits (dual-use data). Gated on "
+                        "--private — refuses to send withheld splits to a public repo.")
     p.add_argument("--dry-run", action="store_true")
     p.add_argument("--no-build", action="store_true", help="push what is already staged")
 
@@ -71,7 +74,8 @@ def main() -> int:
         manifest = read_manifest(spec)
         version = args.version or bump_version(manifest.get("version", "0.0.0"), args.bump)
         push_dataset(spec, version=version, note=args.note,
-                     private=args.private, dry_run=args.dry_run)
+                     private=args.private, dry_run=args.dry_run,
+                     include_withheld=args.include_withheld)
         return 0
     return 1
 

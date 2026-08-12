@@ -1,0 +1,239 @@
+================================================================================
+AREA: Mathematics
+SUBJECT: Numerical Linear Algebra
+Subtopics: floating point and conditioning, factorizations, least squares, eigenvalue
+computation, iterative methods, sparse and structured problems, practice.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Floating Point and Conditioning
+
+Numerical linear algebra computes with matrices in finite precision, and the discipline's central
+concern is understanding when the computed answer resembles the true one. Floating point represents
+numbers with a fixed relative precision, so every arithmetic operation introduces a small relative
+error, and the question is how those errors propagate through a computation involving millions of
+operations.
+
+Conditioning is a property of the problem and stability is a property of the algorithm, and keeping
+them separate resolves most confusion in the subject. The condition number measures how much the
+solution can change in response to a perturbation in the data — a well-conditioned problem has a
+unique answer that is robust, and an ill-conditioned one has an answer that moves substantially
+under small input changes regardless of how it is computed. A stable algorithm produces an answer
+that is exact for slightly perturbed input, which is the best any algorithm can do.
+
+The two combine multiplicatively in the error estimate: a stable algorithm applied to an
+ill-conditioned problem still yields a poor answer, and the poor answer is the problem's fault
+rather than the algorithm's. This means diagnosing a bad result begins with computing or estimating
+the condition number, because if the problem is ill-conditioned, changing the algorithm will not
+help and the resolution must come from reformulating the problem or accepting the sensitivity.
+
+Floating point and conditioning:
+  fixed relative precision  every operation introduces a small relative error
+  catastrophic cancellation  subtracting nearly equal quantities destroys
+                       significant digits
+  the reformulation remedy  algebraically equivalent expressions differ
+                       numerically
+  conditioning         a property of the problem
+  stability            a property of the algorithm
+  condition number     sensitivity of the solution to data perturbation
+  well-conditioned     robust answer
+  ill-conditioned      answer moving substantially under small input changes
+  backward stability   the computed answer is exact for slightly perturbed input
+  the error estimate   condition number times the algorithm's backward error
+  the multiplicative combination  a stable algorithm on an ill-conditioned
+                       problem still gives a poor answer
+  the diagnostic order  estimate conditioning first
+  the implication      an ill-conditioned problem needs reformulation, not a
+                       different solver
+  residual versus error  a small residual does not imply a small error when the
+                       problem is ill-conditioned, which is why residual checks
+                       alone can be badly misleading
+
+Q: Solving a linear system yields a solution whose residual is tiny but which differs greatly from
+the known true answer. What does this indicate?
+A. The solver is broken
+B. The system is ill-conditioned — a backward stable solver produces a small residual by
+   construction, and in an ill-conditioned problem a small residual is compatible with a large error
+   in the solution itself
+C. The residual was computed incorrectly
+D. More precision is needed
+Reasoning: Backward stable methods guarantee a small residual, not a small forward error. The
+relationship between them is mediated by the condition number, so an ill-conditioned system admits
+solutions with tiny residuals and large errors. Higher precision helps somewhat and does not change
+the conditioning. Answer: B.
+
+## Factorizations
+
+Most of numerical linear algebra reduces to computing a factorization and then solving with it,
+because the factorizations expose structure that makes subsequent operations cheap and stable.
+Triangular systems are solved directly by substitution, orthogonal matrices are inverted by
+transposition, and diagonal matrices are trivial, so the useful factorizations express a general
+matrix in terms of these.
+
+Gaussian elimination with partial pivoting produces a lower and upper triangular factorization and
+is the standard method for general square systems. Pivoting — exchanging rows to place the largest
+available element on the diagonal — is what makes it usable in practice; without it the method fails
+on matrices that are perfectly well-conditioned, because a small pivot amplifies subsequent errors
+enormously. For symmetric positive definite matrices, the Cholesky factorization exploits the
+structure, requires no pivoting, costs half as much, and is unconditionally stable.
+
+Orthogonal factorizations are the tool for problems where stability matters most. The QR
+factorization expresses a matrix as an orthogonal matrix times an upper triangular one, and because
+orthogonal transformations preserve norms, they do not amplify errors. The singular value
+decomposition goes furthest, expressing any matrix as a rotation, a scaling, and another rotation,
+and it reveals the rank, the condition number, the ranges and null spaces, and the best low-rank
+approximation. It costs more than the alternatives and it answers questions none of them can.
+
+Factorizations:
+  the strategy         factor into forms that are easy to solve with
+  triangular systems   solved by substitution
+  orthogonal matrices  inverted by transposition
+  Gaussian elimination  lower and upper triangular factors
+  partial pivoting     row exchanges placing the largest element on the diagonal
+  the necessity        without pivoting the method fails on well-conditioned
+                       matrices
+  Cholesky             for symmetric positive definite; no pivoting, half the
+                       cost
+  the structure exploitation  recognizing the structure is worth more than any
+                       general improvement
+  QR factorization     orthogonal times upper triangular
+  norm preservation    orthogonal transformations do not amplify errors
+  Householder reflections  the standard stable construction
+  Gram-Schmidt         intuitive and numerically poor in its classical form
+  singular value decomposition  rotation, scaling, rotation
+  what it reveals      rank, conditioning, ranges, null spaces
+  low-rank approximation  the truncated decomposition is optimal in the relevant
+                       norms, which is the theoretical basis for a great deal of
+                       dimensionality reduction and compression
+
+## Least Squares and Regularization
+
+Overdetermined systems — more equations than unknowns — generally have no exact solution, and the
+least squares solution minimizes the residual norm. The mathematically clean formulation multiplies
+by the transpose to give the normal equations, and this is precisely the formulation to avoid
+numerically, because forming that product squares the condition number and can turn a solvable
+problem into an unsolvable one.
+
+The stable approach uses an orthogonal factorization directly. QR applied to the original matrix
+solves least squares with the original conditioning rather than its square, and the singular value
+decomposition handles the rank-deficient case where QR alone is ambiguous. The cost difference is
+modest and the accuracy difference can be the difference between a meaningful answer and noise,
+which is why every serious library implements least squares this way and not through the normal
+equations.
+
+Regularization addresses the ill-conditioned and rank-deficient cases by modifying the problem. Adding
+a penalty on the solution norm shifts the singular values away from zero, which bounds the
+amplification of noise at the cost of biasing the solution toward zero. The regularization parameter
+controls this tradeoff, and choosing it is the substantive decision: too little leaves noise
+amplified, too much biases the answer, and the standard selection methods use cross-validation or
+the shape of the residual-versus-solution-norm curve.
+
+Least squares:
+  overdetermined systems  more equations than unknowns
+  least squares        minimizing the residual norm
+  normal equations     clean mathematically, poor numerically
+  the condition squaring  the reason to avoid them
+  QR for least squares  the original conditioning preserved
+  the singular value approach  handles rank deficiency unambiguously
+  the cost difference  modest
+  the accuracy difference  potentially the whole answer
+  rank deficiency      infinitely many solutions; the minimum norm one is the
+                       usual choice
+  regularization       modifying the problem to bound noise amplification
+  the norm penalty     shifts singular values away from zero
+  the bias introduced  the solution pulled toward zero
+  the parameter choice  the substantive decision
+  cross-validation     the standard data-driven selection
+  the curve method     the corner of the residual against solution norm plot
+  weighted least squares  observations weighted by reliability; the correct
+                       formulation when the noise is not uniform
+  total least squares  errors in the variables as well as the observations; a
+                       different problem with a different solution, and using
+                       ordinary least squares where it applies biases the result
+                       systematically
+
+## Eigenvalue Computation and Iterative Methods
+
+Eigenvalue problems cannot be solved by a finite algorithm, because that would amount to solving a
+general polynomial by radicals, which is impossible above degree four. Every eigenvalue method is
+therefore iterative, and the practical methods converge quickly enough that this distinction is a
+theoretical point rather than an obstacle.
+
+The standard dense approach reduces the matrix to a simpler form by orthogonal similarity
+transformations — Hessenberg for a general matrix, tridiagonal for a symmetric one — and then applies
+an iteration that converges to the eigenvalues. The symmetric case is much better behaved: its
+eigenvalues are real, its eigenvectors orthogonal, and the problem is well-conditioned. The
+nonsymmetric case can have eigenvalues that are extremely sensitive to perturbation, and computed
+eigenvectors near a defective matrix are essentially meaningless.
+
+For large sparse problems, only a few eigenvalues are usually needed and the matrix is available only
+as a function computing its product with a vector. Krylov subspace methods build a subspace from
+repeated products and extract approximate eigenvalues from it, converging fastest to the extremes of
+the spectrum. The same framework solves linear systems: conjugate gradients for symmetric positive
+definite systems and generalized minimal residual methods for the rest, with convergence governed by
+the spectrum's distribution rather than by the matrix size.
+
+Eigenvalues and iteration:
+  the impossibility    no finite algorithm; polynomial roots
+  every method iterative  a theoretical point rather than a practical obstacle
+  similarity reduction  Hessenberg or tridiagonal form first
+  the symmetric case   real eigenvalues, orthogonal eigenvectors, well-conditioned
+  the nonsymmetric case  eigenvalues can be extremely sensitive
+  defective matrices   computed eigenvectors near them are meaningless
+  the practical advice  use the symmetric algorithms when the matrix is symmetric,
+                       and check symmetry rather than assuming it
+  matrix-free access   the matrix available only as a product with a vector
+  Krylov subspaces     built from repeated products
+  extremal convergence  the extremes of the spectrum converge first
+  conjugate gradients  symmetric positive definite systems
+  generalized minimal residual  the general case
+  convergence governed by the spectrum  distribution rather than size
+  preconditioning      transforming the system to cluster the spectrum; usually
+                       the difference between convergence and stagnation
+  the preconditioner choice  problem-specific and where most of the engineering
+                       effort in large-scale solving actually goes
+
+## Sparse, Structured, and Practical Matters
+
+A sparse matrix has enough zeros that storing and operating on only the nonzeros is worthwhile, and
+sparsity changes the algorithmic landscape entirely. Direct factorization of a sparse matrix produces
+fill-in — entries that were zero becoming nonzero during elimination — and the amount depends
+dramatically on the elimination order. Reordering to minimize fill is a combinatorial problem solved
+heuristically, and a good ordering can be the difference between a factorization that fits in memory
+and one that does not.
+
+Structured matrices — Toeplitz, circulant, banded, low-rank plus sparse, hierarchical — admit
+specialized algorithms that beat general methods by large factors. Recognizing structure is
+therefore worth more than any general optimization, and the structures that appear most often arise
+from the underlying problem: translation invariance gives Toeplitz structure, local interactions give
+banded structure, and smooth kernels give hierarchical low-rank structure.
+
+The practical guidance is consistent across the field. Use established libraries rather than
+implementing these algorithms, because the implementations encode decades of accumulated numerical
+care that is not visible in the mathematical description. Never form an explicit inverse to solve a
+system — factor and solve, which is faster and more accurate. Exploit every structural property the
+problem has. And check the result: the residual, the conditioning estimate, and where possible a
+known property of the true solution, because a numerical computation that silently produces a wrong
+answer is the characteristic failure of the field and it does not announce itself.
+
+Sparse and practical:
+  sparsity             enough zeros to be worth exploiting
+  fill-in              zeros becoming nonzero during elimination
+  ordering             determines the fill; a combinatorial problem solved
+                       heuristically
+  the memory consequence  a good ordering can decide whether it fits at all
+  storage formats      compressed rows and columns; the access pattern determines
+                       which
+  Toeplitz and circulant  from translation invariance; fast transform methods
+                       apply
+  banded               from local interactions; specialized solvers
+  hierarchical low rank  from smooth kernels; near-linear algorithms
+  the recognition value  structure beats general optimization
+  use libraries        decades of numerical care not visible in the mathematics
+  never form the inverse  factor and solve; faster and more accurate
+  the explicit inverse exception  essentially none in practice
+  check the result     residual, conditioning estimate, and known properties
+  the characteristic failure  a silently wrong answer that does not announce
+                       itself, which is why verification is part of the
+                       computation rather than an optional extra

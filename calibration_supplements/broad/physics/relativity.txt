@@ -1,0 +1,286 @@
+================================================================================
+AREA: Physics
+SUBJECT: Relativity
+Subtopics: special relativity postulates and kinematics, spacetime and invariants,
+relativistic dynamics, the equivalence principle, general relativity, cosmology,
+experimental tests and applications.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Special Relativity: Postulates and Kinematics
+
+Special relativity follows from two postulates. The principle of relativity states that the
+laws of physics are identical in all inertial frames, which is a generalization of an idea
+already present in Galilean mechanics. The second postulate states that the speed of light in
+vacuum is the same in all inertial frames regardless of the motion of source or observer, and
+this is the one that breaks classical intuition, because it is incompatible with velocities
+adding the way ordinary velocities appear to.
+
+The tension between the two postulates was not manufactured. Maxwell's equations predict a
+definite wave speed determined by the electric and magnetic constants of vacuum, with no
+reference to any frame, and the Michelson-Morley experiment failed to detect the motion of
+the Earth through a supposed luminiferous medium. Einstein's resolution was to accept both
+postulates and abandon the assumption that simultaneity is absolute — the assumption so deeply
+embedded that nobody had previously noticed it was an assumption.
+
+The relativity of simultaneity is the conceptual core, and the other effects follow from it.
+Two events simultaneous in one frame are not simultaneous in another moving relative to the
+first, with the disagreement growing with their spatial separation and the relative velocity.
+Time dilation and length contraction are consequences of this rather than independent
+phenomena, and analyses that invoke them without tracking simultaneity produce the apparent
+paradoxes that fill introductory discussions.
+
+Kinematic results:
+  Lorentz factor        gamma = 1 / sqrt(1 - v^2/c^2)
+  time dilation         a moving clock ticks slow by gamma
+  length contraction    a moving object is shortened by gamma along the motion
+  relativity of simult. delta_t' = gamma (delta_t - v delta_x / c^2)
+  velocity addition     w = (u + v) / (1 + uv/c^2);  never exceeds c
+  Doppler, longitudinal f' = f sqrt((1 - beta)/(1 + beta)) receding
+  transverse Doppler    a purely time-dilation redshift with no classical analogue
+  proper time           the time measured by a clock on the worldline; invariant
+  proper length         the length in the object's rest frame; maximal
+  gamma at 0.1c         1.005;  at 0.5c 1.155;  at 0.9c 2.29;  at 0.99c 7.09
+
+The mutuality of time dilation is what generates the twin paradox and what resolves it.
+Each of two observers in relative motion observes the other's clock running slow, and this is
+not a contradiction because they are comparing different pairs of events using different
+simultaneity conventions. The paradox appears only when the twins are brought back together
+for a direct comparison, which requires one of them to accelerate. That acceleration breaks
+the symmetry: the travelling twin's path through spacetime is not inertial, and the resolution
+is geometric rather than dynamical — of all paths between two events, the inertial one has the
+greatest proper time, so the twin who turned around aged less.
+
+Q: A spacecraft passes Earth at 0.6c. Observers on Earth measure its length as 80 m. Its
+proper length is:
+A. 64 m   B. 80 m   C. 100 m   D. 128 m
+Reasoning: gamma at 0.6c is 1/sqrt(1 - 0.36) = 1/0.8 = 1.25. Length contraction means the
+measured length is the proper length divided by gamma, so the proper length is 80 × 1.25 =
+100 m. Proper length is always the largest measurement, since every other frame sees it
+contracted. Answer: C.
+
+## Spacetime and Invariants
+
+Minkowski's reformulation of special relativity as a geometry of four-dimensional spacetime
+is what makes the subject tractable rather than a collection of counterintuitive rules. Events
+are points; a particle's history is a worldline. The crucial structure is the spacetime
+interval, which combines time and space separations with opposite signs and is the same in
+every inertial frame.
+
+The interval's invariance is the organizing principle. Time and space separations are
+frame-dependent, and this particular combination is not, so it plays the role in spacetime
+that distance plays in ordinary geometry. Lorentz transformations are precisely the
+transformations preserving it, which makes them the analogue of rotations — and indeed a
+Lorentz boost can be written as a hyperbolic rotation in a plane containing the time axis.
+
+The sign of the interval classifies the relationship between two events and determines what
+can causally connect them. A timelike separation means a massive particle can travel between
+them, some frame sees them at the same place, and their time order is absolute. A lightlike
+separation means only light can connect them. A spacelike separation means no signal can
+connect them, some frame sees them as simultaneous, and their time order is frame-dependent —
+which is exactly why faster-than-light signalling would permit causality violation, since a
+signal spacelike-separated from its source arrives before it left in some valid frame.
+
+Spacetime structure:
+  interval               ds^2 = -c^2 dt^2 + dx^2 + dy^2 + dz^2 (one sign
+                         convention among two in common use)
+  timelike               ds^2 < 0; causally connectable, absolute time order
+  lightlike / null       ds^2 = 0; the light cone
+  spacelike              ds^2 > 0; no causal connection, time order is relative
+  light cone             the boundary of causal influence for an event
+  worldline              a particle's path through spacetime
+  proper time            arc length along a timelike worldline
+  four-vector            transforms under Lorentz transformations; position,
+                         velocity, momentum, current
+  invariant              scalar products of four-vectors; the same in all frames
+  Lorentz boost          a hyperbolic rotation mixing time and one space axis
+
+Four-vectors are the practical tool that makes relativistic calculations manageable. Writing
+quantities as four-vectors and computing invariant scalar products removes the need to track
+frame transformations explicitly: the invariant mass of a system, for instance, is computed
+from the total energy-momentum four-vector in whatever frame is convenient and is the same in
+all of them. Particle physics calculations rely on this constantly, and the habit of asking
+what invariant is being computed usually simplifies a problem that looks intractable in
+components.
+
+## Relativistic Dynamics
+
+Momentum and energy must be redefined so that conservation laws hold in all frames. The
+relativistic momentum is gamma times mass times velocity, and the relativistic energy is
+gamma times mass times the speed of light squared. At low velocity these reduce to the
+classical expressions plus a constant rest energy, which is why classical mechanics works so
+well and why the rest energy went unnoticed until relativity required it.
+
+The mass-energy relation states that a body at rest possesses energy equal to its mass times
+the speed of light squared. The consequence is that mass and energy are the same quantity in
+different units, and that any energy added to a system increases its mass. A compressed
+spring is more massive than a relaxed one; a hot object is more massive than a cold one. The
+effects are unmeasurably small for everyday energies because the conversion factor is
+enormous, and they are entirely measurable in nuclear physics, where binding energies are a
+substantial fraction of a percent of the rest mass.
+
+The modern convention treats mass as invariant — the rest mass — and does not use the
+concept of relativistic mass increasing with velocity. The older formulation is not wrong so
+much as misleading: it suggests that a fast particle's inertia is isotropic when in fact the
+resistance to acceleration differs along and across the motion, and it obscures the fact that
+mass is a Lorentz invariant. Saying that nothing can reach the speed of light because its mass
+becomes infinite is a heuristic; the accurate statement is that the energy required diverges
+because gamma diverges.
+
+Dynamics relations:
+  energy                E = gamma m c^2
+  momentum              p = gamma m v
+  rest energy           E_0 = m c^2
+  kinetic energy        K = (gamma - 1) m c^2
+  energy-momentum       E^2 = (pc)^2 + (m c^2)^2;  the master relation
+  massless particles    E = pc;  photons travel at c and have no rest frame
+  invariant mass        (E_total/c^2)^2 - (p_total/c)^2;  frame-independent
+  four-momentum         (E/c, p);  conserved in all frames
+  binding energy        the mass deficit of a bound system
+  nuclear yield         fission ~0.09% of mass converted; fusion ~0.7%
+
+The energy-momentum relation is the most useful single equation in relativistic dynamics
+because it handles every case cleanly. For a massless particle it gives E equal to pc, which
+is why photons carry momentum despite having no mass and why radiation pressure exists. For a
+particle at rest it gives the rest energy. For a system it defines an invariant mass that is
+not the sum of the constituent masses — the invariant mass of two photons travelling in
+opposite directions is nonzero, which is how massless constituents produce massive systems
+and, at a deeper level, why most of the mass of ordinary matter comes from the binding energy
+of quarks rather than from the quark masses themselves.
+
+## The Equivalence Principle and General Relativity
+
+General relativity begins with an observation Einstein called the happiest thought of his
+life: a person in free fall feels no gravity. The equivalence principle states that a
+uniformly accelerating frame is locally indistinguishable from a frame at rest in a uniform
+gravitational field, and that free fall is locally indistinguishable from inertial motion in
+the absence of gravity. The word locally is essential — over an extended region, tidal
+effects reveal the difference, because a real gravitational field converges toward a source
+while a uniform acceleration does not.
+
+The principle's deep content is that gravitational and inertial mass are the same quantity,
+which in Newtonian theory is an unexplained coincidence verified to extraordinary precision
+and in general relativity is a structural necessity. If all bodies fall identically
+regardless of composition, then falling is not a force acting differently on different bodies
+— it is a property of spacetime that all bodies share.
+
+That reframing is the theory. Mass and energy curve spacetime, and objects follow geodesics —
+the straightest available paths — through the curved geometry. What appears as a gravitational
+force is the curvature of the paths themselves. The Einstein field equations relate the
+curvature to the energy and momentum content, and their nonlinearity reflects the fact that
+gravitational energy itself gravitates, which is why the equations are so much harder to
+solve than Newton's and why exact solutions are precious.
+
+General relativistic concepts:
+  equivalence principle   free fall is locally indistinguishable from inertial
+                          motion
+  geodesic                the straightest path in curved spacetime; what free
+                          bodies follow
+  metric tensor           encodes distances and times; the gravitational field
+  curvature               tidal effects; the physically meaningful quantity
+  field equations         G = 8 pi G T / c^4;  geometry from energy-momentum
+  Schwarzschild solution  the spherically symmetric vacuum solution
+  Schwarzschild radius    r_s = 2GM/c^2;  the event horizon
+  gravitational time dil. clocks run slower deeper in a potential well
+  gravitational redshift  light climbing out of a well loses energy
+  frame dragging          rotating mass drags spacetime around with it
+  gravitational waves     propagating curvature at the speed of light
+
+Gravitational time dilation is distinct from the velocity time dilation of special
+relativity and is often confused with it. A clock deeper in a gravitational well runs slower
+than one higher up, as measured by comparing them, and this is a property of position in the
+potential rather than of motion. It has been measured directly with clocks separated by a
+metre of height, and it is not a small effect in the aggregate: over the age of the Earth,
+the core has aged roughly two and a half years less than the surface.
+
+[user] Why do GPS satellites need relativistic corrections, and which effect dominates?
+[assistant] tool_call relativity.gnss_correction({"altitude_km": 20200,
+"orbital_speed_km_s": 3.874, "earth_mass_kg": 5.972e24, "earth_radius_km": 6371})
+[tool] {"special_relativistic_us_per_day": -7.2, "general_relativistic_us_per_day": 45.9,
+"net_us_per_day": 38.7, "position_error_per_day_km": 11.6,
+"note": "clocks_pre_offset_in_frequency_before_launch"}
+[assistant] Both effects apply, they have opposite signs, and gravity wins by about six to
+one.
+
+Special relativity slows the satellite clocks because they are moving at 3.87 km/s relative
+to the ground, costing about 7.2 microseconds per day. General relativity speeds them up
+because at 20,200 km altitude they sit higher in Earth's gravitational potential, where clocks
+run faster, gaining about 45.9 microseconds per day. The net is a gain of 38.7 microseconds
+per day.
+
+That sounds negligible and is not. GPS positioning works by timing signal propagation at the
+speed of light, so a timing error of 38.7 microseconds corresponds to a ranging error of about
+11.6 kilometres, accumulating every day. Uncorrected, the system would be useless within
+minutes and catastrophically wrong within hours.
+
+The correction is applied in two places. The satellite clock oscillators are deliberately
+offset in frequency before launch — set to run slightly slow by the predicted amount — so that
+once in orbit they tick at the ground rate. This handles the constant part. The residual
+variation, mainly from orbital eccentricity causing the altitude and speed to vary through
+each orbit, is corrected in the receiver using a term in the navigation message.
+
+Worth noting for the general question of whether relativity is practically relevant: this is
+the most widely deployed application of general relativity in existence, running in billions
+of devices, and it would fail immediately if the theory were wrong at the parts-in-ten-billion
+level. It is a continuous experimental test as much as an application.
+
+## Tests, Applications, and Cosmology
+
+General relativity has passed every experimental test attempted, several of which were
+designed as discriminating checks against competing theories. Mercury's perihelion precession
+had an unexplained residual of 43 arcseconds per century that Newtonian gravity could not
+account for and that general relativity predicted exactly. Light bending by the Sun was
+measured during the 1919 eclipse at twice the Newtonian value, as the theory predicts.
+Gravitational redshift has been measured in the laboratory and with atomic clocks at
+different altitudes. The Shapiro delay — signals passing near a mass take longer than the
+geometric path length implies — has been measured to high precision using spacecraft ranging.
+
+Gravitational waves were predicted in 1916 and detected directly in 2015, a century later.
+They are ripples in spacetime curvature propagating at the speed of light, produced by
+accelerating masses with a changing quadrupole moment. Their extraordinary weakness is why
+detection took so long: a passing wave from a black hole merger changes a four-kilometre
+interferometer arm by less than a thousandth of a proton diameter. Detection opened an
+entirely new observational channel, since gravitational waves pass through matter that is
+opaque to light and carry information about masses that emit no radiation at all.
+
+Black holes are exact solutions of the field equations and are now observationally
+established. Beyond the event horizon at the Schwarzschild radius, all future-directed paths
+lead inward, so escape is not a matter of insufficient speed but of there being no outward
+direction in the future. The singularity at the centre is where the classical theory predicts
+infinite curvature and therefore where it is understood to break down, indicating that a
+quantum theory of gravity is required and does not yet exist.
+
+Tests, applications, and open problems:
+  Mercury perihelion     43 arcsec/century, predicted exactly
+  light deflection       1.75 arcsec at the solar limb; confirmed 1919
+  gravitational redshift laboratory and clock measurements
+  Shapiro delay          signal delay near a mass
+  frame dragging         measured by Gravity Probe B and by satellite laser ranging
+  binary pulsar decay    orbital decay matching gravitational wave emission to
+                         better than a part in a thousand
+  direct GW detection    2015 onward; black hole and neutron star mergers
+  black hole imaging     horizon-scale images of M87* and Sagittarius A*
+  gravitational lensing  a working astronomical tool for mapping mass, including
+                         dark matter
+  GPS                    the everyday application; fails without both corrections
+  open: quantum gravity  general relativity and quantum mechanics are mutually
+                         incompatible at the Planck scale
+  open: singularities    the theory predicts its own breakdown
+  open: dark energy      the observed accelerating expansion has no accepted
+                         explanation
+
+Cosmology is general relativity applied to the universe as a whole under the assumption that
+it is homogeneous and isotropic on large scales. The resulting Friedmann equations describe an
+expanding or contracting universe rather than a static one — a prediction Einstein initially
+resisted, introducing the cosmological constant to permit a static solution before Hubble's
+observations of recession showed the expansion was real.
+
+The cosmological constant returned in the 1990s for the opposite reason. Observations of
+distant supernovae showed the expansion accelerating, which requires a component with
+negative pressure, and a cosmological constant provides exactly that. Its measured value is
+small and nonzero, and reconciling it with quantum field theory's estimate of vacuum energy —
+which exceeds the observation by many tens of orders of magnitude — is among the sharpest
+unsolved problems in physics. That the theory works superbly wherever it has been tested while
+its most straightforward extension to the vacuum fails so spectacularly is a good indication
+that something structural remains to be understood.

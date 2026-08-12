@@ -53,6 +53,15 @@ class ExtractConfig(BaseModel):
 
 class QuantizeConfig(BaseModel):
     type: str = "Q4_K_M"  # any llama-quantize tag
+    # Pin matching tensors (by name substring) to another ggml type, e.g.
+    # {"blk.64.": "q8_0"}. Prefer mtp_pin over hand-writing the MTP layer index.
+    tensor_types: dict[str, str] | None = None
+    # Keep the MTP / nextn draft layer near-lossless while the trunk goes low-bit.
+    # The layer index is READ FROM THE F16 GGUF (models.mtp.describe), not assumed:
+    # llama-quantize silently accepts a --tensor-type pattern that matches nothing,
+    # so a hardcoded index on the wrong model quantizes the draft head with the
+    # trunk and only shows up as a mediocre acceptance rate. Set to null to disable.
+    mtp_pin: str | None = "q8_0"
 
 
 class BenchConfig(BaseModel):

@@ -1,0 +1,219 @@
+================================================================================
+AREA: Generative and Creative Technology
+SUBJECT: Game Design
+Subtopics: mechanics and systems, feedback and difficulty, level and encounter design,
+economy and progression, narrative integration, playtesting, technical constraints.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Mechanics, Dynamics, and Systems
+
+A game is a system of rules producing experiences, and design is the practice of choosing rules
+whose emergent behaviour is worth engaging with. The useful decomposition separates mechanics — the
+rules as written — from dynamics, the behaviour that emerges when players interact with those
+rules, from the aesthetic experience that results. Designers author mechanics directly and the
+other two only indirectly, which is why playtesting is not optional: the dynamics of a rule set are
+not reliably predictable from reading it.
+
+A core loop is the repeated activity a game is built around, and identifying it is the first design
+decision. Explore, fight, loot, upgrade. Observe, hypothesize, test. Plant, wait, harvest, expand.
+The loop must be satisfying at the scale of seconds to minutes because it is what the player does
+thousands of times, and no amount of content quality compensates for a core loop that is not
+enjoyable in isolation.
+
+Systems earn their place by interacting. A mechanic that combines with others multiplies the design
+space; a mechanic that stands alone adds only itself. This is why designers favour a small number of
+deeply interacting systems over a large number of isolated ones — the former generates situations
+the designer never explicitly authored, which is the source of the moments players remember and
+describe to others.
+
+Mechanics and systems:
+  mechanics            the rules as written; what the designer authors directly
+  dynamics             emergent behaviour from play; authored only indirectly
+  aesthetics           the resulting experience
+  core loop            the repeated activity; must be satisfying in isolation
+  loop scales          seconds, minutes, sessions, whole playthroughs; each needs
+                       its own reward
+  interacting systems  combinations multiply the design space
+  isolated mechanics   add only themselves; a cost with limited return
+  emergence            situations the designer did not author
+  meaningful choice    options with different, knowable, consequential outcomes
+  false choice         options that differ cosmetically or where one dominates
+  dominant strategy    a single best option; collapses the decision space and is
+                       the most common systemic design failure
+  the verb list        what the player can actually do; a short list executed well
+                       beats a long one
+
+Q: A strategy game has twelve unit types but experienced players use three. This indicates:
+A. The players are unimaginative
+B. The other nine are dominated — worse than an alternative in essentially all situations — so
+   the effective decision space is much smaller than the nominal one
+C. The game needs more units
+D. The tutorial is inadequate
+Reasoning: When options go unused by skilled players, the cause is almost always that they are
+strictly or near-strictly dominated. The fix is to give each unit a situation where it is the best
+answer, which usually means differentiating along more axes than raw effectiveness. Adding more
+units to a dominated set makes the problem worse. Answer: B.
+
+## Feedback, Difficulty, and Flow
+
+Every player action needs a response, and the quality of that response is most of what makes a game
+feel good independently of its systems. Immediate feedback confirms the input registered — the
+animation, the sound, the screen shake, the particle. Delayed feedback communicates the
+consequence. A game with excellent systems and poor feedback feels unresponsive and imprecise; a
+game with mediocre systems and superb feedback often feels better than it has any right to.
+
+Difficulty is a relationship between challenge and player skill, and the target is the band where
+challenge slightly exceeds current competence. Below it the player is bored, above it frustrated,
+and within it engaged. Since skill grows during play, the challenge must grow too, which is what a
+difficulty curve is. The curve should not be monotonic: periods of comfortable mastery after a
+difficult section let the player feel the growth, and a curve that only ever climbs is exhausting
+regardless of its slope.
+
+Failure design deserves as much attention as success design, because players fail far more often
+than they succeed at the moments that matter. The failure should be legible — the player must
+understand what went wrong and what to do differently — and the cost of retrying should be
+proportionate. A long unskippable sequence between attempts converts a challenging encounter into a
+tedious one without changing its difficulty at all, and that distinction is one designers
+frequently miss.
+
+Feedback and difficulty:
+  immediate feedback   confirms the input; sound, animation, impact
+  consequence feedback  communicates the outcome
+  game feel            responsiveness, weight, impact; largely independent of
+                       systems
+  input latency        the invisible determinant; a few frames is perceptible
+  coyote time          brief input forgiveness; makes controls feel fair without
+                       being noticed
+  input buffering      accepting an input slightly early; the same purpose
+  difficulty curve     rising with skill, with plateaus for mastery
+  flow band            challenge slightly above current skill
+  legible failure      the player understands the cause
+  retry cost           should be proportionate; long resets create tedium not
+                       difficulty
+  checkpoint placement  before the challenge, not before the corridor leading to
+                       it
+  difficulty options   accessibility and audience breadth; separate the challenge
+                       from the experience where possible
+  dynamic difficulty   adjusts silently to performance; effective and resented
+                       when detected
+
+## Level, Encounter, and Economy Design
+
+A level teaches, tests, and varies. The standard structure introduces a mechanic in a safe
+context, combines it with a previously learned one, then presents a situation requiring both under
+pressure. This progression is visible in well-designed games once you look for it, and its absence
+produces levels that feel arbitrary — a sequence of challenges rather than a developing argument.
+
+Spatial design guides without instructing. Sightlines direct attention toward objectives; lighting
+and colour draw the eye to interactive elements; the width of a path signals whether it is the main
+route or a detour. These techniques work because they operate below deliberate attention, and their
+failure mode is a player who is lost while the designer cannot understand why, since the designer
+knows where everything is.
+
+Economies govern the flow of resources and they are the systems most likely to break in ways that
+are invisible until late. The relevant quantities are sources, sinks, and the rate of each. An
+economy with insufficient sinks inflates until currency is meaningless; one with insufficient
+sources starves and creates grinding. Progression systems are economies where the currency is
+capability, and the same analysis applies: a progression that grants power faster than the
+challenge grows trivializes the game, and the reverse creates a wall.
+
+Level and economy:
+  teach, test, vary    the standard level progression
+  safe introduction    a mechanic first presented without failure cost
+  combination          old mechanic plus new; where the design earns its depth
+  environmental storytelling  the space communicating history without text
+  sightlines           directing attention spatially
+  affordance signalling  what is climbable, breakable, interactive; consistency
+                       matters more than realism
+  the designer's blind spot  you know the space; you cannot experience being lost
+                       in it
+  pacing               alternating intensity; sustained peak reads as flat
+  encounter design     enemy composition creating a problem, not a quantity
+  sources and sinks    the two halves of any economy; measure both rates
+  inflation            insufficient sinks; currency loses meaning
+  grinding             insufficient sources relative to costs
+  progression as economy  capability is the currency; the same analysis applies
+  power versus challenge  the ratio determines whether growth feels earned
+  the numbers spreadsheet  economies are designed in a spreadsheet before they
+                       are implemented, and simulating a thousand hypothetical
+                       players through the curve catches problems that months of
+                       playtesting would not reach
+
+## Narrative and Player Agency
+
+Narrative in games differs from narrative in linear media because the audience acts. The tension is
+structural: a story has an authored shape, and player agency threatens that shape. Every approach to
+game narrative is a position on how to resolve that tension, and there is no resolution that is
+correct in general.
+
+Environmental and systemic storytelling avoid the tension by embedding narrative in the world and
+in the mechanics rather than in scripted sequences. A room's arrangement tells what happened there.
+A resource scarcity mechanic communicates desperation more effectively than dialogue about
+desperation. This approach scales well and it constrains what can be told — precise plot events are
+difficult to convey this way.
+
+Branching narrative grants agency at a cost that grows combinatorially. Every meaningful branch
+doubles the content required, which is why most branching structures rejoin quickly and why the
+apparent breadth of choice usually exceeds the actual. The honest designs make the branches short
+and the consequences local, or they let choices affect state rather than plot — the story reaches
+the same place, and who is present and how they regard you has changed.
+
+Narrative approaches:
+  the core tension     authored shape versus player agency
+  environmental storytelling  narrative in the space
+  systemic storytelling  narrative in the mechanics
+  ludonarrative dissonance  mechanics contradicting story; a character described
+                       as reluctant who kills hundreds
+  branching            agency at combinatorial content cost
+  the rejoin           branches converging; the standard economic compromise
+  state versus plot    choices changing who and how rather than what happens
+  the illusion of choice  presenting options with converging outcomes; effective
+                       until noticed, and corrosive afterward
+  emergent narrative   stories arising from systems; unrepeatable and the most
+                       shared
+  pacing control       cutscenes control pacing precisely and remove agency; the
+                       tradeoff should be deliberate
+  player character     a blank vessel invites projection, a defined character
+                       enables specific storytelling; pick one and commit
+
+## Playtesting and Technical Reality
+
+Playtesting is the only reliable source of information about dynamics, and the discipline is in how
+it is conducted rather than in doing it at all. Watch without helping. The instinct to explain is
+strong and it destroys the data, because the question is what happens without you there. Record
+where players hesitate, what they try, what they say aloud, and where they stop. Their explanations
+of their own behaviour are less reliable than the behaviour itself.
+
+Test with the right people at the right stage. Early tests need players who tolerate rough builds
+and can articulate structural problems. Later tests need players resembling the actual audience,
+seeing the game fresh, and the single most valuable resource in later development is a player who
+has never seen it — a resource that is consumed on first use and cannot be regenerated.
+
+Technical constraints shape design more than designers usually admit. The frame budget determines
+how many entities can be simulated, which determines encounter scale. Memory determines level size
+and streaming strategy. Network latency determines what can be authoritative on the client, which
+determines how responsive a competitive game can feel. A design that ignores these constraints gets
+rebuilt around them later, at a cost far higher than designing within them from the start.
+
+Playtesting and constraints:
+  watch, do not help   the instinct to explain destroys the data
+  observed behaviour   more reliable than reported reasoning
+  where they hesitate  the signal for a comprehension failure
+  where they stop      the signal for a motivation failure
+  fresh players        a consumable, non-renewable resource
+  audience matching    later tests need the actual audience
+  the frame budget     determines simulated entity count and encounter scale
+  memory and streaming  determines level size and structure
+  network authority    server-authoritative is fair, client-prediction is
+                       responsive; competitive games need both and reconcile them
+  latency compensation  rollback and prediction; the design must tolerate
+                       corrections
+  determinism          required for replays, lockstep networking, and reliable
+                       reproduction of bugs; floating-point differences across
+                       platforms break it in ways that are painful to diagnose
+  scope                the constraint that ends more projects than any technical
+                       one; cutting features is a design skill, and a smaller game
+                       finished well is categorically better than a larger one
+                       abandoned

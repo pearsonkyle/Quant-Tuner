@@ -1,0 +1,287 @@
+================================================================================
+AREA: Mathematics
+SUBJECT: Cryptographic Mathematics
+Subtopics: number theory foundations, symmetric primitives, public key systems, elliptic
+curves, hash functions, protocols, post-quantum, security arguments.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Number Theory Foundations
+
+Modern cryptography rests on computational asymmetry: operations that are easy in one direction
+and believed hard in reverse. Number theory supplies most of the candidates, and understanding
+which problems are believed hard, and on what evidence, is what distinguishes reasoning about
+cryptography from following recipes.
+
+Modular arithmetic is the setting. Working modulo a number partitions the integers into
+congruence classes, and addition and multiplication respect the partition, so arithmetic proceeds
+within a finite set. Division is where structure appears: an element has a multiplicative inverse
+modulo n exactly when it is coprime to n, which is found by the extended Euclidean algorithm.
+When n is prime every nonzero element is invertible, so the integers modulo a prime form a field.
+
+Euler's theorem generalizes Fermat's little theorem and is the mechanism behind RSA. It states
+that raising a number coprime to the modulus to the power of Euler's totient gives one, so
+exponents can be reduced modulo the totient. RSA's correctness follows directly: choosing
+encryption and decryption exponents that multiply to one modulo the totient makes the two
+operations inverse.
+
+Number theory foundations:
+  modular arithmetic   congruence classes; addition and multiplication respect them
+  gcd and Euclid       the algorithm runs in logarithmic time
+  extended Euclid      finds the Bezout coefficients and hence modular inverses
+  modular inverse      exists exactly when the element is coprime to the modulus
+  prime modulus        every nonzero element invertible; a field
+  Fermat's little theorem  a to the p minus one is one modulo a prime p
+  Euler's totient      the count of integers below n coprime to it; multiplicative
+  Euler's theorem      the generalization; exponents reduce modulo the totient
+  Chinese remainder    congruences with coprime moduli combine uniquely; used to
+                       speed RSA decryption by a factor of about four
+  primitive root       a generator of the multiplicative group modulo a prime
+  discrete logarithm   recover the exponent given the result; believed hard
+  quadratic residues   squares modulo n; the basis of several constructions
+  primality testing    Miller-Rabin is probabilistic and fast; deterministic
+                       polynomial-time primality testing exists and is slower
+
+The asymmetry between multiplication and factoring is the foundation of RSA and is worth stating
+precisely. Multiplying two thousand-bit primes takes microseconds. Factoring the product is
+believed to require time growing sub-exponentially but far faster than polynomially in the number
+of bits, and the best known general algorithm is the number field sieve. The word believed is
+load-bearing: no proof of hardness exists, and the security rests on the failure of substantial
+effort to find a fast algorithm rather than on any theorem.
+
+Q: RSA's security rests on the difficulty of factoring. This difficulty is:
+A. Mathematically proven
+B. Believed but unproven; the best known algorithms are sub-exponential and no proof of hardness
+   exists
+C. Guaranteed by the key size
+D. Equivalent to P not equalling NP
+Reasoning: No proof of factoring's hardness exists, and it is not known to be NP-complete either —
+factoring is in NP and in co-NP, which suggests it is not NP-complete unless the polynomial
+hierarchy collapses. The security is an empirical judgment based on the failure of extensive
+effort, and Shor's algorithm establishes that a sufficiently large quantum computer would break it
+in polynomial time. Answer: B.
+
+## Symmetric Primitives
+
+Symmetric cryptography uses the same key for both directions and is what protects bulk data,
+because it is orders of magnitude faster than public key operations. Its security rests on
+confusion and diffusion: confusion makes the relationship between key and ciphertext complex, and
+diffusion spreads each plaintext bit's influence across many ciphertext bits so that statistical
+structure is destroyed.
+
+Block ciphers operate on fixed-size blocks and are built as iterated rounds, each applying
+substitution, permutation, and key mixing. The round structure is what makes analysis tractable —
+each round provides a measurable amount of confusion and diffusion, and the round count is chosen
+with substantial margin above what known attacks require. AES uses a substitution-permutation
+network with a mathematically constructed substitution box based on inversion in a finite field,
+chosen for provable resistance to differential and linear cryptanalysis.
+
+The mode of operation determines how a block cipher encrypts data longer than one block, and it
+matters more than the cipher choice. Electronic codebook encrypts each block independently, so
+identical plaintext blocks produce identical ciphertext blocks and the structure is visible —
+famously demonstrated by encrypting an image and observing that it remains recognizable. Cipher
+block chaining fixes this by mixing each block with the previous ciphertext, requiring an
+unpredictable initialization vector. Counter mode turns the block cipher into a stream cipher by
+encrypting a counter, which parallelizes and requires that the counter never repeat under one key.
+
+Symmetric primitives:
+  confusion            a complex key-ciphertext relationship
+  diffusion            each plaintext bit influences many ciphertext bits
+  block cipher         fixed-size blocks; iterated rounds
+  substitution-permutation  the AES structure
+  Feistel network      the alternative structure; the round function need not be
+                       invertible
+  key schedule         derives round keys; a weak schedule enables related-key
+                       attacks
+  ECB                  identical blocks encrypt identically; never use
+  CBC                  chained; needs an unpredictable IV, and padding oracle
+                       attacks apply if errors are distinguishable
+  CTR                  a counter encrypted as a keystream; parallel, and
+                       catastrophic on counter reuse
+  GCM                  counter mode with authentication; the standard choice
+  authenticated encryption  confidentiality and integrity together; unauthenticated
+                       ciphertext is malleable and must never be used
+  nonce uniqueness     under one key; reuse in GCM reveals the XOR of plaintexts
+                       and permits forgery
+  stream cipher        a keystream XORed with the plaintext; ChaCha20 is the
+                       modern standard
+  key size             128 bits is comfortably beyond brute force; 256 bits
+                       provides margin including against quantum search
+
+The requirement for authenticated encryption deserves the strongest emphasis because
+unauthenticated ciphertext is malleable in ways that are not intuitive. An attacker who cannot
+decrypt can still modify ciphertext in ways producing predictable plaintext changes — flipping a
+bit in a counter mode ciphertext flips exactly the corresponding plaintext bit. Combined with any
+mechanism revealing whether decryption succeeded, this permits attacks that recover the plaintext
+entirely. Authenticated modes detect any modification, and the practical rule is to use an
+authenticated mode always rather than treating integrity as a separate concern to be added.
+
+## Public Key Systems and Elliptic Curves
+
+Public key cryptography solves the key distribution problem: a public key is published and used
+to encrypt or to verify, and a corresponding private key decrypts or signs. The asymmetry rests
+on a trapdoor function that is easy to compute and hard to invert without the trapdoor
+information.
+
+RSA's trapdoor is factoring. Encryption raises the message to the public exponent modulo the
+product of two primes, and decryption raises it to the private exponent, which is computable from
+the primes and not from their product. Its practical requirements are frequently gotten wrong:
+textbook RSA is deterministic and therefore reveals whether two ciphertexts encrypt the same
+message, and it is malleable, so proper padding is not an implementation detail but a security
+requirement.
+
+Diffie-Hellman establishes a shared secret over a public channel without any prior shared
+information, which was the founding result of public key cryptography. Both parties raise a
+common generator to their own secret exponent, exchange the results, and raise the received value
+to their own exponent, arriving at the same value. Its security rests on the discrete logarithm
+problem, and it provides no authentication — an active attacker who intercepts and substitutes
+establishes separate secrets with each party, which is why it is always combined with
+authentication.
+
+Elliptic curve cryptography uses the group of points on an elliptic curve over a finite field
+rather than the multiplicative group of integers. The group operation is defined geometrically —
+the line through two points meets the curve at a third, reflected across an axis — and it satisfies
+the group axioms. The discrete logarithm problem on well-chosen curves is substantially harder
+than in the integer setting for a given size, so equivalent security requires far smaller keys: a
+256-bit elliptic curve key corresponds to roughly a 3072-bit RSA key.
+
+Public key systems:
+  trapdoor function    easy forward, hard backward without the trapdoor
+  RSA                  factoring; encryption and signature
+  textbook RSA         deterministic and malleable; padding is a security
+                       requirement
+  OAEP and PSS         the proper padding schemes for encryption and signature
+  Diffie-Hellman       shared secret over a public channel; no authentication
+  man in the middle    the attack unauthenticated key exchange permits
+  discrete logarithm   the underlying hard problem for DH and ECC
+  elliptic curve       points on a curve over a finite field form a group
+  key size equivalence  256-bit ECC ≈ 3072-bit RSA
+  curve choice         a small set of vetted curves; custom curves have subtle
+                       weaknesses and are avoided
+  ECDSA                signature; requires a unique random nonce per signature, and
+                       nonce reuse reveals the private key immediately
+  EdDSA                deterministic nonce derived from the message and key;
+                       eliminates the nonce failure mode by construction
+  forward secrecy      ephemeral keys per session; compromise of the long-term key
+                       does not decrypt recorded sessions
+  hybrid encryption    public key to establish a symmetric key, symmetric for the
+                       data; universal in practice
+
+The ECDSA nonce requirement deserves specific emphasis because its violation has caused real
+compromises. Each signature requires a random value that must never repeat and must never be
+predictable, and reusing it across two signatures allows the private key to be recovered by
+straightforward algebra. This has occurred in deployed systems through inadequate randomness at
+device startup and through implementation error, with complete key compromise as the consequence.
+EdDSA derives the nonce deterministically from the message and the private key, which removes the
+dependency on the random number generator entirely and is why it is preferred for new designs.
+
+## Hash Functions and Protocols
+
+A cryptographic hash function maps arbitrary input to a fixed-size digest, and three security
+properties are required. Preimage resistance means that given a digest, finding an input
+producing it is infeasible. Second preimage resistance means that given an input, finding a
+different input with the same digest is infeasible. Collision resistance means that finding any two
+inputs with the same digest is infeasible, and it is the strongest of the three.
+
+The birthday bound governs collision resistance and is why digest sizes are what they are.
+Finding a collision by random search requires about the square root of the output space, so a
+256-bit hash provides 128 bits of collision resistance. A hash intended to resist collision attack
+at a given security level therefore needs twice that many output bits, which is why 256-bit
+digests are standard for a 128-bit security target.
+
+Hash functions must not be used directly for passwords, and the reason is that they are designed
+to be fast. A modern graphics processor computes billions of hashes per second, so a stolen
+database of hashed passwords is cracked rapidly by exhaustive search over likely candidates.
+Password hashing requires a function that is deliberately slow and memory-hard, with a per-password
+salt preventing precomputation and shared-password identification.
+
+Hashes and protocols:
+  preimage resistance  given a digest, find any input producing it
+  second preimage      given an input, find a different one with the same digest
+  collision resistance  find any two inputs colliding; the strongest property
+  birthday bound       collisions found in about the square root of the output
+                       space; a 256-bit hash gives 128-bit collision resistance
+  length extension     the Merkle-Damgard construction permits extending a hash
+                       without the key; why naive keyed hashing is broken and HMAC
+                       exists
+  HMAC                 the correct keyed construction
+  SHA-2 and SHA-3      current standards; SHA-3 uses a different construction and
+                       is immune to length extension
+  BLAKE3               fast, parallel, modern
+  MD5 and SHA-1        broken for collision resistance; still seen in deployed
+                       systems
+  password hashing     Argon2id, scrypt, bcrypt; deliberately slow and memory-hard
+  salt                 per password; prevents precomputation and hides shared
+                       passwords
+  key derivation       HKDF from a high-entropy secret; a password KDF from a
+                       password
+  Merkle tree          a hash tree; efficient verification of membership in a large
+                       set, and the basis of distributed ledgers and of file
+                       integrity systems
+  commitment scheme    bind to a value without revealing it; hiding and binding
+  zero-knowledge proof  prove a statement without revealing why it is true;
+                       completeness, soundness, and zero-knowledge
+
+Zero-knowledge proofs deserve a note because they enable capabilities that seem impossible. A
+prover convinces a verifier that a statement is true while revealing nothing beyond its truth —
+proving knowledge of a password without transmitting it, proving that a transaction is valid
+without revealing its contents, proving that a computation was performed correctly without
+repeating it. The last of these has become practically significant: succinct proofs allow a
+verifier to check a large computation in time far shorter than performing it, which is what makes
+verifiable outsourced computation and several blockchain scaling approaches possible.
+
+## Post-Quantum and Security Arguments
+
+Quantum computing threatens public key cryptography specifically and asymmetrically. Shor's
+algorithm factors integers and computes discrete logarithms in polynomial time, which breaks RSA,
+Diffie-Hellman, and elliptic curve cryptography completely rather than merely weakening them.
+Grover's algorithm provides a quadratic speedup for unstructured search, which halves the
+effective security of symmetric ciphers and hashes — addressed by doubling the key size, so a
+256-bit symmetric key remains adequate.
+
+The asymmetry is why the response differs by primitive. Symmetric cryptography needs larger
+parameters. Public key cryptography needs entirely different mathematical foundations, and the
+candidates rest on problems believed hard for quantum computers as well as classical ones:
+lattice problems, error-correcting code problems, multivariate polynomial systems, and hash-based
+constructions.
+
+The harvest-now-decrypt-later threat means the transition is urgent for long-lived secrets even
+though no capable quantum computer exists. An adversary recording encrypted traffic today can
+decrypt it once such a machine is available, so any data requiring confidentiality beyond the
+expected arrival of quantum computing is already exposed. This is why hybrid key exchange —
+combining a classical and a post-quantum algorithm so that breaking either alone is insufficient —
+is being deployed ahead of any demonstrated threat.
+
+Post-quantum and security reasoning:
+  Shor's algorithm     breaks RSA, DH, and ECC in polynomial time
+  Grover's algorithm   quadratic speedup for search; halves symmetric security
+  symmetric response   double the key size; 256-bit remains adequate
+  lattice based        the leading family; the basis of the selected standards
+  code based           long-studied; large keys
+  hash based           signatures with minimal assumptions; stateful variants
+                       require careful state management
+  multivariate         compact signatures; several proposals have been broken
+  hybrid deployment    classical plus post-quantum; breaking either alone is
+                       insufficient
+  harvest now decrypt later  recorded traffic is already exposed for long-lived
+                       secrets
+  crypto agility       the ability to change algorithms without redesigning; the
+                       property that makes any transition feasible
+  reduction proof      security reduced to a hard problem; the argument's form
+  random oracle model  idealizes a hash as a random function; proofs in it are
+                       weaker evidence than standard model proofs
+  security parameter   bits of work an attacker must perform; 128 is the current
+                       standard target
+  the weakest link     implementation, key management, protocol design, and the
+                       human process; the mathematics is rarely what fails
+
+The final point deserves the closing emphasis because it is where practice diverges from theory.
+The mathematics underlying deployed cryptography is sound and is essentially never what fails in
+practice. Real compromises come from implementation errors such as timing side channels and nonce
+reuse, from key management failures such as keys in source control or shared across a fleet, from
+protocol design errors such as unauthenticated key exchange, from operational failures such as
+expired certificates and inadequate randomness at first boot, and from the human processes around
+all of it. Choosing a stronger algorithm addresses the part that was not going to fail, and
+attention proportional to actual risk directs it toward implementation, key management, and
+process instead.

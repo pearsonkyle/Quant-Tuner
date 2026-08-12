@@ -1,0 +1,238 @@
+================================================================================
+AREA: Generative and Creative Technology
+SUBJECT: Film and Video Production Technology
+Subtopics: capture formats and codecs, colour pipelines, camera and lens choices,
+lighting and grip, sound, editing and post workflow, delivery and archiving.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Capture, Codecs, and the Recording Chain
+
+Video is a sequence of images with a sound track, and every technical decision in production is
+some tradeoff among image quality, data rate, and workflow cost. The recording format sets the
+terms of that tradeoff at the moment of capture, and it is the one decision that cannot be revisited
+later — everything downstream can be redone, and the recorded file cannot.
+
+Codecs divide into intraframe and interframe families with very different properties. An intraframe
+codec compresses each frame independently, producing larger files that edit efficiently because any
+frame can be decoded on its own. An interframe codec stores occasional complete frames and encodes
+the rest as differences, which is far more efficient for a given quality and requires decoding a
+sequence to reach any given frame. Delivery formats are interframe; acquisition and editing formats
+should be intraframe, and using a delivery codec as an editing format is the most common cause of
+sluggish editing and generational quality loss.
+
+Chroma subsampling exploits the eye's lower spatial acuity for colour than for brightness by
+recording colour information at reduced resolution. Full colour resolution is what compositing and
+keying require, because a green screen key operates on colour edges that subsampling has blurred.
+Half colour resolution is adequate for most direct delivery. Quarter is common in consumer formats
+and produces visible artifacts on saturated edges and makes keying substantially harder.
+
+Capture and codecs:
+  the irreversible decision  the recorded file; everything downstream can be
+                       redone
+  intraframe codec     each frame independent; large files, efficient editing
+  interframe codec     differences between frames; efficient delivery, awkward
+                       editing
+  the common mistake   editing directly in a delivery codec
+  proxies              low-resolution stand-ins for editing, relinked to the
+                       originals for finishing
+  bit depth            levels per channel; eight bits banding in gradients, ten
+                       or more for grading headroom
+  chroma subsampling   colour recorded at reduced resolution
+  full colour          required for keying and compositing
+  the keying failure   subsampled colour edges make a clean key impossible
+  bit rate             data per second; constant or variable
+  log encoding         a curve preserving dynamic range for grading; looks flat
+                       until graded and is not a finished image
+  raw capture          sensor data with the rendering decisions deferred; the
+                       most flexibility and the largest files
+  frame rate           twenty-four for a cinematic look, higher for smoothness
+                       and for slow motion in post
+  shutter angle        the fraction of each frame interval the shutter is open;
+                       controls motion blur independently of frame rate
+
+Q: Footage shot in a log profile looks washed out and low contrast straight from the camera. This
+means:
+A. The camera was set up incorrectly
+B. Log encoding deliberately compresses the dynamic range into the recording's code values to
+   preserve highlight and shadow detail for grading; it is an intermediate representation, not a
+   finished image, and applying the appropriate transform produces the intended look
+C. The exposure was wrong
+D. The sensor is faulty
+Reasoning: Log curves trade apparent contrast for retained range. The flat appearance is the format
+working as designed. It must be graded, or at minimum have a display transform applied, before it
+looks correct. Answer: B.
+
+## Colour Pipelines and Grading
+
+Colour management in production means knowing, at every point in the chain, what the numbers in a
+file mean. A pixel value has no inherent colour; it acquires one through a colour space definition
+specifying primaries, white point, and transfer function. Files that travel between systems without
+that information carried alongside them get interpreted with the receiving system's assumptions,
+and mismatched assumptions are the cause of nearly every unexplained colour shift.
+
+A managed pipeline transforms everything into a common working space, performs the creative work
+there, and transforms out to each delivery target. The working space is chosen to be large enough
+to contain all the source gamuts and to behave predictably under grading operations. The output
+transform maps that working space to the specific display, and there is a different one for each
+delivery target, which is why a grade approved on one display needs verification on the others
+rather than assumption.
+
+Grading proceeds in a conventional order for good reasons. Primary correction sets exposure,
+contrast, and white balance for the whole image and establishes the baseline. Secondary correction
+isolates regions or colour ranges for local adjustment. Shot matching makes cuts within a scene
+consistent, which is the unglamorous majority of the work. The creative look is applied last, over a
+foundation that is already neutral and consistent, because applying it first means every subsequent
+correction fights it.
+
+Colour pipelines:
+  a pixel value has no inherent colour  meaning comes from a colour space
+                       definition
+  primaries, white point, transfer function  what defines a colour space
+  metadata             what carries the interpretation between systems
+  the mismatch symptom  unexplained shifts when files move between tools
+  working space        large, predictable under grading operations
+  input transform      source camera encoding into the working space
+  output transform     working space to a specific display
+  per-target transforms  a grade verified on one display is not verified on all
+  primary correction   exposure, contrast, white balance for the whole image
+  secondary correction  isolated regions or colour ranges
+  shot matching        consistency across cuts; the bulk of the work
+  the creative look    applied last, over a neutral foundation
+  scopes               waveform and vectorscope; the eye adapts and the scopes do
+                       not
+  reference monitoring  a calibrated display in a controlled environment; grading
+                       on an uncalibrated screen produces decisions that do not
+                       transfer
+  high dynamic range delivery  a wider range and a different transfer function;
+                       a separate grading pass, not a conversion
+
+## Camera, Lens, and Lighting Craft
+
+Lens choice affects the image more than camera choice at any professional tier, because the camera
+records what the lens delivers. Focal length determines field of view and, through the shooting
+distance it implies, the apparent relationship between foreground and background. Maximum aperture
+determines available depth of field and low-light capability. And the character of a lens — its
+rendering of out-of-focus areas, its flare behaviour, its contrast, its distortion — is a creative
+choice that no post-production process reproduces convincingly.
+
+Lighting is where most of the visual quality is created, and the principles transfer directly from
+still photography with the addition of continuity requirements. Motivated lighting places sources
+where the scene's logic suggests them, which makes the image read as natural regardless of how
+constructed it is. The key light establishes the form, fill controls the shadow density and
+therefore the contrast, and separation from the background prevents the subject merging into it.
+
+The practical constraints of moving-image lighting are different from still work in ways that
+dominate the process. Sources must be positioned outside the frame for shots from multiple angles,
+which is why grip equipment — stands, arms, flags, diffusion frames — represents most of the setup
+effort. Continuity across a scene shot over hours requires that the lighting not change, which
+conflicts with any use of daylight. And the actors move, so the lighting must work across their
+whole path rather than at one position.
+
+Camera and lighting:
+  lens over camera     the lens determines what the sensor receives
+  focal length         field of view and implied shooting distance
+  maximum aperture     depth of field and low light
+  lens character       rendering, flare, contrast, distortion; a creative choice
+  matched sets         lenses that share character across focal lengths
+  focus pulling        maintaining focus on a moving subject; a skilled role
+  motivated lighting   sources placed where the scene's logic suggests
+  key, fill, separation  the functional decomposition
+  contrast ratio       key to fill; the primary mood control
+  colour temperature   mixing sources of different temperature is a deliberate
+                       choice or an error, never an accident to ignore
+  grip equipment       stands, arms, flags, frames; most of the setup effort
+  the off-frame constraint  sources must be hidden from every angle to be shot
+  continuity           lighting must not change across a scene shot over hours
+  daylight conflict    the sun moves; interiors with practical windows need
+                       control or speed
+  blocking             the actors' movement; lighting must work across their path
+  the coverage question  what shots are needed to cut the scene, decided before
+                       lighting rather than discovered during it
+
+## Sound and Post-Production Workflow
+
+Sound is half the experience and receives a small fraction of the attention on most productions. The
+practical asymmetry is that audiences tolerate mediocre images with good sound far better than the
+reverse, and that bad production sound is expensive or impossible to fix while a mediocre image can
+often be improved in grading.
+
+Production recording aims for clean dialogue with adequate level and minimal room reflection, which
+means getting the microphone close, controlling the acoustics of the space, and recording room tone
+for the editor to use in filling gaps. A boom overhead is the primary source because it sounds
+natural; lavalier microphones provide backup and coverage where a boom cannot reach, and their
+sound is closer and less natural. Recording separate tracks rather than a mix preserves the
+editor's options.
+
+Post-production sound builds the final track in layers: dialogue edited and cleaned, replacement
+dialogue where production audio is unusable, sound effects both from libraries and recorded to
+picture, ambience establishing the space, and music. The mix balances these for the intended
+playback environment, and mixes made for a cinema and for a phone are genuinely different, which is
+why delivery requires separate versions rather than one mix played louder or quieter.
+
+Sound and workflow:
+  the asymmetry        bad sound is less tolerated and harder to fix than a
+                       mediocre image
+  microphone proximity  the single largest factor in dialogue quality
+  boom                 overhead and natural; the primary source
+  lavalier             close, less natural; backup and coverage
+  room tone            recorded on location for filling edits
+  separate tracks      preserves the editor's options
+  timecode sync        keeps separately recorded audio aligned with picture
+  dialogue editing     cleaning, levelling, and removing distractions
+  replacement dialogue  re-recorded to picture when production audio fails
+  sound effects        library and recorded to picture
+  ambience             establishes the space and covers edits
+  the mix              balanced for a specific playback environment
+  separate deliverables  a cinema mix and a mobile mix are different mixes
+  loudness standards   broadcast and streaming specify integrated loudness; a mix
+                       that ignores them is normalized by the platform in ways
+                       the mixer did not choose
+  the edit-first principle  picture is locked before the detailed sound work,
+                       because every picture change invalidates sound editing
+                       downstream of it
+
+## Delivery, Archiving, and Practical Discipline
+
+Delivery specifications differ by destination and they are exacting. Broadcast, theatrical,
+streaming, and web each specify resolution, frame rate, codec, bit rate, colour space, audio
+configuration, loudness, and often the exact structure of the file including leader, slates, and
+caption formats. Reading the specification before finishing rather than after is the difference
+between one delivery pass and several.
+
+Archiving is where most productions fail, and the failure is only discovered years later when the
+material is needed. Camera originals and the final master should be preserved in a form that does
+not depend on a specific software version; project files preserve editorial decisions and are
+useless without the media and the exact software version, which is why the archive should include
+rendered self-contained masters as well as project files.
+
+The practical discipline that most improves outcomes is verification at each transfer. Card offloads
+are checksummed and verified against the original before the card is reformatted, because a
+corrupted transfer discovered after reformatting is unrecoverable material. Backups are made in
+duplicate before shooting continues. Every step in this chain is boring and each one has been
+skipped by someone whose production then lost a day's work permanently.
+
+Delivery and archiving:
+  specifications differ  by destination and they are exacting
+  read before finishing  the difference between one pass and several
+  resolution and frame rate  the first constraints
+  codec and bit rate   the delivery format, not the working format
+  colour space         with the correct metadata attached
+  audio configuration  channel layout, loudness, and stems if required
+  captions and subtitles  burned in or as a sidecar; specified per platform
+  camera originals     the irreplaceable asset
+  self-contained masters  playable without a project file or specific software
+  project files        preserve decisions and require exact software versions
+  file naming          consistent and descriptive; the archive's only index if
+                       the database is lost
+  checksummed offloads  verify before reformatting the card
+  duplicate backups    before shooting continues
+  the media hierarchy  working copies on fast storage, archives on redundant
+                       storage, one copy off site
+  format obsolescence  archives need periodic migration to current formats; a
+                       tape or drive nobody has read in a decade is a hypothesis
+  the recurring lesson  every one of these steps is tedious, each has been
+                       skipped by someone who lost material permanently, and the
+                       cost of doing them is trivial compared with the cost of
+                       the one time it matters

@@ -1,0 +1,317 @@
+================================================================================
+AREA: Embedded Systems and Hardware
+SUBJECT: PCB Design and Electronics Manufacturing
+Subtopics: stackup and materials, schematic capture, layout and routing, power
+distribution, signal integrity, thermal design, manufacturability, assembly and test.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Stackup and Board Construction
+
+A printed circuit board is a laminated stack of conductive copper layers separated by
+insulating substrate, and the stackup — how many layers, how thick, and in what arrangement —
+is the first design decision and constrains everything after it. A two-layer board is cheapest
+and provides no continuous reference plane, which limits it to low-speed work. A four-layer
+board with signal, ground, power, and signal layers gives every signal an adjacent reference
+plane and is the practical minimum for anything with fast edges or a microcontroller running
+above a few tens of megahertz.
+
+The reference plane is the reason layer count matters more than routing space. High-frequency
+return current does not take the shortest resistive path back to the source; it takes the path
+of least inductance, which is directly beneath the outgoing trace. A continuous plane under
+every signal provides that path with a minimal loop area, which keeps emissions low, keeps
+susceptibility low, and keeps the trace impedance controlled. Interrupting that plane with a
+split, a slot, or a dense field of via antipads forces the return current to detour, creating a
+large loop that both radiates and picks up interference.
+
+Material choice affects loss and dimensional stability. Standard FR-4 is a glass-reinforced
+epoxy that is inexpensive and adequate to a few gigahertz, with a dielectric constant around
+4.3 that varies with frequency and with the glass weave. Low-loss laminates have lower and more
+stable dielectric constants and lower dissipation factors, which matters above a few gigahertz
+where FR-4's loss becomes significant. Flexible polyimide substrates permit bending, and
+rigid-flex construction combines both in one assembly.
+
+Stackup and materials:
+  two layer            cheapest; no continuous reference plane; low speed only
+  four layer           signal, ground, power, signal; the practical minimum for
+                       fast edges
+  six and above        more routing layers and more planes; better isolation
+  reference plane      continuous, unbroken, directly adjacent to every signal
+                       layer
+  return current       follows the path of least inductance, directly beneath the
+                       trace at high frequency
+  plane splits         force return detours; never route a signal across one
+  FR-4                 glass-epoxy; Dk ~4.3, adequate to a few GHz
+  low-loss laminate    stable Dk, low loss tangent; above a few GHz
+  polyimide            flexible; flex and rigid-flex
+  copper weight        1 oz is ~35 um; heavier for high current
+  controlled impedance  trace width and spacing to the reference set it; specify
+                       it to the fabricator rather than calculating alone, since
+                       it depends on their actual stackup
+  symmetric stackup    balanced copper distribution prevents warping during
+                       reflow
+
+Impedance control is worth specifying explicitly rather than computing and hoping. The
+characteristic impedance of a trace depends on its width, its height above the reference plane,
+the dielectric constant, and the copper thickness, and the fabricator's actual layer thicknesses
+differ from nominal. Providing the target impedance as a requirement lets them adjust the trace
+width to their stackup, which is the only way to achieve the tolerance that high-speed
+interfaces require.
+
+Q: A high-speed signal trace crosses a gap in the ground plane beneath it. The most likely
+consequence is:
+A. No effect, since the signal path is unbroken
+B. The return current must detour around the gap, creating a large loop that radiates and
+   raises the impedance discontinuity
+C. The trace resistance increases
+D. The signal is shorted
+Reasoning: At high frequency the return current flows directly beneath the trace. A gap forces
+it around, and the resulting loop area produces electromagnetic emission, increased
+susceptibility, and a local impedance discontinuity causing reflection. This is one of the most
+common and most consequential layout errors, and it is invisible in a schematic. Answer: B.
+
+## Schematic and Layout Practice
+
+The schematic communicates circuit intent and should be organized for a human reader rather
+than for the tool. Signals flowing left to right and power flowing top to bottom is the
+convention that makes a schematic scannable. Functional blocks kept on separate sheets or in
+separate regions with clear boundaries let a reader locate a subsystem. Net names that describe
+function rather than tool-generated identifiers make the netlist readable and make debugging
+possible.
+
+Component selection at schematic time determines the layout's difficulty and the board's
+manufacturability. Package choice affects assembly cost, rework feasibility, and thermal
+behaviour. Availability determines whether the design can be built, and designing around a part
+with a long lead time or a single source is a schedule risk that surfaces at the worst moment.
+Checking availability and lifecycle status before committing is a step that is skipped often
+enough to be worth stating.
+
+Layout converts the schematic into physical geometry, and the sequence that works is placement
+first, then power distribution, then critical signals, then everything else. Placement
+determines most of the routing difficulty, and time spent iterating placement before routing
+saves far more time than it costs. Components should be grouped by function, with the parts
+associated with a given circuit kept together, and oriented consistently to simplify assembly
+and inspection.
+
+Layout sequence and practice:
+  placement first      it determines routing difficulty more than anything else
+  group by function    keep each subcircuit's parts together
+  decoupling adjacent  place the smallest capacitor closest to the supply pin,
+                       with the shortest possible loop to the planes
+  crystal placement    close to the microcontroller, guard traces, no signals
+                       routed underneath
+  connector placement  at the board edge, oriented for the enclosure
+  thermal placement    hot components spread out, away from temperature-sensitive
+                       parts
+  keep-out areas       antennas, mounting hardware, moving parts
+  trace width          by current; roughly 1 mm per amp on 1 oz outer copper for
+                       a 10 C rise, and check a calculator rather than guessing
+  differential pairs   route together, matched length, consistent spacing
+  length matching      for parallel buses; match to the timing budget, not
+                       arbitrarily
+  via stitching        connect planes together frequently; reduces plane
+                       resonance and provides return paths near layer transitions
+  return path vias     when a signal changes layers between different reference
+                       planes, place a nearby via connecting those planes, or the
+                       return current has no local path
+  test points          plan them; probing a finished board without them is
+                       difficult and often impossible
+
+Return path vias are the detail most often omitted and most consequential in high-speed
+designs. When a signal transitions from one layer to another, its return current must also
+transition between reference planes, and it can only do so through a connection between them. If
+the two planes are both ground, a stitching via near the signal via provides that path. If one
+is ground and one is power, a decoupling capacitor near the transition provides an
+alternating-current path. Without either, the return current travels to the nearest available
+connection, which may be centimetres away, creating exactly the loop the stackup was designed to
+avoid.
+
+## Power Distribution and Signal Integrity
+
+The power distribution network delivers current to every component with acceptable voltage
+variation, and its behaviour is a frequency-domain problem rather than a direct-current one. A
+digital circuit draws current in pulses synchronized to its clock, so the supply must present
+low impedance across a wide frequency range — the bulk capacitors handle low frequencies, the
+plane capacitance and small ceramics handle high frequencies, and the region between is where
+resonances appear.
+
+Decoupling capacitor selection is governed by inductance rather than by capacitance. Every
+capacitor has a self-resonant frequency above which it behaves as an inductor, set by its
+capacitance and its parasitic inductance, and that parasitic inductance is dominated by the
+mounting geometry rather than by the part. A capacitor placed adjacent to the pin with short
+wide traces and vias directly into the planes has perhaps a third the loop inductance of the
+same part placed a centimetre away, which moves its useful frequency range up by a corresponding
+factor. Placement matters more than value.
+
+Signal integrity concerns whether a signal arrives recognizable, and the threshold for
+concern is set by edge rate rather than by clock frequency. A signal whose propagation delay
+along the trace exceeds roughly a sixth of its rise time behaves as a transmission line, and
+modern logic families have edge rates of a nanosecond or less regardless of how slowly they are
+clocked. A 1 MHz signal with a 500 picosecond edge requires the same transmission line treatment
+as a 100 MHz one.
+
+Power and signal integrity:
+  PDN impedance        must be low across the frequency range the load demands
+  bulk capacitors      low frequency; electrolytic or tantalum near the regulator
+  ceramic decoupling   high frequency; adjacent to each supply pin
+  self-resonance       every capacitor becomes inductive above it
+  mounting inductance  dominated by loop geometry, not by the part
+  anti-resonance       between capacitors of different values; a peak in
+                       impedance where one is inductive and another capacitive
+  plane capacitance    thin dielectric between power and ground planes provides
+                       excellent high-frequency decoupling
+  ferrite bead         isolates noisy sections; check its impedance at the
+                       frequency of concern and its DC resistance at the current
+  rise time threshold  treat as a transmission line when delay exceeds ~1/6 of the
+                       rise time
+  series termination   a resistor at the source; the common choice for
+                       point-to-point
+  reflection           from any impedance discontinuity; stubs, vias, connectors
+  crosstalk            reduce by spacing, by a continuous reference, and by
+                       avoiding long parallel runs
+  ground bounce        from simultaneous switching outputs; spread them across
+                       supply pins
+
+[user] My board passes functional test but fails radiated emissions at 240 MHz by 8 dB.
+[assistant] tool_call emc.diagnose({"frequency_mhz": 240, "margin_db": -8,
+"clock_mhz": 24, "harmonic": 10, "layers": 4, "plane_splits": 2,
+"traces_crossing_splits": 3, "cable_length_cm": 45, "connector_filtering": false})
+[tool] {"likely_source": "clock_harmonic_common_mode_on_cable",
+"contributors": ["traces_crossing_plane_splits", "unfiltered_cable_interface"],
+"cable_resonance_mhz": 167, "recommendation_order": ["fix_plane_splits",
+"add_common_mode_choke", "clock_edge_rate_control"]}
+[assistant] 240 MHz is the tenth harmonic of your 24 MHz clock, and the radiating structure is
+almost certainly the 45 cm cable rather than the board itself. Boards are poor antennas at this
+frequency; cables are excellent ones.
+
+The mechanism is common-mode current. Something is developing a small voltage between the
+board's ground reference and the cable's, and that drives common-mode current along the cable,
+which radiates efficiently. Eight decibels over is a moderate failure and is usually fixable
+without a respin.
+
+Three things to address, in this order of root cause first.
+
+Your three traces crossing plane splits are the most likely source of the ground voltage
+gradient. Each forces return current to detour, developing a voltage across the plane
+impedance, and that voltage appears between different points on your ground reference. Reroute
+those three traces so they stay over continuous copper, or bridge the split with stitching
+capacitors immediately adjacent to each crossing. This is the root cause fix.
+
+Add a common-mode choke at the cable connector. It presents high impedance to common-mode
+current while passing the differential signal, and it is the standard remedy for cable-driven
+emissions. Choose one with adequate impedance at 240 MHz specifically — many are specified at
+100 MHz and are much less effective an octave up.
+
+Slow the clock edges if the driver permits it. Emission amplitude at the tenth harmonic falls
+steeply with rise time, and a series resistor of a few tens of ohms at the clock source often
+gives several decibels for one component. Verify the signal still meets timing and has adequate
+edge quality at the receiver.
+
+Two diagnostics worth running before committing. Use a near-field probe to find where on the
+board the 240 MHz energy is strongest, which will confirm or refute the plane split hypothesis
+directly. And repeat the emissions measurement with a ferrite clamp on the cable — if the level
+drops substantially, the cable is confirmed as the radiator and the choke will work.
+
+## Thermal, Manufacturability, and Assembly
+
+Thermal design on a board is largely a matter of conduction into copper, since convection from
+a small package is limited and the board itself is the heatsink for most components. Copper
+pours connected to a device's thermal pad spread heat over a larger area from which it can be
+convected, and thermal vias beneath the pad conduct it to the opposite side where more copper
+area is available. The number and diameter of those vias, and whether they are filled, directly
+determines the achievable thermal resistance.
+
+Design for manufacturability means the board can be fabricated and assembled reliably at
+reasonable cost, and the constraints come from the fabricator's process capability. Minimum
+trace width and spacing, minimum drill size, annular ring, and aspect ratio all have standard
+values that cost nothing and tighter values that cost more and reduce yield. Checking a design
+against the intended fabricator's capabilities before release avoids the common experience of
+receiving a quote with a surcharge for a feature that was unnecessary.
+
+Assembly considerations shape footprint and placement decisions. Surface mount components are
+placed by machine and require adequate spacing for the nozzle and for inspection. Component
+orientation should be consistent to simplify programming and inspection. Polarity markings must
+be present and unambiguous on the silkscreen, since an assembler with an ambiguous marking will
+guess. Fiducial marks give the placement machine a reference and are required for fine-pitch
+parts.
+
+Thermal, manufacturing, and assembly:
+  copper pour          the primary heat spreader; connect thermal pads to it
+  thermal vias         conduct to the opposite side; more and larger is better,
+                       and filled vias conduct better than open ones
+  component derating   ratings fall with temperature; check at the actual
+                       operating temperature
+  thermal relief       spoke connections to planes for hand-solderable pads;
+                       otherwise the plane sinks the heat and the joint does not
+                       reflow
+  minimum trace/space  standard values are cheap; tighter costs more and yields
+                       worse
+  annular ring         copper around a drilled hole; too little causes breakout
+  aspect ratio         board thickness to drill diameter; limits plating
+                       reliability
+  solder mask dam      between fine-pitch pads; below a minimum width the
+                       fabricator omits it
+  paste stencil        aperture design controls solder volume; reduced apertures
+                       for large thermal pads prevent floating
+  fiducials            placement machine references; global and local for fine
+                       pitch
+  panelization         multiple boards per panel with breakaway tabs or v-scoring
+  tombstoning          a small two-terminal part standing up during reflow from
+                       asymmetric heating or pad design; symmetric pads and
+                       thermal relief prevent it
+  design rule check    run it; and confirm the rules match the actual fabricator
+
+Tombstoning illustrates why footprint details matter. A small chip component with one pad
+connected to a large copper pour and the other to a thin trace heats asymmetrically during
+reflow, so one end's solder melts first and its surface tension lifts the part upright. The fix
+is symmetric thermal connection to both pads, using thermal relief on the pour side, and it is
+a footprint and layout decision rather than an assembly one — which is the general pattern for
+assembly defects, most of which originate in design.
+
+## Test, Bring-Up, and Documentation
+
+Design for test means the board can be verified, and the effort is repaid the first time
+something does not work. Test points on critical nets permit probing without soldering to a
+component pin. A programming and debug connector must be accessible after assembly and ideally
+after the board is in its enclosure. Boundary scan access permits testing interconnect without
+physical probes. Separating power domains with a jumper or zero-ohm link allows each to be
+brought up independently and current-limited.
+
+Bring-up is the process of powering a new board for the first time, and doing it in stages
+prevents a single fault from destroying multiple components. Inspect visually and check for
+shorts between supplies and ground before applying power at all. Apply power through a
+current-limited supply set just above the expected draw, so a short manifests as a current limit
+rather than as smoke. Verify each supply rail in sequence before enabling the next. Only then
+attempt to communicate with the processor.
+
+Documentation is what makes a board maintainable by someone other than its designer, and it
+outlives the designer's memory of the details. The schematic with readable net names is the
+primary document. A bill of materials with manufacturer part numbers, not just values, is
+required for reordering. Assembly drawings show component placement and orientation. A test
+procedure states what to check and what constitutes a pass. And a revision history recording
+what changed and why prevents the next person from reintroducing a problem that was already
+solved.
+
+Test and documentation:
+  test points          on supplies, clocks, resets, and critical signals
+  debug connector      accessible after assembly and in the enclosure
+  boundary scan        interconnect testing without physical access
+  power domain jumpers  bring up rails independently
+  current-limited bring-up  a short becomes a current limit rather than damage
+  staged power         verify each rail before enabling the next
+  in-circuit test      bed of nails; production volume justifies the fixture
+  functional test      exercise the actual function; catches what ICT cannot
+  bill of materials    manufacturer part numbers, not just values
+  assembly drawing     placement and orientation
+  test procedure       what to check and what passes
+  revision history     what changed and why
+  errata               known issues and workarounds; write them down when found,
+                       because they will be forgotten and rediscovered
+
+The final practical point is to expect at least one revision. Boards rarely work perfectly on
+the first attempt, and designs that leave room for correction — spare gates, unpopulated
+component footprints at likely filter locations, extra test points, and generous space around
+components that may need rework — make the second revision a modification rather than a
+redesign. Adding these costs nearly nothing at design time and is consistently regretted when
+omitted.

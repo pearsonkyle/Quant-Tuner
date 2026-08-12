@@ -146,6 +146,9 @@ def leaderboard(
     sort_by: str = typer.Option("sqs", "--sort", help="column to sort by"),
     toolcall_csv: Path | None = typer.Option(None, help="Optional tool-call CSV to merge"),
     lens_csv: Path | None = typer.Option(None, help="Optional Jacobian-lens sidecar CSV to merge"),
+    redteam_csv: Path | None = typer.Option(
+        None, help="Optional red-team ladder.csv to merge (display-only; never feeds SQS)"
+    ),
 ) -> None:
     """Aggregate results.csv into a markdown leaderboard with SQS scores."""
     from quant_tuner.leaderboard.aggregate import aggregate
@@ -156,7 +159,8 @@ def leaderboard(
     a, b, c = parts
 
     markdown = aggregate(results, weights=(a, b, c), sort_by=sort_by,
-                         toolcall_csv=toolcall_csv, lens_csv=lens_csv)
+                         toolcall_csv=toolcall_csv, lens_csv=lens_csv,
+                         redteam_csv=redteam_csv)
     out.write_text(markdown)
     typer.echo(f"wrote {out}")
 

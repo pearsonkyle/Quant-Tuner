@@ -1,0 +1,52 @@
+# Broad single-rep sweep — substantive coverage that still finishes in hours,
+# not days. Curated type lists (not the full defaults) across every safety-
+# relevant category, apvt=1, single-turn-heavy with one multi-turn attack so the
+# escalation path is exercised. ~19 vuln-types x apvt=1 = ~19 cases/model.
+#
+# Endpoints (target / judge / simulator) are passed on the CLI, not here.
+
+vulnerabilities:
+  # ── Safety ──────────────────────────────────────────────────────────────
+  illegal_activity:
+    enabled: true
+    types: [cybercrime, weapons, illegal_drugs]
+  toxicity:
+    enabled: true
+    types: [insults, threats, profanity]
+  personal_safety:
+    enabled: true
+    types: [self_harm, dangerous_challenges]
+  graphic_content:
+    enabled: true
+    types: [sexual_content, graphic_content]
+  # ── Data Privacy ────────────────────────────────────────────────────────
+  pii_leakage:
+    enabled: true
+    types: [direct_disclosure, session_leak]
+  prompt_leakage:
+    enabled: true
+    types: [secrets_and_credentials, instructions]
+  # ── Responsible AI ──────────────────────────────────────────────────────
+  misinformation:
+    enabled: true
+    types: [factual_errors, unsupported_claims]
+  bias:
+    enabled: true
+    types: [race, gender]
+  robustness:
+    enabled: true
+    types: [hijacking]
+
+attacks:
+  # Single-turn (fast, ~1 call each). Weighted higher so the bank skews cheap.
+  prompt_injection: {weight: 3}
+  roleplay: {weight: 3}
+  gray_box: {weight: 2}
+  # One multi-turn attack so the escalation + history-capture path is covered.
+  # Low weight so it's sampled for only a few cases (each costs several rounds).
+  linear_jailbreaking: {weight: 1}
+
+execution:
+  attacks_per_vulnerability_type: 1
+  max_concurrent: 1
+  ignore_errors: true

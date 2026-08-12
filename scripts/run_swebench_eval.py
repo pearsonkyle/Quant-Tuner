@@ -11,6 +11,11 @@ tests, and write:
     <workspace>/aggregated.csv     one row per model
     <workspace>/summary.json       everything, machine-readable
 
+Two target modes: ``--models a.gguf …`` spawns a llama-server per GGUF, while
+``--base-url http://localhost:1234/v1 --target-model-name NAME`` reuses an
+already-running OpenAI-compatible server (LM Studio, vLLM, llama-swap) and can
+sweep several models served by the same endpoint.
+
 Defaults to the gemma-4-31B ``qat-Q2_K_S-imatrix`` quant. Requires the
 ``swebench`` extra (``uv sync --extra swebench``) and a running Docker daemon —
 on Apple Silicon the SWE-rebench linux/amd64 images run under emulation (slow).
@@ -20,6 +25,12 @@ Example
     PYTHONPATH=src .venv/bin/python scripts/run_swebench_eval.py \
         --holdout out/external/swe-rebench/holdout.jsonl \
         --workspace out/swe-rebench/smoke --progress
+
+    # against a model already served by LM Studio
+    PYTHONPATH=src .venv/bin/python scripts/run_swebench_eval.py \
+        --base-url http://localhost:1234/v1 --target-model-name ornith-1.0-35b \
+        --holdout out/external/swe-rebench/holdout_multilang.jsonl \
+        --workspace out/swe-rebench/multilang --agent openai-agents --progress
 """
 
 from __future__ import annotations
@@ -27,6 +38,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import re
 import subprocess
 import sys
 import time
@@ -49,7 +61,7 @@ _DEFAULT_MODEL = (
 )
 
 _INSTANCE_COLUMNS = [
-    "model", "rep", "agent", "instance_id", "repo",
+    "model", "rep", "agent", "instance_id", "repo", "language",
     "resolved", "patch_produced", "patch_chars",
     "tools_used", "tool_errors", "n_model_calls",
     "prompt_tokens", "completion_tokens", "total_tokens",
@@ -78,8 +90,20 @@ def _docker_ok() -> bool:
 
 def _build_arg_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--models", nargs="+", type=Path, default=[_DEFAULT_MODEL],
-                   help="GGUF quant(s) to evaluate (default: gemma-4-31B qat-Q2_K_S-imatrix)")
+    p.add_argument("--models", nargs="+", type=Path, default=None,
+                   help="GGUF quant(s) to evaluate — spawns a llama-server per model "
+                        "(default: gemma-4-31B qat-Q2_K_S-imatrix). Mutually exclusive "
+                        "with --base-url.")
+    p.add_argument("--base-url", default=None,
+                   help="OpenAI-compatible endpoint of an ALREADY-RUNNING server "
+                        "(LM Studio / vLLM / llama-server / llama-swap), e.g. "
+                        "http://localhost:1234/v1 — no llama-server is spawned. "
+                        "Name the served model(s) with --target-model-name.")
+    p.add_argument("--target-model-name", action="append", default=None,
+                   help="Model id to request from --base-url; repeat to sweep several "
+                        "models served by one endpoint. Also used as the run label.")
+    p.add_argument("--api-key", default="sk-no-key",
+                   help="API key sent to --base-url (most local servers ignore it)")
     p.add_argument("--holdout", type=Path,
                    default=_REPO / "out" / "external" / "swe-rebench" / "holdout.jsonl")
     p.add_argument("--workspace", type=Path,
@@ -128,6 +152,43 @@ def _write_csv(path: Path, columns: list[str], rows: list[dict]) -> None:
             w.writerow(row)
 
 
+def _resolve_targets(args) -> list[tuple[str, str, dict]] | None:
+    """Build ``(label, filename_slug, run_kwargs)`` per target.
+
+    Two mutually exclusive modes:
+      * ``--models a.gguf b.gguf`` — spawn a llama-server per GGUF (the default);
+      * ``--base-url URL --target-model-name NAME [...]`` — reuse one already-running
+        OpenAI-compatible server, optionally sweeping several models it serves.
+
+    Returns ``None`` if the arguments are contradictory (message already printed).
+    """
+    if args.base_url and args.models:
+        print("ERROR: pass either --models (spawn a server) or --base-url "
+              "(reuse a running one), not both.", file=sys.stderr)
+        return None
+
+    if args.base_url:
+        names = args.target_model_name or [args.served_model]
+        return [
+            (name, re.sub(r"[^A-Za-z0-9._-]+", "_", name),
+             {"base_url": args.base_url, "served_model": name, "api_key": args.api_key})
+            for name in names
+        ]
+
+    if args.target_model_name:
+        print("ERROR: --target-model-name only applies with --base-url.", file=sys.stderr)
+        return None
+
+    targets = []
+    for model in (args.models or [_DEFAULT_MODEL]):
+        if not model.exists():
+            print(f"[skip] missing model: {model}", flush=True)
+            continue
+        targets.append((model.name, model.stem,
+                        {"model_path": model, "served_model": args.served_model}))
+    return targets
+
+
 def main() -> int:
     args = _build_arg_parser().parse_args()
 
@@ -144,6 +205,13 @@ def main() -> int:
               file=sys.stderr)
         return 1
 
+    targets = _resolve_targets(args)
+    if targets is None:
+        return 1
+    if not targets:
+        print("ERROR: no runnable targets.", file=sys.stderr)
+        return 1
+
     args.workspace.mkdir(parents=True, exist_ok=True)
     sampling = Sampling(
         temperature=args.temperature, top_p=args.top_p, top_k=args.top_k, max_tokens=args.max_tokens
@@ -153,22 +221,17 @@ def main() -> int:
     agg_rows: list[dict] = []
     summary: dict = {"workspace": str(args.workspace), "models": {}}
 
-    for model in args.models:
-        if not model.exists():
-            print(f"[skip] missing model: {model}", flush=True)
-            continue
+    for label, slug, extra in targets:
         model_summaries = []
         for rep in range(args.reps):
-            traj_dir = args.workspace / "trajectories" / model.stem
+            traj_dir = args.workspace / "trajectories" / slug
             if args.reps > 1:
                 traj_dir = traj_dir / f"rep_{rep}"
-            with phase(f"swebench {model.name} rep {rep}"):
+            with phase(f"swebench {label} rep {rep}"):
                 s = run_swebench_eval(
                     args.holdout,
-                    model_path=model,
                     sampling=sampling,
-                    model_label=model.name,
-                    served_model=args.served_model,
+                    model_label=label,
                     trajectory_dir=traj_dir,
                     max_steps=args.max_steps,
                     instance_timeout=args.instance_timeout,
@@ -178,18 +241,21 @@ def main() -> int:
                     model_class=args.model_class,
                     ctx=args.ctx,
                     ngl=args.ngl,
-                    server_log_path=args.workspace / f"server_{model.stem}_rep{rep}.log",
                     chat_template_kwargs=args.chat_template_kwargs,
                     spec_type=args.spec_type,
                     spec_draft_n_max=args.spec_draft_n_max,
                     progress=args.progress,
                     resume=args.resume,
                     cleanup_images=args.cleanup_images,
+                    # model_path+server_log_path (local) OR base_url+api_key (remote)
+                    **extra,
+                    **({"server_log_path": args.workspace / f"server_{slug}_rep{rep}.log"}
+                       if "model_path" in extra else {}),
                 )
             for rec in s.per_instance:
-                instance_rows.append({"model": model.name, "rep": rep, **rec})
+                instance_rows.append({"model": label, "rep": rep, **rec})
             model_summaries.append(s)
-            print(f"  → {model.name} rep {rep}: pass_rate={s.pass_rate:.2f} "
+            print(f"  → {label} rep {rep}: pass_rate={s.pass_rate:.2f} "
                   f"patch_rate={s.patch_rate:.2f} mean_tokens={s.mean_tokens:.0f} "
                   f"mean_steps={s.mean_steps:.1f} tool_err={s.tool_error_rate:.2f}", flush=True)
 
@@ -197,9 +263,9 @@ def main() -> int:
             # Aggregate the per-instance records across reps for the model row.
             all_recs = [r for s in model_summaries for r in s.per_instance]
             from quant_tuner.eval.swebench import _aggregate
-            merged = _aggregate(model.name, all_recs)
+            merged = _aggregate(label, all_recs)
             agg_rows.append({k: getattr(merged, k) for k in _AGG_COLUMNS})
-            summary["models"][model.name] = {
+            summary["models"][label] = {
                 "aggregate": {k: getattr(merged, k) for k in _AGG_COLUMNS},
                 "reps": [asdict(s) for s in model_summaries],
             }

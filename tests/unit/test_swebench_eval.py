@@ -391,16 +391,19 @@ def test_truncate_output_passthrough_and_clip():
 def test_run_bash_tool_tallies_use_and_errors():
     env = _FakeEnv([("ls", _ok("a\nb")), ("boom", {"output": "err", "returncode": 1})])
     counters: dict = {"used": 0, "errors": 0}  # seeded as the backend does
-    out1 = _run_bash_tool(env, "ls", step_timeout=5, counters=counters)
+    out1 = _run_bash_tool(env, "ls", step_timeout=5, counters=counters, cwd="/testbed")
     assert out1 == "a\nb"
     assert counters == {"used": 1, "errors": 0}
-    _run_bash_tool(env, "boom", step_timeout=5, counters=counters)
+    _run_bash_tool(env, "boom", step_timeout=5, counters=counters, cwd="/testbed")
     assert counters == {"used": 2, "errors": 1}
 
 
-def test_run_bash_tool_executes_in_testbed():
+def test_run_bash_tool_executes_in_the_repo_checkout():
+    """The checkout dir is per instance (/testbed on V1, /<repo-name> on V2), so it is
+    passed in rather than hardcoded — see tests/unit/test_swebench_v2.py."""
     env = _FakeEnv([])
-    _run_bash_tool(env, "pwd", step_timeout=5, counters={"used": 0, "errors": 0})
+    _run_bash_tool(env, "pwd", step_timeout=5, counters={"used": 0, "errors": 0},
+                   cwd="/testbed")
     # the command is shelled into the repo checkout
     assert env.commands == ["pwd"]
 
@@ -408,7 +411,7 @@ def test_run_bash_tool_executes_in_testbed():
 def test_extract_submission_reads_git_diff():
     diff = "diff --git a/x b/x\n+code\n"
     env = _FakeEnv([("diff --cached", _ok(diff))])
-    assert _extract_submission(env, step_timeout=5) == diff
+    assert _extract_submission(env, step_timeout=5, repo_dir="/testbed") == diff
     # it stages everything first so new files show up in the patch
     assert any("add -A" in c for c in env.commands)
 

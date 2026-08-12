@@ -1,0 +1,248 @@
+================================================================================
+AREA: Earth and Life Sciences
+SUBJECT: Microbiology
+Subtopics: microbial diversity, cell structure and metabolism, growth and control,
+genetics and horizontal transfer, microbiomes, pathogenesis, methods and biotechnology.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Microbial Diversity and Cell Structure
+
+Microorganisms constitute the overwhelming majority of biological diversity and biomass on Earth,
+and the eukaryotes visible to us are a late and taxonomically narrow branch of the tree. The three
+domains — bacteria, archaea, and eukarya — were established by comparing ribosomal RNA sequences,
+which revealed that archaea, though superficially resembling bacteria, are as distinct from them as
+either is from eukaryotes and are in some respects more closely related to us.
+
+Bacterial cell structure is compact and highly organized despite lacking membrane-bound organelles.
+The cell wall of peptidoglycan is the defining structure and it is the target of several antibiotic
+classes precisely because animals have nothing like it. The Gram stain distinguishes two
+architectures: a thick peptidoglycan layer that retains the stain, and a thin layer plus an outer
+membrane that does not. That outer membrane is a permeability barrier which makes those organisms
+intrinsically resistant to many compounds, and it carries lipopolysaccharide, which triggers a
+strong inflammatory response and is responsible for much of the damage in severe infection.
+
+Archaea differ fundamentally in membrane chemistry — ether-linked, branched lipids rather than
+ester-linked straight chains — and this is part of why many of them tolerate conditions that
+destroy other cells. They dominate in extreme environments and are also abundant in ordinary ones,
+including the ocean and the gut, where their role is often overlooked because early methods
+recovered them poorly.
+
+Diversity and structure:
+  three domains        bacteria, archaea, eukarya; established by ribosomal
+                       sequence
+  the surprise         archaea are as distinct from bacteria as we are
+  peptidoglycan        the bacterial wall; an antibiotic target with no host
+                       counterpart
+  Gram stain           distinguishes thick-wall from thin-wall-plus-outer-membrane
+  the outer membrane   a permeability barrier; intrinsic resistance to many drugs
+  lipopolysaccharide   the inflammatory trigger in severe infection
+  archaeal membranes   ether-linked branched lipids; part of their extreme
+                       tolerance
+  capsule              a polysaccharide layer; evades immune recognition
+  flagella             motility; the bacterial motor is rotary, not beating
+  pili                 attachment and DNA transfer
+  endospore            a dormant, extremely resistant form; survives conditions
+                       that kill vegetative cells and is why sterilization
+                       standards are set by spore inactivation
+  biofilm              a surface-attached community in a polymer matrix; far more
+                       resistant than free cells and the normal state of most
+                       bacteria in nature
+  viruses              not cells; obligate intracellular replicators, and
+                       bacteriophages are the most numerous biological entities on
+                       the planet
+
+Q: A disinfectant that kills bacteria in laboratory suspension fails to clear a persistent
+contamination in a water system. The most likely reason is:
+A. The bacteria are resistant to the chemical
+B. The organisms are in a biofilm, whose polymer matrix limits penetration and whose slow-growing
+   interior cells tolerate treatments that kill actively dividing free cells
+C. The concentration is too low
+D. The test was inaccurate
+Reasoning: Biofilm tolerance is typically orders of magnitude greater than that of planktonic cells
+of the same strain, through reduced penetration, altered physiology, and slow growth. It is
+tolerance rather than genetic resistance, and it is why physical removal usually accompanies
+chemical treatment. Answer: B.
+
+## Metabolism, Growth, and Control
+
+Microbial metabolic diversity vastly exceeds that of plants and animals. Energy can be obtained from
+light or chemicals, carbon from carbon dioxide or organic compounds, and electrons from an
+extraordinary range of donors including hydrogen, sulfur, iron, ammonia, and methane. Almost every
+thermodynamically favourable reaction available in the environment is exploited by some organism,
+which is why microbial activity drives the global cycling of nitrogen, sulfur, and carbon.
+
+Respiration transfers electrons through a chain to a terminal acceptor, and oxygen is only the most
+familiar one. Nitrate, sulfate, ferric iron, and carbon dioxide serve where oxygen is absent, each
+yielding less energy in roughly the order that determines which process dominates as an environment
+becomes progressively depleted of oxygen. Fermentation dispenses with an external acceptor entirely,
+regenerating cofactors internally at much lower energy yield, and it is what makes bread, beer,
+cheese, and yoghurt.
+
+Growth in batch culture follows a characteristic curve: a lag phase of adaptation, exponential
+growth at a rate set by conditions, a stationary phase when a resource is exhausted or waste
+accumulates, and death. Exponential growth is the property that makes microbial problems escalate
+suddenly — a population doubling every twenty minutes goes from imperceptible to overwhelming in
+hours — and the practical consequence is that the response time available is far shorter than
+linear intuition suggests.
+
+Metabolism and growth:
+  energy sources       light or chemical
+  carbon sources       inorganic or organic
+  electron donors      hydrogen, sulfur, iron, ammonia, methane, and much else
+  the consequence      microbes drive global element cycling
+  aerobic respiration  oxygen as terminal acceptor; highest yield
+  anaerobic respiration  nitrate, sulfate, iron, carbon dioxide; decreasing yield
+  the redox ladder     the order in which acceptors are used as oxygen depletes
+  fermentation         no external acceptor; low yield; the basis of many foods
+  nitrogen fixation    atmospheric nitrogen to ammonia; energetically expensive
+                       and biologically essential
+  growth curve         lag, exponential, stationary, death
+  generation time      as short as twenty minutes under ideal conditions
+  the escalation       exponential growth compresses the available response time
+  continuous culture   steady state with controlled nutrient supply
+  sterilization        killing all organisms including spores; defined by spore
+                       inactivation
+  disinfection         reducing viable organisms; not the same standard
+  aseptic technique    the practical skill underlying all microbiology; most
+                       contamination is procedural rather than equipment failure
+
+## Genetics and Horizontal Gene Transfer
+
+Bacterial genomes are compact, gene-dense, and organized into operons that transcribe functionally
+related genes as a unit under one regulatory control. This organization makes regulation efficient
+and is one reason bacterial gene expression responds so rapidly to environmental change — a shift
+in nutrient availability can alter the transcriptional programme within minutes.
+
+Horizontal gene transfer distinguishes microbial genetics fundamentally from the vertical
+inheritance that dominates in animals. Genes move between organisms, including between distantly
+related ones, through three mechanisms: transformation, the uptake of free DNA from the environment;
+conjugation, direct transfer through a pilus, typically of a plasmid; and transduction, transfer by
+a bacteriophage. The consequence is that a bacterial genome is a mosaic of ancestries and that a
+strictly branching phylogenetic tree is the wrong model for this domain.
+
+Antibiotic resistance is the most consequential application of this. Resistance genes carried on
+plasmids move between strains and between species, and a single conjugative plasmid can carry
+resistance to several drug classes simultaneously. The clinical implication is that exposure to one
+antibiotic can select for resistance to others through co-selection on the same mobile element,
+which is why resistance emerges and spreads faster than models of vertical inheritance predict.
+
+Genetics and gene transfer:
+  compact genomes      gene-dense, little non-coding
+  operon               co-transcribed functionally related genes
+  rapid regulation     transcriptional response within minutes
+  plasmid              an extrachromosomal replicating element; often carries
+                       accessory functions
+  transformation       uptake of free environmental DNA
+  conjugation          direct transfer through a pilus
+  transduction         transfer via bacteriophage
+  the mosaic genome    multiple ancestries in one organism
+  the tree's inadequacy  strict branching is the wrong model here
+  mobile elements      transposons and integrons moving genes within and between
+                       genomes
+  resistance mechanisms  enzymatic inactivation, target modification, efflux,
+                       reduced permeability
+  co-selection         one drug selecting for resistance to several on the same
+                       element
+  the practical implication  resistance spreads faster than vertical inheritance
+                       models predict
+  quorum sensing       density-dependent signalling coordinating group behaviour;
+                       virulence and biofilm formation are commonly under this
+                       control
+  the CRISPR origin    a bacterial adaptive immune system against phages, later
+                       repurposed as a genome editing tool
+
+## Microbiomes and Host Interaction
+
+A microbiome is the community of microorganisms occupying an environment, and the human microbiome
+is one of the most studied. The human body carries a microbial population comparable in cell count
+to its own, dominated by the colon, and this community performs functions the host cannot: digesting
+complex polysaccharides, synthesizing certain vitamins, occupying niches that would otherwise be
+available to pathogens, and shaping immune development.
+
+The field's methodological advance was sequencing rather than culture, because most environmental
+and host-associated microorganisms do not grow under standard laboratory conditions. Amplicon
+sequencing of a conserved marker gene identifies which taxa are present; shotgun metagenomics
+sequences everything and identifies functional genes as well. Both describe composition, and the
+persistent interpretive problem is that composition is correlational — a difference between healthy
+and diseased communities does not establish which direction the causation runs, and disease
+frequently alters the environment in ways that change the community.
+
+Colonization resistance is the most practically important microbiome function. An established
+community occupies niches and consumes resources, which excludes newcomers, and disrupting it with
+broad-spectrum antibiotics permits opportunistic organisms to expand. The clinical demonstration is
+that transplanting a whole community from a healthy donor resolves certain recurrent infections that
+repeated antibiotics do not, which is strong evidence that the community rather than any single
+organism is the functional unit.
+
+Microbiomes:
+  microbiome           the community occupying an environment
+  the human scale      microbial cells comparable in number to host cells
+  functions            polysaccharide digestion, vitamin synthesis, niche
+                       exclusion, immune development
+  the culture problem  most organisms do not grow under standard conditions
+  amplicon sequencing  a conserved marker gene; identifies taxa
+  shotgun metagenomics  everything; identifies functional potential
+  metatranscriptomics  what is being expressed, not merely present
+  the correlation problem  compositional differences do not establish direction
+                       of causation
+  reverse causation    disease altering the environment and hence the community
+  colonization resistance  an established community excluding newcomers
+  antibiotic disruption  broad-spectrum treatment opening niches
+  community transplant  resolving recurrent infection where single agents fail
+  the functional unit  the community, not the individual organism
+  environmental microbiomes  soil, ocean, and plant-associated communities
+                       driving nutrient cycling and productivity
+  the diversity estimate  the overwhelming majority of microbial species have
+                       never been cultured or described, so every diversity
+                       number is a lower bound
+
+## Pathogenesis, Methods, and Applications
+
+Pathogenicity is a relationship rather than a property. Most microorganisms are harmless in their
+usual context and some are harmful only in a compromised host or in the wrong body site, which is
+why the distinction between pathogen and commensal is less sharp than the terms suggest. Virulence
+factors — adhesins, toxins, invasion mechanisms, immune evasion strategies — determine what an
+organism can do to a host, and their expression is typically regulated so they appear only in the
+host environment.
+
+Establishing that a specific organism causes a specific disease is harder than it appears, and the
+classical criteria — presence in every case, isolation in pure culture, disease reproduced on
+inoculation, re-isolation — fail for organisms that cannot be cultured, for asymptomatic carriage,
+and for diseases with multiple contributing causes. Molecular versions of the criteria substitute
+gene-level evidence, and the general lesson is that causal inference in infectious disease requires
+the same care it requires anywhere else.
+
+The applications of microbiology extend well beyond medicine. Industrial fermentation produces
+antibiotics, enzymes, amino acids, solvents, and increasingly complex molecules through engineered
+pathways. Bioremediation uses microbial metabolism to degrade contaminants. Wastewater treatment is
+fundamentally a managed microbial process. Agriculture depends on nitrogen-fixing symbioses. Food
+production across essentially every culture relies on controlled fermentation, and the same
+organisms that spoil food are the ones that preserve it under different conditions.
+
+Pathogenesis and applications:
+  pathogenicity as relationship  context-dependent, not intrinsic
+  opportunistic        harmful only in a compromised host or wrong site
+  virulence factors    adhesins, toxins, invasion, immune evasion
+  regulated expression  virulence genes induced in host conditions
+  exotoxin             secreted protein; often extremely potent and specific
+  endotoxin            lipopolysaccharide; released on lysis, causes inflammation
+  the causal criteria  classical postulates and their failure cases
+  molecular postulates  gene-level evidence for the uncultured and the
+                       asymptomatic
+  culture methods      selective and differential media; still central to
+                       clinical work
+  susceptibility testing  what the organism is actually sensitive to; guides
+                       treatment away from empirical breadth
+  rapid molecular diagnostics  faster identification, and they detect nucleic acid
+                       rather than viability
+  vaccines             the most effective intervention in the field's history
+  industrial fermentation  antibiotics, enzymes, solvents, engineered molecules
+  bioremediation       microbial degradation of contaminants
+  wastewater treatment  a managed microbial ecosystem
+  food fermentation    preservation and transformation; the same organisms that
+                       spoil under other conditions
+  the recurring theme  microbial capability is a resource and a hazard depending
+                       entirely on which organisms are where, and most applied
+                       microbiology is the practice of arranging that

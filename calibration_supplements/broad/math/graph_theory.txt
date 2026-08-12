@@ -1,0 +1,270 @@
+================================================================================
+AREA: Mathematics
+SUBJECT: Graph Theory and Network Science
+Subtopics: definitions and representation, connectivity and traversal, trees and
+spanning structures, matching and flow, colouring and planarity, spectral methods,
+random graphs and real networks.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Definitions and Representation
+
+A graph consists of vertices and edges connecting pairs of them, and the abstraction is
+powerful precisely because it retains only the relational structure. Road networks, molecular
+bonds, social ties, web links, dependency relations, and neural connections are all graphs,
+and a theorem about graphs applies to all of them.
+
+The vocabulary distinctions matter for stating results correctly. A graph is simple if it has
+no loops and no repeated edges, and the qualifier appears in most theorems because
+multigraphs behave differently. A graph is directed when edges have orientation, which changes
+connectivity notions substantially: reachability becomes asymmetric, and connectivity splits
+into weak, ignoring direction, and strong, requiring mutual reachability. Weights on edges
+represent distance, cost, capacity, or strength, and whether an algorithm handles negative
+weights is a real distinction rather than a technicality.
+
+Representation choice determines algorithmic cost. An adjacency matrix uses space quadratic in
+the vertex count and answers edge queries in constant time, which suits dense graphs and
+matrix-based algorithms. An adjacency list uses space proportional to vertices plus edges and
+enumerates a vertex's neighbours in time proportional to their number, which suits the sparse
+graphs that essentially all real networks are. For a social network with a billion vertices
+and average degree a hundred, the matrix is impossible and the list is routine.
+
+Basic definitions:
+  order and size        vertex count and edge count
+  degree                number of incident edges; in-degree and out-degree when
+                        directed
+  handshake lemma       the degree sum equals twice the edge count; hence the
+                        number of odd-degree vertices is even
+  simple graph          no loops, no multi-edges
+  complete graph K_n    every pair adjacent; n(n-1)/2 edges
+  bipartite             vertices split into two sets with edges only between them;
+                        equivalently, no odd cycle
+  subgraph              a subset of vertices with a subset of the induced edges
+  induced subgraph      all edges among the chosen vertices
+  walk, trail, path     repeated vertices allowed / repeated edges disallowed /
+                        both disallowed
+  cycle                 a closed path
+  adjacency matrix      O(V^2) space, O(1) edge query; suits dense graphs
+  adjacency list        O(V+E) space; suits sparse graphs, which is nearly
+                        everything real
+  degree sequence       the multiset of degrees; not sufficient to determine the
+                        graph
+
+The handshake lemma is trivial to state and useful more often than its simplicity suggests.
+Because each edge contributes to exactly two degrees, the sum of degrees is even, and
+therefore the number of vertices with odd degree must be even. This immediately rules out
+many proposed degree sequences, proves that a party where everyone shakes hands has an even
+number of people who shook an odd number of hands, and is the first step in the proof that an
+Euler circuit requires all degrees to be even.
+
+Q: Can a graph exist with degree sequence 4, 4, 3, 3, 2 ?
+A. Yes   B. No, the degree sum is odd   C. No, it exceeds the maximum degree   D. Only if
+directed
+Reasoning: The degree sum is 4+4+3+3+2 = 16, which is even, so the handshake lemma is
+satisfied and the count of odd-degree vertices is two, also even. Such a graph does exist —
+the sum being even is necessary and the Erdos-Gallai conditions determine sufficiency, which
+this sequence satisfies. Answer: A.
+
+## Connectivity and Traversal
+
+Connectivity asks whether vertices are reachable from one another. An undirected graph is
+connected when a path exists between every pair; otherwise it decomposes into connected
+components. A directed graph is strongly connected when every vertex reaches every other
+following edge directions, and weakly connected when the underlying undirected graph is
+connected — a distinction that matters enormously for the web graph, which is weakly connected
+and decomposes into a large strongly connected core plus substantial regions that only reach
+it or are only reached from it.
+
+Cut vertices and bridges are the single points of failure. A cut vertex is one whose removal
+disconnects the graph; a bridge is an edge with the same property. Identifying them locates
+vulnerabilities in a network, and both are found in a single depth-first search using low-link
+values, which track the earliest reachable ancestor from each subtree.
+
+Traversal underlies most graph algorithms. Depth-first search explores as deeply as possible
+before backtracking, and its recursion structure naturally yields connected components, cycle
+detection, topological ordering of a directed acyclic graph, and strongly connected
+components. Breadth-first search explores in layers and yields shortest paths in unweighted
+graphs, which depth-first search does not — a distinction worth stating because the two are
+otherwise interchangeable for reachability questions.
+
+Connectivity and traversal:
+  connected             a path between every pair
+  component             a maximal connected subgraph
+  strongly connected    mutual reachability in a directed graph
+  cut vertex            removal disconnects; found by DFS low-link
+  bridge                an edge whose removal disconnects
+  vertex connectivity   minimum vertices whose removal disconnects
+  Menger's theorem      the minimum cut equals the maximum number of disjoint paths
+  DFS                   O(V+E); components, cycles, topological sort, SCC
+  BFS                   O(V+E); shortest paths in unweighted graphs, level structure
+  topological sort      a linear order respecting all edges; exists iff acyclic
+  Dijkstra              shortest paths with non-negative weights, O(E log V)
+  Bellman-Ford          handles negative weights, detects negative cycles, O(VE)
+  Floyd-Warshall        all-pairs shortest paths, O(V^3); simple and effective for
+                        small dense graphs
+  A-star                Dijkstra with an admissible heuristic; optimal if the
+                        heuristic never overestimates
+
+The restriction of Dijkstra's algorithm to non-negative weights is not an implementation
+detail but a correctness requirement. The algorithm finalizes a vertex's distance when it is
+extracted from the priority queue, relying on the assumption that no shorter path can be found
+later — which holds only if adding edges cannot decrease a path's length. With negative edges
+that assumption fails and the algorithm returns wrong answers silently. Bellman-Ford relaxes
+all edges repeatedly and handles negatives correctly, and it additionally detects negative
+cycles, for which shortest paths are undefined because a path can be made arbitrarily short by
+cycling.
+
+## Trees, Matching, and Flow
+
+A tree is a connected acyclic graph, and the equivalent characterizations are worth knowing
+because different ones are convenient in different proofs: a tree on n vertices has exactly
+n-1 edges, has a unique path between every pair, becomes disconnected on removing any edge, and
+acquires a cycle on adding any edge. A spanning tree of a connected graph is a subgraph that
+is a tree and includes every vertex, and a minimum spanning tree minimizes total edge weight.
+
+Both standard minimum spanning tree algorithms are greedy and both are correct, which is
+worth noting because greedy algorithms usually are not. Kruskal's sorts edges and adds each if
+it does not create a cycle, using a disjoint-set structure to test that efficiently. Prim's
+grows a single tree from an arbitrary start, repeatedly adding the cheapest edge leaving it.
+The correctness of both follows from the cut property: for any partition of the vertices, the
+minimum-weight edge crossing the partition belongs to some minimum spanning tree.
+
+Matching pairs up vertices with no shared endpoints, and the bipartite case has a clean
+theory with wide application — assigning workers to jobs, students to schools, organs to
+recipients. Hall's marriage theorem gives the exact condition for a perfect matching in a
+bipartite graph: one exists if and only if every subset of one side has at least as many
+neighbours as it has members. The condition is elegant and, being over all subsets, is not
+directly a practical algorithm; augmenting path methods provide that.
+
+Trees, matching, and flow:
+  tree characterizations  connected and acyclic; n-1 edges; unique paths
+  spanning tree           includes all vertices, no cycles
+  Kruskal                 sort edges, add if no cycle; union-find
+  Prim                    grow from a start vertex; priority queue
+  cut property            the minimum edge across any cut is in some MST
+  matching                edges with no shared vertices
+  maximum matching        the largest such set
+  perfect matching        covers every vertex
+  Hall's theorem          bipartite perfect matching iff every subset has enough
+                          neighbours
+  augmenting path         alternating path whose ends are unmatched; flipping it
+                          increases the matching by one
+  stable matching         Gale-Shapley; always exists, and the proposing side gets
+                          its best stable outcome
+  max-flow                the greatest rate from source to sink respecting
+                          capacities
+  min-cut                 the cheapest set of edges whose removal disconnects them
+  max-flow min-cut        the two are equal; a duality result with many corollaries
+  bipartite matching      reducible to max flow with unit capacities
+
+The max-flow min-cut theorem is one of the most useful results in combinatorial
+optimization because so many problems reduce to it. Bipartite matching, vertex-disjoint path
+counting, project selection, image segmentation with binary labels, and baseball elimination
+all become flow problems, and solving the flow gives the answer along with a certificate — the
+minimum cut proves optimality, which is why the result is used as much for its dual
+information as for the flow value itself.
+
+## Colouring, Planarity, and Spectral Methods
+
+Graph colouring assigns labels to vertices so that adjacent vertices differ, and the minimum
+number needed is the chromatic number. The problem models conflict avoidance generally:
+register allocation in compilers, frequency assignment in wireless networks, exam scheduling,
+and Sudoku are all colouring problems. Determining the chromatic number is NP-hard, and
+greedy colouring gives a bound of one more than the maximum degree, which is tight for
+complete graphs and odd cycles and loose otherwise.
+
+A graph is planar when it can be drawn without crossings. Euler's formula relates vertices,
+edges, and faces of a planar drawing, and it yields the bound that a simple planar graph has
+at most 3n-6 edges — which immediately shows that the complete graph on five vertices and the
+complete bipartite graph on three plus three are not planar. Kuratowski's theorem states that
+these two are the only obstructions: a graph is planar exactly when it contains no subdivision
+of either.
+
+The four colour theorem states that every planar graph is four-colourable. It was the first
+major theorem proved with essential computer assistance, checking a large number of
+unavoidable configurations, and the resulting debate about what constitutes a proof was
+substantive. The theorem remains without a proof a human can verify unaided, and subsequent
+formalization in a proof assistant has addressed the concern about the computational
+component's reliability while not producing a shorter argument.
+
+Colouring, planarity, and spectra:
+  chromatic number       minimum colours for a proper vertex colouring
+  greedy bound           at most maxdegree + 1
+  bipartite              exactly the 2-colourable graphs
+  four colour theorem    every planar graph is 4-colourable
+  Euler's formula        V - E + F = 2 for a connected planar graph
+  planar edge bound      E <= 3V - 6 for simple planar graphs
+  Kuratowski             planar iff no K5 or K33 subdivision
+  clique number          largest complete subgraph; a lower bound on chromatic
+                         number, not generally equal
+  independent set        no two adjacent; complement of a clique in the complement
+                         graph
+  adjacency spectrum     eigenvalues of the adjacency matrix
+  Laplacian              degree matrix minus adjacency; positive semidefinite
+  algebraic connectivity the second smallest Laplacian eigenvalue; zero exactly
+                         when disconnected, and its magnitude measures how well
+                         connected
+  spectral partitioning  the corresponding eigenvector separates the graph into
+                         weakly linked parts
+  spectral clustering    embed with Laplacian eigenvectors, then cluster
+
+Spectral methods connect graph structure to linear algebra and are the theoretical basis for
+a great deal of practical network analysis. The Laplacian's eigenvalues encode connectivity:
+the multiplicity of the zero eigenvalue equals the number of connected components, and the
+smallest nonzero eigenvalue measures how difficult the graph is to cut. Its eigenvector, the
+Fiedler vector, assigns values to vertices such that thresholding it produces a good
+partition, which is the foundation of spectral clustering and of many graph partitioning
+heuristics used in parallel computing and circuit layout.
+
+## Random Graphs and Real Networks
+
+The Erdos-Renyi random graph connects each pair of vertices independently with fixed
+probability, and its most striking property is a phase transition. Below an average degree of
+one the graph consists of small components; above it, a giant component containing a constant
+fraction of all vertices appears abruptly. The transition is sharp in the limit of large size,
+and it is the graph-theoretic version of percolation, with applications to epidemic thresholds
+and network robustness.
+
+Real networks depart from the random model in three consistent ways, and each has structural
+consequences. Degree distributions are heavy-tailed rather than Poisson, so a few hubs have
+degree orders of magnitude above the mean, and the mean degree is a poor summary. Clustering
+is far higher than random, meaning that two neighbours of a vertex are likely to be connected
+— triangles are common, which reflects that ties form through shared contacts. Path lengths
+are nonetheless short, giving the small-world property.
+
+The small-world result is that adding a small number of random long-range edges to a highly
+clustered lattice collapses the average path length while barely reducing clustering. This
+resolves the apparent tension between local structure and global reachability, and it explains
+why social networks are simultaneously locally dense and globally shallow. The consequence for
+dynamics is substantial: information and disease spread on small-world networks far faster
+than on regular lattices, because the shortcuts bypass the local structure.
+
+Network science concepts:
+  Erdos-Renyi           independent edges with fixed probability
+  giant component       emerges abruptly at average degree one
+  small world           high clustering, short path lengths
+  scale-free            a power-law degree distribution; hubs dominate
+  preferential attachment  new nodes attach proportionally to existing degree;
+                        one mechanism producing heavy tails
+  clustering coefficient  fraction of a vertex's neighbour pairs that are adjacent
+  betweenness centrality  fraction of shortest paths passing through a vertex;
+                        identifies brokers and bottlenecks
+  closeness centrality  inverse average distance to all others
+  eigenvector centrality  importance proportional to neighbours' importance;
+                        PageRank is a variant with damping
+  assortativity         whether high-degree vertices attach to each other
+  community detection   densely connected groups; modularity maximization is
+                        standard and has a known resolution limit that hides small
+                        communities
+  robustness            heavy-tailed networks resist random failure and are
+                        fragile to targeted attack on hubs
+
+That last property is worth stating as the practical conclusion of the field. A network with
+a heavy-tailed degree distribution retains its giant component after removing a large fraction
+of randomly chosen vertices, because random removal almost always takes low-degree vertices
+that carry little of the connectivity. Removing the highest-degree vertices in order
+fragments the same network after removing a very small fraction. The identical structure is
+therefore extremely robust to failure and extremely vulnerable to attack, which applies equally
+to internet infrastructure, power grids, epidemic control by targeting super-spreaders, and
+the removal of keystone species from an ecological network.

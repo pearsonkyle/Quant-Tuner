@@ -1,0 +1,394 @@
+================================================================================
+AREA: Earth and Life Sciences
+SUBJECT: Molecular Biology and Genetics
+Subtopics: nucleic acids, the central dogma, gene regulation, inheritance,
+population genetics, sequencing and bioinformatics, genome editing, evolution.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Nucleic Acids and Molecular Structure
+
+DNA is a double helix of two antiparallel strands, each a polymer of nucleotides
+joined by phosphodiester bonds between the 3' hydroxyl of one sugar and the 5'
+phosphate of the next. The antiparallel arrangement — one strand running 5' to 3'
+while its partner runs 3' to 5' — is not an incidental detail. It is why replication
+is continuous on one strand and discontinuous on the other, why every polymerase
+synthesizes only in the 5' to 3' direction, and why sequence conventions must always
+specify a strand and a direction.
+
+Base pairing is specific and asymmetric in strength: adenine pairs with thymine through
+two hydrogen bonds, guanine with cytosine through three. That difference in bond count
+has direct practical consequences. GC-rich sequences have higher melting temperatures,
+so PCR primer design must balance GC content to get consistent annealing across a
+multiplex reaction, and GC-rich regions are systematically harder to amplify and
+sequence. The complementarity itself is what makes the molecule an information carrier
+that can be copied: each strand specifies the other, so a template plus a polymerase
+suffices to reconstruct the whole.
+
+RNA differs from DNA in three ways that together determine its role. It has ribose
+rather than deoxyribose, with an extra 2' hydroxyl that makes the backbone chemically
+reactive and the molecule far less stable — which is appropriate for a transient
+message and disastrous for archival storage. It uses uracil in place of thymine.
+And it is typically single-stranded, which lets it fold into complex secondary and
+tertiary structures with catalytic activity. That last property is the basis of the RNA
+world hypothesis: a molecule that both stores information and catalyzes reactions could
+bootstrap life without requiring proteins and DNA to arise simultaneously, and the
+ribosome's catalytic core being made of RNA rather than protein is strong evidence
+that this is a relic rather than a speculation.
+
+Nucleic acid quick reference:
+  DNA bases          A, T, G, C; A-T two H-bonds, G-C three
+  RNA bases          A, U, G, C
+  backbone           5' phosphate to 3' hydroxyl, phosphodiester bonds
+  helix geometry     B-form, ~10.5 bp per turn, 3.4 A rise per base, 2 nm diameter
+  melting temp       rises with GC content and with length and salt concentration
+  Chargaff's rules   in duplex DNA, A = T and G = C
+  human genome       ~3.1 Gb haploid, ~20,000 protein-coding genes, <2% coding
+  codon              3 bases; 64 codons encode 20 amino acids plus stop
+  genetic code       redundant (multiple codons per amino acid), near-universal
+
+The genetic code's redundancy is structured rather than arbitrary, and the structure is
+protective. The third base of a codon is the most variable — wobble position — so many
+substitutions there are synonymous and change no amino acid. Codons for chemically
+similar amino acids also tend to be similar, so a nonsynonymous change at the first or
+second position often substitutes a residue with comparable properties. The code
+therefore buffers against both mutation and translational error, which is very likely
+why this particular assignment among the astronomically many possible ones was fixed
+so early and has barely changed since.
+
+Q: A single base substitution changes a codon from GCU to GCC, both encoding alanine.
+This mutation is:
+A. Nonsense   B. Missense   C. Synonymous   D. Frameshift
+Reasoning: The protein sequence is unchanged, so the mutation is synonymous (silent).
+Note that synonymous does not mean consequence-free — codon usage affects translation
+speed and can alter co-translational folding, and the change may disrupt a splice site
+or a regulatory element. Answer: C.
+
+Q: An insertion of two nucleotides in a coding region is most likely to:
+A. Change one amino acid
+B. Shift the reading frame, altering all downstream residues and often introducing a
+   premature stop
+C. Have no effect because the code is redundant
+D. Only affect the promoter
+Reasoning: Insertions or deletions of lengths not divisible by three shift the reading
+frame from that point onward, so every downstream codon is misread and a premature stop
+usually appears within a few dozen codons. This is why indels are typically far more
+damaging than substitutions, and why three-nucleotide indels are comparatively benign.
+Answer: B.
+
+## The Central Dogma
+
+Information flows from DNA to RNA to protein. Replication copies DNA, transcription
+produces RNA from a DNA template, and translation builds protein from an mRNA
+sequence. Reverse transcription, from RNA back to DNA, is the well-known exception used
+by retroviruses and by retrotransposons, and it is the basis of cDNA synthesis, RNA-seq
+library preparation, and the reverse-transcriptase step in RT-PCR diagnostics. What the
+dogma actually asserts is narrower than it is often stated: information does not flow
+back out of protein into nucleic acid sequence.
+
+Replication is semiconservative — each daughter duplex has one parental and one new
+strand — and it is remarkably accurate. DNA polymerase makes roughly one error per
+100,000 bases, its 3' to 5' proofreading exonuclease improves that to one in ten
+million, and mismatch repair brings the final rate to about one error per billion bases
+per division. The directionality constraint forces the leading strand to be synthesized
+continuously toward the fork while the lagging strand is built backward in Okazaki
+fragments that are later joined by ligase. Because polymerases cannot initiate de novo,
+primase lays down RNA primers, and because the terminal primer on a linear chromosome
+leaves a gap, ends shorten each division — the end-replication problem, solved in germ
+line and stem cells by telomerase and unsolved in somatic cells, which is one component
+of cellular senescence.
+
+Transcription copies one strand into RNA. RNA polymerase binds a promoter, unwinds the
+duplex, and synthesizes 5' to 3' using the template strand, so the resulting RNA
+matches the coding strand with U for T. In eukaryotes the primary transcript is
+extensively processed: a 7-methylguanosine cap is added at the 5' end for stability and
+ribosome recruitment, a poly-A tail at the 3' end for stability and export, and introns
+are excised by the spliceosome. Alternative splicing lets one gene produce many protein
+isoforms, which is the main reason humans manage vast proteomic complexity with only
+about 20,000 genes — a number that was a genuine surprise when the genome was
+sequenced, having been widely expected to be closer to 100,000.
+
+Translation reads the mRNA in triplets at the ribosome. Transfer RNAs bearing
+anticodons deliver the matching amino acids, and peptide bonds form between them,
+catalyzed by ribosomal RNA rather than by protein. Initiation begins at a start codon,
+AUG encoding methionine, in an appropriate sequence context; elongation proceeds codon
+by codon; termination occurs at one of three stop codons, recognized by release factors
+rather than by tRNAs. The process is fast — roughly 20 amino acids per second in
+bacteria — and energetically expensive, consuming several ATP equivalents per residue,
+which is why translation is so heavily regulated.
+
+Central dogma summary:
+  replication      DNA -> DNA;   semiconservative, ~1e-9 error rate after repair
+  transcription    DNA -> RNA;   RNA polymerase, promoter-driven, 5'->3'
+  RNA processing   capping, polyadenylation, splicing (eukaryotes)
+  translation      RNA -> protein; ribosome, tRNA adaptors, 5'->3' along mRNA
+  reverse transcr. RNA -> DNA;   retroviruses, retrotransposons, cDNA synthesis
+  start codon      AUG (methionine)
+  stop codons      UAA, UAG, UGA
+
+## Gene Regulation
+
+Every cell in an organism carries the same genome, so differentiation is a matter of
+which genes are expressed rather than which are present. Regulation occurs at every
+step from chromatin accessibility to protein degradation, and the transcriptional layer
+is the most studied because it is the most economical — not making a transcript is
+cheaper than making and then degrading it.
+
+In bacteria the operon is the canonical unit: functionally related genes transcribed
+together from one promoter under shared control. The lac operon is the textbook
+example and remains instructive because it combines both logics. A repressor blocks
+transcription in the absence of lactose (negative control, inducible), while catabolite
+activator protein bound to cyclic AMP is required for strong transcription and is
+present only when glucose is scarce (positive control). The result is a logical AND:
+the operon expresses substantially only when lactose is present and glucose is absent,
+which is exactly the condition under which metabolizing lactose is worthwhile.
+
+Eukaryotic regulation adds chromatin as a layer bacteria lack. DNA is wrapped around
+histone octamers into nucleosomes and packed into higher-order structure, and
+accessibility determines whether transcription factors can bind at all. Histone tails
+carry covalent modifications — acetylation generally loosens chromatin and associates
+with active transcription, while specific methylation marks can indicate either
+activation or repression depending on the residue — and DNA itself can be methylated at
+CpG dinucleotides, typically silencing the associated promoter. These marks are
+heritable through cell division without changing the sequence, which is the molecular
+substance of epigenetics.
+
+Regulatory mechanisms by level:
+  chromatin        nucleosome positioning, histone modification, DNA methylation
+  transcriptional  promoters, enhancers (which can act over great distances via
+                   looping), silencers, insulators, transcription factor binding
+  post-transcript. alternative splicing, RNA editing, nuclear export control
+  RNA stability    microRNAs and siRNAs targeting transcripts for degradation or
+                   translational repression; 3' UTR elements
+  translational    initiation factor availability, upstream open reading frames,
+                   ribosome stalling
+  post-translat.   phosphorylation, ubiquitination and proteasomal degradation,
+                   glycosylation, proteolytic activation
+
+Enhancers acting at a distance is the feature that most distinguishes eukaryotic
+regulation and the one with the greatest clinical relevance. An enhancer may sit
+hundreds of kilobases from the gene it controls, contacting the promoter through a
+chromatin loop, and topologically associating domains constrain which enhancers can
+reach which promoters. Disrupting a domain boundary can therefore cause a gene to fall
+under the control of an enhancer it should never see, producing disease without any
+alteration to the gene's own sequence — a mechanism that explains a growing fraction of
+the noncoding variants implicated by genome-wide association studies.
+
+Gene regulatory networks built from these components implement genuine computation.
+Feedback loops produce switches and oscillators; a positive feedback loop with
+cooperative binding gives bistability, so a transient signal produces a permanent
+change of state, which is how cell fate decisions are made irreversible. Negative
+feedback with delay gives oscillation, which is the architecture of circadian clocks
+and of the segmentation clock in developing embryos. Feed-forward loops filter
+transient signals, responding only to inputs sustained beyond a threshold duration.
+These motifs recur across organisms because they solve recurring problems, and they are
+the direct inspiration for synthetic biology's engineered circuits.
+
+## Inheritance and Population Genetics
+
+Mendelian inheritance follows from meiosis. Alleles segregate because homologous
+chromosomes separate in the first division, and genes on different chromosomes assort
+independently because those separations are independent. Genes on the same chromosome
+do not assort independently — they are linked, and the frequency with which they
+recombine is proportional to the distance between them, which is what made genetic
+mapping possible long before sequencing existed.
+
+Dominance describes the phenotype of the heterozygote, not the frequency or importance
+of an allele, and this is the most persistent misconception in the subject. A dominant
+allele is not more common, not stronger, and not favoured by selection; it simply means
+one copy suffices to produce the phenotype. Incomplete dominance yields an intermediate
+phenotype, codominance expresses both alleles fully as in the AB blood group, and many
+traits are polygenic, with continuous variation arising from many loci of small effect
+plus environment — which is why most traits of interest do not show clean Mendelian
+ratios at all.
+
+Population genetics quantifies how allele frequencies change. Hardy-Weinberg
+equilibrium is the null model: in an infinite, randomly mating population with no
+selection, mutation, or migration, allele frequencies p and q remain constant and
+genotype frequencies settle at p^2, 2pq, and q^2 after a single generation. Its value is
+as a baseline — a locus deviating from Hardy-Weinberg proportions signals that
+something is happening, whether selection, population structure, assortative mating, or,
+most often in practice, a genotyping error. Deviation testing is a standard quality
+control step in every association study for exactly this reason.
+
+Forces changing allele frequencies:
+  natural selection   non-random differential reproduction; the only force that
+                      systematically builds adaptation
+  genetic drift       random sampling; magnitude scales as 1/(2N), so it dominates
+                      in small populations and is negligible in large ones
+  gene flow           migration; homogenizes populations, opposes divergence
+  mutation            the ultimate source of variation; rate per site per generation
+                      is small (~1e-8 in humans) but genome-wide yields ~50-100 new
+                      variants per individual
+  non-random mating   changes genotype frequencies without changing allele
+                      frequencies; inbreeding raises homozygosity
+  Hardy-Weinberg      p^2 + 2pq + q^2 = 1; the no-evolution null
+
+Effective population size, not census size, governs drift, and it is typically far
+smaller — reduced by unequal sex ratios, variance in reproductive success, and
+historical bottlenecks. This is why conservation genetics worries about populations
+that look numerically healthy, and why human genetic diversity is lower than the
+current population would suggest: the species passed through bottlenecks whose signature
+persists in linkage disequilibrium patterns and in the excess of rare variants that
+recent explosive growth has produced.
+
+Q: A recessive disease affects 1 in 10,000 people in a population at Hardy-Weinberg
+equilibrium. What fraction of the population are carriers?
+A. 1 in 100   B. 1 in 50   C. 1 in 10,000   D. 1 in 200
+Reasoning: Affected individuals are q^2 = 1/10,000, so q = 1/100. Carrier frequency is
+2pq = 2 * 0.99 * 0.01 ≈ 0.0198, about 1 in 50. The general lesson is that carriers vastly
+outnumber affected individuals for rare recessives — roughly 2/q times as many — which
+is why carrier screening detects far more than disease incidence suggests. Answer: B.
+
+Q: Genetic drift has the largest effect in:
+A. Large populations with strong selection
+B. Small populations, regardless of selection
+C. Populations with high migration
+D. Populations at Hardy-Weinberg equilibrium
+Reasoning: Drift is sampling error in allele transmission and its magnitude scales as
+1/(2N_e). In small populations it can fix or eliminate alleles regardless of their
+fitness effects, overwhelming weak selection; in large populations it is negligible.
+The relevant comparison is between the selection coefficient s and 1/(2N_e): when s is
+smaller, the allele behaves as effectively neutral. Answer: B.
+
+## Sequencing, Bioinformatics, and Genome Editing
+
+Sanger sequencing, using chain-terminating dideoxynucleotides, produces reads up to
+about 1,000 bases at very high per-base accuracy and remains the standard for verifying
+a single construct. Next-generation sequencing changed the economics entirely by
+massively parallelizing short reads: Illumina sequencing-by-synthesis produces hundreds
+of millions of reads of 100-300 bases with error rates near 0.1%, at a cost per base
+that has fallen faster than Moore's law for two decades. Long-read platforms — PacBio's
+single-molecule real-time sequencing and Oxford Nanopore's measurement of ionic current
+as DNA passes through a pore — produce reads of tens to hundreds of kilobases at higher
+error rates, and their length is what resolves repetitive regions, structural variants,
+and haplotype phasing that short reads cannot.
+
+Coverage depth is the parameter governing what an experiment can detect, and the
+requirement varies enormously by application. Germline variant calling in a diploid
+genome is reliable at around 30x, since a heterozygous site should appear in about half
+the reads and 30x gives adequate statistical separation from sequencing error. Somatic
+variant calling in a tumour with low purity and subclonal populations may need 500x to
+1000x, because the variant allele fraction can be a few percent. RNA-seq for
+differential expression is measured in reads per sample rather than coverage, with
+20-30 million reads typical, and the binding constraint is usually the number of
+biological replicates rather than depth — three replicates at 20 million reads is far
+more informative than one at 60 million, a tradeoff that is routinely gotten wrong.
+
+Bioinformatics workflow and formats:
+  FASTQ         raw reads plus per-base Phred quality scores; Q30 = 1 error in 1000
+  quality control  adapter trimming, quality filtering, contamination screening
+  alignment     BWA-MEM or minimap2 to a reference; output is SAM/BAM/CRAM
+  de novo assembly  when no reference exists; long reads dramatically improve contiguity
+  variant calling  GATK, DeepVariant, bcftools; output is VCF
+  annotation    predict functional consequence of each variant
+  RNA-seq       pseudo-alignment (salmon, kallisto) or spliced alignment (STAR),
+                then differential expression (DESeq2, edgeR) with multiple-testing
+                correction across ~20,000 genes
+  key statistic  Benjamini-Hochberg FDR, not Bonferroni; genomics expects many
+                true positives
+
+CRISPR-Cas9 turned genome editing from a specialist undertaking into a routine
+technique. A guide RNA of about 20 nucleotides directs the Cas9 nuclease to a matching
+genomic sequence adjacent to a protospacer adjacent motif, where it creates a
+double-strand break. The cell then repairs the break by one of two pathways, and which
+one operates determines the outcome. Non-homologous end joining is error-prone and
+introduces small insertions or deletions, which is how genes are knocked out.
+Homology-directed repair uses a supplied template to introduce a precise edit but
+operates efficiently only in dividing cells and is generally much less frequent.
+
+The refinements address the limitations of that basic scheme. Base editors fuse a
+catalytically impaired Cas9 to a deaminase, converting one base to another without
+creating a double-strand break, which avoids the indel-generating repair pathway
+entirely. Prime editors use a reverse transcriptase and an extended guide carrying the
+desired sequence, enabling small insertions, deletions, and all base conversions with
+greater precision. Off-target editing at sites with partial guide complementarity
+remains the central safety concern, addressed by careful guide design, high-fidelity
+Cas9 variants, and empirical genome-wide off-target assays rather than computational
+prediction alone.
+
+[user] I'm designing guides to knock out a gene in a human cell line. What do I need to
+watch for?
+[assistant] tool_call crispr.guide_design({"target_gene": "example", "organism":
+"human", "n_guides": 4, "cas": "SpCas9"})
+[tool] {"guides": 4, "gc_range": [0.45, 0.65], "offtarget_sites_mm3": [2, 0, 7, 1],
+"exon_targeted": [2, 2, 5, 3], "total_exons": 9, "predicted_efficiency":
+[0.71, 0.68, 0.74, 0.55], "notes": ["guide_3_high_offtarget", "guide_4_late_exon"]}
+[assistant] Use guides 1 and 2. Here is what the numbers are telling you.
+
+Guide 3 has the best predicted on-target efficiency but seven sites with three or fewer
+mismatches. Predicted efficiency is a weak signal and off-target count is a strong one,
+so that trade is not worth taking — drop it.
+
+Guide 4 targets exon 5 of 9, which is late enough to be a real risk. A frameshift there
+can still permit a truncated protein with residual function, and it also sits far
+enough into the transcript that nonsense-mediated decay is less reliable. Target early
+exons, ideally within the first third of the coding sequence and in an exon common to
+every annotated isoform — otherwise you knock out some isoforms and not others.
+
+Three things beyond guide selection that determine whether the experiment is
+interpretable. First, use at least two independent guides targeting different sites; a
+phenotype reproduced by both is evidence about the gene, while a phenotype from one
+guide is evidence about that guide. Second, validate at the protein level by western
+blot, not only by sequencing the edit — an indel confirmed by sequencing can still
+yield a functional protein through exon skipping or an alternative start codon, and
+this is a common and embarrassing failure. Third, include a non-targeting control guide
+so you can separate the gene's effect from the general stress of Cas9 activity and
+double-strand break repair.
+
+If the gene is essential you will not recover knockout clones at all, and the absence of
+clones is itself a result. Plan for an inducible or conditional system if that is a
+realistic possibility.
+
+## Evolution
+
+Evolution is change in allele frequencies over generations, and natural selection is
+the only mechanism among the several that produces adaptation. The argument requires
+just three conditions: heritable variation exists, that variation affects reproductive
+success, and more offspring are produced than survive. Given those, differential
+reproduction follows necessarily, and it is this deductive character that makes
+selection so robust a principle.
+
+Selection takes several forms distinguished by their effect on the trait distribution.
+Directional selection favours one extreme and shifts the mean. Stabilizing selection
+favours intermediates and reduces variance, which is why human birth weight clusters
+tightly — too small and survival falls, too large and delivery becomes dangerous.
+Disruptive selection favours both extremes against the middle and can initiate
+divergence. Balancing selection actively maintains multiple alleles, through
+heterozygote advantage as in the sickle-cell allele's protection against malaria,
+through frequency-dependent advantage where rarity itself is beneficial, or through
+variation in selection pressure across environments.
+
+Molecular evolution provides the quantitative test. Under neutral theory most
+substitutions are selectively neutral, fixed by drift rather than selection, and this
+gives a null expectation against which selection can be detected. The ratio of
+nonsynonymous to synonymous substitution rates, dN/dS, is the standard measure: a ratio
+near one indicates neutrality, below one indicates purifying selection removing
+deleterious changes (the overwhelmingly common case for functional genes), and above
+one indicates positive selection driving change — found in immune genes, in
+reproductive proteins, and in host-pathogen arms races.
+
+Evidence for common descent, from independent lines:
+  fossil record        transitional forms in the predicted stratigraphic order
+  comparative anatomy  homologous structures with shared developmental origin;
+                       vestigial organs; suboptimal designs explicable only by history
+  biogeography         species distributions tracking geological history rather
+                       than present-day habitat suitability
+  molecular            phylogenies from independent gene families converging on the
+                       same tree; the near-universal genetic code
+  pseudogenes          shared broken copies of the same gene, with the same lesions,
+                       in related lineages — the strongest single line of evidence
+  observed evolution   antibiotic and pesticide resistance, Lenski's long-term E.
+                       coli lines, seasonal influenza drift
+
+Common misconceptions are worth stating explicitly because they persist. Evolution is
+not goal-directed; there is no progress toward complexity, and parasites frequently
+evolve toward radical simplification. Individuals do not evolve — populations do.
+Traits do not arise because they are needed; variation arises without regard to utility
+and selection filters afterward. Fitness is reproductive success in a specific
+environment, not strength or longevity, and a trait that reduces individual survival can
+spread if it raises reproductive output. And "just a theory" misreads the word: in
+science a theory is an explanatory framework supported by evidence, not a guess, and
+evolution is simultaneously an observed fact (allele frequencies demonstrably change)
+and a theory explaining it.

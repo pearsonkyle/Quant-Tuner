@@ -1,0 +1,287 @@
+================================================================================
+AREA: Mathematics
+SUBJECT: Category Theory
+Subtopics: categories and morphisms, functors and natural transformations, universal
+properties, limits and colimits, adjunctions, monads, applications in computing.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Categories and Morphisms
+
+Category theory studies mathematical structure by attending to the relationships between objects
+rather than to the objects' internal composition. A category consists of objects, morphisms
+between them, a composition operation that is associative, and an identity morphism on each
+object. Nothing else is assumed — the objects need not be sets and the morphisms need not be
+functions.
+
+That abstraction is the point rather than a limitation. Because the axioms mention only
+composition and identity, any theorem proved from them applies to every category, and the range of
+things that form categories is enormous: sets with functions, groups with homomorphisms, vector
+spaces with linear maps, topological spaces with continuous maps, partially ordered sets with
+order-preserving maps, types with programs, and logical propositions with proofs. A single argument
+therefore establishes results across all of them at once.
+
+The methodological commitment is that objects should be characterized by how they relate to other
+objects rather than by what they contain. A set's elements can be recovered from the morphisms
+into it from a one-element set, so nothing is lost, and the reformulation generalizes to categories
+whose objects have no elements at all. This is why category theory can describe structures that
+set-theoretic language cannot naturally reach.
+
+Categories and morphisms:
+  category             objects, morphisms, associative composition, identities
+  the objects are opaque  nothing is assumed about their internal structure
+  morphism             an arrow between objects; not necessarily a function
+  composition          associative, with identities acting as units
+  isomorphism          a morphism with a two-sided inverse; the categorical notion
+                       of sameness
+  monomorphism         left-cancellable; generalizes injective
+  epimorphism          right-cancellable; generalizes surjective, and in some
+                       categories an epimorphism need not be surjective
+  the examples         sets, groups, vector spaces, topological spaces, posets,
+                       types and programs, propositions and proofs
+  opposite category    reverse every arrow; every theorem has a dual obtained by
+                       reversing, which halves the work
+  duality              the systematic reversal; product and coproduct, limit and
+                       colimit, initial and terminal are dual pairs
+  small and large      whether the objects form a set; the size distinction that
+                       avoids the paradoxes
+  diagram              a collection of objects and morphisms; commuting means
+                       every path between two objects composes to the same
+                       morphism
+
+Duality deserves emphasis because it is the source of much of the subject's economy. Reversing
+every arrow in a category produces another category, and any theorem proved in general holds in the
+opposite category as well — which, translated back, gives a second theorem about the original.
+Every construction therefore comes with a dual, obtained mechanically, and proving one proves both.
+Products and coproducts, limits and colimits, and initial and terminal objects are dual pairs
+discovered this way rather than independently.
+
+Q: In a category, an object is characterized by:
+A. Its elements
+B. Its relationships to other objects via morphisms; the objects themselves are opaque and need
+   not have elements at all
+C. Its cardinality
+D. Its internal structure
+Reasoning: The axioms mention only objects, morphisms, composition, and identities, so nothing
+about an object's internals is available. Characterizing objects by their morphisms is not a
+restriction but the method, and it is what allows the same definitions to apply to categories whose
+objects have no elements. Answer: B.
+
+## Functors and Natural Transformations
+
+A functor maps one category to another, assigning objects to objects and morphisms to morphisms
+while preserving composition and identities. This is the correct notion of a structure-preserving
+map between categories, and it formalizes the many constructions in mathematics that take one kind
+of object to another in a way compatible with the maps between them.
+
+The examples are ubiquitous once recognized. Taking the underlying set of a group is a functor from
+groups to sets. Taking the free group on a set is a functor the other way. The fundamental group
+is a functor from pointed topological spaces to groups, and its functoriality is exactly what makes
+it useful — a continuous map between spaces induces a homomorphism between their fundamental
+groups, so a topological fact yields an algebraic one.
+
+A natural transformation maps one functor to another, providing a morphism at each object such
+that a compatibility square commutes. The naturality condition is the substance: it requires the
+transformation to be defined uniformly rather than by arbitrary choices at each object, and it is
+what distinguishes a canonical construction from an ad hoc one.
+
+The canonical illustration is the relationship between a vector space and its duals. A finite
+dimensional vector space is isomorphic to its dual, and the isomorphism requires choosing a basis
+and is therefore not natural. It is naturally isomorphic to its double dual, with no choice
+required, and the naturality condition is precisely what captures the difference between these two
+situations — a distinction that mathematicians recognized informally long before it could be
+stated.
+
+Functors and naturality:
+  functor              maps objects and morphisms, preserving composition and
+                       identities
+  covariant            preserves the direction of arrows
+  contravariant        reverses it
+  forgetful functor    discards structure; groups to their underlying sets
+  free functor         adds structure freely; sets to free groups
+  faithful, full       injective or surjective on morphism sets
+  functoriality        a map between objects induces a map between the images; the
+                       property that makes invariants useful
+  natural transformation  a morphism between functors; a component at each object
+                       with commuting squares
+  naturality           the condition requiring uniformity rather than arbitrary
+                       per-object choices
+  natural isomorphism  canonical; no choices required
+  the double dual      naturally isomorphic; the single dual is isomorphic and not
+                       naturally so, which formalizes a distinction that predated
+                       the definition
+  functor category     functors as objects and natural transformations as
+                       morphisms
+  Yoneda lemma         an object is determined up to isomorphism by the morphisms
+                       into it from every other object; the subject's fundamental
+                       result
+
+The Yoneda lemma is the subject's central technical result and its content is worth stating
+plainly. It says that an object is completely determined by how everything maps into it — knowing
+the morphisms from every object to X, together with how they compose, determines X up to
+isomorphism. This justifies the entire methodological commitment: characterizing objects by their
+relationships loses nothing, because the relationships determine the object. It also converts many
+proofs into computations with morphisms rather than with the objects' internal structure.
+
+## Universal Properties, Limits, and Colimits
+
+A universal property characterizes an object by a property it satisfies uniquely, and it is
+category theory's principal definitional device. Rather than constructing an object and then
+proving its properties, one states the property that determines it and proves that any two objects
+satisfying it are isomorphic — so the construction becomes an existence proof rather than the
+definition.
+
+The product illustrates the pattern. The product of two objects is an object with projections to
+each, such that any object with maps to both factors uniquely through it. In sets this is the
+Cartesian product, in groups the direct product, in topological spaces the product topology, and
+in each case the universal property determines it up to isomorphism. The same definition therefore
+captures several constructions that were developed separately.
+
+Limits generalize this to arbitrary diagrams. A limit of a diagram is an object mapping to every
+object in it, compatibly, and universal among such objects. Products, pullbacks, equalizers, and
+terminal objects are all limits over particular diagram shapes. Colimits are the dual, obtained by
+reversing every arrow: coproducts, pushouts, coequalizers, and initial objects.
+
+Universal properties and limits:
+  universal property   characterizes an object by a unique factorization property
+  uniqueness           any two objects satisfying it are canonically isomorphic
+  the construction     becomes an existence proof rather than a definition
+  product              projections, with unique factorization; Cartesian product,
+                       direct product, product topology
+  coproduct            the dual; disjoint union, free product, direct sum
+  terminal object      a unique morphism into it from every object; a one-element
+                       set
+  initial object       a unique morphism out; the empty set
+  equalizer            where two morphisms agree
+  pullback             the fibre product; captures intersections and preimages
+  pushout              the dual; gluing along a common part
+  limit                the general construction over a diagram
+  colimit              its dual
+  completeness         a category having all limits of a given size
+  preservation         whether a functor takes limits to limits; right adjoints
+                       preserve limits and left adjoints preserve colimits
+
+The pullback deserves specific mention because it captures so many constructions. It is the limit
+of two morphisms into a common object, and depending on the category it specializes to the
+intersection of two subsets, the preimage of a subset under a function, the fibre product of two
+maps, the pattern of a type-safe database join, and the composition of two partial functions. That
+these are the same construction is not obvious from their individual definitions and is immediate
+from the universal property.
+
+## Adjunctions and Monads
+
+An adjunction is a relationship between two functors going in opposite directions, in which one is
+in a precise sense the best approximation to an inverse of the other. It is stated as a natural
+bijection between morphism sets: morphisms from the image of one functor to an object correspond
+to morphisms from that object to the image of the other.
+
+The free-forgetful pattern is the archetype. Constructing the free group on a set and forgetting a
+group's structure to its underlying set are adjoint, and the correspondence says that a
+homomorphism from a free group is determined by an arbitrary function on the generators. This
+formalizes what "free" means — free of any relations beyond those the axioms require — and the same
+pattern appears for free monoids, free vector spaces, free rings, and polynomial algebras.
+
+Adjunctions are ubiquitous once the pattern is recognized, and their properties are useful.
+Adjoints are unique up to isomorphism. Left adjoints preserve colimits and right adjoints preserve
+limits, which is a powerful tool for proving preservation results without computing anything.
+Existential and universal quantification are adjoint to substitution, which is how logic's
+quantifiers appear categorically. And a great many constructions across mathematics turn out to be
+adjunctions once examined.
+
+A monad is a functor with additional structure arising from an adjunction, and it packages the
+notion of a computational context. Formally it is an endofunctor with two natural transformations
+satisfying coherence conditions, and informally it is a way of wrapping values in a context
+together with rules for producing a wrapped value and for flattening nested wrapping.
+
+Adjunctions and monads:
+  adjunction           a natural bijection between morphism sets in opposite
+                       directions
+  left and right adjoint  the pair; the left is the freer construction
+  free-forgetful       the archetype; a homomorphism from a free object is
+                       determined by an arbitrary map on generators
+  unit and counit      the natural transformations characterizing the adjunction
+  uniqueness           adjoints are unique up to natural isomorphism
+  preservation         left adjoints preserve colimits, right adjoints preserve
+                       limits
+  quantifiers          existential and universal are left and right adjoint to
+                       substitution
+  Galois connection    an adjunction between posets; the order-theoretic case
+  monad                an endofunctor with unit and multiplication; arises from an
+                       adjunction
+  Kleisli category     the category of the monad's computations; where composition
+                       of context-carrying operations happens
+  the examples         optional values, lists, state, exceptions, continuations,
+                       and probability distributions are all monads
+  comonad              the dual; contexts from which a value can be extracted
+
+## Applications in Computing
+
+Category theory's applications in computing follow from a correspondence rather than an analogy.
+The Curry-Howard-Lambek correspondence identifies three things: propositions with types with
+objects, and proofs with programs with morphisms. A logical implication corresponds to a function
+type corresponds to an exponential object, and the correspondence is exact rather than suggestive.
+
+The practical consequence is that categorical constructions describe programming constructs
+precisely. A product type is a categorical product, a sum type a coproduct, a function type an
+exponential, and the unit and void types are terminal and initial objects. Programming languages
+with these constructions are modelling a category with the corresponding structure, and results
+about that structure apply.
+
+Functors in programming are structures that can be mapped over — a container, an optional value, a
+computation producing a result — with the mapping preserving identity and composition. The functor
+laws are not arbitrary conventions but the categorical axioms, and an implementation violating them
+will behave surprisingly under refactoring, because the compiler and the programmer both assume
+that mapping the identity does nothing and that mapping twice is the same as mapping the
+composition.
+
+Monads in programming sequence computations that carry a context. The context might be possible
+absence, possible failure with an error, a list of possibilities, mutable state threaded through, or
+input and output. In each case the monad supplies a way to lift a plain value into the context and
+a way to chain a context-producing function onto a context-carrying value, and the coherence
+conditions are what make the chaining associative so that the sequencing behaves predictably.
+
+Applications in computing:
+  Curry-Howard-Lambek  propositions, types, and objects; proofs, programs, and
+                       morphisms
+  product type         a categorical product; a record or tuple
+  sum type             a coproduct; a tagged union
+  function type        an exponential object
+  unit and void        terminal and initial objects
+  functor laws         mapping the identity does nothing; mapping twice equals
+                       mapping the composition
+  applicative          between functor and monad; permits combining independent
+                       contextual computations without sequencing them
+  monad                sequences context-carrying computations
+  monad examples       optional, error, list, state, reader, writer, continuation,
+                       parser
+  do-notation          syntactic sugar for monadic sequencing; makes the
+                       imperative-looking form of a pure functional computation
+                       readable
+  algebraic effects    an alternative to monad transformers for composing effects;
+                       avoids the composition difficulty monads have
+  lenses and optics    composable accessors for nested structure; categorical in
+                       origin and thoroughly practical
+  catamorphisms        structured recursion schemes; fold as the universal
+                       property of an inductive type
+  database theory      queries as functors; schema mappings as adjunctions
+  the general benefit  interfaces defined by laws rather than by convention, so
+                       that generic code can rely on them
+
+The value of law-governed interfaces deserves the closing emphasis because it is the practical
+payoff. An interface specified only by its method signatures permits implementations that satisfy
+the types and behave inconsistently, so generic code written against it must be defensive. An
+interface specified by laws — that mapping preserves composition, that sequencing is associative,
+that an empty element is a unit — permits generic code to rely on those properties and permits
+refactoring that is guaranteed to preserve behaviour. This is why the functor and monad laws are
+stated as requirements rather than as suggestions, and why an implementation violating them is a
+bug even when it type-checks.
+
+The broader assessment worth making is that category theory's value in computing is real and
+frequently overstated in both directions. It is not necessary for writing good software, and a
+great deal of excellent software has been written by people who have never encountered it. What it
+provides is a precise vocabulary for structures that recur — so that a pattern noticed in three
+places can be recognized as one thing with known properties rather than as three coincidences —
+and a set of laws that make generic abstractions reliable. The abstraction has a genuine learning
+cost, and whether it repays that cost depends on how much of the work involves building
+abstractions that others will rely on.

@@ -1,0 +1,277 @@
+================================================================================
+AREA: Humanities, Business, and Social Science
+SUBJECT: History
+Subtopics: historical method and sources, ancient civilizations, classical world,
+medieval and early modern, revolutions, industrialization, twentieth century.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Historical Method and Evidence
+
+History is an argument from evidence about the past, not a chronicle of it. The distinction
+matters because the evidence is always partial, always produced by someone with a purpose,
+and always survives selectively. Understanding what a source can and cannot support is the
+discipline's core skill, and it is what separates historical reasoning from repeating
+inherited claims.
+
+Primary sources originate from the period under study: documents, letters, artifacts,
+inscriptions, images, oral testimony. Secondary sources interpret them. The distinction is
+relational rather than absolute — a nineteenth-century history of Rome is a secondary source
+for Rome and a primary source for nineteenth-century historiography — and recognizing which
+role a text is playing in a given argument is a routine analytical step.
+
+Source criticism asks a standard set of questions of any document. Who produced it, when,
+and for what audience? What did the author know and how did they know it? What interest did
+they have in the account being received a particular way? What did the author take for
+granted that a modern reader would not? What is conspicuously absent? A chronicle written to
+justify a dynasty's legitimacy is not worthless — it is excellent evidence for what claims
+that dynasty found it useful to make — but reading it as a neutral narrative of events is a
+category error.
+
+Methodological concepts:
+  primary / secondary     origin in the period versus interpretation of it
+  source criticism        authorship, purpose, audience, knowledge, interest
+  corroboration           independent sources converging; the strongest evidence
+  argument from silence   weak; absence of evidence has many explanations
+  survivorship bias       what survives is not a random sample; durable materials,
+                          elite records, and winners' accounts are overrepresented
+  presentism              judging the past by present categories and values, or
+                          projecting modern concepts onto societies lacking them
+  historiography          the history of historical interpretation; how and why
+                          readings of an event have changed
+  periodization           the divisions are analytical conventions, not features
+                          of the past
+  counterfactual          disciplined use clarifies causal claims; undisciplined
+                          use is speculation
+  material evidence       archaeology, isotopes, genetics, dendrochronology,
+                          climate proxies; independent of textual bias
+
+Survivorship bias in the historical record is severe and shapes what can be known. Literacy
+was rare in most societies, so written sources overwhelmingly reflect elites. Durable
+materials survive and organic ones do not, so stone and ceramic civilizations appear more
+prominent than those working in wood and textile. Institutions preserve their own records,
+so states and churches are far better documented than households. And victors' accounts
+survive conquest more often than the defeated's. Each of these tilts the record in a
+knowable direction, which is why archaeology, environmental data, and quantitative methods
+have been so valuable — they sample differently and can contradict the textual record.
+
+Q: A medieval chronicle written by a monastery describes a local lord as pious and generous.
+The most defensible use of this source is as evidence for:
+A. The lord's actual character
+B. The monastery's relationship with the lord and the qualities its author found worth
+   asserting
+C. General medieval attitudes toward piety
+D. The chronology of the lord's donations only
+Reasoning: The monastery likely received donations from the lord and had a direct interest in
+the portrayal. The source is strong evidence about the relationship and about what the author
+expected an audience to find persuasive, and weak evidence about character. Answer: B.
+
+## Ancient Civilizations
+
+The Neolithic transition to agriculture, beginning around 10,000 BCE independently in
+several regions, is the most consequential change in human history and was not obviously an
+improvement for those who made it. Skeletal evidence shows early farmers were shorter, more
+disease-ridden, and worked longer hours than the foragers they replaced. Agriculture
+supported far higher population densities, and that demographic advantage rather than any
+quality-of-life benefit is what made it spread irreversibly. It also produced storable
+surplus, which permitted specialization, hierarchy, and the accumulation of wealth — and
+therefore inequality, taxation, and the state.
+
+Mesopotamia developed the earliest cities, writing, and codified law. Cuneiform began around
+3200 BCE as an accounting system for temple redistribution, and its origin in bookkeeping
+rather than literature is characteristic: writing appears repeatedly as an administrative
+technology first and acquires literary uses later. The Code of Hammurabi, around 1750 BCE,
+is not the first law code but is the best preserved, and its explicitly graded penalties by
+social class are direct evidence for how stratification was formalized.
+
+Egypt's unusual continuity — recognizably the same civilization for three thousand years —
+owed much to geography. The Nile's predictable annual flood supported reliable agriculture,
+the deserts on either side deterred invasion, and the river itself provided transport in both
+directions, since the current flows north and the prevailing wind blows south. That
+combination of security and connectivity is rare and helps explain both Egypt's stability and
+its comparative conservatism.
+
+Ancient landmarks:
+  ~10,000 BCE   agriculture begins independently in several regions
+  ~3500-3000    Sumerian cities; cuneiform; the wheel; bronze
+  ~3100         unification of Upper and Lower Egypt
+  ~2600-2500    Old Kingdom pyramids; Indus Valley cities with planned drainage
+  ~1750         Code of Hammurabi
+  ~1600-1046    Shang dynasty; oracle bone script, the ancestor of Chinese writing
+  ~1200         Bronze Age collapse across the eastern Mediterranean
+  ~1200-1000    alphabetic writing spreads via Phoenician traders
+  ~800-500      Axial Age; foundational religious and philosophical traditions
+                emerge across Eurasia
+  ~550-330      Achaemenid Persia; the largest empire to that point, governed
+                through satrapies and a road system
+
+The Bronze Age collapse around 1200 BCE is instructive as a case of systemic failure.
+Within a few decades, the Mycenaean, Hittite, and several Levantine states collapsed, trade
+networks disintegrated, and literacy was lost in some regions for centuries. No single cause
+is sufficient: drought is documented in climate proxies, the Sea Peoples appear in Egyptian
+records, internal revolt and systems collapse are inferred from destruction layers.
+The current consensus favours a cascade in which a tightly interconnected system dependent
+on long-distance tin supply for bronze proved fragile to compound shocks — which is why the
+episode is invoked so frequently in discussions of complex system resilience.
+
+## The Classical World and Its Successors
+
+Classical Greece produced political and intellectual innovations disproportionate to its
+size and population. Athenian democracy was direct rather than representative, with
+citizens voting personally and many offices filled by lot rather than election — a
+mechanism whose logic was that election favours the wealthy and well-known while sortition
+distributes participation. It also excluded women, resident foreigners, and the enslaved,
+who together were the substantial majority of the population. Both facts are true
+simultaneously and neither cancels the other.
+
+Rome's trajectory from city-state to Mediterranean empire is the standard case study in
+institutional adaptation and its limits. The Republic's institutions were designed for a
+city and proved unable to govern an empire: the wealth flowing from conquest concentrated
+land ownership, displaced smallholders who had been the army's recruiting base, and produced
+generals whose armies were loyal to them personally rather than to the state. The civil wars
+of the first century BCE followed from that structural mismatch, and the Principate that
+Augustus established was a monarchy preserving republican forms — which is why he took the
+title princeps, first citizen, rather than king.
+
+Rome's western collapse in the fifth century CE is better understood as a transformation
+than as a sudden fall. The eastern empire continued for another millennium. The western
+provinces saw a gradual replacement of imperial administration by Germanic successor
+kingdoms whose rulers often sought Roman legitimacy and titles, a decline in long-distance
+trade and urbanism visible archaeologically, and continuity of local elites and of the church
+as an institutional survivor. Edward Gibbon's framing of decline and fall has shaped popular
+understanding for two centuries and reflects eighteenth-century preoccupations at least as
+much as fifth-century evidence.
+
+Classical and post-classical developments:
+  ~508 BCE      Cleisthenes' reforms establish Athenian democratic institutions
+  ~490-479      Greco-Persian wars
+  ~431-404      Peloponnesian War; Thucydides' analytical history
+  ~336-323      Alexander's conquests; the Hellenistic diffusion of Greek culture
+  ~264-146      Punic Wars; Rome becomes the Mediterranean power
+  ~27 BCE       Augustus establishes the Principate
+  ~180 CE       end of the Pax Romana
+  ~313          Edict of Milan legalizes Christianity
+  ~476          deposition of the last western emperor
+  ~527-565      Justinian; legal codification and temporary reconquest
+  ~622          Hijra; beginning of the Islamic calendar
+  ~750-1258     Abbasid Caliphate; the translation movement preserves and extends
+                Greek science, and Islamic scholars make original contributions in
+                algebra, optics, medicine, and astronomy
+
+The intellectual continuity through the Islamic world deserves emphasis because it is
+routinely omitted from narratives that jump from Athens to the Renaissance. Greek scientific
+and philosophical works were systematically translated into Arabic in Baghdad from the
+eighth century, studied, corrected, and substantially extended. Algebra takes its name from
+al-Khwarizmi's treatise; the word algorithm derives from his name. Ibn al-Haytham's work on
+optics established experimental method in a recognizably modern form. Much of this
+literature reached Latin Europe through translation centres in Spain and Sicily in the
+twelfth century, which is a precondition for the later European developments rather than a
+footnote to them.
+
+## Medieval, Early Modern, and Global Connection
+
+The medieval period in Europe was neither uniformly dark nor static. Agricultural
+innovations — the heavy plough, three-field rotation, horse collar, water and wind mills —
+substantially raised yields and supported population growth and urbanization from the tenth
+century. Universities emerged in the twelfth. Gothic architecture solved structural problems
+that Roman engineering had not. The characterization as an interval of stagnation between
+classical and Renaissance achievement is a Renaissance polemic that historians abandoned
+long ago and popular usage retains.
+
+The Black Death, arriving in Europe in 1347 and killing perhaps a third to half the
+population within five years, is the clearest case in premodern history of a demographic
+shock producing structural change. Labour scarcity strengthened the bargaining position of
+surviving peasants and wage workers, accelerating the decline of serfdom in western Europe
+where lords could not enforce old obligations against workers who could simply leave. In
+eastern Europe the same shock produced the opposite outcome — a second serfdom — as lords
+successfully tightened control. The same cause with opposite effects, mediated by differing
+institutional and political conditions, is a standard illustration of why monocausal
+explanations fail.
+
+The European voyages beginning in the late fifteenth century created the first genuinely
+global exchange network, with consequences that dwarf the political narratives usually
+attached to them. The Columbian Exchange transferred crops, animals, and diseases between
+hemispheres. Old World diseases against which American populations had no immunity caused
+mortality estimated at seventy to ninety percent in the century after contact — a
+demographic catastrophe without parallel — while New World crops, particularly potatoes and
+maize, substantially raised the carrying capacity of Eurasia and Africa and underwrote
+population growth there.
+
+Early modern developments:
+  1347-1351     Black Death; ~30-50% mortality in Europe
+  1439          movable type printing in Europe; earlier in Korea and China
+  1453          Ottoman capture of Constantinople
+  1492          Columbus; beginning of sustained transatlantic contact
+  1517          Luther's theses; Reformation, enabled by print
+  1543          Copernicus; Vesalius; conventional start of the Scientific
+                Revolution
+  1600s         chartered companies; the joint-stock corporation as an
+                institutional innovation
+  1648          Peace of Westphalia; often overstated as the origin of state
+                sovereignty
+  1600-1800     Atlantic slave trade at its height; ~12 million people forcibly
+                transported
+  1687          Newton's Principia
+  1750-1850     Industrial Revolution begins in Britain
+
+Printing deserves particular attention as a case of a technology's effects exceeding
+anyone's intent. Movable type reduced the cost of reproducing text by orders of magnitude,
+and the immediate consequences were not primarily scientific. Vernacular Bibles and
+polemical pamphlets circulated faster than authorities could suppress them, which is why the
+Reformation succeeded where earlier reform movements had been contained. Standardized
+editions made textual scholarship cumulative, since scholars could finally reference the same
+page of the same edition. And the fixing of vernacular languages in print contributed to the
+consolidation of national linguistic identities. None of this was foreseen by the printers,
+who were producing indulgences and Latin devotional texts.
+
+## Industrialization and the Modern World
+
+The Industrial Revolution is the second great discontinuity in human history after
+agriculture, and explaining why it occurred where and when it did remains an active
+argument. Britain's specific advantages included accessible coal near water transport, high
+wages relative to energy costs which made labour-saving machinery profitable, an
+institutional environment protecting property and permitting joint-stock enterprise, colonial
+markets and raw materials, and an existing textile industry ready to mechanize. Which of
+these were necessary and which incidental is genuinely contested, and the debate is
+substantive because the answer bears on development policy today.
+
+The consequences reordered society. Sustained per-capita economic growth became normal for
+the first time, replacing the Malthusian pattern in which productivity gains were absorbed by
+population growth. Urbanization accelerated sharply, with the attendant public health crises
+that eventually drove sanitation infrastructure. Work moved from household and workshop to
+factory, imposing clock discipline and separating home from workplace. Living standards for
+workers appear to have stagnated or declined for the first several decades before rising
+substantially — the standard of living debate, which turns on which measures are used and
+which decades are compared.
+
+The twentieth century's defining events resist summary, and a few structural observations
+are more useful than a chronology. The First World War demonstrated that industrial capacity
+applied to warfare produced casualties on a scale no prior framework anticipated, and its
+settlement created conditions contributing to the second. The interwar economic collapse
+discredited existing policy orthodoxy and enabled political movements that had been marginal.
+Decolonization after 1945 more than tripled the number of sovereign states within three
+decades, often within borders drawn by colonial administrations for their own convenience.
+
+Modern landmarks:
+  1789          French Revolution
+  1804          Haitian independence; the only successful large slave revolt
+  1861-1865     US Civil War
+  1914-1918     First World War; ~17 million dead
+  1917          Russian Revolution
+  1929-1939     Great Depression
+  1939-1945     Second World War; ~70-85 million dead; the Holocaust
+  1945          United Nations; nuclear weapons used in war
+  1947-1991     Cold War; decolonization
+  1948          Universal Declaration of Human Rights
+  1989-1991     collapse of communist governments in Europe; end of the USSR
+  1990s-        globalization, internet, accelerating climate change
+
+The historiographical caution worth stating last is that the shape of a narrative determines
+its conclusions. A history organized around the nation-state produces different questions
+than one organized around trade networks, environmental change, disease, or technology.
+World-systems approaches, environmental history, and global history each reframe the same
+evidence and reach different emphases — not because the facts differ but because the unit of
+analysis does. When two accounts of the same period disagree, the disagreement is more often
+about framing and significance than about what happened, and identifying which kind of
+disagreement is in play is the first step to evaluating either.

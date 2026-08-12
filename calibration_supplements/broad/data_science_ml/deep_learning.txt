@@ -1,0 +1,455 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: Deep Learning
+Subtopics: backpropagation, architectures, optimization, regularization,
+normalization, initialization, training dynamics, quantization and efficiency.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Backpropagation and Automatic Differentiation
+
+Backpropagation is the chain rule applied in reverse topological order over a
+computation graph. The forward pass computes outputs and caches intermediate
+activations; the backward pass propagates the gradient of the scalar loss with
+respect to each intermediate, multiplying by local Jacobians as it goes. The
+asymmetry that makes it practical is that reverse-mode differentiation costs roughly
+one forward pass per *output*, while forward-mode costs one per *input*. Neural
+networks have millions of inputs (parameters) and one output (the loss), so reverse
+mode is cheaper by a factor of the parameter count. This is the entire reason deep
+learning is computationally feasible.
+
+The memory cost is the mirror image of the compute saving. Every activation needed by
+a backward operation must be retained from the forward pass, so activation memory
+scales with depth times batch size times width. This, not parameter memory, is usually
+what makes training OOM. Gradient checkpointing trades compute for memory by
+discarding activations and recomputing them during the backward pass, typically
+storing only layer boundaries: memory drops from O(n) to O(sqrt(n)) in the number of
+layers at the cost of roughly one extra forward pass, about 30% more compute for a
+large multiple reduction in memory.
+
+Vanishing and exploding gradients follow from the product structure. The gradient at
+layer l is a product of Jacobians from the loss back to l; if their typical singular
+values are below one, the product decays geometrically and early layers stop learning,
+and if above one, it explodes into numerical overflow. Sigmoid and tanh saturate,
+with derivatives bounded by 0.25 and 1 respectively, which is why deep sigmoid
+networks were nearly untrainable before the modern toolkit. Three fixes each attack a
+different part of the product: ReLU-family activations keep the derivative at exactly
+one on the active side, residual connections add an identity path so the Jacobian is
+I + something rather than something, and normalization layers keep the scale of
+activations stable across depth.
+
+Gradient identities worth having at hand:
+  y = Wx + b            dL/dW = (dL/dy) x^T,  dL/dx = W^T (dL/dy),  dL/db = dL/dy
+  y = relu(x)           dL/dx = dL/dy * [x > 0]
+  y = sigmoid(x)        dL/dx = dL/dy * y(1-y)
+  y = tanh(x)           dL/dx = dL/dy * (1 - y^2)
+  y = softmax(x)        dL/dx = y * (dL/dy - sum(dL/dy * y))
+  softmax + cross-ent   dL/dlogits = p - onehot(target)      (the fused form)
+  y = x1 + x2           gradient copies to both branches
+  y = x1 * x2           dL/dx1 = dL/dy * x2  (gradients swap)
+
+The fused softmax-cross-entropy gradient p - y is worth committing to memory. It is
+both numerically stable — computing softmax and log separately overflows for large
+logits, while the log-sum-exp trick inside the fused version does not — and
+conceptually clean: the gradient is simply the prediction error. Frameworks expose
+this as `cross_entropy(logits, target)` taking raw logits rather than probabilities
+precisely so the fusion can happen, and passing already-softmaxed values into it is a
+common and quietly damaging bug.
+
+Q: A network uses sigmoid activations in 20 layers and trains extremely slowly, with
+early-layer gradients near 1e-9. The most direct architectural fix is:
+A. Lower the learning rate
+B. Use ReLU activations and residual connections
+C. Increase the batch size
+D. Add L2 regularization
+Reasoning: The sigmoid derivative peaks at 0.25, so 20 layers multiply to at most
+0.25^20, around 1e-12 — the gradient vanishes structurally, independent of the
+optimizer settings. Lowering the learning rate makes it worse; batch size affects
+gradient noise, not its magnitude through depth; L2 shrinks weights, further reducing
+the product. ReLU keeps the derivative at 1 where active, and residual connections
+give the gradient an identity path that bypasses the multiplicative chain entirely.
+Answer: B.
+
+## Architectures
+
+The multilayer perceptron stacks affine transforms and pointwise nonlinearities. The
+universal approximation theorem guarantees that a single sufficiently wide hidden
+layer can approximate any continuous function on a compact set to arbitrary accuracy,
+which sounds like it should settle the architecture question and settles nothing:
+the theorem says nothing about how wide, whether gradient descent will find those
+weights, or how much data generalization would need. Depth matters empirically
+because it buys compositional structure — features built from features — at
+exponentially lower parameter cost than width for the functions that natural data
+happens to exhibit.
+
+Convolutional networks impose two priors that match images: locality (a pixel's
+meaning depends on its neighbours) and translation equivariance (a cat is a cat
+wherever it appears). Weight sharing across positions cuts parameters enormously and
+makes the learned features position-independent. The receptive field — the input
+region influencing one output unit — grows linearly with depth for stacked 3x3
+convolutions and exponentially with dilation, and matching the receptive field to the
+scale of the relevant structure is a real design constraint. Pooling and strided
+convolutions downsample, trading spatial resolution for channel depth and larger
+receptive fields; the resulting pyramid of scales is what makes CNNs work on objects
+of varying size.
+
+Recurrent networks process sequences by carrying a hidden state, sharing weights
+across time steps. The vanilla RNN suffers vanishing gradients over long sequences for
+the same product-of-Jacobians reason as deep feedforward nets, compounded because the
+same matrix multiplies repeatedly, so its spectral radius determines the fate of all
+long-range signal. LSTM and GRU add gating with an additive cell-state path, giving
+gradients a near-identity route across time and extending usable context from tens to
+hundreds of steps. Their fundamental limit is sequential computation: step t cannot
+begin until t-1 finishes, so training cannot parallelize across the time axis, and
+that constraint rather than accuracy is what the transformer displaced.
+
+The transformer replaces recurrence with attention, computing all positions in
+parallel. Self-attention lets every position attend to every other in a single
+operation, so the path length between any two tokens is constant rather than linear
+in their distance — long-range dependencies are structurally as easy as short-range
+ones. The cost is quadratic: attention is O(n^2 d) in sequence length, which is the
+central scaling problem of the architecture and the target of flash attention (an
+IO-aware exact reformulation that avoids materializing the n-by-n matrix), sliding
+window attention, and the various linear-attention approximations.
+
+Architecture selection heuristics:
+  grid-structured, translation-invariant       convolutional
+  sequential with strict causality, tiny       GRU/LSTM still competitive
+  long-range dependencies, parallel training   transformer
+  irregular relational structure               graph neural network
+  set-valued input, permutation invariant      deep sets / attention pooling
+  very long sequences, linear cost required    state-space models (Mamba, S4)
+  small tabular data                           gradient-boosted trees, not deep nets
+
+That last line is worth stating plainly because it is repeatedly relearned: on
+small-to-medium tabular data with heterogeneous features, gradient-boosted trees
+(XGBoost, LightGBM, CatBoost) usually beat neural networks, train in seconds, need no
+normalization, handle missing values natively, and provide honest feature importances.
+Deep learning wins where the input has strong structural priors it can exploit —
+images, audio, text, graphs — or where the dataset is large enough that
+representation learning pays for itself.
+
+[user] I have 8,000 rows and 45 mixed numeric and categorical features predicting
+customer churn. What architecture should I use?
+[assistant] tool_call ml.dataset_profile({"rows": 8000, "features": 45,
+"categorical": 19, "target": "binary", "positive_rate": 0.11})
+[tool] {"n": 8000, "d": 45, "cardinality_max": 340, "missing_pct": 0.07,
+"class_balance": [0.89, 0.11], "recommendation": "tree_ensemble"}
+[assistant] Use gradient-boosted trees — LightGBM or CatBoost — not a neural network.
+
+At 8,000 rows and 45 heterogeneous features this is squarely in the regime where tree
+ensembles dominate. They handle the 19 categorical columns natively (CatBoost
+especially, with ordered target statistics that avoid the leakage plain target
+encoding causes), tolerate the 7% missing values without imputation, are invariant to
+monotone feature scaling, and will train in under a minute so you can iterate on
+features instead of on architecture.
+
+A neural network here would need one-hot or learned embeddings for the categoricals,
+careful normalization of the numerics, and would be fitting far more parameters than
+8,000 rows can support — you would spend the project fighting overfitting to reach
+parity at best.
+
+Two specifics for the 11% positive rate: do not oversample or reweight by default,
+since it distorts the predicted probabilities you likely want for expected-value
+ranking. Optimize log loss, check a calibration curve, and pick the decision threshold
+afterward from the actual cost of a false positive versus a missed churner. Use
+stratified 5-fold CV and report average precision rather than accuracy.
+
+## Optimization
+
+Stochastic gradient descent updates parameters against the gradient of a minibatch
+loss. The minibatch introduces noise, and that noise is not purely a nuisance — it
+helps escape sharp minima and saddle points, and the ratio of learning rate to batch
+size acts as an effective temperature governing how much the optimizer explores. This
+is the basis of the linear scaling rule: when you multiply batch size by k, multiply
+the learning rate by k to hold the noise scale roughly constant, with a warmup period
+to survive the initially large steps.
+
+Momentum accumulates an exponentially weighted average of past gradients, v = beta*v +
+grad, and steps along v. It damps oscillation across the steep directions of an
+ill-conditioned valley while accumulating speed along the shallow one, effectively
+reducing the condition number the optimizer sees. Nesterov momentum evaluates the
+gradient at the look-ahead position, giving a correction term that improves the
+convergence rate on convex problems and helps modestly in practice.
+
+Adam combines momentum with per-parameter step sizes scaled by a running estimate of
+the gradient's second moment, making it robust to badly scaled parameters and the
+default for transformers. Its bias-correction terms matter early, when the moving
+averages initialized at zero would otherwise be badly underestimated. The known
+weakness is that L2 penalty added to the loss interacts with the adaptive scaling in a
+way that does not implement true weight decay; AdamW decouples the decay, applying it
+directly to the weights, and this is now standard for any regularized transformer
+training. Adam's memory cost is two extra states per parameter, so a model with P
+parameters needs about 12P bytes in fp32 for optimizer state alone — the reason
+Adafactor (factored second moments) and 8-bit optimizers exist.
+
+Learning rate schedules and their uses:
+  constant                 baselines and debugging only
+  step decay               classical vision recipes; abrupt, works well with SGD
+  cosine annealing         smooth decay to near zero; the transformer default
+  linear warmup            first 1-5% of steps; prevents early divergence when
+                           adaptive moments are still poorly estimated
+  inverse sqrt             original transformer schedule, tied to step count
+  one-cycle                warmup then anneal below the initial rate; fast
+                           convergence for fixed short budgets
+  cyclical / warm restarts periodically re-raise the rate to escape basins
+  ReduceLROnPlateau        reactive; convenient but lags the ideal schedule
+
+The learning rate is the single most important hyperparameter and is worth tuning
+before anything else. A practical procedure is the range test: start at a very small
+rate and increase it exponentially over a few hundred steps while recording loss, then
+plot loss against log rate. The loss falls, reaches a minimum, and then diverges; a
+good choice is roughly an order of magnitude below the divergence point, near the
+steepest descent of the curve. This costs a couple of minutes and routinely beats
+hours of random search.
+
+Gradient clipping bounds the update norm, either per-parameter by value or globally by
+the total gradient norm. Global norm clipping at 1.0 is near-universal in language
+model training because loss spikes from rare bad batches — a document of repeated
+tokens, a numerical edge case — otherwise produce enormous updates that destroy hours
+of progress. It is cheap insurance and rarely hurts.
+
+Q: Training a transformer with AdamW diverges in the first 200 steps at a learning
+rate that works fine later in training. The standard fix is:
+A. Switch to plain SGD
+B. Add a linear warmup over the first few hundred steps
+C. Reduce the batch size
+D. Remove weight decay
+Reasoning: Early in training Adam's second-moment estimate is based on very few
+samples and is unreliable, so the adaptive denominator can be far too small, producing
+enormous effective steps. Warmup ramps the rate from near zero, giving the moment
+estimates time to stabilize before full-size steps are taken. This is why essentially
+every transformer recipe includes warmup. Answer: B.
+
+Q: You increase batch size from 256 to 1024 and training becomes markedly slower to
+converge in epochs. The most likely cause is:
+A. The model is too small
+B. The learning rate was not scaled up with the batch size
+C. Weight decay is too high
+D. The data loader is the bottleneck
+Reasoning: Larger batches give lower-variance gradients, so each step is more reliable
+but you take four times fewer of them per epoch. Without raising the learning rate the
+total distance travelled in parameter space per epoch drops sharply. The linear
+scaling rule — multiply the rate by the same factor, with warmup — restores
+convergence per epoch. Answer: B.
+
+## Regularization and Normalization
+
+Regularization constrains model capacity to improve generalization. Weight decay
+penalizes parameter magnitude, biasing toward simpler functions; in the decoupled
+AdamW form it is a direct multiplicative shrink applied each step. Dropout randomly
+zeroes activations during training with probability p and rescales the survivors by
+1/(1-p) so the expected activation is unchanged, which forces redundant
+representations and approximates an ensemble over exponentially many subnetworks. It
+must be disabled at inference, and forgetting `model.eval()` is one of the most common
+sources of mysteriously poor and non-deterministic validation scores.
+
+Data augmentation is usually the highest-leverage regularizer because it injects real
+invariances rather than generic smoothness. For images: random crops, flips, colour
+jitter, and the mixing augmentations mixup (convex combinations of inputs and labels)
+and cutmix. For audio: time and frequency masking, speed perturbation. For text,
+augmentation is harder because most edits change meaning, so the practical levers are
+back-translation and, increasingly, synthetic paraphrase. The invariance you augment
+for should be one the deployed system genuinely faces — augmenting with vertical flips
+teaches invariance to a transformation that never occurs in natural photographs and
+wastes capacity.
+
+Early stopping halts training when validation performance stops improving, with a
+patience window. It is a form of regularization because the optimization path passes
+from underfit through well-fit to overfit, and stopping selects a point on that path.
+It requires a validation set never used for anything else, and the stopping point must
+not then be reported as the test score — that number is optimistically biased by the
+selection.
+
+Normalization layers standardize activations to stabilize training. Batch
+normalization normalizes across the batch dimension per channel, then applies a
+learned scale and shift. It substantially accelerates training but couples examples
+within a batch, which causes trouble: small batches give noisy statistics, the
+train/eval discrepancy between batch statistics and running averages is a persistent
+bug source, and it interacts badly with sequence models of varying length. Layer
+normalization normalizes across the feature dimension within each example
+independently, removing all batch coupling, and is therefore the transformer standard.
+RMSNorm drops the mean-centering and keeps only the scaling by root-mean-square,
+saving computation with no measured quality loss, which is why most recent large
+language models use it.
+
+Normalization variants at a glance:
+  BatchNorm     across (N, H, W) per channel; CNNs, large batches
+  LayerNorm     across features per example; transformers, RNNs
+  RMSNorm       LayerNorm without mean subtraction; cheaper, LLM default
+  GroupNorm     across channel groups per example; small-batch vision
+  InstanceNorm  per channel per example; style transfer
+  WeightNorm    reparameterizes weights by direction and magnitude
+
+Placement matters as much as choice. Post-norm transformers (normalization after the
+residual addition, as in the original paper) need careful warmup and are unstable at
+depth. Pre-norm (normalization inside the residual branch, before the sublayer) leaves
+a clean identity path from output to input and trains stably at great depth, which is
+why every modern large model uses it. The tradeoff is that pre-norm slightly degrades
+final quality at equal depth, which some architectures address by adding a final
+normalization before the output projection or by sandwiching norms on both sides.
+
+## Initialization and Training Dynamics
+
+Initialization sets the scale of the signal propagating through an untrained network.
+Initialize too small and activations shrink layer over layer until the output is
+constant; too large and they saturate or overflow. The principle behind the standard
+schemes is variance preservation: choose the weight variance so that the variance of
+activations, and of gradients, stays roughly constant across layers. Xavier/Glorot
+initialization uses variance 2/(fan_in + fan_out), balancing forward and backward
+passes, and suits tanh. He/Kaiming initialization uses 2/fan_in, the factor of two
+compensating for ReLU zeroing half the inputs, and is correct for ReLU-family
+networks. Zero initialization is fatal for weights because it makes every unit in a
+layer compute identical outputs and receive identical gradients, so they never
+differentiate; biases can safely start at zero.
+
+Modern large models add scale-aware tweaks. Residual branches are often initialized
+so their contribution starts near zero — zeroing the last layer of each block, or
+scaling by 1/sqrt(2L) for L layers — so the network begins as an identity function and
+grows complexity gradually, which markedly improves stability at depth. Embedding
+matrices are typically initialized with a small fixed standard deviation such as 0.02
+rather than a fan-based rule, since their fan_in is the vocabulary size and a
+fan-based scale would be far too small.
+
+Reading training curves is a diagnostic skill. Training loss falling while validation
+loss rises is textbook overfitting, calling for more data, more augmentation, or more
+regularization. Both flat from the start means the learning rate is wrong (usually too
+low, occasionally so high the model sits in a bad region), or the data pipeline is
+broken and labels are not aligned with inputs. Both falling but plateauing well above
+a sensible floor suggests underfitting: more capacity, longer training, or a better
+architecture. A sudden loss spike that recovers indicates a bad batch and argues for
+gradient clipping; a spike that does not recover usually means numerical overflow, and
+in mixed precision means the loss scale needs adjustment.
+
+The first diagnostic to run on any new setup is the overfit-one-batch test: take a
+single minibatch of a handful of examples and train until the loss reaches
+approximately zero. A correct model with a correct loss and a correct optimizer can
+always memorize a few examples. If it cannot, the bug is in the code, not the
+hyperparameters — inputs disconnected from the loss, labels shuffled relative to
+inputs, an activation squashing the output range, a frozen parameter group, gradients
+not flowing through a detached tensor. This test takes a minute and saves days.
+
+[user] My validation loss is 0.42 and training loss is 0.41 after 30 epochs, and both
+have been flat for the last 15. Accuracy is 71% and I need 85%.
+[assistant] tool_call ml.training_diagnostics({"train_loss": 0.41, "val_loss": 0.42,
+"epochs": 30, "plateau_epochs": 15, "accuracy": 0.71, "target": 0.85})
+[tool] {"gap": 0.01, "regime": "underfitting", "signals": ["train_val_gap_negligible",
+"both_plateaued", "accuracy_far_below_target"]}
+[assistant] You are underfitting, not overfitting — the train/validation gap is 0.01,
+essentially nothing. The model is not memorizing your data; it cannot fit it in the
+first place. That is good news in one respect: every regularization knob you might
+have been tempted to reach for (more dropout, more weight decay, more augmentation)
+would make this worse.
+
+Work through these in order, cheapest first:
+
+Confirm the ceiling is not in the data. Run the overfit-one-batch test — take 32
+examples and train until loss approaches zero. If it will not, you have a bug, not a
+capacity problem, and no amount of scaling will help.
+
+Check the learning rate. A 15-epoch flat plateau is often a rate that has decayed too
+far or was too low throughout. Do a range test, and if you are using a schedule that
+has annealed to near zero, that alone explains the plateau.
+
+Then add capacity: more layers or width, and train longer. Underfitting with a
+negligible generalization gap is the one situation where a bigger model is
+straightforwardly the right answer.
+
+Finally, question whether 85% is achievable. If labels are noisy or the features
+genuinely do not determine the target, there is an irreducible Bayes error and the
+target may simply be unreachable with this input. Have a human label 100 random
+examples from the features alone and see what accuracy they reach.
+
+## Quantization and Efficient Inference
+
+Quantization maps high-precision weights and activations to low-bit representations,
+cutting memory and bandwidth. Since inference on modern hardware is overwhelmingly
+memory-bandwidth-bound rather than compute-bound at batch size one, halving the bits
+nearly halves decode latency — the arithmetic was never the bottleneck. A model in
+fp16 needs 2 bytes per parameter, so a 30-billion-parameter model needs 60 GB; at 4
+bits it needs about 15 GB plus overhead, which is the difference between a datacentre
+card and a laptop.
+
+Post-training quantization converts an already-trained model without retraining.
+The naive form, round-to-nearest on a per-tensor scale, degrades badly below 8 bits
+because a few outlier channels with much larger magnitudes stretch the scale and crush
+the resolution available to everything else. The refinements all attack this.
+Finer granularity — per-channel, then per-group of 128 or 64 or 32 weights — gives
+outliers their own scale, at the cost of storing more scale parameters. Activation-aware
+methods observe that not all weights matter equally: the channels that receive large
+activations dominate the output error, so scaling those channels up before quantizing
+(and folding the inverse scale into the preceding normalization) protects them at no
+inference cost. Error-compensating methods quantize weights one column at a time and
+push the resulting error into the not-yet-quantized columns using the inverse Hessian
+of the layer's input covariance, so later weights partially cancel earlier mistakes.
+
+Quantization-aware training simulates quantization in the forward pass while keeping
+high-precision master weights, using a straight-through estimator to pass gradients
+through the non-differentiable rounding step. It recovers substantially more quality
+than post-training methods at very low bit widths, at the cost of a training run. For
+natively low-precision architectures — ternary or binary weight models — there is no
+post-hoc quantization error to recover at all, because the released checkpoint already
+is the quantized model in a lossless container; the only lever is continued training
+with the quantization in the loop.
+
+Quantization concepts and terminology:
+  bits per weight (bpw)   the real currency; includes scale/zero-point overhead
+  symmetric               zero maps to zero; no zero-point, cheaper arithmetic
+  asymmetric              stores a zero-point; better for skewed distributions
+                          and essential at 2-3 bits where symmetric grids waste
+                          levels
+  group size              weights sharing one scale; 128 typical, 32 for low-bit
+  calibration set         data used to observe activation statistics; a few
+                          hundred representative sequences usually suffices
+  mixed precision         sensitive tensors kept at higher precision; attention
+                          value projections and the first/last layers commonly
+  perplexity delta        the standard quality proxy for language models
+  KL divergence           a stricter proxy comparing full output distributions
+                          against the full-precision reference
+
+Which tensors to protect is empirically consistent across architectures. The embedding
+and output projection matrices are disproportionately sensitive, as are the attention
+value and output projections and the down-projection of the feedforward block in early
+layers. Practical low-bit recipes therefore ship mixed: a nominally "2-bit" model
+typically stores several tensor classes at 3 or 4 bits, and its true bits-per-weight
+lands well above the nominal figure. Reporting nominal bit width without the measured
+bpw obscures exactly the tradeoff being made.
+
+Beyond quantization, the main inference efficiency levers are structural. KV caching
+stores past keys and values so each new token attends without recomputing history,
+turning generation from quadratic to linear in total work, at the cost of a cache that
+grows linearly with context and often exceeds the weights in memory for long contexts —
+which is what grouped-query and multi-query attention address by sharing key/value
+heads across query heads. Speculative decoding runs a small draft model to propose
+several tokens and verifies them in one forward pass of the large model, accepting the
+longest prefix that matches what the large model would have produced; because
+verification is parallel and generation is bandwidth-bound, this yields real speedups
+with mathematically identical output. Multi-token prediction heads bake the drafter
+into the model itself, predicting several future tokens from shared trunk
+representations.
+
+Q: A 2-bit quantized model is reported at 2.0 bpw nominal but measures 2.7 bpw on
+disk. The most likely explanation is:
+A. The file is uncompressed
+B. Group scales, zero-points, and higher-precision mixed tensors add overhead
+C. The measurement is wrong
+D. Padding to block boundaries
+Reasoning: A group of 32 weights at 2 bits is 64 bits of payload, but the shared scale
+(often fp16) adds 16 more, roughly 0.5 bpw of overhead on its own; and standard
+low-bit recipes promote sensitive tensors such as attention value projections and
+embeddings to 4 or more bits. Together these routinely account for a 0.5-0.8 bpw gap
+between nominal and measured. Answer: B.
+
+Q: At batch size 1, halving the weight precision from 16 to 8 bits roughly halves
+decode latency. This is primarily because:
+A. Integer arithmetic is twice as fast
+B. Decode is memory-bandwidth-bound, and half the bytes move half the time
+C. The model has fewer parameters
+D. Cache hit rates double
+Reasoning: Generating one token requires reading every weight once and performing very
+little arithmetic per weight, so the operation is bandwidth-limited rather than
+compute-limited. Latency tracks bytes moved, so halving bytes per weight nearly halves
+the time. This is also why the speedup shrinks at large batch sizes, where weight
+reads amortize across many sequences and the workload becomes compute-bound.
+Answer: B.

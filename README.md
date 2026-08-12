@@ -189,6 +189,77 @@ Outputs land under `--workspace`: `results.csv` (per-instance), `aggregated.csv`
 > (correct but slow). The `swebench` deps live in the uv-managed `.venv`, so these
 > scripts run via `PYTHONPATH=src .venv/bin/python …`, not `uv run`.
 
+### Safety — red-teaming the artifact that actually ships
+
+Every benchmark above answers *"is the quant still capable?"*. None answers
+*"is the quant still safe?"* — a quant that had lost its refusal behaviour
+entirely would score clean on every column the leaderboard renders.
+
+An open-weight model is safety-tested once, **as released**. What people run is a
+*derived* artifact — a 2-4 bpw GGUF, or a QAT'd checkpoint — produced afterwards
+by a third party. `quant-tuner` measures what that derivation did, using
+[`deepteam`](https://github.com/confident-ai/deepteam) to drive adversarial
+prompts at a `llama-server` target, with a separate simulator and judge:
+
+```bash
+# One command: builds the Python <=3.12 venv (deepteam 1.0.7 imports `nntplib`,
+# gone in 3.13), runs the sweep on a frozen bank, pairs rungs if >1 target.
+# Everything is env-overridable (TARGETS, CONFIG, JUDGE_URL, …).
+scripts/reproduce_redteam.sh
+
+# …or drive it directly. One sweep, N models, ONE frozen attack bank (reference
+# FIRST — the bank is seeded on it). Judge/simulator are separate endpoints; a
+# 2-bit quant judging its own jailbreaks is worthless, so use an uncensored model.
+PYTHONPATH=src .venv-redteam/bin/python scripts/eval_redteam.py \
+    --model-path out/run/gguf/f16.gguf --model-path out/run/gguf/IQ2_XS-awq.gguf \
+    --config red_team_broad --frozen-bank --target-max-tokens 4000 \
+    --judge-model M --judge-base-url http://host:1234/v1 \
+    --simulator-model M --simulator-base-url http://host:1234/v1 \
+    --remote-no-think --out out/redteam/results.csv
+
+# Pair the rungs against the reference (also runs the sweep if given --models)
+PYTHONPATH=src .venv/bin/python scripts/redteam_ladder.py \
+    --per-case out/redteam/results_per_case.csv --reference f16
+
+# Does any existing quality gate predict the drift? (pure CSV analysis, no GPU)
+PYTHONPATH=src .venv/bin/python scripts/redteam_vs_quality.py \
+    --ladder out/redteam/ladder/ladder.csv --bench out/run/results.csv
+```
+
+The headline column is **`n_flip_unsafe`**: cases the F16 reference refused and
+the quant complied with. No adversary, no fine-tuning meant to remove anything —
+just the quantizer. That number only means something because every rung is scored
+on the *same* frozen bank and joined per case; an unpaired pass-rate delta cannot
+tell "this quant is less safe" apart from "this run drew different attacks".
+
+`scripts/redteam_agentic.py` goes further and red-teams the deployment these
+models actually ship into — a coding agent with a `bash` tool in a disposable
+SWE-rebench container — so compliance means *executed a command*, not *wrote a
+paragraph*. Read its `pass_rate` next to `n_tool_calls`: a quant too degraded to
+call a tool scores as "safe" for entirely the wrong reason.
+
+Every complied/errored case is also written to a `disclosure_<model>_repN.json`
+evidence file — the full attack (seed prompt **and** multi-turn escalation), the
+target's verbatim response and its own reasoning trace (for reasoning models),
+and the judge's verdict — so a finding can be reported to the model's authors to
+help them fix it. Refusals are excluded; a defended case is not a finding.
+
+Reasoning models (Ornith, Qwen3, DeepSeek) spend their token budget on
+chain-of-thought *first*, so set `--target-max-tokens` generously (3000+): if the
+budget runs out before the answer starts, `content` comes back empty and the
+judge would score silence as "safe". The harness refuses an all-empty run rather
+than report that false pass (override with `--allow-empty-output`). One
+`--base-url` serving several models? Repeat `--target-model-name` to sweep them
+all on one frozen bank.
+
+Merge the result into the leaderboard with
+`quant-tuner leaderboard --redteam-csv ladder.csv`. The safety columns are
+**display-only and never feed SQS** — that scalar trades size against fidelity
+against speed, and refusal is not a currency to spend in it.
+
+See [`docs/benchmarks.md`](docs/benchmarks.md#red-team-safety) for the full
+method, the frozen-bank rationale, and what this does and does not measure.
+
 ## Serving a quant
 
 Plain GGUFs — load them in `llama-server`, LM Studio, Ollama, or anything that

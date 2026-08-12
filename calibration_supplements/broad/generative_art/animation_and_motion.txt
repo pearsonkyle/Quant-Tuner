@@ -1,0 +1,276 @@
+================================================================================
+AREA: Generative Art and Creative Technology
+SUBJECT: Animation and Motion Design
+Subtopics: principles of motion, timing and easing, interpolation, physics-based
+animation, rigging and character motion, procedural and generative motion, performance,
+interface motion.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Principles of Motion
+
+Animation communicates through change over time, and the principles established by traditional
+animators transfer directly to computational work because they describe perception rather than
+technique. The most consequential is that motion carries meaning independent of what is moving:
+the same shape moving in different ways reads as heavy or light, alive or mechanical, deliberate
+or accidental.
+
+Timing and spacing are the fundamentals. Timing is how long a motion takes, and spacing is how
+the object is distributed through the intervening positions. Equal spacing reads as mechanical
+because nothing physical starts and stops instantaneously; accumulating spacing at the start and
+end — slow in and slow out — reads as physical because it corresponds to acceleration and
+deceleration. Almost every animation that feels wrong feels wrong because of spacing rather than
+because of the path.
+
+Anticipation, follow-through, and overlapping action all derive from physical bodies having mass
+and connected parts. A movement is preceded by a small opposite motion, because momentum must be
+built. Parts continue past the stopping point and settle back, because they have inertia. Loosely
+connected parts lag behind the driving part, arriving at different times. Applying these to
+abstract objects makes them read as physical, which is why an interface element that overshoots
+slightly and settles feels responsive while one that stops instantly feels brittle.
+
+Motion principles:
+  timing               how long; sets weight and urgency
+  spacing              distribution through the motion; sets acceleration
+  slow in and out      accumulating spacing at the ends; reads as physical
+  anticipation         a small opposite motion first; prepares the viewer and
+                       implies momentum
+  follow-through       parts continue past the stop and settle
+  overlapping action   connected parts arrive at different times
+  arcs                 natural motion follows curved paths, not straight lines
+  squash and stretch   deformation implying elasticity and impact; preserve volume
+                       or the object reads as inflating
+  secondary action     supporting motion that reinforces the primary without
+                       competing
+  exaggeration         readable motion is usually larger than literal
+  staging              direct attention to what matters; one thing at a time
+  appeal               clarity and interest in the design of the motion itself
+  weight               conveyed by timing and by how motion begins and ends;
+                       heavy things accelerate slowly and stop slowly
+
+Arcs deserve emphasis because straight-line motion is the default in any keyframe system and is
+almost never what physical motion looks like. A limb rotating about a joint traces an arc, a
+thrown object follows a parabola, a head turning moves along a curve. Interpolating a position
+linearly between two keyframes produces a straight path that reads as mechanical, and adding a
+slight arc — even a small one — makes the same motion read as organic. This is the single
+highest-value correction to computer-generated motion.
+
+Q: An interface element animates from one position to another with constant velocity and feels
+mechanical. The most effective single change is:
+A. Make it faster
+B. Apply easing so it accelerates from rest and decelerates into position
+C. Add a colour change
+D. Make it slower
+Reasoning: Constant velocity means instantaneous acceleration at the start and stop, which does
+not occur physically and which the perceptual system reads as mechanical. Easing distributes the
+motion so it begins and ends gradually, matching how objects with mass move. Duration affects
+urgency and does not address the underlying issue. Answer: B.
+
+## Timing, Easing, and Interpolation
+
+Easing functions map normalized time to normalized progress, and the choice of function is the
+main expressive control in most animation systems. Linear maps time to progress directly and
+reads as mechanical. Ease-out starts fast and decelerates, which suits an element entering or
+responding to input because the motion begins immediately and settles gently. Ease-in starts slow
+and accelerates, which suits an element leaving. Ease-in-out does both and suits motion between
+two resting states.
+
+The asymmetry between ease-in and ease-out is worth stating because it is frequently applied
+backwards. An element responding to a user action should ease out — begin immediately so the
+response feels instant, then decelerate into place. An element easing in appears to hesitate
+before moving, which reads as latency even when the total duration is identical. This is why
+interface motion overwhelmingly uses ease-out or a spring rather than symmetric easing.
+
+Duration carries meaning and is bounded by perception. Motion below about a hundred milliseconds
+is not perceived as motion, appearing instead as an instantaneous change; motion above about five
+hundred milliseconds begins to feel slow in an interface context. The useful range for interface
+transitions is roughly 150 to 400 milliseconds, with larger distances and larger elements
+warranting longer durations because the perceived speed depends on distance covered rather than
+on duration alone.
+
+Timing and interpolation:
+  linear               constant velocity; mechanical
+  ease-out             fast start, gentle stop; entering, responding to input
+  ease-in              gentle start, fast end; leaving
+  ease-in-out          both; motion between resting states
+  cubic Bezier easing  the standard parameterization; two control points define
+                       the curve
+  spring               physically parameterized by stiffness and damping;
+                       naturally interruptible and produces overshoot when
+                       underdamped
+  duration bounds      below ~100 ms reads as instantaneous; above ~500 ms reads
+                       as slow in an interface
+  distance and duration  larger travel warrants longer duration; constant duration
+                       across distances produces inconsistent perceived speed
+  stagger              offset the start times of a group; reads as coordinated
+                       rather than simultaneous, and directs the eye
+  keyframe             a specified state at a time; interpolation fills between
+  interpolation        linear, cubic, spline; the curve through the keyframes
+  slerp                spherical interpolation for rotations; linear interpolation
+                       of quaternions changes angular velocity and can take the
+                       long path
+  gimbal lock          Euler angles lose a degree of freedom at certain
+                       orientations; quaternions avoid it
+
+Rotation interpolation deserves specific mention because it fails in ways position
+interpolation does not. Interpolating Euler angles independently produces motion that does not
+follow the shortest rotational path and that can pass through gimbal lock, where two axes align
+and a degree of freedom is lost. Quaternions represent rotation without that degeneracy, and
+spherical linear interpolation between them follows the shortest arc at constant angular velocity
+— which is what rotation should do and what naive interpolation does not provide.
+
+Springs deserve mention as an alternative to duration-based easing because their properties suit
+interactive motion. A spring is parameterized by stiffness and damping rather than by duration,
+so the motion emerges from the physical parameters, and it is naturally interruptible — a new
+target simply changes the spring's rest position and the motion continues from the current
+position and velocity rather than restarting. Duration-based animation interrupted mid-flight
+must either snap or blend, both of which are visible.
+
+## Physics-Based and Procedural Motion
+
+Physics simulation generates motion from forces and constraints rather than from specified
+keyframes, which produces plausible interaction automatically and gives up direct control. It is
+the right approach where the motion should respond to unpredictable conditions — a cloth
+reacting to a character's movement, debris from an impact, a chain swinging — and the wrong
+approach where a specific result is required, since achieving a particular outcome from a
+simulation means tuning inputs indirectly.
+
+Verlet integration is the workhorse for particle and constraint systems in creative work. It
+stores positions rather than velocities, deriving velocity implicitly from the difference between
+current and previous positions, which makes constraint satisfaction straightforward: move a
+particle to satisfy a constraint and its velocity adjusts automatically. Cloth, rope, and soft
+body simulation are built from particles with distance constraints solved iteratively, and the
+iteration count trades stiffness against cost.
+
+Procedural animation generates motion algorithmically, which scales to many elements and to
+situations that cannot be authored individually. Noise-driven motion produces organic drift and
+is the standard technique for idle motion, wind, and secondary sway. Flocking rules produce
+coordinated group movement from three local rules — separation, alignment, and cohesion — with no
+central coordination, which is the canonical demonstration that complex collective behaviour
+emerges from simple local interaction.
+
+Physics and procedural motion:
+  Verlet integration   position-based; constraints are easy, velocity implicit
+  constraint solving   iterate to satisfy; more iterations means stiffer
+  cloth and rope       particles with distance constraints
+  soft body            volume and shape constraints
+  rigid body           collision detection, response, friction, and resting
+                       contact; resting contact is the hard part
+  collision detection  broad phase spatial partitioning, then narrow phase exact
+                       tests
+  restitution          bounciness; the ratio of separation to approach speed
+  damping              removes energy; without it, numerical error accumulates as
+                       energy gain and simulations explode
+  substepping          smaller timesteps for stability; the standard fix for a
+                       simulation that jitters or explodes
+  noise-driven motion  organic drift, idle motion, wind
+  flocking             separation, alignment, cohesion; emergent coordination
+  inverse kinematics   solve joint angles to place an end effector; the basis of
+                       foot placement and reaching
+  forward kinematics   joint angles determine the pose; simpler and less useful
+                       for targeting
+  procedural walk      generate a gait from parameters; adapts to terrain in a way
+                       a recorded cycle does not
+  motion capture       records real motion; realistic and difficult to retarget to
+                       different proportions
+
+Inverse kinematics deserves attention because it solves the problem that makes character motion
+adapt to its environment. Forward kinematics computes where a hand ends up from the joint angles,
+which is straightforward and requires the animator to find angles producing the desired position
+by trial. Inverse kinematics computes the joint angles placing the hand at a specified position,
+which is what allows a foot to plant on uneven terrain, a hand to reach a moving target, or a
+character to look at something. It is underdetermined for a chain with more joints than
+constraints, so the solver needs additional preferences — a rest pose to stay near, joint limits,
+and a preferred bend direction.
+
+[user] My cloth simulation looks stiff and it explodes when the character moves quickly.
+[assistant] tool_call anim.cloth_diagnose({"solver": "verlet_position_based",
+"constraint_iterations": 3, "timestep": 0.0166, "substeps": 1,
+"stretch_stiffness": 1.0, "damping": 0.0, "symptom": ["stiff_appearance", "instability"]})
+[tool] {"issues": ["insufficient_iterations_for_stiffness_target",
+"no_damping_energy_accumulates", "single_substep_at_high_velocity"],
+"recommendations": {"substeps": 4, "iterations": 8, "damping": 0.02,
+"stiffness_via_iterations_not_clamping": true}}
+[assistant] Two separate problems that happen to have overlapping fixes.
+
+The stiffness appearance and the instability come from the same place: with position-based
+constraint solving, stiffness is a function of the iteration count rather than of a stiffness
+parameter. Three iterations cannot satisfy the constraints, so the cloth stretches visibly under
+load, and cranking the stiffness parameter to 1.0 with too few iterations produces overcorrection
+that manifests as jitter. Raise the iteration count to around 8 and lower the per-iteration
+stiffness — the cloth will be both stiffer in appearance and more stable, which sounds
+contradictory and follows directly from how the solver converges.
+
+The explosion under fast movement is a timestep problem. At one substep per frame, a fast-moving
+attachment point moves a large distance in one step, which stretches constraints far beyond what
+the solver can correct in one frame, and the correction overshoots. Substepping — subdividing the
+frame into four smaller steps and running the full solve on each — keeps the per-step
+displacement small. This costs four times the solve but is the standard and reliable fix.
+
+Add damping. You have none, and position-based solvers accumulate energy from numerical error
+because the constraint projections do work. A small global damping of one to three percent per
+step removes it and is imperceptible. Without damping, a simulation left running will gain energy
+indefinitely, which is why it eventually explodes even without fast motion.
+
+Two further things worth adding once it is stable. Velocity clamping caps how fast any particle
+can move in one step, which prevents a single anomalous frame from destroying the simulation and
+is cheap insurance. And a maximum stretch ratio — projecting any constraint stretched beyond,
+say, 10% back toward its rest length regardless of the iteration budget — prevents the visually
+obvious failure where cloth stretches like rubber under load.
+
+## Performance and Interface Motion
+
+Animation performance is governed by what the browser or engine must do per frame, and the
+distinction between properties that trigger layout and those that do not is the dominant factor
+in web animation. Changing geometry — width, height, position offsets — forces the layout to be
+recomputed for the element and everything affected by it, every frame. Changing transform or
+opacity can be applied by the compositor to an already-rendered layer, without layout or paint,
+and frequently off the main thread entirely.
+
+The consequence is a rule with few exceptions: animate transform and opacity, and express other
+effects in terms of them where possible. Moving an element uses translate rather than position
+offsets. Resizing uses scale rather than width and height, accepting that scale distorts
+non-uniformly scalable content such as text and borders. Where an effect genuinely requires
+animating a layout property, the alternatives are the FLIP technique — measure the first and last
+positions, apply an inverting transform, and animate it away — or accepting the cost for a short
+transition.
+
+Frame budget is the constraint everything must fit within. At sixty frames per second the budget
+is 16.7 milliseconds per frame including everything the system does, so the application's share
+is well under that. Exceeding it drops a frame, which is perceptible as a stutter, and an
+animation dropping frames intermittently reads as worse than one running at a consistently lower
+rate — consistency matters more than the absolute rate above a threshold.
+
+Performance and interface motion:
+  transform and opacity  compositor-only; no layout or paint
+  layout-triggering     width, height, top, left; recomputed every frame
+  FLIP                 first, last, invert, play; animate a transform that
+                       replicates a layout change
+  frame budget         16.7 ms at 60 fps, including everything
+  consistency          steady frame rate matters more than peak rate
+  layer promotion      will-change or a 3D transform; each layer costs memory,
+                       so promoting everything is counterproductive
+  requestAnimationFrame  synchronizes with the display refresh
+  reduced motion       respect the user preference; vestibular disorders make
+                       large motion and parallax genuinely harmful rather than
+                       merely unwanted
+  purpose              interface motion should communicate — where something came
+                       from, what changed, what is loading; decorative motion that
+                       communicates nothing costs attention
+  continuity           an element moving from one position to another maintains
+                       identity; appearing and disappearing does not
+  duration by scale    small elements move quickly, large ones more slowly;
+                       constant duration across scales looks inconsistent
+  interruptibility     a user action mid-animation should redirect rather than
+                       queue or snap
+
+The purpose criterion deserves the closing emphasis because it is what separates motion that
+improves an interface from motion that degrades it. Motion communicating spatial relationship —
+showing that a panel came from the button that opened it, that a deleted item was removed from
+this position, that a list reordered rather than replaced — helps the user build a model of the
+interface and reduces the effort of following changes. Motion that merely decorates costs
+attention and time on every occurrence, and its cost compounds because interface animation is
+seen thousands of times by a regular user. The test worth applying is whether the motion answers a
+question the user would otherwise have to work out, and if it does not, the interface is better
+without it.

@@ -1,0 +1,377 @@
+================================================================================
+AREA: Mathematics
+SUBJECT: Calculus and Real Analysis
+Subtopics: limits and continuity, differentiation, integration, sequences and
+series, multivariable calculus, vector calculus, measure and Lebesgue integration.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Limits and Continuity
+
+The limit is the foundational construction of analysis, and the epsilon-delta
+definition is what makes it rigorous rather than intuitive. To say lim_{x->a} f(x) = L
+is to say that for every epsilon > 0 there exists a delta > 0 such that 0 < |x - a| <
+delta implies |f(x) - L| < epsilon. The quantifier order is the whole content:
+epsilon is given by an adversary, delta is your response, and delta may depend on
+epsilon. Reversing the order gives a different and usually false statement. The
+condition 0 < |x - a| explicitly excludes the point itself, which is why a limit can
+exist where the function is undefined — the entire basis of the derivative, where the
+difference quotient is undefined at exactly the point of interest.
+
+Continuity at a point requires three things: the function is defined there, the limit
+exists there, and the two agree. Failures are classified accordingly. A removable
+discontinuity has a limit that disagrees with, or exists in the absence of, the
+function value — sin(x)/x at zero, which has limit 1 and no value. A jump
+discontinuity has one-sided limits that both exist and differ, as in a step function.
+An essential discontinuity has at least one one-sided limit failing to exist, as in
+sin(1/x) at zero, which oscillates infinitely fast.
+
+Uniform continuity strengthens continuity by requiring a single delta to work across
+the whole domain for a given epsilon, rather than a possibly different delta at each
+point. The function 1/x is continuous on (0, 1) but not uniformly so, because the delta
+required shrinks without bound as x approaches zero; f(x) = x^2 is continuous on all
+of R but not uniformly, because the delta shrinks as x grows. The Heine-Cantor theorem
+says continuity on a compact set implies uniform continuity, which is why the
+distinction rarely surfaces on a closed bounded interval and becomes essential on open
+or unbounded ones. Uniform continuity is what guarantees Riemann integrability and
+what makes numerical approximation schemes converge at a predictable rate.
+
+The three great theorems of continuous functions on a closed interval [a, b]:
+  Intermediate Value Theorem   f continuous, f(a) < c < f(b) implies f(x) = c for
+                               some x in (a, b). Basis of bisection root-finding.
+  Extreme Value Theorem        f continuous on a compact set attains a maximum and
+                               a minimum. Why optimization on closed bounded sets
+                               is well posed.
+  Mean Value Theorem           f continuous on [a,b], differentiable on (a,b),
+                               implies f'(c) = (f(b) - f(a))/(b - a) for some c.
+                               The bridge from local derivative to global change.
+
+The mean value theorem is the workhorse behind most error bounds in numerical
+analysis. Taylor's theorem with the Lagrange remainder is its direct generalization,
+and it is what converts "the derivative is bounded by M" into "the function changes by
+at most M times the interval length" — a statement about global behaviour deduced from
+purely local information, which is the recurring pattern of the entire subject.
+
+Q: f(x) = sin(1/x) for x nonzero and f(0) = 0. At x = 0 the function has:
+A. A removable discontinuity
+B. A jump discontinuity
+C. An essential discontinuity
+D. No discontinuity; it is continuous
+Reasoning: As x approaches zero, 1/x runs to infinity and sin oscillates between -1
+and 1 infinitely often, so neither one-sided limit exists. That is the definition of
+an essential discontinuity. Note that x*sin(1/x) with value 0 at the origin *is*
+continuous there, because the factor of x squeezes the oscillation to zero — a useful
+contrast. Answer: C.
+
+Q: A function is continuous on the open interval (0, 1) but unbounded. This is:
+A. Impossible; continuity implies boundedness
+B. Possible, because the interval is not compact
+C. Possible only if the function is discontinuous somewhere
+D. Possible only for non-differentiable functions
+Reasoning: The Extreme Value Theorem requires a compact — closed and bounded — domain.
+The open interval is bounded but not closed, so the theorem does not apply, and 1/x on
+(0, 1) is a smooth counterexample. Compactness, not continuity alone, is what
+guarantees boundedness. Answer: B.
+
+## Differentiation
+
+The derivative is the limit of the difference quotient, f'(a) = lim_{h->0} (f(a+h) -
+f(a))/h, and it measures the instantaneous rate of change. Geometrically it is the
+slope of the tangent line; analytically it is the coefficient of the best linear
+approximation, f(a+h) = f(a) + f'(a)h + o(h). That second reading generalizes cleanly
+to higher dimensions where the geometric picture becomes unwieldy, and it is the right
+one to carry forward: differentiation is linearization.
+
+Differentiability implies continuity but not conversely. The absolute value function is
+continuous everywhere and fails to be differentiable at zero, where the left and right
+difference quotients disagree. More strikingly, the Weierstrass function is continuous
+everywhere and differentiable nowhere, which destroyed the nineteenth-century intuition
+that continuous curves must have tangents except at isolated points, and motivated
+much of the rigour that followed.
+
+Differentiation rules, and the ones people misremember:
+  power           d/dx x^n = n x^{n-1}                for all real n, x > 0
+  product         (fg)' = f'g + fg'
+  quotient        (f/g)' = (f'g - fg')/g^2            note the order in the numerator
+  chain           (f(g(x)))' = f'(g(x)) g'(x)
+  inverse         (f^{-1})'(y) = 1 / f'(f^{-1}(y))
+  exponential     d/dx e^x = e^x,   d/dx a^x = a^x ln a
+  logarithm       d/dx ln|x| = 1/x
+  trigonometric   sin' = cos, cos' = -sin, tan' = sec^2
+  inverse trig    arcsin' = 1/sqrt(1-x^2), arctan' = 1/(1+x^2)
+  implicit        differentiate both sides in x, solve for dy/dx
+  logarithmic     for y = f^g, take ln of both sides first
+
+Critical points, where the derivative vanishes or fails to exist, are candidates for
+local extrema, and the second derivative classifies them: positive means a local
+minimum, negative a local maximum, zero is inconclusive and requires either higher
+derivatives or a sign analysis of the first derivative. The inconclusive case is not
+exotic — x^4 and x^3 both have vanishing first and second derivatives at the origin,
+and one is a minimum while the other is an inflection point.
+
+Taylor series expand a function as an infinite polynomial about a point, f(x) = sum
+f^{(n)}(a)(x-a)^n / n!. The remainder term controls the error of truncation, and for
+the Lagrange form it is f^{(n+1)}(c)(x-a)^{n+1}/(n+1)! for some c between a and x. Two
+cautions carry real weight. First, a function can be infinitely differentiable and
+have a Taylor series that converges to something else entirely: exp(-1/x^2) extended by
+zero at the origin has every derivative zero there, so its Taylor series is identically
+zero while the function is not. Smooth does not imply analytic. Second, the radius of
+convergence is governed by the nearest singularity in the *complex* plane, which is why
+1/(1+x^2) has a Taylor series about zero that diverges beyond |x| = 1 despite the
+function being perfectly well behaved on the whole real line — the poles at plus and
+minus i are invisible from the real axis and control everything.
+
+Essential Taylor expansions about zero:
+  e^x        = 1 + x + x^2/2! + x^3/3! + ...           all x
+  sin x      = x - x^3/3! + x^5/5! - ...               all x
+  cos x      = 1 - x^2/2! + x^4/4! - ...               all x
+  ln(1+x)    = x - x^2/2 + x^3/3 - ...                 |x| < 1
+  1/(1-x)    = 1 + x + x^2 + x^3 + ...                 |x| < 1
+  (1+x)^a    = 1 + ax + a(a-1)x^2/2! + ...             |x| < 1
+  arctan x   = x - x^3/3 + x^5/5 - ...                 |x| <= 1
+
+The first-order approximations from these — sin x is approximately x, ln(1+x) is
+approximately x, e^x is approximately 1 + x, (1+x)^a is approximately 1 + ax — are
+worth internalizing because they turn up constantly in physics, finance, and numerical
+work. The small-angle approximation is the pendulum's linearization; the log
+approximation is why log returns and simple returns agree for small moves; the binomial
+one is behind every "a 1% change in x produces an a% change in y" statement.
+
+## Integration
+
+The Riemann integral is the limit of sums over partitions, and the fundamental theorem
+of calculus links it to differentiation in two directions. The first part says that
+d/dx of the integral of f from a to x equals f(x), so integration and differentiation
+undo each other. The second says the integral of f' from a to b equals f(b) - f(a), so
+a definite integral is evaluated by finding any antiderivative and taking a difference.
+This is the result that converts an infinite limiting process into arithmetic, and it
+is why calculus is a practical tool rather than a theoretical one.
+
+Techniques of integration are, in essence, the differentiation rules read backwards.
+Substitution reverses the chain rule and is the first thing to try. Integration by
+parts reverses the product rule, giving the integral of u dv as uv minus the integral
+of v du; the art is choosing u to be something that simplifies under differentiation,
+and the LIATE heuristic (logarithmic, inverse trig, algebraic, trigonometric,
+exponential) orders the usual preference. Partial fractions decompose a rational
+function into terms with linear or irreducible quadratic denominators, each of which
+integrates to a logarithm or an arctangent. Trigonometric substitution handles
+expressions containing sqrt(a^2 - x^2), sqrt(a^2 + x^2), and sqrt(x^2 - a^2) by turning
+them into trigonometric identities.
+
+Improper integrals extend the definition to unbounded intervals or unbounded
+integrands, defined as limits. The p-integrals are the reference cases everyone should
+know: the integral of 1/x^p from 1 to infinity converges exactly when p > 1, and from
+0 to 1 converges exactly when p < 1. The boundary case p = 1 diverges at both ends,
+which is the harmonic series' continuous analogue. Comparison against these settles
+most convergence questions without any evaluation.
+
+Numerical integration when no antiderivative exists:
+  midpoint rule       error O(h^2), exact for linear
+  trapezoid rule      error O(h^2), exact for linear, easy on tabulated data
+  Simpson's rule      error O(h^4), exact for cubics, the standard workhorse
+  Gauss-Legendre      n nodes exact for degree 2n-1; superb for smooth integrands
+  adaptive quadrature refines only where the estimated error is large
+  Monte Carlo         error O(n^{-1/2}) independent of dimension; the only
+                      practical option above ~8 dimensions
+  quasi-Monte Carlo   low-discrepancy sequences, error near O(n^{-1}) for smooth
+                      integrands in moderate dimension
+
+The dimensional crossover in that list is worth stating explicitly, because it governs
+practical choices in physics and finance. Grid-based rules have error scaling like
+h^k, and with n points in d dimensions h is n^{-1/d}, so the error goes as n^{-k/d} —
+the curse of dimensionality. Monte Carlo error is n^{-1/2} regardless of d. Below
+roughly four to eight dimensions the deterministic rules win handily; above that Monte
+Carlo wins and the gap grows without bound. This is the entire reason path integrals
+and high-dimensional Bayesian posteriors are attacked by sampling rather than by
+quadrature.
+
+[user] I need to integrate a smooth function over [0, 1] to 1e-10 accuracy and my
+adaptive Simpson call is taking forever.
+[assistant] tool_call numerics.quadrature_plan({"interval": [0, 1], "tolerance": 1e-10,
+"smoothness": "analytic", "current_method": "adaptive_simpson", "evals_used": 2100000})
+[tool] {"simpson_evals_needed": 3.2e6, "gauss_legendre_nodes": 24,
+"clenshaw_curtis_nodes": 40, "recommended": "gauss_legendre", "expected_error": 4e-14}
+[assistant] Switch to Gauss-Legendre quadrature. For an analytic integrand this is not
+a marginal improvement — it is roughly a hundred-thousand-fold reduction in function
+evaluations.
+
+The reason is the convergence rate. Simpson's rule is exact for cubics and has error
+O(h^4), so reaching 1e-10 requires refining until h is small enough, and adaptive
+subdivision spends most of its budget in regions the error estimator is merely
+uncertain about. Gauss-Legendre with n nodes is exact for polynomials up to degree
+2n-1, and for an analytic function the error decays geometrically in n rather than
+polynomially in h. Twenty-four nodes should put you at around 4e-14, comfortably past
+your tolerance.
+
+Practically: take the standard Gauss-Legendre nodes and weights on [-1, 1], map them
+to [0, 1] with x = (t+1)/2, and scale the weights by the Jacobian of 1/2. Sum w_i
+f(x_i) and you are done — 24 evaluations, no adaptivity, no error estimator.
+
+The one thing that would break this: if your function is not actually analytic — a
+kink, a square-root branch point at an endpoint, or a near-singularity just off the
+interval — the geometric convergence disappears and you are back to algebraic rates.
+If Gauss-Legendre stalls around 1e-6, that is what happened, and the fix is either a
+substitution that removes the singularity or a splitting of the interval at the
+offending point.
+
+## Sequences and Series
+
+A sequence converges if its terms approach a limit; a series converges if its sequence
+of partial sums does. The necessary condition that terms go to zero is not sufficient,
+and the harmonic series is the standing counterexample: 1 + 1/2 + 1/3 + ... diverges
+despite terms shrinking to zero, because the partial sums grow like ln n. This single
+example prevents more errors than any other in the subject.
+
+Convergence tests, in the order worth trying them:
+  term test           if a_n does not go to 0, the series diverges. Necessary only.
+  geometric           sum r^n converges iff |r| < 1, to 1/(1-r)
+  p-series            sum 1/n^p converges iff p > 1
+  comparison          bound termwise against a known series
+  limit comparison    if a_n/b_n tends to a positive finite limit, both do the same
+  ratio test          L = lim |a_{n+1}/a_n|; converges if L < 1, diverges if L > 1,
+                      inconclusive at 1. Best for factorials and exponentials.
+  root test           L = lim |a_n|^{1/n}; same conclusion. Best for nth powers.
+  integral test       for positive decreasing a_n, the series and the integral agree
+  alternating series  decreasing terms going to zero converge; error bounded by the
+                      first omitted term
+
+Absolute convergence, where the series of absolute values converges, is much stronger
+than conditional convergence. An absolutely convergent series can be rearranged
+freely without changing its sum. A conditionally convergent one cannot: the Riemann
+rearrangement theorem states that a conditionally convergent series can be rearranged
+to converge to *any* prescribed real number, or to diverge. The alternating harmonic
+series sums to ln 2 in its natural order and can be rearranged to sum to seventeen.
+This is not a curiosity — it is why term reordering in numerical summation is not
+innocent, and it is a good intuition for why floating-point summation order matters.
+
+Power series converge on a disc whose radius is determined by the ratio or root test,
+and within that radius they may be differentiated and integrated term by term, which
+is the standard method for deriving new series from known ones and for solving
+differential equations. Uniform convergence is the condition that licenses swapping
+limits with integrals and derivatives: pointwise convergence alone is not enough, and
+the standard counterexample is a sequence of functions each with integral one whose
+pointwise limit is identically zero — a spike that grows taller and narrower. The
+Weierstrass M-test is the practical tool for establishing uniform convergence of a
+series of functions.
+
+Q: The series sum of (-1)^n / n converges to ln 2. A rearrangement of its terms:
+A. Must also converge to ln 2
+B. Can be made to converge to any real number
+C. Must diverge
+D. Converges only if the rearrangement is finite
+Reasoning: The series converges conditionally — the terms 1/n do not have a convergent
+sum of absolute values. Riemann's rearrangement theorem then applies: the positive and
+negative terms each form a divergent series, so they can be interleaved to steer the
+partial sums toward any target. Answer: B.
+
+Q: For which p does sum 1/(n (ln n)^p) from n = 2 converge?
+A. All p   B. p > 1   C. p >= 1   D. No p
+Reasoning: The integral test with substitution u = ln n turns this into the integral of
+1/u^p, which converges at the upper limit exactly when p > 1. The case p = 1 gives
+ln(ln n), which diverges — slowly, but it diverges. Answer: B.
+
+## Multivariable and Vector Calculus
+
+In several variables the derivative becomes the gradient, a vector of partial
+derivatives pointing in the direction of steepest increase, with magnitude equal to
+that rate. The directional derivative in a unit direction u is the dot product of the
+gradient with u, which is maximized when u aligns with the gradient — the fact that
+makes gradient descent a sensible algorithm. Crucially, the existence of all partial
+derivatives does not imply differentiability in the multivariable sense; the function
+must be well approximated by its linearization in every direction simultaneously, and
+continuity of the partials is a convenient sufficient condition.
+
+The second derivative becomes the Hessian, the matrix of second partials, symmetric
+whenever those partials are continuous (Clairaut's theorem). Its eigenvalues classify
+critical points: all positive gives a local minimum, all negative a local maximum,
+mixed signs a saddle. In high dimensions mixed signs are overwhelmingly the generic
+case — a random symmetric matrix has positive and negative eigenvalues with
+probability approaching one — which is why saddle points rather than spurious local
+minima are the dominant obstacle in high-dimensional non-convex optimization.
+
+Constrained optimization uses Lagrange multipliers. To extremize f subject to g = 0,
+set the gradient of f equal to lambda times the gradient of g and solve alongside the
+constraint. The geometric content is that at a constrained optimum the level sets of
+objective and constraint are tangent, so their gradients are parallel; if they were
+not, one could move along the constraint surface and improve. The multiplier itself is
+not a bookkeeping artifact — it equals the rate of change of the optimal value with
+respect to relaxing the constraint, which is the shadow price in economics and the
+force of constraint in mechanics. The Karush-Kuhn-Tucker conditions extend this to
+inequality constraints, adding complementary slackness: each multiplier is zero unless
+its constraint is active.
+
+The vector calculus operators and their meanings:
+  gradient    grad f = (df/dx, df/dy, df/dz)      scalar -> vector; steepest ascent
+  divergence  div F = dFx/dx + dFy/dy + dFz/dz    vector -> scalar; source density
+  curl        curl F = del cross F                vector -> vector; circulation
+  Laplacian   lap f = div grad f                  scalar -> scalar; diffusion
+  identities  curl(grad f) = 0,  div(curl F) = 0  always, for smooth fields
+
+Those two identities carry physical content. That the curl of a gradient vanishes
+means conservative fields — those derived from a potential — have no circulation, so
+the work done around any closed loop is zero, which is conservation of energy. That
+the divergence of a curl vanishes means fields expressible as a curl have no sources,
+which is why magnetic monopoles are absent from Maxwell's equations given that B is the
+curl of a vector potential.
+
+The integral theorems unify into a single statement. Green's theorem relates a line
+integral around a plane curve to a double integral over the enclosed region. Stokes'
+theorem relates the circulation of a field around a closed curve to the flux of its
+curl through any surface bounded by that curve. The divergence theorem relates the flux
+of a field through a closed surface to the integral of its divergence over the enclosed
+volume. All three are instances of the generalized Stokes theorem, which says the
+integral of a differential form over the boundary of a region equals the integral of
+its exterior derivative over the region — the fundamental theorem of calculus,
+restated in arbitrary dimension.
+
+## Measure and the Lebesgue Integral
+
+The Riemann integral partitions the domain; the Lebesgue integral partitions the
+range. That single change of viewpoint resolves most of the Riemann integral's
+deficiencies. The Dirichlet function, equal to one on the rationals and zero
+elsewhere, is not Riemann integrable because every partition contains both rationals
+and irrationals in each subinterval, so the upper and lower sums are one and zero
+regardless of refinement. Lebesgue integration handles it immediately: the rationals
+form a countable set and therefore have measure zero, so the function equals zero
+almost everywhere and its integral is zero.
+
+Measure formalizes size. Lebesgue measure on the real line assigns each interval its
+length and extends this consistently to a much larger collection of sets, the Lebesgue
+measurable sets. Countable sets have measure zero, since each point has measure zero
+and countable additivity applies. More surprisingly, uncountable sets can also have
+measure zero — the Cantor set is the standard example, having the same cardinality as
+the reals while occupying no length. And the axiom of choice yields non-measurable
+sets, such as the Vitali set, on which no consistent notion of size exists; their
+existence is why measure theory restricts to a sigma-algebra rather than to all
+subsets.
+
+The convergence theorems are what make the Lebesgue integral the tool of choice for
+analysis and probability, because they license exchanging a limit with an integral
+under weak hypotheses where the Riemann theory demands uniform convergence.
+
+The three convergence theorems:
+  Monotone Convergence   0 <= f_1 <= f_2 <= ... pointwise to f
+                         implies the integrals converge to the integral of f
+  Fatou's Lemma          integral of liminf f_n <= liminf of integral of f_n
+                         for non-negative f_n; an inequality, always available
+  Dominated Convergence  f_n -> f pointwise with |f_n| <= g for an integrable g
+                         implies the integrals converge to the integral of f
+
+Dominated convergence is the one used constantly. The dominating function g is the
+essential hypothesis and its absence is exactly what the sliding-spike counterexample
+exploits: functions that are n on the interval [0, 1/n] and zero elsewhere converge
+pointwise to zero, each has integral one, and no integrable function dominates them
+all. Whenever an interchange of limit and integral is asserted, the honest question is
+what dominates.
+
+The connection to probability is direct rather than analogical. A probability space is
+a measure space with total measure one, a random variable is a measurable function,
+and expectation is the Lebesgue integral against the probability measure. Almost-sure
+convergence is pointwise convergence off a null set, convergence in probability is
+convergence in measure, and convergence in distribution is weak convergence of the
+induced measures. The dominated convergence theorem becomes the statement that
+expectations converge when the variables are uniformly bounded by something with
+finite mean, which is the workhorse behind most limit theorems in the subject. Seen
+this way, probability is not an application of measure theory so much as a
+specialization of it with its own vocabulary.

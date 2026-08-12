@@ -1,0 +1,48 @@
+# Qwen3.8-27B -> IQ2_M, hybrid imatrix, MTP draft head bundled at Q8_0.
+#
+# Part of the exp-060 ladder (IQ2_M / IQ3_M / IQ4_XS / Q5_K_M). The experiment
+# scripts (scripts/exp060_*.py) are the canonical path — they read the draft-layer
+# index back out of the GGUF and bench each eval corpus separately. This recipe is
+# the CLI equivalent for one row.
+#
+# Build the corpora FIRST (they are shared across the ladder, and the paths below
+# point at them):
+#   uv run python scripts/build_universal_corpus.py \
+#       --out out/exp-060/corpora --model out/exp-060/model_extracted
+#
+# extract.keep_mtp + quantize.mtp_pin keep the nextn draft layer near-lossless while
+# the trunk goes to IQ2_M; the layer index is resolved from the F16 GGUF, never
+# hardcoded.
+name: iq2_m_qwen3_8_mtp
+
+model: Qwen/Qwen3.8-27B
+
+workspace: ./out/iq2_m_qwen3_8_mtp
+
+data:
+  logs: ./datasets/agent-logs/data/logs-cli.jsonl.gz
+  corpus: ./out/exp-060/corpora/corpus.cal.txt
+  train_frac: 0.8
+  test_frac: 0.1
+  holdout_frac: 0.1
+  per_session_cap: 7500       # one 8192-token imatrix context, minus render headroom
+  context_len: 16384
+
+extract:
+  keep_mtp: true
+
+calibration:
+  method: imatrix
+  variant: hybrid_custom
+  params:
+    imatrix_ctx: 8192
+
+quantize:
+  type: IQ2_M
+  mtp_pin: q8_0
+
+bench:
+  suite: full
+  eval_ctx: 8192
+  eval_corpus: ./out/exp-060/corpora/corpus.eval.txt
+  eval_tools_corpus: ./out/exp-060/corpora/corpus.eval.tools.txt

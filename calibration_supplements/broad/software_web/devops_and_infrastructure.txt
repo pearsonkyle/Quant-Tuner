@@ -1,0 +1,303 @@
+================================================================================
+AREA: Software and Web Engineering
+SUBJECT: DevOps and Infrastructure
+Subtopics: version control and CI/CD, containers and orchestration, infrastructure
+as code, observability, reliability engineering, incident response, cost.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Version Control and Continuous Delivery
+
+Version control is the substrate everything else builds on, and Git's model is worth
+understanding rather than memorizing commands. A commit is an immutable snapshot of the whole
+tree plus a pointer to its parents; a branch is a movable pointer to a commit; history is a
+directed acyclic graph. Nearly every confusing Git situation becomes clear once these three
+facts are internalized, because operations that seem to modify history are actually creating
+new commits and moving pointers.
+
+Branching strategy should follow deployment frequency rather than fashion. Long-lived
+feature branches accumulate divergence, and the pain of merging grows superlinearly with
+divergence, which is why teams that branch for weeks spend disproportionate effort on
+integration. Trunk-based development with short-lived branches and feature flags inverts
+this: code is merged continuously and hidden behind flags until ready, so integration
+problems surface immediately when they are small. The prerequisite is a test suite trusted
+enough that merging to trunk is safe, which is why teams without one cannot adopt it and
+should invest there first.
+
+Continuous integration means every change is built and tested automatically on merge, and
+its value is proportional to how fast and how trustworthy the feedback is. A suite taking
+forty minutes gets bypassed; one that fails intermittently gets ignored. Flaky tests are
+worse than missing tests, because they train people to rerun rather than investigate, and the
+correct response to a flaky test is to fix it or delete it rather than to retry it
+automatically.
+
+Pipeline and delivery concepts:
+  continuous integration   build and test every change on merge
+  continuous delivery      every change is deployable; releasing is a decision
+  continuous deployment    every passing change deploys automatically
+  pipeline stages          lint, unit, build, integration, security scan, deploy
+  fail fast                cheapest checks first; do not run a 20-minute suite
+                           behind a lint error
+  artifact promotion       build once, promote the same artifact through
+                           environments; never rebuild per environment
+  immutable artifacts      content-addressed and never modified after build
+  feature flags            decouple deploy from release; enables trunk-based work
+                           and instant rollback without redeploying
+  database migrations      backward compatible and deployed separately from code
+  rollback                 tested and fast; an untested rollback is a hypothesis
+
+Building once and promoting the same artifact is a principle worth stating explicitly
+because violating it is common and defeats the purpose of testing. If the staging build and
+the production build are separate compilations, they may differ — different dependency
+resolution, different base image, different build-time configuration — and the artifact
+tested is not the artifact deployed. Configuration must therefore be injected at runtime from
+the environment rather than baked in at build time, which is what makes a single artifact
+valid everywhere.
+
+Q: A team's test suite fails intermittently at about a 5% rate, and developers rerun until
+it passes. The most damaging consequence is:
+A. Wasted compute
+B. The suite no longer functions as a gate, because a genuine failure is indistinguishable
+   from a flake and gets rerun too
+C. Slower merges
+D. Increased storage
+Reasoning: The purpose of a test suite is to be trusted. Once reruns are routine, real
+regressions are dismissed as flakes and merged, so the suite provides the appearance of
+verification without the substance. Fixing or removing flaky tests restores the signal; retry
+logic destroys it. Answer: B.
+
+## Containers and Orchestration
+
+A container packages an application with its dependencies into an image that runs
+identically wherever the container runtime exists. It is not a virtual machine: containers
+share the host kernel and are isolated by kernel features — namespaces for what a process
+can see, cgroups for what it can consume — which makes them far lighter than virtual
+machines and less strongly isolated. The security consequence is that a kernel vulnerability
+crosses container boundaries in a way it does not cross hypervisor boundaries, which is why
+multi-tenant workloads with untrusted code use virtual machines or specialized sandboxes.
+
+Image construction has a large effect on both size and security. Layers are cached and
+shared, so ordering matters: instructions that change rarely should come first, and
+dependency installation should be separated from application code copying so that a code
+change does not invalidate the dependency layer. Multi-stage builds compile in one stage and
+copy only the artifacts into a minimal runtime stage, which typically reduces image size by
+an order of magnitude and removes the compilers and build tools that would otherwise be
+available to an attacker.
+
+Container practices:
+  small base images       distroless or minimal; less to patch, less to exploit
+  multi-stage builds      build tooling stays out of the runtime image
+  layer ordering          least-changing first for cache efficiency
+  non-root user           run as an unprivileged user; the default is root and
+                          should be overridden
+  read-only filesystem    with explicit writable volumes where needed
+  no secrets in images     they persist in layers and in the registry
+  pinned base tags        by digest, not by a mutable tag like latest
+  vulnerability scanning  in the pipeline and continuously on stored images
+  health probes           liveness restarts a hung container; readiness removes it
+                          from load balancing without restarting
+  resource limits         requests and limits per container; without them one
+                          workload can starve the node
+
+The distinction between liveness and readiness probes causes real outages when confused. A
+liveness probe failing restarts the container, and a readiness probe failing removes it from
+service without restarting. If a service becomes temporarily unable to serve because a
+dependency is slow, a liveness probe checking that dependency will restart every replica
+simultaneously, converting a degraded dependency into a total outage. Liveness should check
+only that the process itself is functional; readiness checks whether it can currently serve.
+
+Orchestration manages containers across a cluster — scheduling, scaling, networking, service
+discovery, rolling updates, and self-healing. Kubernetes has become the standard, and its
+declarative model is the important idea: you describe the desired state and controllers work
+continuously to make reality match, rather than issuing imperative commands. This makes the
+system self-healing, since a killed pod is simply a divergence that the controller corrects,
+and it makes the configuration the source of truth.
+
+The honest caveat is that Kubernetes is complex, and the complexity is justified only at a
+certain scale and organizational maturity. A team running three services with modest traffic
+gets more value from a managed platform that handles deployment, scaling, and networking
+without exposing the underlying machinery. Adopting a cluster orchestrator to run a handful
+of containers imports substantial operational surface — networking, storage, upgrades,
+security policy, resource tuning — in exchange for capabilities that are not yet needed.
+
+## Infrastructure as Code and Configuration
+
+Infrastructure as code manages servers, networks, and services through declarative
+definitions in version control rather than through manual console operations. The benefits
+follow from being code: changes are reviewed, history is auditable, environments are
+reproducible, and disaster recovery is a matter of reapplying the definitions rather than
+remembering what was configured.
+
+Declarative tools specify the desired end state and compute the changes required to reach
+it, which makes them naturally idempotent — applying the same definition twice produces no
+additional change. Imperative tools specify the steps, which is more flexible and requires
+the author to handle the current state's variability. Declarative is the right default for
+infrastructure, with imperative escape hatches where genuinely needed.
+
+State management is the subtlety that surprises newcomers. A declarative tool must know what
+it previously created in order to compute a diff, and it stores this in a state file that
+becomes critical infrastructure itself: it must be stored remotely so the team shares it,
+locked so that concurrent applies cannot corrupt it, versioned so a bad state can be
+recovered, and protected because it frequently contains secrets. Drift — manual changes made
+outside the tool — causes the state to diverge from reality, and the remedies are to detect
+it by regular plan runs and to prevent it by restricting console write access.
+
+Infrastructure and configuration practices:
+  declarative definitions  desired state, computed diff, idempotent apply
+  remote locked state      shared, versioned, protected; treat it as critical
+  plan before apply        review the computed changes; never apply blind
+  modules                  reusable parameterized components
+  environment parity       the same definitions with different variables; drift
+                           between environments invalidates testing
+  no manual changes        console access read-only in production where possible
+  immutable infrastructure replace rather than modify servers; eliminates
+                           configuration drift entirely
+  secret management        a dedicated store with injection at runtime; never in
+                           code, images, or state files
+  policy as code           automated checks that infrastructure meets standards
+                           before it is created
+  tagging                  owner, environment, cost centre; untagged resources
+                           become unattributable and permanent
+
+Immutable infrastructure is the pattern that eliminates a whole class of problem. Rather
+than updating a running server — applying patches, changing configuration, deploying code —
+build a new image and replace the server entirely. No server accumulates a history of
+undocumented changes, no two servers diverge, and rollback is redeploying the previous image.
+This requires that servers hold no unique state, which means externalizing data, logs, and
+sessions, and that is the same discipline that makes horizontal scaling possible.
+
+[user] Our Kubernetes pods are being OOM-killed randomly under load but the node has free
+memory.
+[assistant] tool_call k8s.diagnose_oom({"pod": "api-worker", "restarts_24h": 47,
+"container_limit_mi": 512, "container_request_mi": 128, "observed_peak_mi": 780,
+"node_allocatable_gi": 32, "node_used_gi": 19, "jvm_heap_mi": 512})
+[tool] {"cause": "container_limit_exceeded_not_node_pressure",
+"issues": ["limit_below_actual_usage", "heap_equals_limit_no_overhead",
+"request_far_below_limit_causes_overcommit"], "recommended_limit_mi": 1024,
+"recommended_heap_mi": 640}
+[assistant] The node has memory; your container limit does not. Kubernetes OOM-kills a
+container when it exceeds its own limit regardless of node capacity, so free memory on the
+node is irrelevant to this failure.
+
+Three specific problems, and they compound rather than being independent.
+
+Your limit is 512 MiB and observed peak usage is 780 MiB, so the container is killed every
+time load pushes it past the limit. Raise the limit to about 1024 MiB based on the observed
+peak plus headroom.
+
+Your JVM heap is also set to 512 MiB, exactly equal to the container limit, which cannot
+work. Total container memory is heap plus metaspace plus thread stacks plus direct buffers
+plus the JVM's own overhead, typically 25-50% above heap for a service like this. Set the
+heap to roughly 60-65% of the container limit — 640 MiB against a 1024 MiB limit — or better,
+use the JVM's container-aware percentage flag so the two stay consistent when the limit
+changes.
+
+Your request of 128 MiB against a limit of 512 is a large gap, which lets the scheduler pack
+many of these pods onto a node based on a request that badly understates real usage. That
+does not cause this particular kill but it does cause node pressure and eviction of other
+pods, so set the request closer to steady-state usage — perhaps 512 MiB — and the limit above
+peak.
+
+To confirm before changing anything: check the pod's termination reason. If it shows OOMKilled
+with exit code 137, it is the container limit as described. If the kubelet evicted the pod
+instead, that is node pressure and a different problem with a different fix. The distinction
+is visible in the pod events and is worth checking because the remedies diverge.
+
+## Observability
+
+Observability is the ability to understand a system's internal state from its external
+outputs, and it differs from monitoring in intent. Monitoring answers known questions —
+is the error rate above threshold — using predefined dashboards and alerts. Observability
+answers unanticipated questions, which is what an incident requires, and it demands data with
+enough dimensionality to slice in ways nobody planned for.
+
+The three signals are complementary rather than interchangeable. Metrics are numeric
+aggregates: cheap to store, efficient to query over long periods, ideal for alerting and
+trends, and unable to explain any individual request. Logs are discrete events with
+arbitrary detail: expensive at volume, essential for understanding specific occurrences, and
+only useful if structured. Traces follow one request across service boundaries with timing
+per span, and they are the only signal that answers where the latency went in a system of
+many services.
+
+Structured logging is worth insisting on. A log line as free text requires parsing with
+fragile regular expressions and cannot be aggregated reliably; the same event as structured
+fields can be filtered, grouped, and counted directly. The discipline is to log events with
+named fields rather than formatted sentences, to include a correlation identifier on every
+line so a request can be reassembled, and to log at a level that reflects actionability
+rather than author enthusiasm.
+
+Observability practice:
+  metrics             RED for services: rate, errors, duration
+                      USE for resources: utilization, saturation, errors
+  percentiles         p50, p95, p99; the mean hides the tail users experience
+  histograms          preserve the distribution; averages of averages are wrong
+  cardinality         high-cardinality labels multiply time series and can be
+                      ruinously expensive; user IDs do not belong in metric labels
+  structured logs     named fields, not formatted prose
+  correlation ID      generated at the edge, propagated everywhere, returned in
+                      errors
+  sampling            head-based is cheap and may miss rare errors; tail-based
+                      keeps interesting traces at higher cost
+  SLI                 a measured indicator of user-visible behaviour
+  SLO                 the target for that indicator
+  error budget        the allowed shortfall; what makes reliability a tradeoff
+                      rather than an absolute
+
+Alerting discipline determines whether monitoring helps or harms. Alerts should fire on
+symptoms that users experience rather than on causes that may or may not matter — high
+latency and elevated error rate rather than high CPU, which may be entirely normal. Every
+alert should be actionable and should link to a runbook; an alert with no defined response
+trains responders to ignore alerts generally. Alert fatigue is a real operational hazard, and
+the count of alerts that fire without action being taken is the metric that reveals it.
+
+## Reliability, Incidents, and Cost
+
+Service level objectives make reliability a deliberate tradeoff rather than an aspiration.
+An objective states a target for a measured indicator over a window — for instance that 99.9
+percent of requests succeed over thirty days — and the complement is the error budget, the
+amount of failure permitted. This reframes reliability usefully: a team within its error
+budget can spend it on faster releases and riskier changes, while a team that has exhausted it
+should stop feature work and address reliability. The budget converts an unbounded argument
+about how reliable to be into a number both engineering and product can reason about.
+
+The right target is lower than instinct suggests. Each additional nine costs
+disproportionately more, and beyond a point the user cannot perceive the difference because
+their own network and device dominate. A service whose clients experience 99.9 percent
+reliability from their connectivity gains nothing from being five nines itself. The objective
+should be derived from what users need and notice, not from how many nines sound impressive.
+
+Incident response benefits from structure established before it is needed. A declared
+incident should have a single coordinator whose job is coordination rather than debugging, a
+communications channel, and a written timeline maintained as events unfold. The first
+priority is mitigation — restore service — rather than diagnosis, which is why rollback should
+be the reflex and root cause analysis should wait. Well-run incidents look procedural and
+unhurried; badly run ones have several people independently changing production.
+
+Reliability and cost practices:
+  SLI / SLO / budget    measured indicator, target, permitted shortfall
+  choose targets from   user-perceptible impact, not aspiration
+  incident roles        coordinator, communicator, subject matter experts
+  mitigate first        rollback before diagnosis
+  blameless postmortem  systems and conditions, not individuals; people describe
+                        what they saw honestly only when it is safe to do so
+  action items          owned and tracked; a postmortem without them is theatre
+  chaos engineering     deliberately inject failure to verify assumptions; start
+                        in staging and with a hypothesis
+  game days             rehearse incidents; the response is a skill that decays
+  runbooks              per-alert, kept current, written for someone woken at 3am
+  right-sizing          the largest cloud saving; instances are usually
+                        provisioned for a peak that never occurs
+  autoscaling           on the metric that actually predicts load
+  spot instances        large discounts for interruptible batch work
+  lifecycle policies    tier and expire stored data automatically
+  cost visibility       per-team attribution; unattributed cost is unmanaged
+
+Blameless postmortems are a technique with a specific mechanism rather than a cultural
+nicety. The purpose of a postmortem is to learn what conditions allowed a failure, and that
+requires accurate accounts from the people involved. If naming a cause risks consequences for
+an individual, accounts become defensive and the actual sequence of events is not recovered.
+Framing the analysis around systems, tooling, documentation, and conditions rather than
+around individual decisions is what makes honest reconstruction possible — and the finding is
+nearly always that a person acted reasonably given the information available, which locates
+the fix in the information rather than in the person.

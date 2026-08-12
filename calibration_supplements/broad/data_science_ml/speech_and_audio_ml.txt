@@ -1,0 +1,331 @@
+================================================================================
+AREA: Data Science and Machine Learning
+SUBJECT: Speech and Audio Machine Learning
+Subtopics: audio representation, features, speech recognition, speaker and audio
+understanding, speech synthesis, music and general audio, evaluation, deployment.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Audio Representation
+
+Audio machine learning begins with representation, and the choice determines what the model can
+learn and how efficiently. A raw waveform at 16 kilohertz is 16,000 samples per second, so a
+ten-second clip is 160,000 values — a far longer sequence than a comparable amount of text, which
+is the structural difficulty of the domain.
+
+The spectrogram is the standard representation and converts the waveform into a time-frequency
+image by taking the Fourier transform over successive overlapping windows. The window length sets
+the time-frequency tradeoff directly: a short window localizes events in time and resolves
+frequency poorly, and a long window does the reverse. Speech typically uses windows of twenty to
+twenty-five milliseconds with ten-millisecond hops, which is chosen because the vocal tract's
+configuration is approximately stationary over that duration.
+
+The mel scale reflects human pitch perception, which is approximately logarithmic above a few
+hundred hertz, and warping the frequency axis to it concentrates resolution where the auditory
+system has it. A mel spectrogram with sixty-four to a hundred and twenty-eight bands is the
+standard input to speech and audio models, reducing the dimensionality substantially while
+preserving the perceptually relevant structure.
+
+Audio representation:
+  sample rate          16 kHz for speech, 44.1 or 48 kHz for music; Nyquist
+                       requires twice the highest frequency of interest
+  bit depth            16-bit is standard for delivery; higher for processing
+                       headroom
+  raw waveform         the most information and the longest sequence
+  spectrogram          time-frequency; the standard representation
+  window length        the time-frequency tradeoff; 20-25 ms for speech
+  hop length           the frame advance; 10 ms is standard
+  window function      Hann is the usual choice; reduces spectral leakage
+  mel scale            approximately logarithmic; matches pitch perception
+  mel spectrogram      64-128 bands; the standard model input
+  log magnitude        compresses the dynamic range to match perception
+  MFCC                 a decorrelating transform of the mel spectrum; the
+                       classical feature, and largely superseded because neural
+                       models prefer the correlated mel representation
+  phase                discarded in a magnitude spectrogram; reconstruction
+                       therefore requires estimating it, which is why vocoders
+                       exist
+  constant-Q transform  logarithmic frequency spacing; suits music where pitch
+                       relationships are ratios
+
+The discarding of phase deserves emphasis because it creates the central difficulty in audio
+generation. A magnitude spectrogram is a convenient and lossy representation — the phase carries
+information about the fine temporal structure, and reconstructing audio from magnitude alone
+requires estimating it. Classical iterative methods produce audible artifacts, and neural vocoders
+that learn the mapping from spectrogram to waveform are what made high-quality synthesis
+practical. Any pipeline that generates a spectrogram must address this, and it is the reason
+end-to-end waveform models became attractive despite their sequence length.
+
+Q: A speech model uses a 25 ms analysis window. Doubling it to 50 ms would:
+A. Improve both time and frequency resolution
+B. Improve frequency resolution and degrade time resolution, and would also span multiple
+   phonetic events, violating the stationarity assumption
+C. Have no effect
+D. Improve time resolution
+Reasoning: The time-frequency uncertainty relation means a longer window resolves frequency more
+finely and localizes events more coarsely. For speech, 20-25 ms is chosen because the vocal tract
+configuration is roughly stationary over that interval; a 50 ms window spans a transition between
+phonemes and smears them together. Answer: B.
+
+## Speech Recognition
+
+Automatic speech recognition converts audio to text, and the architecture has shifted
+substantially. Classical systems combined an acoustic model mapping audio to phonetic units, a
+pronunciation lexicon mapping words to phone sequences, and a language model scoring word
+sequences, with a decoder searching over the combination. Each component was trained separately
+and the pipeline required linguistic resources.
+
+End-to-end models map audio directly to text, learning the acoustic, lexical, and linguistic
+relationships jointly. Connectionist temporal classification handles the alignment problem — the
+audio and the transcript have different lengths with no given correspondence — by summing over all
+alignments, which permits training without frame-level labels. Attention-based encoder-decoder
+models learn the alignment implicitly. Transducer models combine an audio encoder with a
+prediction network, which permits streaming because the output can be produced incrementally.
+
+The streaming requirement divides architectures sharply. An offline model can attend to the entire
+utterance, including audio after the current position, which improves accuracy substantially. A
+streaming model must produce output with bounded latency and can therefore attend only to past and
+a limited amount of future context. The accuracy difference is real, which is why systems
+frequently run a streaming model for immediate display and rescore with an offline model when the
+utterance completes.
+
+Speech recognition:
+  acoustic model       audio to phonetic units; classical pipeline component
+  pronunciation lexicon  words to phone sequences; requires linguistic resources
+  language model       scores word sequences; still valuable for domain adaptation
+                       even with end-to-end acoustic modelling
+  CTC                  sums over alignments; permits training without frame labels
+  attention encoder-decoder  learns alignment implicitly; strong offline
+  transducer           encoder plus prediction network; the standard streaming
+                       architecture
+  streaming            bounded latency, limited future context; measurably less
+                       accurate than offline
+  two-pass             stream for display, rescore offline for the final result
+  beam search          decoding; wider beams improve accuracy at latency cost
+  shallow fusion       combine an external language model at decoding; the
+                       practical route to domain adaptation
+  self-supervised pretraining  learn representations from unlabelled audio, then
+                       fine-tune on a small labelled set; the change that made
+                       low-resource recognition feasible
+  word error rate      the standard metric; substitutions plus deletions plus
+                       insertions over reference words
+  the failure modes    accented speech, code-switching, overlapping speakers,
+                       domain vocabulary, and noise; performance varies far more
+                       across these than aggregate figures suggest
+
+Self-supervised pretraining deserves emphasis because it changed the resource requirements. A
+model pretrained on large quantities of unlabelled audio — learning to predict masked portions or
+to distinguish true from distractor continuations — acquires representations capturing phonetic
+structure without any transcripts. Fine-tuning on a small labelled set then reaches accuracy that
+previously required orders of magnitude more transcribed data. This made recognition practical for
+languages and domains where transcription is expensive, which is most of them.
+
+The variation in performance across speaker populations deserves stating because aggregate word
+error rates conceal it. Systems trained predominantly on one accent, dialect, or demographic
+perform substantially worse on others, with documented disparities of a factor of two or more in
+error rate between speaker groups. This is a data composition problem rather than a modelling one,
+and reporting per-group performance rather than an aggregate is what makes it visible.
+
+## Speaker and Audio Understanding
+
+Speaker recognition determines who is speaking, and it divides into verification — confirming a
+claimed identity — and identification — determining which of a set of known speakers. The modern
+approach embeds an utterance into a fixed-dimensional vector such that utterances from the same
+speaker are close, and comparison is then a distance computation. This permits enrolment with a
+short sample and comparison against a large set efficiently.
+
+Speaker diarization determines who spoke when, which is required for any multi-speaker recording.
+The classical pipeline segments the audio, embeds each segment, clusters the embeddings, and
+assigns labels. Its persistent difficulty is overlapping speech, where two people talk
+simultaneously — common in natural conversation and handled poorly by approaches assuming one
+speaker per segment. End-to-end methods that predict per-speaker activity directly handle overlap
+by construction.
+
+General audio understanding covers classification and detection of non-speech sound — recognizing
+a dog bark, a glass break, a machine fault, a bird species. The techniques parallel image
+classification with spectrograms as the input, and the distinctive difficulties are that events
+overlap, that the relevant timescales vary from milliseconds to minutes, and that labelled data is
+scarce relative to images.
+
+Speaker and audio understanding:
+  speaker verification  confirm a claimed identity; a threshold on similarity
+  speaker identification  which of a known set
+  speaker embedding    a fixed vector per utterance; comparison by distance
+  enrolment            a short reference sample per speaker
+  diarization          who spoke when
+  overlapping speech   common in conversation, handled poorly by segment-based
+                       approaches
+  target speaker extraction  isolate one speaker given a reference sample
+  source separation    separate mixed sources; the cocktail party problem
+  permutation invariant training  the separation output order is arbitrary, so
+                       the loss must consider all assignments
+  voice activity detection  speech versus not; the front end of most pipelines,
+                       and its errors propagate through everything after it
+  keyword spotting     detect specific words continuously at very low power;
+                       always-on wake words
+  audio event detection  what happened and when
+  audio tagging        what is present, without timing
+  acoustic scene       the environment; street, office, forest
+  anti-spoofing        detect replayed or synthesized audio; increasingly
+                       necessary as synthesis quality rises
+
+Anti-spoofing deserves attention because synthesis quality has made voice authentication
+substantially less secure. A few seconds of reference audio now suffices to produce speech
+convincing to a human listener and to many verification systems, which means voice alone is no
+longer adequate authentication for anything consequential. Detection systems exist and are in an
+adversarial contest with synthesis, and the practical response is treating voice as one factor
+among several rather than as sufficient in itself.
+
+## Speech Synthesis
+
+Text to speech has progressed through distinct generations with substantially different quality.
+Concatenative synthesis assembles recorded units, which gives natural segments and audible
+discontinuities at the joins and requires a large recorded corpus per voice. Parametric synthesis
+generates from a model of the vocal tract, which is compact and flexible and sounds buzzy. Neural
+synthesis learns the mapping end to end and reaches quality that listeners rate comparably to
+recorded speech.
+
+The modern architecture is typically two stages. An acoustic model maps text — or phonemes derived
+from it — to a mel spectrogram, handling pronunciation, prosody, and timing. A vocoder converts the
+spectrogram to a waveform, solving the phase reconstruction problem. Separating them permits each
+to be trained and improved independently, and the vocoder is reusable across voices.
+
+Prosody is where synthesis remains weakest and where the remaining gap to human speech lies.
+Segmental quality — whether the phonemes sound right — is essentially solved. Prosody covers the
+rhythm, stress, intonation, and emphasis that convey meaning beyond the words, and it is
+underdetermined by the text: the same sentence can be spoken many ways, all correct, conveying
+different emphasis and attitude. A model trained on text-to-audio pairs learns an average prosody,
+which is why synthesized speech sounds competent and slightly flat.
+
+Speech synthesis:
+  concatenative        recorded units; natural segments, audible joins
+  parametric           vocal tract model; compact, buzzy
+  neural end to end    the current approach; near-human segmental quality
+  two-stage            acoustic model to spectrogram, vocoder to waveform
+  vocoder              spectrogram to waveform; solves phase reconstruction
+  autoregressive vocoder  highest quality, slow, sample by sample
+  parallel vocoder     generates the whole waveform at once; fast, and the quality
+                       gap has largely closed
+  text normalization   numbers, dates, abbreviations, and symbols to spoken form;
+                       unglamorous and a major source of errors
+  grapheme to phoneme  pronunciation; ambiguous for homographs, requiring context
+  prosody              rhythm, stress, intonation; underdetermined by the text and
+                       where the remaining gap lies
+  duration modelling   how long each phoneme lasts; determines the rhythm
+  voice cloning        a few seconds of reference; raises consent and misuse
+                       questions that the technical capability does not address
+  emotional control    conditioning on a style reference or an explicit label
+  streaming synthesis  produce audio before the full text is processed; required
+                       for conversational latency
+
+Text normalization deserves mention because it is unglamorous and is where a substantial share of
+synthesis errors originate. Converting written text to what should be spoken requires expanding
+numbers according to context — a year, a quantity, a phone number, and a decimal are all read
+differently — expanding abbreviations, handling currency and units, and disambiguating homographs
+from context. These are largely rule-based and language-specific, they interact with the
+pronunciation model, and a system with excellent acoustic quality that reads a date incorrectly is
+judged on the error rather than on the quality.
+
+[user] Our voice assistant's speech recognition works well in our office and poorly in customers'
+homes. Word error rate goes from 4% to 19%.
+[assistant] tool_call asr.deployment_gap({"office_wer": 0.04, "field_wer": 0.19,
+"training_data": "clean_read_speech", "office_conditions": {"snr_db": 35, "reverb_t60_ms": 350,
+"mic_distance_cm": 30}, "field_conditions": {"snr_db": 12, "reverb_t60_ms": 700,
+"mic_distance_cm": 200}, "augmentation": "none"})
+[tool] {"primary_factors": ["far_field_distance", "reverberation", "background_noise"],
+"training_mismatch": "clean_close_talk_vs_far_field_reverberant",
+"recommendations": ["room_impulse_response_augmentation", "noise_augmentation",
+"multichannel_frontend", "far_field_fine_tuning"]}
+[assistant] The model was trained on clean close-talk speech and deployed at two metres in
+reverberant rooms with substantial background noise. Three factors compound and each is
+addressable.
+
+Distance is the largest. At two metres rather than thirty centimetres, the direct sound is roughly
+sixteen times weaker while the reverberant field is unchanged, so the ratio of direct to reverberant
+energy falls sharply. Reverberation smears the temporal structure that the model relies on —
+each phoneme's energy persists into the following ones — and your field reverberation time is
+double your office's.
+
+Background noise at 12 dB signal-to-noise is a substantial degradation from 35 dB, and the model
+has never seen anything like it.
+
+Four responses, and the first two require no new data collection.
+
+Augment the training data with simulated far-field conditions. Convolve your clean training audio
+with measured or simulated room impulse responses spanning realistic reverberation times, and add
+noise at a range of signal-to-noise ratios. This is the highest-value change and it is
+straightforward — impulse response datasets are available, and the augmentation is applied at
+training time. Expect a substantial fraction of the gap to close.
+
+Add a multichannel front end if the hardware has more than one microphone. Beamforming steers
+sensitivity toward the speaker and away from noise sources, typically gaining several decibels of
+effective signal-to-noise ratio, and it also reduces the reverberant contribution. Even two
+microphones help meaningfully.
+
+Then fine-tune on real field audio once you have some. Simulated augmentation covers the acoustics
+and does not capture the actual devices, rooms, and speaking styles, and a modest amount of real
+in-domain data typically outperforms a large amount of simulated.
+
+One thing to check first: verify your voice activity detection is not the problem. If it is
+triggering late or cutting off early in noise, the recognizer receives truncated audio and the
+word error rate rises for reasons unrelated to the acoustic model. Inspect a sample of field
+recordings with the detected boundaries marked, because this failure is common and is fixed
+differently from everything above.
+
+## Music, Evaluation, and Deployment
+
+Music information retrieval has its own tasks and its own structure. Pitch and note detection
+extract the musical content. Beat and tempo tracking find the rhythmic structure. Chord recognition
+identifies harmony. Source separation isolates instruments or vocals, which has become good enough
+to be used commercially for remixing and practice tools. Genre and mood classification categorize.
+And generation produces new material, which raises the same rights questions as generative models
+in other media.
+
+The distinctive property of music is that the relevant structure is hierarchical and spans
+timescales from milliseconds to minutes. A model attending only locally captures timbre and misses
+form; capturing structure over minutes requires either very long context or an explicit
+hierarchical representation. This is why music generation produces convincing short segments more
+readily than coherent long pieces.
+
+Evaluation in audio is difficult because the target is perceptual. Objective metrics correlate
+imperfectly with human judgment, and the standard for synthesis quality remains a subjective
+listening test with a substantial number of listeners. Automated metrics are used for iteration and
+the final judgment is human, which is expensive and is why the field moves more slowly than
+domains with reliable automatic evaluation.
+
+Music, evaluation, and deployment:
+  pitch detection      fundamental frequency; polyphonic is far harder than
+                       monophonic
+  beat tracking        the rhythmic grid
+  chord recognition    harmonic content over time
+  source separation    isolate stems; commercially useful quality now
+  music generation     convincing short segments, coherent long form remains hard
+  hierarchical structure  milliseconds to minutes; the distinctive difficulty
+  word error rate      the recognition standard; and it weights all errors equally
+                       while a wrong entity name matters more than a wrong article
+  mean opinion score   subjective listening test; the synthesis standard
+  objective metrics    correlate imperfectly; useful for iteration, not for the
+                       final judgment
+  intelligibility      distinct from quality; a synthetic voice can be clear and
+                       unnatural or natural and unclear
+  latency budget       conversational turn-taking degrades above a few hundred
+                       milliseconds
+  on-device            privacy, latency, and offline operation; requires
+                       quantization and architecture constraints
+  wake word            always on at very low power; a tiny model with a strict
+                       false accept budget, since the cost of a false accept is a
+                       privacy incident
+  streaming            partial results with bounded latency
+  privacy              audio is highly sensitive; on-device processing and explicit
+                       retention policies are the substantive responses
+
+The wake word constraint deserves the closing note because it is an unusual engineering problem.
+The model runs continuously on battery, so its power budget is measured in milliwatts, which
+constrains it to a few tens of kilobytes and a fraction of a processor core. It must have a very
+low false accept rate, since a false accept means the device begins recording and transmitting
+audio the user did not intend — a privacy incident rather than an inconvenience. And it must have
+a low false reject rate, since a device that does not respond is perceived as broken. Meeting all
+three simultaneously is what makes wake word detection a specialized problem rather than a small
+instance of keyword spotting, and it is typically solved with a cascade where a tiny always-on
+model gates a larger verification model that runs only on a candidate detection.

@@ -1,0 +1,307 @@
+================================================================================
+AREA: Physics
+SUBJECT: Quantum Mechanics
+Subtopics: origins, wave functions and the Schrodinger equation, operators and
+measurement, canonical systems, spin, entanglement, interpretation, applications.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## Origins and the Failure of Classical Physics
+
+Quantum mechanics was forced on physics by a set of experimental facts that classical
+theory could not accommodate, and it is worth knowing which ones, because each isolates a
+distinct classical assumption that had to be abandoned.
+
+Blackbody radiation was the first. Classical statistical mechanics, applying equipartition
+to the electromagnetic modes in a cavity, predicts energy density rising without bound at
+short wavelength — the ultraviolet catastrophe. Planck resolved it in 1900 by assuming
+energy exchange occurs in discrete quanta proportional to frequency, E = h nu, which
+suppresses the high-frequency modes because a single quantum there costs more energy than
+is thermally available. Planck regarded this as a mathematical device; it was the first
+appearance of the quantum.
+
+The photoelectric effect isolated a different assumption. Light striking a metal ejects
+electrons, and classically the electron energy should depend on intensity while the
+emission threshold should not depend on frequency. Both predictions fail: electron energy
+depends on frequency alone, intensity affects only the number, and below a threshold
+frequency no electrons are emitted regardless of intensity. Einstein's 1905 explanation
+treated light itself as quantized into photons, each interacting with one electron, which
+made the quantum a property of radiation rather than of exchange.
+
+Atomic spectra provided the third. Atoms emit and absorb only at discrete frequencies, and
+classical electrodynamics is worse than merely unable to explain this — it predicts that
+an orbiting electron, being accelerated, radiates continuously and spirals into the nucleus
+in about ten picoseconds. That matter is stable at all is inexplicable classically. Bohr's
+1913 model postulated stable orbits with quantized angular momentum, reproducing hydrogen's
+spectrum exactly while offering no reason why such orbits should exist.
+
+The experimental foundations:
+  blackbody spectrum      quantized energy exchange; E = h nu
+  photoelectric effect    light is quantized; KE_max = h nu - work function
+  atomic spectra          discrete energy levels; the Rydberg formula
+  Compton scattering      photons carry momentum p = h/lambda and scatter as
+                          particles
+  electron diffraction    matter exhibits interference; de Broglie lambda = h/p
+  specific heats          heat capacity falls at low temperature as modes freeze
+                          out; classical equipartition fails
+  stability of matter     classical atoms would collapse in ~1e-11 s
+
+De Broglie's 1924 hypothesis that matter has wave properties, with wavelength h divided by
+momentum, unified these. It explains Bohr's quantization condition as the requirement that
+an integer number of wavelengths fit the orbit, and it was confirmed directly by electron
+diffraction from crystals. The wavelength is tiny for macroscopic objects — a thrown
+baseball has a de Broglie wavelength around 1e-34 metres, far smaller than any aperture —
+which is precisely why wave behaviour is invisible in ordinary experience.
+
+Q: Increasing the intensity of light below a metal's threshold frequency produces:
+A. More electrons with the same energy
+B. Fewer electrons with more energy
+C. No electrons at all
+D. Electrons only after a delay
+Reasoning: Each photon carries energy h nu, and an electron is ejected only if a single
+photon supplies at least the work function. Below threshold no individual photon suffices,
+and intensity increases the number of photons rather than their individual energy. The
+classical prediction — that enough accumulated energy would eventually eject an electron —
+is not observed, which is exactly the evidence for quantization. Answer: C.
+
+## Wave Functions and the Schrodinger Equation
+
+The state of a quantum system is described by a wave function, a complex-valued function
+whose squared modulus gives the probability density for finding the particle at a given
+position. This is the Born rule, and it is a postulate rather than a derived result. The
+wave function must be normalized so total probability is one, and it must be
+single-valued, continuous, and have a continuous first derivative wherever the potential is
+finite — conditions that, applied to a bound system, are what produce discrete energy
+levels.
+
+The Schrodinger equation governs the wave function's evolution. The time-dependent form
+describes how a state evolves; the time-independent form is an eigenvalue equation whose
+solutions are the stationary states with definite energy. Stationary states are not static
+— the wave function's phase rotates — but every measurable quantity is time-independent,
+which is why they are the natural basis for describing atoms.
+
+Quantization emerges from boundary conditions, and this is the conceptual core worth
+holding onto. There is no separate quantization postulate; solving a differential equation
+subject to the requirement that the solution be normalizable and satisfy conditions at the
+boundaries admits solutions only at particular energies, exactly as a vibrating string
+fixed at both ends supports only particular frequencies. Discreteness is a wave phenomenon
+under confinement, not a mysterious additional rule.
+
+Foundational relations:
+  time-dependent SE     i hbar dPsi/dt = H Psi
+  time-independent SE   H psi = E psi
+  Hamiltonian           H = -hbar^2/(2m) lap + V
+  Born rule             probability density = |Psi|^2
+  normalization         integral of |Psi|^2 over all space = 1
+  de Broglie            lambda = h / p
+  Planck-Einstein       E = h nu = hbar omega
+  uncertainty           delta_x delta_p >= hbar/2;  delta_E delta_t >= hbar/2
+  expectation value     <A> = integral Psi* A Psi
+  superposition         any linear combination of solutions is a solution
+
+The uncertainty principle is not a statement about measurement disturbance, though that
+is how it is usually first introduced. It is a mathematical property of conjugate
+variables: position and momentum wave functions are Fourier transforms of each other, and
+a function narrow in one domain is necessarily broad in the other. A particle does not
+have a definite position and momentum that we are merely unable to measure simultaneously;
+the state itself does not assign definite values to both. This distinction matters
+because it is what makes quantum mechanics different in kind from a classical theory with
+measurement limitations.
+
+## Operators, Measurement, and the Formalism
+
+Physical observables correspond to Hermitian operators, whose eigenvalues are real —
+which is required, since measurement outcomes are real numbers — and whose eigenvectors
+form a complete orthonormal basis. Any state can therefore be expanded in the eigenbasis
+of any observable, and the coefficients of that expansion determine the probabilities of
+each outcome through the Born rule. Measuring the observable yields one eigenvalue, with
+probability equal to the squared modulus of its coefficient, and leaves the system in the
+corresponding eigenstate.
+
+That last clause is the measurement postulate, and it is where quantum mechanics becomes
+philosophically contentious. Between measurements the state evolves deterministically and
+reversibly under the Schrodinger equation. At measurement it changes discontinuously,
+probabilistically, and irreversibly. These are two entirely different kinds of evolution,
+and the theory as ordinarily stated does not specify what constitutes a measurement — the
+measurement problem, which every interpretation of quantum mechanics is an attempt to
+address.
+
+Commutators encode compatibility. Two observables whose operators commute share a common
+eigenbasis and can be simultaneously determined; observables that do not commute cannot.
+The canonical commutation relation between position and momentum is what generates the
+uncertainty relation between them, through a general theorem bounding the product of
+uncertainties by half the magnitude of the expectation of the commutator. Compatibility is
+therefore an algebraic property of the operators rather than a practical limitation of
+apparatus.
+
+Formalism reference:
+  Hermitian operator     A = A-dagger;  real eigenvalues, orthogonal eigenvectors
+  commutator             [A, B] = AB - BA
+  canonical relation     [x, p] = i hbar
+  angular momentum       [L_x, L_y] = i hbar L_z, cyclic
+  compatible observables commute; simultaneously measurable
+  general uncertainty    delta_A delta_B >= |<[A,B]>| / 2
+  Dirac notation         |psi> a state, <psi| its dual, <phi|psi> an inner product
+  completeness           sum over n of |n><n| = identity
+  Ehrenfest theorem      expectation values obey classical equations of motion
+  correspondence         quantum results approach classical ones at large quantum
+                         numbers
+
+Ehrenfest's theorem and the correspondence principle together explain why the classical
+world looks classical. The expectation values of position and momentum obey Newton's
+equations, so the centre of a wave packet follows a classical trajectory. For macroscopic
+objects the wave packet is extraordinarily narrow relative to any relevant scale, so the
+spread is unobservable. Decoherence completes the picture: a macroscopic system interacts
+constantly with its environment, and that interaction destroys the phase relationships
+needed for interference on timescales far shorter than any observation, which is why
+superpositions of macroscopically distinct states are never seen.
+
+## Canonical Systems
+
+A small set of exactly solvable systems provides the intuition applied everywhere else.
+
+The infinite square well confines a particle to a region with impenetrable walls. The wave
+function must vanish at the boundaries, which admits only sinusoidal solutions with an
+integer number of half-wavelengths, giving energies proportional to n squared. Two
+features generalize: the ground state energy is nonzero, because a wave function confined
+to a finite region must have curvature and therefore kinetic energy, and the level spacing
+increases with confinement, which is why quantum dots emit at wavelengths tunable by their
+physical size.
+
+The harmonic oscillator, with a quadratic potential, has evenly spaced levels separated by
+hbar omega with a ground state energy of half that. It is the most important solvable
+system because any smooth potential near a minimum is approximately quadratic, so it
+describes molecular vibrations, phonons in solids, and — when quantized field modes are
+treated this way — photons themselves. Its zero-point energy is physically real, observable
+in the residual motion of atoms at absolute zero and in the Casimir force between
+conducting plates.
+
+The hydrogen atom is the only atom solvable exactly, and its solution explains the
+periodic table's structure. The Coulomb potential yields energies depending only on the
+principal quantum number, giving the observed spectrum, while the angular part produces
+the orbital shapes labelled s, p, d, and f. The accidental degeneracy in the orbital
+quantum number is specific to the exact inverse-square potential and is broken in
+multi-electron atoms by electron-electron screening, which is why the filling order
+follows the observed pattern rather than simple principal-quantum-number order.
+
+Solved systems and their signatures:
+  infinite square well   E proportional to n^2;  nonzero ground state
+  finite well            finitely many bound states; wave function penetrates the
+                         classically forbidden region
+  harmonic oscillator    E = (n + 1/2) hbar omega;  evenly spaced, zero-point energy
+  rigid rotor            E proportional to J(J+1);  molecular rotation spectra
+  hydrogen atom          E = -13.6 eV / n^2;  quantum numbers n, l, m, s
+  free particle          continuous spectrum; plane waves, not normalizable
+  potential barrier      tunnelling; transmission falls exponentially with barrier
+                         width and with the square root of (V - E)
+  periodic potential     energy bands and gaps; the foundation of solid-state
+                         physics
+
+Tunnelling has no classical analogue and is technologically central. A particle with
+energy below a barrier has a nonzero probability of appearing on the far side, because the
+wave function decays exponentially inside the barrier rather than vanishing. The
+exponential dependence on barrier width is what makes the scanning tunnelling microscope
+work — a change of one atomic diameter in tip height changes the current by about an order
+of magnitude, giving atomic resolution. It is also what allows nuclear fusion in stellar
+cores at temperatures far below the Coulomb barrier, what limits how thin a transistor's
+gate oxide can be made before leakage dominates, and what drives alpha decay.
+
+## Spin, Identical Particles, and Entanglement
+
+Spin is intrinsic angular momentum with no classical counterpart. It is not rotation of a
+physical object — a treatment of the electron as a spinning sphere requires a surface
+speed exceeding light — but an intrinsic property as fundamental as charge or mass. It was
+forced on the theory by the Stern-Gerlach experiment, in which a beam of silver atoms
+passing through an inhomogeneous magnetic field splits into exactly two components rather
+than a continuous spread, demonstrating a two-valued angular momentum with no orbital
+explanation.
+
+The spin quantum number determines a particle's statistics, through the spin-statistics
+theorem. Half-integer spin particles are fermions, obey the Pauli exclusion principle, and
+have antisymmetric multi-particle wave functions. Integer spin particles are bosons, can
+occupy the same state without limit, and have symmetric wave functions. This division
+explains an enormous range of phenomena: the exclusion principle is why electrons fill
+successive atomic shells rather than collapsing into the ground state, hence why chemistry
+exists, why matter is rigid, and why white dwarfs and neutron stars are supported against
+gravity. Bosonic statistics permit lasers, superfluidity, and Bose-Einstein condensation.
+
+Entanglement arises when a multi-particle state cannot be written as a product of
+individual states. Measuring one particle then determines the outcome for the other,
+regardless of separation. Einstein, Podolsky, and Rosen argued in 1935 that this implied
+quantum mechanics was incomplete — that the particles must carry predetermined values, or
+hidden variables, and that the correlation merely revealed them.
+
+Bell's theorem settled the question. Bell showed in 1964 that any theory in which
+particles carry predetermined local values must satisfy an inequality constraining the
+correlations across different measurement settings, and that quantum mechanics predicts
+violations of it. Experiments since the 1970s, progressively closing the detection and
+locality loopholes, consistently violate Bell inequalities by wide margins. Local realism
+is not merely unnecessary; it is ruled out by experiment. Crucially, entanglement does not
+permit faster-than-light signalling — the local outcomes are random, and the correlation
+is only visible after comparing results through a classical channel.
+
+Spin and entanglement essentials:
+  electron spin          s = 1/2;  two states, conventionally up and down
+  Stern-Gerlach          discrete splitting; direct evidence for spin quantization
+  Pauli exclusion        no two identical fermions in the same quantum state
+  fermions               half-integer spin; electrons, protons, neutrons, quarks
+  bosons                 integer spin; photons, gluons, the Higgs, helium-4 atoms
+  Bell inequality        bounds correlations under local hidden variables
+  experimental result    violated; local realism excluded
+  no-signalling          entanglement transmits no information
+  no-cloning             an unknown quantum state cannot be copied; the basis of
+                         quantum key distribution's security
+  decoherence            environmental entanglement destroys interference, producing
+                         apparently classical behaviour
+
+## Interpretation and Applications
+
+The mathematics of quantum mechanics is unambiguous and extraordinarily well confirmed;
+what it says about reality is not settled. Interpretations agree on every prediction and
+differ on what the wave function is and what happens at measurement.
+
+The Copenhagen interpretation treats the wave function as a computational device encoding
+knowledge, with measurement causing collapse and the classical/quantum boundary left
+unspecified. Many-worlds takes the Schrodinger equation as complete, denies collapse, and
+accepts that all outcomes occur in branching non-interacting components of a universal
+wave function. Pilot-wave theory restores determinism with particles having definite
+positions guided by a wave, at the cost of explicit non-locality. QBism treats the wave
+function as an agent's subjective degrees of belief. Objective collapse theories modify
+the dynamics so that collapse is a physical process, which makes them experimentally
+distinguishable in principle and increasingly constrained in practice.
+
+Because they agree on predictions, choosing among them is not an empirical question with
+current technology, and treating one as established rather than as a framework is a
+common overreach. What is established is the formalism and its predictions, verified to
+extraordinary precision — the electron's magnetic moment agrees with quantum
+electrodynamics to twelve significant figures, the most accurate confirmed prediction in
+science.
+
+The applications are what make quantum mechanics the most economically consequential
+theory ever developed. The transistor depends on band structure and doping, which are
+quantum solid-state physics. The laser depends on stimulated emission and population
+inversion. Magnetic resonance imaging depends on nuclear spin transitions. Flash memory
+depends on tunnelling. Light-emitting diodes, photovoltaics, atomic clocks — and hence
+satellite navigation — all rest directly on quantum mechanics. A large fraction of the
+modern economy is downstream of a theory developed to explain spectral lines.
+
+Quantum information is the current frontier. A qubit can be in a superposition of two
+states, and n qubits span a state space of dimension 2^n, which is the source of quantum
+computing's potential advantage. Specific algorithms exploit this for specific problems:
+Shor's algorithm factors integers in polynomial time, threatening widely deployed public
+key cryptography; Grover's provides a quadratic speedup for unstructured search;
+simulation of quantum systems is the application where advantage is most clearly
+established, since simulating quantum mechanics classically requires exponential
+resources.
+
+The practical obstacle is decoherence. Qubits lose their quantum properties through
+environmental interaction on timescales from microseconds to seconds depending on the
+physical implementation, and computation must complete or be error-corrected within that
+window. Quantum error correction is possible in principle — the threshold theorem
+guarantees that arbitrarily long computation is achievable if the physical error rate is
+below a threshold — but it requires many physical qubits per logical one, with current
+estimates ranging from hundreds to thousands. This overhead, rather than any question of
+principle, is what separates present devices from cryptographically relevant ones, and it
+is why the field's near-term applications concentrate on simulation and optimization
+heuristics rather than on the algorithms that motivated the field.

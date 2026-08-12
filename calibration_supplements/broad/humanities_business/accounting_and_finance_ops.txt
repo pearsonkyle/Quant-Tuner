@@ -1,0 +1,314 @@
+================================================================================
+AREA: Humanities, Business, and Social Science
+SUBJECT: Accounting and Financial Operations
+Subtopics: the accounting equation, the three statements, accrual accounting, cost
+accounting, budgeting and forecasting, working capital, controls and audit, analysis.
+Plain text; the whole file is one continuous token stream. Samples are separated
+by a blank line. No raw special tokens.
+================================================================================
+
+## The Accounting Equation and Double Entry
+
+Accounting records economic activity so that a firm's position and performance can be assessed,
+and the entire system rests on one identity: assets equal liabilities plus equity. Everything a
+firm controls was funded either by borrowing or by owners, so the two sides balance by
+construction rather than by coincidence.
+
+Double-entry bookkeeping is the mechanism enforcing that identity. Every transaction is recorded
+in at least two accounts with equal debits and credits, so the equation holds after each entry.
+The system's value is not merely arithmetic checking but that it records both what happened and
+where the resources came from — a purchase records the asset acquired and the cash spent or the
+obligation incurred, so the complete picture is captured rather than only one side.
+
+The debit and credit convention is a persistent source of confusion because the words have no
+intuitive meaning in this context. Debit is the left side and credit is the right, and whether
+either increases or decreases an account depends on the account type. Assets and expenses increase
+with debits; liabilities, equity, and revenue increase with credits. The rule follows from the
+equation's structure — assets on the left increase on the left — and it must be memorized rather
+than reasoned about each time.
+
+Foundations:
+  accounting equation  assets equal liabilities plus equity
+  double entry         every transaction affects at least two accounts; debits
+                       equal credits
+  debit                the left side; increases assets and expenses
+  credit               the right side; increases liabilities, equity, and revenue
+  account types        asset, liability, equity, revenue, expense
+  chart of accounts    the structure; designed for the reporting and analysis
+                       required, since restructuring later is painful
+  journal              chronological record of transactions
+  ledger               transactions organized by account
+  trial balance        debits equal credits; catches arithmetic errors and not
+                       errors of classification or omission
+  contra account       offsets another; accumulated depreciation against a fixed
+                       asset
+  accounting period    the interval reported; the cutoff between periods is where
+                       manipulation concentrates
+  materiality          whether an item would influence a decision; the threshold
+                       below which precision is not pursued
+
+Q: A firm purchases equipment for cash. The immediate effect on the accounting equation is:
+A. Assets increase and liabilities increase
+B. One asset increases and another decreases, so total assets and the equation are unchanged
+C. Assets increase and equity increases
+D. Expenses increase
+Reasoning: Equipment is acquired and cash is reduced by the same amount, so the composition of
+assets changes and the total does not. No liability or equity is affected. The purchase is not an
+expense either, since the equipment is an asset consumed over time through depreciation rather
+than in the period of purchase. Answer: B.
+
+## The Three Statements
+
+Three statements together describe a firm, and each answers a different question. The income
+statement reports performance over a period — revenue earned and expenses incurred, giving
+profit. The balance sheet reports position at a moment — what is owned and owed. The cash flow
+statement reports movement of cash over the period, reconciling the accrual-based profit to the
+change in cash.
+
+The statements articulate with each other, and the connections are what make them a system.
+Net income from the income statement flows into retained earnings on the balance sheet. The cash
+flow statement begins with net income and adjusts for non-cash items and working capital changes
+to arrive at cash flow, and its ending cash balance appears on the balance sheet. A set of
+statements that does not articulate contains an error.
+
+The cash flow statement is the one most often neglected and most informative, because profit is
+an accounting construct while cash is a fact. A firm can report growing profit while consuming
+cash, which occurs routinely when growth requires investment in receivables and inventory faster
+than it generates cash, and it is the mechanism by which profitable firms fail. The persistent
+divergence between net income and operating cash flow is the single most useful red flag in
+financial statement analysis.
+
+The three statements:
+  income statement     performance over a period; revenue less expenses
+  gross profit         revenue less cost of goods sold
+  operating profit     after operating expenses; before interest and tax
+  EBITDA               before interest, tax, depreciation, and amortization; a cash
+                       proxy that ignores the capital the business consumes
+  net income           after everything
+  balance sheet        position at a moment
+  current vs non-current  within a year or beyond; the basis of liquidity analysis
+  working capital      current assets less current liabilities
+  cash flow statement  operating, investing, and financing activities
+  operating cash flow  cash from the business itself; the quality of earnings
+                       measure
+  free cash flow       operating cash flow less capital expenditure; what accrues
+                       to providers of capital
+  articulation         the statements connect; a set that does not articulate
+                       contains an error
+  the divergence signal  net income persistently above operating cash flow is the
+                       most useful red flag available
+
+EBITDA deserves specific caution because it is presented as a cash proxy and systematically
+overstates one for capital-intensive businesses. Excluding depreciation removes the cost of the
+assets the business consumes, which is a real cost that must eventually be paid in capital
+expenditure. For a business with substantial fixed assets, EBITDA can be healthy while free cash
+flow is negative indefinitely, because the depreciation excluded is a genuine economic cost being
+incurred. It is a useful measure for comparing operating performance across firms with different
+capital structures and it is not a measure of cash generation.
+
+## Accrual Accounting and Revenue Recognition
+
+Accrual accounting records revenue when earned and expenses when incurred rather than when cash
+moves, which produces a more meaningful measure of a period's performance. A firm delivering a
+service in December and collecting in February earned the revenue in December, and cash accounting
+would attribute it to February, distorting both periods.
+
+The matching principle is the corresponding rule for expenses: costs are recognized in the period
+they contribute to producing revenue rather than when paid. Cost of goods sold is recognized when
+the goods are sold rather than when purchased. A machine's cost is spread over its useful life
+through depreciation rather than expensed on purchase. Prepaid insurance is an asset consumed over
+the coverage period.
+
+Revenue recognition is where the greatest judgment lies and where the largest accounting failures
+have concentrated. The modern framework identifies the contract, the distinct performance
+obligations within it, the transaction price, its allocation among the obligations, and
+recognition as each is satisfied. This structure matters most for arrangements bundling several
+deliverables over time — a software licence with support and future updates, a construction
+contract, a subscription with an upfront fee — where the timing of recognition is genuinely
+uncertain and where aggressive treatment has repeatedly been the mechanism of misstatement.
+
+Accrual accounting:
+  accrual basis        revenue when earned, expenses when incurred
+  cash basis           when cash moves; simpler and distorts periods
+  matching principle   expenses recognized with the revenue they produce
+  revenue recognition  identify the contract, the obligations, the price, the
+                       allocation, and satisfaction
+  deferred revenue     cash received before earning; a liability, and a positive
+                       signal for a subscription business
+  accrued revenue      earned before billing; an asset
+  prepaid expense      paid before consuming; an asset
+  accrued expense      incurred before paying; a liability
+  depreciation         allocating a tangible asset's cost over its life; a
+                       non-cash expense
+  amortization         the same for intangibles
+  straight line        equal amounts per period; the common default
+  accelerated          more in early periods; matches assets that lose value or
+                       productivity faster early
+  impairment           an asset's carrying value exceeds its recoverable amount;
+                       written down and not reversed for goodwill
+  provisions           liabilities of uncertain timing or amount; recognized when
+                       probable and estimable
+  the judgment surface  estimates for useful life, bad debts, warranty, and
+                       provisions; where earnings management operates
+
+Deferred revenue is worth understanding because it appears as a liability and is a favourable
+indicator. A subscription business collecting a year in advance records the cash as an asset and
+an equal liability representing the obligation to deliver the service, releasing it to revenue
+monthly. Growing deferred revenue therefore means growing committed future revenue and cash
+already collected, which is why it is watched closely as a forward indicator in subscription
+businesses — a case where reading the balance sheet line by its label rather than by its meaning
+gives exactly the wrong impression.
+
+## Cost Accounting and Budgeting
+
+Cost accounting attributes costs to products, services, and activities so that pricing,
+profitability, and operational decisions can be informed. The primary distinction is between
+costs that vary with volume and costs that do not, because that determines how profit responds to
+changes in activity.
+
+Contribution margin is revenue less variable costs, and it is the amount each additional unit
+contributes toward covering fixed costs and then to profit. This gives the break-even point
+directly — fixed costs divided by contribution margin per unit — and it is the correct basis for
+short-run decisions such as whether to accept an additional order at a reduced price. If the price
+exceeds the variable cost, the order contributes to fixed costs that are incurred regardless, so
+it improves profit even at a price below full cost.
+
+Allocating fixed and overhead costs is where cost accounting becomes contestable. Traditional
+allocation spreads overhead by a single driver such as labour hours or machine time, which
+distorts substantially when products consume overhead differently — a low-volume complex product
+consumes far more setup, engineering, and handling per unit than a high-volume simple one, and
+volume-based allocation charges them proportionally to volume. Activity-based costing traces
+overhead through the activities that cause it, which is more accurate and more expensive to
+operate.
+
+Cost accounting and budgeting:
+  fixed cost           does not vary with volume in the relevant range
+  variable cost        varies with volume
+  semi-variable        a fixed component plus a variable one
+  contribution margin  revenue less variable cost; covers fixed costs then profit
+  break-even           fixed costs divided by contribution margin per unit
+  operating leverage   the ratio of fixed to variable costs; high leverage
+                       amplifies both gains and losses from volume changes
+  direct cost          traceable to a product
+  indirect / overhead  requires allocation
+  allocation base      the driver; a single volume-based driver distorts when
+                       products consume overhead differently
+  activity-based costing  trace overhead through the causing activities; accurate
+                       and expensive
+  standard costing     predetermined costs; variances against actuals direct
+                       attention
+  variance analysis    price and quantity variances; separates what was paid from
+                       how much was used
+  sunk cost            already incurred and unrecoverable; irrelevant to any
+                       forward decision
+  opportunity cost     the forgone alternative; not recorded in the accounts and
+                       relevant to every decision
+  relevant cost        differs between the alternatives being compared; the only
+                       cost that should enter a decision
+
+Budgeting serves planning, coordination, and control, and the tension is that these three
+purposes conflict. A budget used for planning should be a realistic expectation. A budget used to
+motivate should be challenging. A budget used to evaluate performance creates an incentive to
+negotiate a low target and to spend the full allocation regardless of need — the use-it-or-lose-it
+behaviour that annual budgets reliably produce. Rolling forecasts updated periodically, separated
+from the target-setting used for evaluation, address the worst of this and require the
+organization to stop treating the budget as a single document serving every purpose.
+
+[user] Our SaaS business shows growing net income but our bank balance keeps falling. The
+accountant says the statements are correct.
+[assistant] tool_call fin.cash_diagnose({"net_income_yoy": 0.22, "cash_change": -0.31,
+"revenue_growth": 0.55, "dso_days": 78, "dso_prior_year": 41,
+"deferred_revenue_change": 0.08, "capex_growth": 0.9, "customer_acquisition_spend_growth": 1.4})
+[tool] {"primary_driver": "receivables_growth_consuming_cash",
+"secondary": ["capex_growth", "cac_spend_expensed_but_cash_upfront"],
+"working_capital_drag_estimate": "large", "verdict": "growth_consuming_cash_not_a_reporting_error"}
+[assistant] The statements are correct and the business is consuming cash to grow. Three
+contributions, and the first is the largest and most fixable.
+
+Days sales outstanding rose from 41 to 78. You are recognizing revenue when earned and collecting
+nearly three months later, so every pound of growth ties up an increasing amount of cash in
+receivables. At 55% revenue growth with the collection period nearly doubling, the working capital
+drag is substantial — you are effectively financing your customers. This is the classic mechanism
+by which a profitable growing business runs out of money.
+
+The collection period is the thing to attack, and it is usually addressable. Investigate why it
+doubled: it may be a shift in customer mix toward larger enterprises with longer payment terms,
+it may be that invoicing is delayed after delivery, it may be that collections are not being
+pursued, or it may be a small number of large overdue accounts. Each has a different fix — payment
+terms in the contract, invoicing automation, a collections process, or specific account
+escalation. A twenty-day improvement at your revenue level releases a large amount of cash
+permanently.
+
+Capital expenditure grew 90%, which does not appear in net income because it is capitalized and
+depreciated over years while the cash leaves immediately. That is a legitimate investment and it is
+worth confirming it was a deliberate decision rather than accumulated smaller purchases.
+
+Customer acquisition spend grew 140%, and here there is a timing mismatch of a different kind. The
+spend is expensed as incurred, so it does reduce net income, and the cash leaves upfront while the
+revenue it generates arrives over the customer's lifetime. Growing acquisition spend therefore
+consumes cash ahead of the revenue, which is correct if the unit economics work and is worth
+verifying — check the payback period specifically, since a business with good lifetime value and a
+long payback period can be fundamentally sound and still run out of cash.
+
+Two things to put in place. Build a thirteen-week rolling cash forecast, which is the standard
+operating tool for exactly this situation and gives you visibility rather than surprise. And add
+operating cash flow and days sales outstanding to whatever the management team reviews monthly,
+because net income alone was never going to show you this.
+
+## Controls, Audit, and Analysis
+
+Internal controls are the processes ensuring that transactions are authorized, recorded
+accurately, and that assets are safeguarded. The foundational control is segregation of duties:
+the person authorizing a transaction, the person executing it, the person recording it, and the
+person holding the asset should not be the same, because concentrating those functions permits a
+single individual to both commit and conceal a misappropriation.
+
+Small organizations frequently cannot achieve full segregation and should compensate rather than
+ignore it. Compensating controls include owner review of bank statements received directly rather
+than through the person who reconciles them, mandatory holidays during which another person
+performs the role, dual authorization above a threshold, and periodic independent review. The
+common thread is that someone other than the person performing the function looks at the result.
+
+Audit provides independent assurance and its limits are frequently misunderstood. An audit
+provides reasonable rather than absolute assurance, is based on sampling rather than examination
+of every transaction, is designed to detect material misstatement rather than all error, and
+addresses the financial statements rather than the business's prospects. An unqualified opinion
+means the statements are fairly stated in all material respects, and it is not a statement that
+the business is well run or that fraud is absent.
+
+Controls, audit, and analysis:
+  segregation of duties  authorization, execution, recording, and custody
+                       separated
+  compensating controls  where segregation is impossible; independent review is
+                       the common thread
+  authorization limits  by amount and by type
+  reconciliation       compare records to an independent source; bank
+                       reconciliation is the fundamental one
+  physical controls    access to assets and to records
+  the fraud triangle   pressure, opportunity, and rationalization; controls
+                       address opportunity
+  audit assurance      reasonable, not absolute; sampling, materiality, and a
+                       focus on the statements
+  unqualified opinion  fairly stated in all material respects; not a verdict on
+                       the business
+  liquidity ratios     current and quick; short-term obligation coverage
+  leverage ratios      debt to equity, interest coverage; solvency
+  profitability        margins at each level; and return on invested capital,
+                       which is the one that determines whether growth creates
+                       value
+  efficiency           receivable days, inventory days, payable days; the cash
+                       conversion cycle combines them
+  cash conversion cycle  receivable days plus inventory days less payable days;
+                       how long cash is tied up
+  trend and comparison  a ratio in isolation means little; compare against
+                       history and against peers
+
+The cash conversion cycle deserves the closing emphasis because it is the operational quantity
+that determines how much cash growth consumes. It measures how long money is tied up between
+paying suppliers and collecting from customers, and a business with a short or negative cycle
+generates cash as it grows while one with a long cycle consumes it. Retailers collecting at the
+point of sale and paying suppliers on terms have negative cycles and are funded by their growth;
+manufacturers holding inventory and extending credit have long cycles and must fund it. Improving
+any of the three components releases cash permanently and without any change to profitability,
+which makes it the highest-return financial operations work available in most businesses and one
+that receives far less attention than margin improvement.
