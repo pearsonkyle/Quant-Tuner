@@ -151,21 +151,54 @@ def lr_at(step, total, base, warmup_frac=0.05):
     return 0.1 * base + 0.9 * base * 0.5 * (1 + math.cos(math.pi * prog))
 
 
-def masked_forward(model, ids: torch.Tensor, lbl: torch.Tensor):
+#: Labeled positions per lm_head call when logits are not needed. `[K, vocab]` fp32 at
+#: K=8064/V=151669 is 4.6 GB for the logits alone (~14 GB with softmax + backward), and K
+#: swings from ~400 to the full window depending on a window's trainable density — an
+#: intermittent multi-GB spike that OOM-kills a long run at an unpredictable step. 1024
+#: caps it at ~0.6 GB.
+LOGIT_CHUNK = 1024
+
+
+def masked_forward(model, ids: torch.Tensor, lbl: torch.Tensor, *,
+                   need_logits: bool = True, logit_chunk: int = LOGIT_CHUNK):
     """Masked-CE forward: lm_head only at labeled positions.
 
     Selects positions t with lbl[t+1] != -100 (HF shift semantics), runs the
     decoder trunk on the full window, then the lm_head on the K selected hidden
-    states only. Returns (ce_loss, logits [1,K,V] fp32, keep_idx) — the mean CE
+    states only. Returns (ce_loss, logits [1,K,V] fp32 or None, keep_idx) — the mean CE
     over exactly the same target set as transformers' ForCausalLMLoss.
+
+    With ``need_logits=False`` (the plain masked-CE path — only KD needs the logits
+    themselves) the lm_head + CE run in ``logit_chunk``-sized blocks of labeled
+    positions, each recomputed in the backward pass, so peak logits memory is
+    ``logit_chunk × vocab`` instead of ``K × vocab``. The loss is identical: chunk
+    losses are re-weighted by chunk size, so this is a mean over all K, not a mean of
+    means (they differ whenever K is not a multiple of the chunk).
     """
     tgt = lbl[:, 1:]
     keep_idx = (tgt[0] != -100).nonzero(as_tuple=True)[0]
     hidden = model.model(input_ids=ids).last_hidden_state    # [1, S, H]
     h = hidden[:, keep_idx, :]                               # [1, K, H]
-    logits = model.lm_head(h).float()                        # [1, K, V]
-    ce = F.cross_entropy(logits[0], tgt[0, keep_idx])
-    return ce, logits, keep_idx
+    targets = tgt[0, keep_idx]
+    K = keep_idx.numel()
+
+    if need_logits or logit_chunk >= K:
+        logits = model.lm_head(h).float()                    # [1, K, V]
+        ce = F.cross_entropy(logits[0], targets)
+        return ce, (logits if need_logits else None), keep_idx
+
+    def block_sum(hb, tb):
+        return F.cross_entropy(model.lm_head(hb).float(), tb, reduction="sum")
+
+    total = h.new_zeros((), dtype=torch.float32)
+    for i in range(0, K, logit_chunk):
+        hb, tb = h[0, i:i + logit_chunk], targets[i:i + logit_chunk]
+        if torch.is_grad_enabled() and hb.requires_grad:
+            total = total + torch.utils.checkpoint.checkpoint(
+                block_sum, hb, tb, use_reentrant=False)
+        else:
+            total = total + block_sum(hb, tb)
+    return total / K, None, keep_idx
 
 
 def kd_kl(teacher, ids: torch.Tensor, keep_idx: torch.Tensor,
@@ -229,7 +262,8 @@ def run_validation(model, ids_all, lbl_all, dev, max_windows: int) -> float:
             lbl = lbl_all[i:i + 1]
             if not bool((lbl[0, 1:] != -100).any()):
                 continue
-            ce, _, _ = masked_forward(model, ids_all[i:i + 1].to(dev), lbl.to(dev))
+            ce, _, _ = masked_forward(model, ids_all[i:i + 1].to(dev), lbl.to(dev),
+                                      need_logits=False)
             tot += float(ce)
             n += 1
     model.train()
@@ -452,7 +486,9 @@ def train_qat(cfg: QATConfig) -> int:
             continue  # no valid shifted target; builder should have dropped it
         ids = ids_all[w:w + 1].to(dev)
         lbl = lbl_cpu.to(dev)
-        ce, s_logits, keep_idx = masked_forward(model, ids, lbl)
+        # only the KD path consumes the logits; otherwise chunk them (multi-GB spike)
+        ce, s_logits, keep_idx = masked_forward(model, ids, lbl,
+                                                need_logits=teacher is not None)
         if teacher is not None:
             kl = kd_kl(teacher, ids, keep_idx, s_logits, cfg.kd_temp)
             loss = (1 - cfg.kd_alpha) * ce + cfg.kd_alpha * (cfg.kd_temp ** 2) * kl

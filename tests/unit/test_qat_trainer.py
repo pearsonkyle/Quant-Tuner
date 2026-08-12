@@ -305,8 +305,8 @@ def test_nonfinite_window_skipped_without_breaking_accum(tiny_env, monkeypatch):
     orig = trainer.masked_forward
     calls = {"n": 0}
 
-    def flaky(model, ids, lbl):
-        ce, logits, keep = orig(model, ids, lbl)
+    def flaky(model, ids, lbl, **kw):
+        ce, logits, keep = orig(model, ids, lbl, **kw)
         calls["n"] += 1
         if calls["n"] == 1:
             return ce * float("nan"), logits, keep
@@ -331,3 +331,59 @@ def test_json_serializable_args_in_ckpt(tiny_env, monkeypatch):
                                    "--out", str(out)]) == 0
     ck = torch.load(out / "trained_latents.pt", weights_only=False)
     json.dumps(ck["args"])  # stringified Paths etc. must survive
+
+
+def test_chunked_masked_ce_matches_unchunked_loss_and_grads():
+    """need_logits=False chunks the lm_head to cap a K-dependent multi-GB spike.
+
+    It must be the SAME loss: a mean over all K, not a mean of per-chunk means (those
+    differ whenever K is not a multiple of the chunk — which is the common case). At
+    K=8064/V=151669 the unchunked logits alone are 4.6 GB, and K varies per window, so
+    this is what stops an intermittent OOM at an unpredictable step.
+    """
+    model = tiny_model()
+    ids, lbl = rand_batch(seed=11)
+    k = int((lbl[0, 1:] != -100).sum())
+    assert k % 5 != 0, "pick a batch where K is NOT a multiple of the chunk"
+
+    ce_ref, logits, keep_ref = trainer.masked_forward(model, ids, lbl)
+    ce_ref.backward()
+    g_ref = [p.grad.clone() for p in model.parameters() if p.grad is not None]
+    model.zero_grad(set_to_none=True)
+
+    ce_chunk, none_logits, keep_chunk = trainer.masked_forward(
+        model, ids, lbl, need_logits=False, logit_chunk=5)
+    ce_chunk.backward()
+    g_chunk = [p.grad.clone() for p in model.parameters() if p.grad is not None]
+
+    assert none_logits is None                       # caller must not rely on them
+    assert logits is not None
+    assert torch.equal(keep_ref, keep_chunk)
+    assert torch.allclose(ce_ref, ce_chunk, atol=1e-6), (float(ce_ref), float(ce_chunk))
+    assert len(g_chunk) == len(g_ref) and g_ref
+    for a, b in zip(g_ref, g_chunk, strict=True):
+        assert torch.allclose(a, b, atol=1e-5)
+
+
+def test_chunked_masked_ce_still_matches_hf_full_logits():
+    """The chunked path is the one training actually uses — hold it to the HF loss too."""
+    model = tiny_model().eval()
+    ids, lbl = rand_batch(seed=13)
+    with torch.no_grad():
+        ref = model(input_ids=ids, labels=lbl).loss
+        ce, logits, _ = trainer.masked_forward(model, ids, lbl, need_logits=False,
+                                               logit_chunk=4)
+    assert logits is None
+    assert torch.allclose(ce, ref, atol=1e-6), f"{ce} vs HF {ref}"
+
+
+def test_chunking_is_skipped_when_k_fits_in_one_chunk():
+    model = tiny_model().eval()
+    ids, _ = rand_batch(seed=3)
+    lbl = torch.full_like(ids, -100)
+    lbl[0, 5] = ids[0, 5]                            # K = 1
+    with torch.no_grad():
+        ref = model(input_ids=ids, labels=lbl).loss
+        ce, _, _ = trainer.masked_forward(model, ids, lbl, need_logits=False,
+                                          logit_chunk=1024)
+    assert torch.allclose(ce, ref, atol=1e-6)
