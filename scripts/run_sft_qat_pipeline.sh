@@ -25,6 +25,9 @@
 #           A single-window probe reports ~8 ms/token here — it omits the optimizer step
 #           (~106 s/step, fixed at every window size) and runs before swap builds. Size
 #           runs off s/step, not off the probe.
+#   RESUME (env, default `auto`) — continue from this tag's own trained_latents.pt when
+#           one exists (data order, step and Adafactor state; the corpus fingerprint must
+#           match). Set RESUME= to force a fresh run, or RESUME=<path> to pin one.
 #   CKPT_EVERY (env, default 10) — at ~370 s/step the old 40 meant 4 h of work at risk
 #           between checkpoints, and both historical OOM kills landed ON a checkpoint.
 #
@@ -48,10 +51,20 @@ WS="out/swe-rebench/ternary-${TAG}-swe"
 [ -f "$CORPUS" ] || { echo "missing $CORPUS — build it with:"; echo "  PYTHONPATH=src $PY scripts/build_sft_qat_corpus.py --sft out/corpora/qwen3-universal/sft.jsonl.gz --window 8064 --max-tool-tokens 3072 --min-density 0.05 --budget logs=none --budget logs-agents=none --budget broad-instruct=none --out $CORPUS"; exit 1; }
 VAL_ARGS=()
 [ -f "$VAL" ] && VAL_ARGS=(--val-corpus "$VAL" --val-every 40 --val-windows 8)
+# RESUME=auto continues from this tag's own checkpoint if one exists; RESUME=<path> pins
+# one; RESUME= (empty) starts fresh. The corpus fingerprint must match or the trainer
+# refuses -- that guard is what stops a resume onto different data.
+RESUME="${RESUME:-auto}"
+[ "$RESUME" = "auto" ] && RESUME="$TRAIN_OUT/trained_latents.pt"
+RESUME_ARGS=()
+if [ -n "$RESUME" ] && [ -f "$RESUME" ]; then
+  RESUME_ARGS=(--resume "$RESUME")
+  echo "=== resuming from $RESUME ($(du -h "$RESUME" | cut -f1)) ==="
+fi
 
 echo "=== [$(date)] ${TAG} TRAIN (all-36, adafactor, fp32, window 8064, lr ${LR}, ${EPOCHS} epochs) ==="
 $PY -u scripts/exp058_qat_train_v2.py \
-  --corpus "$CORPUS" "${VAL_ARGS[@]}" \
+  --corpus "$CORPUS" "${VAL_ARGS[@]}" "${RESUME_ARGS[@]}" \
   --layers 0-35 --optim adafactor --epochs "$EPOCHS" --grad-accum 4 --lr "$LR" \
   --dtype fp32 --ckpt-every "${CKPT_EVERY:-10}" --flip-sample 12 \
   --out "$TRAIN_OUT"

@@ -415,6 +415,7 @@ def train_qat(cfg: QATConfig) -> int:
         opt.zero_grad()
 
     t0 = time.time()
+    step0 = step  # step we entered the loop at; a resume starts above 0
     n_acc = 0
     opt.zero_grad()
     while step < total_steps and not stop["f"]:
@@ -458,7 +459,12 @@ def train_qat(cfg: QATConfig) -> int:
                 avg = sum(recent) / len(recent)
                 print(f"[qat] step {step}/{total_steps} loss={avg:.4f} "
                       f"lr={opt.param_groups[0]['lr']:.2e} "
-                      f"mem={mem:.1f}GiB {(time.time()-t0)/step:.1f}s/step", flush=True)
+                      f"mem={mem:.1f}GiB "
+                      # steps run in THIS process, not the absolute step — after a resume
+                      # the latter divides by a step count this process never spent time on
+                      # and under-reports by (step / steps_here), which is exactly the
+                      # number a run's wall-clock gets sized from.
+                      f"{(time.time()-t0)/max(1, step-step0):.1f}s/step", flush=True)
             if val_ids is not None and cfg.val_every and step % cfg.val_every == 0:
                 vl = run_validation(model, val_ids, val_lbl, dev, cfg.val_windows)
                 print(f"[qat] step {step} VAL masked-CE {vl:.4f}", flush=True)
