@@ -136,8 +136,9 @@ The second split is net direction, and it tracks tensor role:
 A single flip-percentage would have shown `q_proj` at 28× `v_proj` and implied v_proj was
 idle, when in fact the two are doing categorically different things.
 
-Figure: `out/exp-058/telemetry/ternary.html` (per-layer −1/0/+1 composition + zero-fraction
-trajectory), regenerated with `scripts/ternary_distribution.py plot`.
+Figures: `out/exp-058/telemetry/ternary.html` (distribution tables + zero-fraction
+trajectory) and `report.html` (six training-dynamics figures), regenerated with
+`scripts/ternary_distribution.py plot` and `scripts/qat_report.py`.
 
 ## Observation 4 — flip velocity peaks and decays, in depth order
 
@@ -172,7 +173,38 @@ Scale drift rises monotonically alongside (1.2%–3.0% by step 300) and does **n
 consistent with it being the continuous background process against which flips are the
 discrete events.
 
-## Observation 5 — cost, and the memory regime
+## Observation 5 — training efficiency peaked at step 200 and has halved since
+
+Codes changed per GPU-hour across the tracked sample — the ternary analogue of a
+learning-rate-of-return curve, and the one number that says when to stop. Loss cannot
+answer this, because loss keeps drifting down on scale drift alone.
+
+| step | GPU-h | cumulative codes changed | **codes / GPU-hour** | codes / 1M tokens |
+|---|---|---|---|---|
+| 50 | 5.0 | 9,186 | 3,398 | 10,559 |
+| 100 | 10.0 | 248,815 | 61,470 | 197,981 |
+| 150 | 15.5 | 936,555 | 162,286 | 548,120 |
+| **200** | 20.9 | 1,948,208 | **195,716** ← peak | 642,154 |
+| 250 | 26.1 | 2,870,024 | 160,225 | 514,114 |
+| 300 | 31.2 | 3,498,570 | 104,390 | 330,910 |
+| 325 | 33.9 | 3,720,046 | 83,097 | 274,648 |
+
+Efficiency peaked at **step 200 / 21 GPU-hours** and is now at **42% of peak**. Over the
+whole run so far, 1.056% of the tracked 352M parameters have changed code.
+
+Read against Observation 1, this is the run's actual shape: the first 25 steps did almost
+nothing (warmup), steps 30–120 were spent recovering from the LR excursion, steps 120–250
+were the productive core, and the tail is annealing. The remaining ~200 steps (≈20
+GPU-hours) will, on this trend, produce roughly a third of the change per hour that the
+peak did.
+
+That is *expected* under cosine decay — the schedule is designed to anneal — so this is not
+evidence the run is broken. It is evidence about **where the budget went**: over half the
+wall-clock bought either warmup or divergence recovery. A run at a LR that doesn't diverge
+should reach the same flip count in materially fewer GPU-hours, which is the concrete
+argument for the 2.5e-4 control.
+
+## Observation 6 — cost, and the memory regime
 
 Sustained **375 s/step** (11.5 ms/token) at window 8064, MPS resident flat at 30.8 GiB. An
 earlier s/step creep (356 → 372 over 100 steps) reversed on its own as allocator
