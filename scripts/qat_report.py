@@ -55,8 +55,15 @@ class Panel:
     """Minimal linear-scale SVG panel with a recessive grid. Log scale via `logy`."""
 
     def __init__(self, w, h, pad, xlim, ylim, *, logy=False, xlabel="", ylabel="",
-                 xticks=None, yfmt="{:.2f}"):
-        self.w, self.h, self.pad = w, h, pad
+                 xticks=None, yfmt="{:.2f}", yticks_n=4):
+        self.w, self.h = w, h
+        # Horizontal padding is for tick labels; VERTICAL padding must scale with the
+        # panel or a short panel has no plot area left. At h=130 a flat pad of 60 left
+        # 10px of drawable height: the LR curve rendered as a straight line and every
+        # y-label stacked on the same row.
+        self.pad = pad
+        self.pad_y = min(pad, max(18, int(h * 0.20)))
+        self.yticks_n = yticks_n
         self.x0, self.x1 = xlim
         self.logy = logy
         self.y0, self.y1 = (math.log10(max(1e-9, ylim[0])), math.log10(max(1e-9, ylim[1]))) \
@@ -71,26 +78,35 @@ class Panel:
 
     def py(self, y):
         v = math.log10(max(1e-9, y)) if self.logy else y
-        return self.h - self.pad - (v - self.y0) / max(1e-9, self.y1 - self.y0) \
-            * (self.h - 2 * self.pad)
+        return self.h - self.pad_y - (v - self.y0) / max(1e-9, self.y1 - self.y0) \
+            * (self.h - 2 * self.pad_y)
 
     def _grid(self, xticks, yfmt, xlabel, ylabel):
         for t in (xticks if xticks is not None else nice_ticks(self.x0, self.x1)):
             if not self.x0 - 1e-9 <= t <= self.x1 + 1e-9:
                 continue
-            self.parts.append(f'<line x1="{self.px(t):.1f}" y1="{self.pad}" '
-                              f'x2="{self.px(t):.1f}" y2="{self.h - self.pad}" '
+            self.parts.append(f'<line x1="{self.px(t):.1f}" y1="{self.pad_y}" '
+                              f'x2="{self.px(t):.1f}" y2="{self.h - self.pad_y}" '
                               f'stroke="{GRID}" stroke-width="1"/>')
             lab = f"{t:g}"
-            self.parts.append(f'<text x="{self.px(t):.1f}" y="{self.h - self.pad + 14}" '
+            self.parts.append(f'<text x="{self.px(t):.1f}" y="{self.h - self.pad_y + 14}" '
                               f'font-size="10" text-anchor="middle" fill="{MUTED}">{lab}</text>')
         lo, hi = (10 ** self.y0, 10 ** self.y1) if self.logy else (self.y0, self.y1)
-        ticks = ([10 ** e for e in range(math.floor(self.y0), math.ceil(self.y1) + 1)]
-                 if self.logy else nice_ticks(lo, hi))
+        if self.logy:
+            ticks = [m * 10 ** e
+                     for e in range(math.floor(self.y0), math.ceil(self.y1) + 1)
+                     for m in (1, 2, 3, 5)]
+            ticks = [t for t in sorted(ticks) if lo <= t <= hi]
+        else:
+            ticks = nice_ticks(lo, hi, self.yticks_n)
+        drawn: list[float] = []
         for t in ticks:
             y = self.py(t)
-            if not self.pad - 1 <= y <= self.h - self.pad + 1:
+            if not self.pad_y - 1 <= y <= self.h - self.pad_y + 1:
                 continue
+            if any(abs(y - d) < 11 for d in drawn):  # never stack two labels on one row
+                continue
+            drawn.append(y)
             self.parts.append(f'<line x1="{self.pad}" y1="{y:.1f}" x2="{self.w - self.pad}" '
                               f'y2="{y:.1f}" stroke="{GRID}" stroke-width="1"/>')
             self.parts.append(f'<text x="{self.pad - 6}" y="{y + 3:.1f}" font-size="10" '
@@ -99,8 +115,10 @@ class Panel:
             self.parts.append(f'<text x="{self.w / 2:.0f}" y="{self.h - 4}" font-size="11" '
                               f'text-anchor="middle" fill="{MUTED}">{xlabel}</text>')
         if ylabel:
-            self.parts.append(f'<text x="{self.pad - 6}" y="{self.pad - 10}" font-size="11" '
-                              f'fill="{MUTED}">{ylabel}</text>')
+            # above the plot area, left-aligned to the axis — not inside it, where the
+            # peak annotation used to land on top of it
+            self.parts.append(f'<text x="{self.pad - 44}" y="{max(11, self.pad_y - 8):.0f}" '
+                              f'font-size="11" fill="{MUTED}">{ylabel}</text>')
 
     def line(self, pts, color, width=2, opacity=1.0, title=""):
         if len(pts) < 2:
@@ -121,6 +139,9 @@ class Panel:
         d = f' stroke-dasharray="{dash}"' if dash else ""
         self.parts.append(f'<line x1="{self.pad}" y1="{self.py(y):.1f}" x2="{self.w - self.pad}" '
                           f'y2="{self.py(y):.1f}" stroke="{color}" stroke-width="1"{d}/>')
+
+    def hline_grid_bounds(self):
+        return self.pad_y, self.h - self.pad_y
 
     def note(self, x, y, text, anchor="start", color=MUTED, size=10):
         self.parts.append(f'<text x="{self.px(x):.1f}" y="{self.py(y):.1f}" font-size="{size}" '
@@ -157,11 +178,22 @@ def fig_loss_lr(steps, vals, W, H, PAD):
     p1.dots([(v["step"], v["val_masked_ce"]) for v in vals], VAL, 3,
             lambda x, y: f"step {x:g}: val {y:.4f}")
     peak = max(steps, key=lambda r: r["loss"])
-    p1.note(peak["step"], peak["loss"] * 1.35, f'peak {peak["loss"]:.1f} @ {peak["step"]}',
-            "middle", INK)
-    p2 = Panel(W, 130, PAD, xlim, (0, max(r["lr"] for r in steps) * 1.1),
-               xlabel="training step", ylabel="learning rate", xticks=xt, yfmt="{:.1e}")
+    p1.note(peak["step"] + (xlim[1] - xlim[0]) * 0.04, peak["loss"] * 0.92,
+            f'peak {peak["loss"]:.1f} @ step {peak["step"]}', "start", INK)
+    p2 = Panel(W, 190, PAD, xlim, (0, max(r["lr"] for r in steps) * 1.15),
+               xlabel="training step", ylabel="learning rate (×1e-4)", xticks=xt,
+               yfmt="{:.1f}", yticks_n=3)
+    # relabel in units of 1e-4: "5.0" reads instantly where "5.0e-04" did not
+    p2.parts = [q for q in p2.parts if 'text-anchor="end"' not in q]
+    for t in nice_ticks(0, max(r["lr"] for r in steps) * 1.15, 3):
+        y = p2.py(t)
+        if p2.pad_y - 1 <= y <= p2.h - p2.pad_y + 1:
+            p2.parts.append(f'<text x="{PAD - 6}" y="{y + 3:.1f}" font-size="10" '
+                            f'text-anchor="end" fill="{MUTED}">{t * 1e4:.1f}</text>')
     p2.line([(r["step"], r["lr"]) for r in steps], "#666", 2)
+    peak_lr = max(steps, key=lambda r: r["lr"])
+    p2.dots([(peak_lr["step"], peak_lr["lr"])], "#666", 3,
+            lambda x, y: f"peak lr {y:.2e} @ step {x:g}")
     return p1.svg() + p2.svg() + legend([("train", LOSS), ("val", VAL)])
 
 
@@ -186,6 +218,7 @@ def fig_velocity(flips, W, H, PAD):
 
 
 def fig_recruit_prune(flips, W, H, PAD):
+    W = H = max(H, 420)  # square: see below
     """Recruited (0->±) vs pruned (±->0), log-log, against the balance diagonal.
 
     On the diagonal a tensor is substituting weights at constant density; below it the
@@ -221,9 +254,10 @@ def fig_recruit_prune(flips, W, H, PAD):
                        f'</title></circle>')
         p.parts.append(f'<text x="{p.px(x) + 8:.1f}" y="{p.py(y) + 3:.1f}" font-size="9" '
                        f'fill="{MUTED}">{r["layer"]}</text>')
-    p.parts.append(f'<text x="{W - PAD - 4}" y="{PAD + 14}" font-size="10" '
-                   f'text-anchor="end" fill="{MUTED}">above = net pruning</text>')
-    p.parts.append(f'<text x="{W - PAD - 4}" y="{H - PAD - 8}" font-size="10" '
+    # annotations hug the axis corners, clear of the data cloud that sits on the diagonal
+    p.parts.append(f'<text x="{PAD + 6}" y="{p.pad_y + 14}" font-size="10" '
+                   f'fill="{MUTED}">above the line = net pruning</text>')
+    p.parts.append(f'<text x="{W - PAD - 6}" y="{H - p.pad_y - 8}" font-size="10" '
                    f'text-anchor="end" fill="{MUTED}">below = net densifying</text>')
     return p.svg() + legend([(k, KIND_COLOR[k]) for k in KINDS])
 
@@ -237,12 +271,22 @@ def fig_depth(flips, W, H, PAD):
     p = Panel(W, H, PAD, (0, max(r["layer"] for r in rows)),
               (0, max(r["flip_pct"] for r in rows) * 1.15),
               xlabel="layer index", ylabel=f"cumulative flip % @ step {last}", yfmt="{:.1f}")
-    p.line([(r["layer"], r["flip_pct"]) for r in rows], "#ccc", 1.5, 1.0)
+    placed: list[tuple[float, float]] = []
     for r in rows:
         c = KIND_COLOR.get(r["kind"], MUTED)
+        # stem to the baseline: each layer contributes ONE sampled tensor, so these are
+        # discrete categories, not a curve. Never connect them.
+        p.parts.append(f'<line x1="{p.px(r["layer"]):.1f}" y1="{p.py(0):.1f}" '
+                       f'x2="{p.px(r["layer"]):.1f}" y2="{p.py(r["flip_pct"]):.1f}" '
+                       f'stroke="{c}" stroke-width="1.5" opacity="0.35"/>')
         p.dots([(r["layer"], r["flip_pct"])], c, 5,
                lambda x, y, r=r: f'{r["tensor"]}: {y:.3f}%')
-        p.note(r["layer"], r["flip_pct"] * 1.06, r["kind"].replace("_proj", ""), "middle")
+        lx, ly = p.px(r["layer"]), p.py(r["flip_pct"]) - 9
+        while any(abs(lx - a) < 26 and abs(ly - b) < 11 for a, b in placed):
+            ly -= 11
+        placed.append((lx, ly))
+        p.parts.append(f'<text x="{lx:.1f}" y="{ly:.1f}" font-size="9" text-anchor="middle" '
+                       f'fill="{MUTED}">{r["layer"]}.{r["kind"].replace("_proj", "")}</text>')
     return p.svg() + legend([(k, KIND_COLOR[k]) for k in KINDS])
 
 
@@ -286,7 +330,7 @@ def fig_efficiency(flips, steps, W, H, PAD, tokens_per_step):
     p1.dots(pts, "#0072b2", 3, lambda x, y: f"step {x:g}: {y:,.0f}/h")
     peak = max(pts, key=lambda t: t[1])
     p1.note(peak[0], peak[1] * 1.04, f"peak {peak[1]:,.0f}/h @ {peak[0]:g}", "middle", INK)
-    p2 = Panel(W, 150, PAD, xlim, (0, max(p[1] for p in tok_pts) * 1.1),
+    p2 = Panel(W, 200, PAD, xlim, (0, max(p[1] for p in tok_pts) * 1.1),
                xlabel="training step", ylabel="codes changed per 1M tokens",
                xticks=xt, yfmt="{:,.0f}")
     p2.line(tok_pts, "#009e73", 2)
@@ -300,11 +344,11 @@ def fig_throughput(steps, W, H, PAD):
     xlim = (min(xs), max(xs))
     xt = nice_ticks(*xlim)
     sp = [r["s_per_step"] for r in steps]
-    p1 = Panel(W, 150, PAD, xlim, (min(sp) * 0.98, max(sp) * 1.02),
+    p1 = Panel(W, 200, PAD, xlim, (min(sp) * 0.98, max(sp) * 1.02),
                ylabel="s/step (running mean)", xticks=xt, yfmt="{:.0f}")
     p1.line([(r["step"], r["s_per_step"]) for r in steps], "#cc79a7", 2)
     mem = [r["mem_gib"] for r in steps]
-    p2 = Panel(W, 130, PAD, xlim, (min(mem) * 0.9, max(mem) * 1.1),
+    p2 = Panel(W, 190, PAD, xlim, (min(mem) * 0.9, max(mem) * 1.1),
                xlabel="training step", ylabel="MPS resident (GiB)", xticks=xt, yfmt="{:.1f}")
     p2.line([(r["step"], r["mem_gib"]) for r in steps], "#e69f00", 2)
     return p1.svg() + p2.svg()
@@ -402,7 +446,8 @@ def main() -> int:
  body{{font:14px/1.6 -apple-system,system-ui,sans-serif;margin:2rem auto;max-width:1000px;
        color:{INK};padding:0 1rem}}
  h1{{font-size:22px;margin-bottom:.2rem}} h2{{font-size:15px;margin:0 0 .3rem}}
- section{{margin:2.5rem 0}} p{{color:#555;margin:.2rem 0 .6rem;max-width:70ch}}
+ section{{margin:2rem 0}} p{{color:#555;margin:.2rem 0 .6rem;max-width:70ch}}
+ svg{{display:block}}
  .legend{{margin:.4rem 0 0;font-size:11px;color:#666}}
  .legend span{{margin-right:14px;white-space:nowrap}}
  .legend i{{display:inline-block;width:10px;height:10px;margin-right:4px;vertical-align:-1px}}

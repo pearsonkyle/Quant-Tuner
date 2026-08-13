@@ -232,6 +232,46 @@ These were unrecoverable for this run — the write-up will have to say so.
 | full-model −1/0/+1 census | only the 12 sampled tensors have a trajectory; the per-layer composition figure covers those | deferred — the census reads the whole 15 GB model, which is not safe to do beside a memory-tight run. Run `ternary_distribution.py census --all` after the run finishes. |
 | tokens seen | throughput reported in steps, not tokens | **added** |
 
+## Figure audit — what rendering them actually caught
+
+The figures were rendered to PNG (`qlmanage -t`, WebKit) and inspected. Three defects were
+only visible once looked at, and two of them were wrong, not merely ugly:
+
+1. **The LR panel had a 10px plot area.** A flat `pad=60` on a 130px-tall panel left no
+   drawable height: the cosine schedule rendered as a straight line and every y-tick label
+   stacked on one row. Vertical padding now scales with panel height.
+2. **The recruit-vs-prune scatter was not square.** It compares two like quantities against
+   a 45° balance diagonal — at 900×300 that diagonal renders as a shallow slope, so
+   "distance below the line" was visually distorted. Now square, and the reading changes:
+   most tensors sit clearly *below* the line.
+3. **The depth profile connected different tensor kinds.** A line joined layer 0 `q_proj` →
+   layer 3 `v_proj` → layer 6 `gate_proj`, implying a continuous series that does not
+   exist — there is one sampled tensor per layer. Replaced with lollipop stems.
+
+A structural check (well-formed SVG, marks in bounds, label spacing) passed on all three.
+Geometry validation does not catch a chart that is drawing the wrong thing.
+
+## What the audit changed in the trainer
+
+Two findings from the figures turned into code:
+
+- **The divergence starts 4 steps after warmup ends** (figure 1, LR panel). Warmup is 5%
+  of total steps = 26 here; the loss leaves 1.06 at step 30. `--warmup-frac` is now a flag.
+- **Clipping did not prevent it, and hid it.** `clip_grad_norm_` rescales the update
+  direction but still takes a full-size step along it. `GradSpikeGuard` (`--grad-spike-factor`,
+  default 4.0) skips any optimizer step whose *pre-clip* norm exceeds 4× the trailing
+  median, after a 20-step history has built. Skipped norms deliberately do not enter the
+  history — otherwise a sustained excursion drags the median up until the guard stops
+  firing, which is the exact case it exists to catch. Requires splitting
+  `MasterOptimizer.clip_and_step` into `stage_grads_and_norm` + `step_staged`, since the
+  decision needs the norm before the step is committed.
+
+A third finding is **not** yet acted on: figure 4 shows flips concentrating in `q_proj`
+(3.7% at layer 0, 2.9% at layer 13) while `v_proj` and `up_proj` barely move (0.13–0.33%) —
+a ~30× spread. Every tensor is being trained at the same LR and costing the same memory.
+Whether the low-movers are *unimportant* or merely *slow* is untested, and freezing them
+would be a real efficiency win if the former. That needs an ablation, not a guess.
+
 ## Open questions for the next run
 
 1. **Does a lower LR reach the same flip count without the excursion?** The single most

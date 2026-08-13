@@ -80,6 +80,8 @@ class QATConfig:
     flip_sample: int = 8
     ckpt_every: int = 40
     ckpt_keep: int = 2
+    warmup_frac: float = 0.05
+    grad_spike_factor: float = 4.0
     chunked_attention: bool = True
     empty_cache_every: int = 5
     metrics_jsonl: bool = True
@@ -152,6 +154,52 @@ def lr_at(step, total, base, warmup_frac=0.05):
         return base * step / warm
     prog = (step - warm) / max(1, total - warm)
     return 0.1 * base + 0.9 * base * 0.5 * (1 + math.cos(math.pi * prog))
+
+
+class GradSpikeGuard:
+    """Skip an optimizer step whose PRE-clip grad norm dwarfs the recent median.
+
+    On the sft8k-full run the loss went 1.06 -> 9.80 within five steps of the LR reaching
+    its peak, and took ~90 steps (~9 GPU-hours) of cosine decay to unwind. Gradient
+    clipping does not prevent that: clipping rescales the direction but still takes a
+    full-size step along it, and it hides the excursion from every logged number.
+
+    The guard compares each step's pre-clip norm against the median of a trailing window.
+    A step above `factor` x median is dropped (grads zeroed, LR schedule untouched), so a
+    handful of pathological batches cannot move the weights. It deliberately does NOT
+    trigger during warmup, when there is no stable median yet and norms are legitimately
+    large.
+
+    `factor=0` disables. Skipping is recorded so a run that skips constantly is visible
+    as a too-low `factor` rather than as a mysteriously slow run.
+    """
+
+    def __init__(self, factor: float = 4.0, window: int = 25, min_history: int = 20):
+        self.factor = factor
+        self.window = window
+        self.min_history = min_history
+        self.history: list[float] = []
+        self.n_skipped = 0
+        self.last_median = 0.0
+
+    def check(self, norm: float) -> bool:
+        """True if this step should be SKIPPED. Feeds the history either way."""
+        if not math.isfinite(norm):
+            self.n_skipped += 1
+            return True
+        skip = False
+        if self.factor > 0 and len(self.history) >= self.min_history:
+            h = sorted(self.history)
+            self.last_median = h[len(h) // 2]
+            if self.last_median > 0 and norm > self.factor * self.last_median:
+                skip = True
+                self.n_skipped += 1
+        # a skipped (outlier) norm must not enter the history, or a run of spikes drags
+        # the median up until the guard stops firing
+        if not skip:
+            self.history.append(norm)
+            self.history[:] = self.history[-self.window:]
+        return skip
 
 
 #: Labeled positions per lm_head call when logits are not needed. `[K, vocab]` fp32 at
@@ -532,18 +580,27 @@ def train_qat(cfg: QATConfig) -> int:
             torch.mps.empty_cache()
         print(f"[qat] checkpoint @ step {at}: {len(t_names)} tensors", flush=True)
 
-    def opt_step() -> float:
-        """Returns the PRE-clip grad norm — the diagnostic clipping would otherwise hide."""
+    def opt_step() -> tuple[float, bool]:
+        """Step unless the guard rejects it. Returns (pre-clip grad norm, skipped)."""
         for pg in opt.param_groups:
-            pg["lr"] = lr_at(step, total_steps, cfg.lr)
+            pg["lr"] = lr_at(step, total_steps, cfg.lr, cfg.warmup_frac)
         if isinstance(opt, MasterOptimizer):
-            gn = opt.clip_and_step(1.0)  # clips in fp32 masters, foreach=False inside
+            # clip_and_step needs the norm BEFORE deciding, so measure on the masters
+            gn = opt.stage_grads_and_norm()
+            if guard.check(gn):
+                opt.zero_grad()
+                return gn, True
+            opt.step_staged(1.0)
         else:
             gn = float(torch.nn.utils.clip_grad_norm_(trainable, 1.0, foreach=False))
+            if guard.check(gn):
+                opt.zero_grad()
+                return gn, True
             opt.step()
         opt.zero_grad()
-        return gn
+        return gn, False
 
+    guard = GradSpikeGuard(cfg.grad_spike_factor)
     t0 = time.time()
     step0 = step  # step we entered the loop at; a resume starts above 0
     n_acc = 0
@@ -585,7 +642,11 @@ def train_qat(cfg: QATConfig) -> int:
         recent.append(lv)
         recent[:] = recent[-cfg.grad_accum * 5:]
         if n_acc == cfg.grad_accum:
-            grad_norm = opt_step()
+            grad_norm, skipped = opt_step()
+            if skipped:
+                print(f"[qat] step {step + 1}: grad spike {grad_norm:.1f} > "
+                      f"{cfg.grad_spike_factor}x median {guard.last_median:.1f} — step "
+                      f"SKIPPED ({guard.n_skipped} so far)", flush=True)
             n_acc = 0
             step += 1
             # Periodic MPS cache release: over a long all-36 run the allocator fragments and
@@ -600,7 +661,8 @@ def train_qat(cfg: QATConfig) -> int:
                 mem = torch.mps.current_allocated_memory() / 1024**3 if dev == "mps" else 0
                 avg = sum(recent) / len(recent)
                 emit("step", step=step, total_steps=total_steps, loss=avg,
-                     lr=opt.param_groups[0]["lr"], grad_norm=grad_norm, mem_gib=mem,
+                     lr=opt.param_groups[0]["lr"], grad_norm=grad_norm,
+                     grad_median=guard.last_median, n_skipped=guard.n_skipped, mem_gib=mem,
                      tokens_seen=tokens_seen, elapsed_s=time.time() - t0,
                      s_per_step=(time.time() - t0) / max(1, step - step0),
                      loss_by_source={k: sum(v) / len(v) for k, v in src_loss.items()})
@@ -669,6 +731,15 @@ def _build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--flip-sample", type=int, default=8,
                     help="trainable linears to track for code-flip telemetry")
     ap.add_argument("--ckpt-every", type=int, default=40)
+    ap.add_argument("--warmup-frac", type=float, default=0.05,
+                    help="fraction of total steps spent warming up (default 0.05). The "
+                         "sft8k-full run diverged 4 steps after warmup ended; a longer "
+                         "ramp is the cheap half of the fix.")
+    ap.add_argument("--grad-spike-factor", type=float, default=4.0,
+                    help="skip an optimizer step whose pre-clip grad norm exceeds this "
+                         "multiple of the trailing median (0 disables). Clipping alone "
+                         "does not prevent a divergence — it still steps full-size along "
+                         "the clipped direction.")
     ap.add_argument("--ckpt-keep", type=int, default=2,
                     help="step-stamped hard links to keep beside trained_latents.pt "
                          "(default 2, 0 disables). Without these a run that diverges has "
@@ -699,7 +770,8 @@ def main(argv: list[str] | None = None) -> int:
         val_every=args.val_every, val_windows=args.val_windows,
         train_norms=args.train_norms, resume=args.resume,
         flip_sample=args.flip_sample, ckpt_every=args.ckpt_every,
-        ckpt_keep=args.ckpt_keep,
+        ckpt_keep=args.ckpt_keep, warmup_frac=args.warmup_frac,
+        grad_spike_factor=args.grad_spike_factor,
         chunked_attention=args.chunked_attention,
         empty_cache_every=args.empty_cache_every,
         metrics_jsonl=args.metrics_jsonl,
