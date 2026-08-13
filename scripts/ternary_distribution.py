@@ -6,23 +6,19 @@ Two things a ternary QAT run needs to show and a loss curve cannot:
   * **census** — the actual proportion of -1, 0 and +1 codes in each tensor. This is the
     model's capacity budget: a weight sitting at 0 contributes nothing, so the zero
     fraction IS the sparsity, and training moves it.
-  * **trajectory** — how that zero fraction moves as steps accumulate. Reconstructed from
-    the flip telemetry, which counts recruitment (`0->±`) and pruning (`±->0`) separately,
-    so the net density at any checkpoint is `density_0 + (z2nz - nz2z) / numel`.
+  * **trajectory** — `trajectory()` turns the flip telemetry (which counts recruitment
+    `0->±` and pruning `±->0` separately) into net density per checkpoint:
+    `density_0 + (z2nz - nz2z) / numel`. Consumed by `qat_report.py`.
 
-Usage:
+This module is DATA ONLY; the figures live in `scripts/qat_report.py`.
 
-    # baseline census of the shipped weights (add --all for every trainable linear;
-    # that reads the whole model, so don't do it while a run is training)
+    # step-0 census from the shipped weights (--all reads the whole model: not while training)
     python scripts/ternary_distribution.py census --model out/exp-057/model \\
         --tensors out/exp-058/telemetry/flips.csv --out out/exp-058/telemetry/census.csv
 
-    # figure: per-layer composition + zero-fraction trajectory
-    python scripts/ternary_distribution.py plot --census out/exp-058/telemetry/census.csv \\
-        --flips out/exp-058/telemetry/flips.csv --out out/exp-058/telemetry/ternary.html
-
-Colors are ColorBrewer RdBu — a diverging scheme, because -1 <- 0 -> +1 is polarity with a
-neutral midpoint, and RdBu is CVD-safe by construction.
+    # current codes from a live checkpoint (lazy: ~1 GB of a 28 GB file)
+    python scripts/ternary_distribution.py census --latents .../trained_latents.pt \\
+        --tensors out/exp-058/telemetry/flips.csv --out .../census_latest.csv
 """
 
 from __future__ import annotations
@@ -30,11 +26,8 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import math
 import re
 from pathlib import Path
-
-NEG, ZERO, POS = "#2166ac", "#cccccc", "#b2182b"  # RdBu poles + neutral midpoint
 
 
 def _row_for(name: str, codes) -> dict:
@@ -151,148 +144,6 @@ def trajectory(flips: list[dict], base: dict[str, dict]) -> list[dict]:
     return sorted(out, key=lambda r: (r["tensor"], r["step"]))
 
 
-def _nice_ticks(lo: float, hi: float, target: int = 6) -> list[float]:
-    """Round tick values covering [lo, hi] at a 1/2/5 x 10^n step."""
-    span = (hi - lo) or 1.0
-    raw = span / max(1, target)
-    mag = 10 ** math.floor(math.log10(raw))
-    step = next(m * mag for m in (1, 2, 2.5, 5, 10) if m * mag >= raw)
-    start = math.floor(lo / step) * step
-    out, v = [], start
-    while v <= hi + step * 1e-9:
-        out.append(round(v, 10))
-        v += step
-    return out
-
-
-def _lines(traj: list[dict], w: int, h: int, pad: int, step_grid: int = 100) -> str:
-    """Zero-fraction over steps, one line per tracked tensor."""
-    if not traj:
-        return ""
-    by: dict[str, list[dict]] = {}
-    for r in traj:
-        by.setdefault(r["tensor"], []).append(r)
-    steps = [r["step"] for r in traj]
-    x0, x1 = min(steps), max(steps)
-    # scale each line to its OWN start so the shared axis is "change in zero fraction";
-    # absolute zero fractions differ per tensor and would compress every line to a stripe
-    deltas = [(r["zero_frac"] - r["zero_frac_start"]) * 100 for r in traj]
-    y0, y1 = min(deltas + [0.0]), max(deltas + [0.0])
-    span = (y1 - y0) or 1.0
-
-    def px(s):
-        return pad + (s - x0) / max(1, x1 - x0) * (w - 2 * pad)
-
-    def py(d):
-        return h - pad - (d - y0) / span * (h - 2 * pad)
-
-    out = []
-    # Recessive grid: vertical every `step_grid` steps, horizontal on round pp values.
-    # The zero line is the reference the whole chart is read against, so it is darker.
-    for s in range(0, x1 + 1, step_grid):  # +1, not +step_grid: never draw past the last step
-        if s < x0:
-            continue
-        out.append(f'<line x1="{px(s):.1f}" y1="{pad}" x2="{px(s):.1f}" y2="{h - pad}" '
-                   f'stroke="#eee" stroke-width="1"/>')
-        out.append(f'<text x="{px(s):.1f}" y="{h - pad + 15}" font-size="10" '
-                   f'text-anchor="middle" fill="#888">{s}</text>')
-    for t in _nice_ticks(y0, y1):
-        if not (y0 - 1e-9 <= t <= y1 + 1e-9):
-            continue
-        out.append(f'<line x1="{pad}" y1="{py(t):.1f}" x2="{w - pad}" y2="{py(t):.1f}" '
-                   f'stroke="{"#bbb" if t == 0 else "#eee"}" stroke-width="1"/>')
-        out.append(f'<text x="{pad - 6}" y="{py(t) + 3:.1f}" font-size="10" '
-                   f'text-anchor="end" fill="#888">{t:+.2f}</text>')
-    ends: list[tuple[float, str, str]] = []
-    for name, rs in by.items():
-        rs = sorted(rs, key=lambda r: r["step"])
-        pts = " ".join(f"{px(r['step']):.1f},{py((r['zero_frac'] - r['zero_frac_start']) * 100):.1f}"
-                       for r in rs)
-        # blue where the tensor is densifying (zeros going away), red where it is pruning
-        last = rs[-1]["zero_frac"] - rs[-1]["zero_frac_start"]
-        color = NEG if last < 0 else POS
-        out.append(f'<polyline points="{pts}" fill="none" stroke="{color}" '
-                   f'stroke-width="2" opacity="0.75"><title>{name}</title></polyline>')
-        lr = rs[-1]
-        ends.append((py((lr["zero_frac"] - lr["zero_frac_start"]) * 100),
-                     f'{lr["layer"]}.{lr["kind"]}', color))
-
-    # Direct labels beat a legend here (12 series), but several lines converge near zero
-    # and their labels would overlap. Nudge each down to clear the previous one; a 1px
-    # leader keeps the label tied to its line once nudged.
-    lx = px(x1) + 6
-    prev_y = -1e9
-    for y, label, color in sorted(ends):
-        ly = max(y + 3, prev_y + 10)
-        prev_y = ly
-        if abs(ly - (y + 3)) > 1:
-            out.append(f'<line x1="{lx - 3:.1f}" y1="{y:.1f}" x2="{lx:.1f}" y2="{ly - 3:.1f}" '
-                       f'stroke="{color}" stroke-width="1" opacity="0.35"/>')
-        out.append(f'<text x="{lx:.1f}" y="{ly:.1f}" font-size="9" fill="#666">{label}</text>')
-    out.append(f'<text x="{w / 2:.0f}" y="{h - 4}" font-size="11" text-anchor="middle" '
-               f'fill="#666">training step</text>')
-    out.append(f'<text x="{pad - 6}" y="{pad - 12}" font-size="11" fill="#666">'
-               f'Δ zero-fraction (pp)</text>')
-    return "".join(out)
-
-
-def _dist_table(rows: list[dict], ref: dict[str, dict] | None = None) -> str:
-    """Composition table. With `ref`, adds the zero-fraction delta against it."""
-    head = ("<tr><th>tensor</th><th>−1</th><th>0</th><th>+1</th>"
-            + ("<th>Δ0 (pp)</th>" if ref else "") + "</tr>")
-    body = []
-    for r in rows:
-        cells = (f"<td>{r['neg_frac'] * 100:.2f}%</td><td><b>{r['zero_frac'] * 100:.2f}%</b></td>"
-                 f"<td>{r['pos_frac'] * 100:.2f}%</td>")
-        if ref:
-            b = ref.get(r["tensor"])
-            d = (r["zero_frac"] - b["zero_frac"]) * 100 if b else 0.0
-            # blue = zeros recruited into live weights, red = weights pruned to zero
-            color = NEG if d < 0 else POS
-            cells += f'<td style="color:{color}">{d:+.3f}</td>'
-        body.append(f"<tr><td>{r['tensor'].replace('model.layers.', '')}</td>{cells}</tr>")
-    return f"<table>{head}{''.join(body)}</table>"
-
-
-def render_html(cen: list[dict], traj: list[dict], latest: list[dict] | None = None,
-                latest_step: int | None = None) -> str:
-    W, H, PAD = 900, 380, 52
-    steps = [r["step"] for r in traj]
-    span = f"steps {min(steps)}–{max(steps)}" if steps else "no trajectory"
-    later = ""
-    if latest:
-        ref = {r["tensor"]: r for r in cen}
-        later = (f"<h2>Distribution at step {latest_step}</h2>"
-                 f"<p>Same tensors after training. Δ0 is the change in zero-fraction: "
-                 f"negative = the model switched dead weights on.</p>"
-                 f"{_dist_table(latest, ref)}")
-    return f"""<!doctype html><meta charset="utf-8">
-<title>Ternary code distribution</title>
-<style>
- body{{font:14px/1.5 -apple-system,system-ui,sans-serif;margin:2rem;max-width:960px;color:#222}}
- h1{{font-size:20px}} h2{{font-size:15px;margin:2rem 0 .3rem}}
- p{{color:#555;margin:.3rem 0 .8rem}}
- table{{border-collapse:collapse;font-size:12px;margin:.5rem 0 1rem}}
- td,th{{border-bottom:1px solid #eee;padding:3px 12px;text-align:right}}
- th{{color:#888;font-weight:500}}
- td:first-child,th:first-child{{text-align:left;font-family:ui-monospace,monospace}}
-</style>
-<h1>Ternary code distribution</h1>
-<p>A natively-ternary weight is −1, 0 or +1. The zero fraction is the model's unused
-capacity, and continued QAT moves it — which a loss curve cannot show.</p>
-
-<h2>Change in zero-fraction over training ({span})</h2>
-<p>Per tracked tensor, relative to its own starting value. <b>Below the zero line</b> =
-zeros recruited into live weights (densifying); <b>above</b> = live weights pruned to zero.
-Hover a line for its tensor name.</p>
-<svg width="{W}" height="{H}" role="img">{_lines(traj, W, H, PAD)}</svg>
-
-<h2>Distribution at step 0 (as shipped)</h2>
-{_dist_table(cen)}
-{later}
-"""
-
-
 def _read_csv(p: Path) -> list[dict]:
     with p.open() as fh:
         return list(csv.DictReader(fh))
@@ -323,16 +174,6 @@ def main() -> int:
                    help="every trainable linear; reads the WHOLE model — not while training")
     c.add_argument("--out", type=Path, required=True)
 
-    p = sub.add_parser("plot", help="render the composition + trajectory figure")
-    p.add_argument("--census", type=Path, required=True, help="step-0 census CSV")
-    p.add_argument("--flips", type=Path)
-    p.add_argument("--latest", type=Path,
-                   help="second census CSV (e.g. from `census --latents`) for the "
-                        "after-training table")
-    p.add_argument("--latest-step", type=int)
-    p.add_argument("--out", type=Path, required=True)
-    p.add_argument("--traj-out", type=Path)
-
     args = ap.parse_args()
     if args.cmd == "census":
         names = None
@@ -356,23 +197,7 @@ def main() -> int:
         print(f"[census] {len(rows)} tensors -> {args.out}")
         return 0
 
-    cen = [{**r, **{k: float(r[k]) for k in ("neg_frac", "zero_frac", "pos_frac")},
-            "layer": int(r["layer"]), "numel": int(r["numel"])} for r in _read_csv(args.census)]
-    traj: list[dict] = []
-    if args.flips:
-        base = {r["tensor"]: r for r in cen}
-        traj = trajectory(_read_csv(args.flips), base)
-        if args.traj_out:
-            _write_csv(args.traj_out, traj)
-    latest = None
-    if args.latest:
-        latest = [{**r, **{k: float(r[k]) for k in ("neg_frac", "zero_frac", "pos_frac")},
-                   "layer": int(r["layer"]), "numel": int(r["numel"])}
-                  for r in _read_csv(args.latest)]
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_text(render_html(cen, traj, latest, args.latest_step))
-    print(f"[plot] {len(cen)} tensors, {len(traj)} trajectory points -> {args.out}")
-    return 0
+    raise SystemExit("[plot] moved to scripts/qat_report.py")
 
 
 if __name__ == "__main__":

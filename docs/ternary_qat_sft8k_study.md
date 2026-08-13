@@ -136,9 +136,23 @@ The second split is net direction, and it tracks tensor role:
 A single flip-percentage would have shown `q_proj` at 28× `v_proj` and implied v_proj was
 idle, when in fact the two are doing categorically different things.
 
-Figures: `out/exp-058/telemetry/ternary.html` (distribution tables + zero-fraction
-trajectory) and `report.html` (six training-dynamics figures), regenerated with
-`scripts/ternary_distribution.py plot` and `scripts/qat_report.py`.
+Figures live in one document, `out/exp-058/telemetry/report.html` — seven panels plus
+the step-0/step-N distribution tables. Regenerate with:
+
+```bash
+python scripts/parse_qat_log.py TRAIN.log --out out/exp-058/telemetry
+python scripts/ternary_distribution.py census --model out/exp-057/model \
+    --tensors out/exp-058/telemetry/flips.csv --out out/exp-058/telemetry/census.csv
+python scripts/ternary_distribution.py census --latents .../trained_latents.pt \
+    --tensors out/exp-058/telemetry/flips.csv --out out/exp-058/telemetry/census_latest.csv
+PYTHONPATH=scripts python scripts/qat_report.py --telemetry out/exp-058/telemetry \
+    --census out/exp-058/telemetry/census.csv \
+    --latest out/exp-058/telemetry/census_latest.csv --latest-step 325 \
+    --window 8064 --grad-accum 4 --out out/exp-058/telemetry/report.html
+```
+
+`ternary_distribution.py` is data only (census + trajectory); all plotting is in
+`qat_report.py`.
 
 ## Observation 4 — flip velocity peaks and decays, in depth order
 

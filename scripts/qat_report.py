@@ -1,25 +1,29 @@
 #!/usr/bin/env python
-"""Training-dynamics report for a ternary QAT run.
+"""The QAT run report: one page, seven figures, two tables.
 
-Five figures a loss curve cannot give you, each answering a question that comes up when
-deciding whether to keep spending GPU-hours on a run:
+A ternary model stores `w = s·c`, `c ∈ {−1,0,+1}`, so its loss can fall on scale drift
+with zero codes changed. Every panel here is therefore anchored on **code flips** — the
+only change that survives export to a 2-bit GGUF — and each answers one operational
+question: is the schedule healthy, is it still learning, which mechanism, where in the
+stack, is another GPU-hour worth it, and is the box about to swap.
 
-  1. **Loss & LR**       — did the schedule cause the excursion? (stacked panels, never a
-                           second y-axis: two scales on one frame is the classic lie)
-  2. **Flip velocity**   — is the model still changing, or has it converged?
-  3. **Recruit vs prune**— WHICH mechanism: switching dead weights on, or substituting?
-  4. **Depth profile**   — where in the stack is the learning happening?
-  5. **Efficiency**      — codes changed per GPU-hour. The diminishing-returns curve, and
-                           the number that says when to stop.
+Pure CSV in, one self-contained HTML out — no model load, safe to run beside training.
 
-Inputs are the CSVs from `parse_qat_log.py` plus the censuses from
-`ternary_distribution.py`. Pure CSV in, one self-contained HTML out — no model load.
+    # data (once per checkpoint you care about)
+    python scripts/parse_qat_log.py train.log --out out/run/telemetry
+    python scripts/ternary_distribution.py census --model MODEL \\
+        --tensors out/run/telemetry/flips.csv --out out/run/telemetry/census.csv
+    python scripts/ternary_distribution.py census --latents CKPT.pt \\
+        --tensors out/run/telemetry/flips.csv --out out/run/telemetry/census_latest.csv
 
-    python scripts/qat_report.py --telemetry out/exp-058/telemetry \\
-        --window 8064 --grad-accum 4 --out out/exp-058/telemetry/report.html
+    # report
+    python scripts/qat_report.py --telemetry out/run/telemetry \\
+        --census out/run/telemetry/census.csv \\
+        --latest out/run/telemetry/census_latest.csv --latest-step 325 \\
+        --window 8064 --grad-accum 4 --out out/run/report.html
 
-Categorical colors are Okabe-Ito, a published colorblind-safe qualitative palette;
-assigned to tensor kind in fixed order so a kind keeps its color across every figure.
+Categorical colors are Okabe-Ito (CVD-safe), assigned to tensor kind in fixed order so a
+kind keeps its color across every figure.
 """
 
 from __future__ import annotations
@@ -27,7 +31,11 @@ from __future__ import annotations
 import argparse
 import csv
 import math
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from ternary_distribution import trajectory  # noqa: E402  (sibling script, path set above)
 
 # Okabe-Ito: CVD-safe qualitative. Fixed order, never cycled — a 9th kind would need a
 # different encoding, not a generated hue.
@@ -139,9 +147,6 @@ class Panel:
         d = f' stroke-dasharray="{dash}"' if dash else ""
         self.parts.append(f'<line x1="{self.pad}" y1="{self.py(y):.1f}" x2="{self.w - self.pad}" '
                           f'y2="{self.py(y):.1f}" stroke="{color}" stroke-width="1"{d}/>')
-
-    def hline_grid_bounds(self):
-        return self.pad_y, self.h - self.pad_y
 
     def note(self, x, y, text, anchor="start", color=MUTED, size=10):
         self.parts.append(f'<text x="{self.px(x):.1f}" y="{self.py(y):.1f}" font-size="{size}" '
@@ -338,6 +343,56 @@ def fig_efficiency(flips, steps, W, H, PAD, tokens_per_step):
     return p1.svg() + p2.svg()
 
 
+def fig_zero_fraction(traj, W, H, PAD):
+    """Change in zero-fraction per tensor — the capacity view of the same flips."""
+    if not traj:
+        return "<p>no trajectory data</p>"
+    xs = [r["step"] for r in traj]
+    d = [(r["zero_frac"] - r["zero_frac_start"]) * 100 for r in traj]
+    p = Panel(W, H, PAD, (min(xs), max(xs)), (min(d + [0.0]) * 1.15, max(d + [0.0]) * 1.15),
+              xlabel="training step", ylabel="Δ zero-fraction (pp)", yfmt="{:+.2f}")
+    p.rule(0.0, "#bbb")
+    by: dict[str, list] = {}
+    for r in traj:
+        by.setdefault(r["tensor"], []).append(r)
+    ends = []
+    for name, rs in by.items():
+        rs.sort(key=lambda r: r["step"])
+        pts = [(r["step"], (r["zero_frac"] - r["zero_frac_start"]) * 100) for r in rs]
+        c = KIND_COLOR.get(rs[0]["kind"], MUTED)
+        p.line(pts, c, 2, 0.85, name)
+        ends.append((p.py(pts[-1][1]),
+                     f'{rs[0]["layer"]}.{rs[0]["kind"].replace("_proj", "")}', c))
+    lx = p.px(max(xs)) + 6
+    prev = -1e9
+    for y, label, c in sorted(ends):
+        ly = max(y + 3, prev + 10)
+        prev = ly
+        if abs(ly - (y + 3)) > 1:
+            p.parts.append(f'<line x1="{lx - 3:.1f}" y1="{y:.1f}" x2="{lx:.1f}" '
+                           f'y2="{ly - 3:.1f}" stroke="{c}" stroke-width="1" opacity="0.35"/>')
+        p.parts.append(f'<text x="{lx:.1f}" y="{ly:.1f}" font-size="9" '
+                       f'fill="{MUTED}">{label}</text>')
+    return p.svg() + legend([(k, KIND_COLOR[k]) for k in KINDS])
+
+
+def dist_table(rows, ref=None):
+    """-1/0/+1 composition. With `ref`, adds the zero-fraction delta against it."""
+    head = ("<tr><th>tensor</th><th>−1</th><th>0</th><th>+1</th>"
+            + ("<th>Δ0 (pp)</th>" if ref else "") + "</tr>")
+    body = []
+    for r in rows:
+        cells = (f"<td>{r['neg_frac'] * 100:.2f}%</td>"
+                 f"<td><b>{r['zero_frac'] * 100:.2f}%</b></td>"
+                 f"<td>{r['pos_frac'] * 100:.2f}%</td>")
+        if ref:
+            b = ref.get(r["tensor"])
+            dv = (r["zero_frac"] - b["zero_frac"]) * 100 if b else 0.0
+            cells += f'<td style="color:{"#0072b2" if dv < 0 else "#d55e00"}">{dv:+.3f}</td>'
+        body.append(f"<tr><td>{r['tensor'].replace('model.layers.', '')}</td>{cells}</tr>")
+    return f"<table>{head}{''.join(body)}</table>"
+
+
 def fig_throughput(steps, W, H, PAD):
     """s/step and MPS resident memory — the run's stability trace."""
     xs = [r["step"] for r in steps]
@@ -378,6 +433,10 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--telemetry", type=Path, required=True,
                     help="directory holding steps.csv / val.csv / flips.csv")
+    ap.add_argument("--census", type=Path,
+                    help="step-0 census CSV (ternary_distribution.py census --model ...)")
+    ap.add_argument("--latest", type=Path, help="latest-step census CSV (census --latents ...)")
+    ap.add_argument("--latest-step", type=int)
     ap.add_argument("--window", type=int, default=8064)
     ap.add_argument("--grad-accum", type=int, default=4)
     ap.add_argument("--title", default="QAT training dynamics")
@@ -391,76 +450,154 @@ def main() -> int:
     flips = read(t / "flips.csv", {"step": int, "flip_pct": float, "zero_to_nonzero": int,
                                    "nonzero_to_zero": int, "scale_drift_pct": float,
                                    "flip_pct_delta": float, "densify_ratio": float})
-    cen = {r["tensor"]: r for r in read(t / "census.csv", {"numel": int, "layer": int})}
+    fl = {"numel": int, "layer": int, "neg_frac": float, "zero_frac": float, "pos_frac": float}
+    cen_rows = read(args.census or (t / "census.csv"), fl)
+    latest = read(args.latest, fl) if args.latest else []
+    cen = {r["tensor"]: r for r in cen_rows}
     for r in flips:  # numel/layer/kind live in the census, not the log
         b = cen.get(r["tensor"])
         r["numel"] = b["numel"] if b else 0
         r["layer"] = b["layer"] if b else -1
         r["kind"] = b["kind"] if b else "?"
     flips = [r for r in flips if r["numel"]]
+    traj = trajectory(flips, cen) if cen else []
+    cen_rows = sorted(cen_rows, key=lambda r: (r["layer"], r["kind"]))
+    latest = sorted(latest, key=lambda r: (r["layer"], r["kind"]))
     if not steps:
         raise SystemExit(f"[report] no steps.csv under {t} — run parse_qat_log.py first")
 
     W, H, PAD = 900, 300, 60
     tps = args.window * args.grad_accum
+    last = steps[-1]
+    hrs = last["step"] * last["s_per_step"] / 3600
+    kpis = headline(steps, vals, flips, traj, hrs, tps)
+
+    cen = cen_rows
     figs = [
-        ("Loss and learning rate",
-         "Train loss (log scale) with validation overlaid, and the LR schedule beneath it "
-         "on a shared x-axis. Separate panels on purpose — a second y-axis would let the "
-         "two curves cross wherever the scaling put them.",
+        ("Loss &amp; LR",
+         "Is the schedule healthy? Stacked panels, shared x — not a dual axis.",
          fig_loss_lr(steps, vals, W, H, PAD)),
-        ("Flip velocity — is it still learning?",
-         "Change in cumulative flip percentage per checkpoint. A ternary model only learns "
-         "by flipping codes, so this, not loss, is the signal that a run still has "
-         "something left to give. Every line past its peak = converging.",
+        ("Flip velocity",
+         "Still learning? Codes are the only thing that survives export, so this is the "
+         "convergence signal — loss falls on scale drift alone. Past the peak = annealing.",
          fig_velocity(flips, W, H, PAD)),
+        ("Capacity: Δ zero-fraction",
+         "Below the line = dead weights switched on. This is the same event as a flip, "
+         "counted as capacity rather than churn.",
+         fig_zero_fraction(traj, W, H, PAD)),
         ("Mechanism: recruit vs prune",
-         "Weights switched on (0 → ±1) against weights switched off (±1 → 0) at the latest "
-         "checkpoint, log-log. The dashed diagonal is balanced churn — substitution at "
-         "constant density. Distance below it is net recruitment of dead capacity.",
+         "On the dashed diagonal a tensor substitutes weights at constant density; below "
+         "it, it recruits. Square axes — the 45° reading only holds at equal aspect.",
          fig_recruit_prune(flips, W, H, PAD)),
         ("Depth profile",
-         "Cumulative flip percentage by layer index. Tells you whether continued training "
-         "is reaching the whole stack or concentrating in a few tensors — which is what "
-         "decides whether a partial-layer run would have been just as good and far cheaper.",
+         "One sampled tensor per layer. A big spread means a cheaper partial-layer run may "
+         "buy the same thing.",
          fig_depth(flips, W, H, PAD)),
-        ("Training efficiency — diminishing returns",
-         "Codes changed per GPU-hour, and per million tokens. This is the stop signal: "
-         "loss keeps drifting down on scale drift alone, but once this curve flattens, "
-         "further hours are not changing the model that ships.",
+        ("Efficiency",
+         "Codes changed per GPU-hour and per 1M tokens. The stop signal: when this "
+         "flattens, more hours stop changing the shipped model.",
          fig_efficiency(flips, steps, W, H, PAD, tps)),
-        ("Throughput and memory",
-         "s/step and MPS resident memory. A monotonically rising s/step at flat resident "
-         "memory means allocator fragmentation pushing the working set into swap — the "
-         "precursor to an OOM kill on this box.",
+        ("Throughput &amp; memory",
+         "Rising s/step at flat resident memory = allocator fragmentation heading for swap.",
          fig_throughput(steps, W, H, PAD)),
     ]
     body = "".join(f"<section><h2>{i + 1}. {name}</h2><p>{desc}</p>{svg}</section>"
                    for i, (name, desc, svg) in enumerate(figs))
-    last = steps[-1]
-    hrs = last["step"] * last["s_per_step"] / 3600
+
+    tables = ""
+    if cen:
+        ref = {r["tensor"]: r for r in cen}
+        later = (f"<div><h3>step {args.latest_step or 'latest'}</h3>"
+                 f"{dist_table(latest, ref)}</div>") if latest else ""
+        tables = (
+            f"<section><h2>{len(figs) + 1}. Code distribution</h2>"
+            f"<p>Per-tensor −1 / 0 / +1 split. The zero column is unused capacity; "
+            f"Δ0 negative means training switched weights on.</p>"
+            f'<div class="cols"><div><h3>step 0 (as shipped)</h3>{dist_table(cen)}</div>'
+            f"{later}</div></section>")
+
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(f"""<!doctype html><meta charset="utf-8">
 <title>{args.title}</title>
 <style>
- body{{font:14px/1.6 -apple-system,system-ui,sans-serif;margin:2rem auto;max-width:1000px;
+ body{{font:14px/1.55 -apple-system,system-ui,sans-serif;margin:2rem auto;max-width:1000px;
        color:{INK};padding:0 1rem}}
- h1{{font-size:22px;margin-bottom:.2rem}} h2{{font-size:15px;margin:0 0 .3rem}}
- section{{margin:2rem 0}} p{{color:#555;margin:.2rem 0 .6rem;max-width:70ch}}
+ h1{{font-size:21px;margin:0 0 .2rem}} h2{{font-size:15px;margin:0 0 .2rem}}
+ h3{{font-size:12px;color:{MUTED};font-weight:600;margin:0 0 .3rem;text-transform:uppercase;
+     letter-spacing:.04em}}
+ section{{margin:2rem 0}} p{{color:#555;margin:.1rem 0 .5rem;max-width:78ch}}
  svg{{display:block}}
- .legend{{margin:.4rem 0 0;font-size:11px;color:#666}}
+ .legend{{margin:.3rem 0 0;font-size:11px;color:#666}}
  .legend span{{margin-right:14px;white-space:nowrap}}
  .legend i{{display:inline-block;width:10px;height:10px;margin-right:4px;vertical-align:-1px}}
- .meta{{font-size:12px;color:{MUTED}}}
+ .meta{{font-size:12px;color:{MUTED};margin-bottom:1.2rem}}
+ /* fixed 3 columns: 6 metrics in a flex row wrap 5+1 and leave an orphan */
+ .kpi{{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid #eee;
+       border-radius:6px;overflow:hidden;margin:0 0 .5rem}}
+ .kpi div{{padding:.55rem .8rem;border-right:1px solid #eee;border-top:1px solid #eee}}
+ .kpi div:nth-child(3n){{border-right:0}}
+ .kpi div:nth-child(-n+3){{border-top:0}}
+ .kpi b{{display:block;font-size:17px;font-weight:600;letter-spacing:-.01em}}
+ .kpi span{{font-size:11px;color:{MUTED}}}
+ .cols{{display:flex;gap:2rem;flex-wrap:wrap}}
+ table{{border-collapse:collapse;font-size:12px;margin:0}}
+ td,th{{border-bottom:1px solid #eee;padding:3px 10px;text-align:right}}
+ th{{color:{MUTED};font-weight:500}}
+ td:first-child,th:first-child{{text-align:left;font-family:ui-monospace,monospace}}
 </style>
 <h1>{args.title}</h1>
 <p class="meta">step {last['step']}/{last.get('total_steps', '?')} ·
- {hrs:.1f} GPU-hours · {last['s_per_step']:.0f} s/step ·
- {tps:,} tokens/step · {last['step'] * tps / 1e6:.1f}M tokens seen</p>
+ {hrs:.1f} GPU-h · {last['s_per_step']:.0f} s/step · {tps:,} tok/step ·
+ {last['step'] * tps / 1e6:.1f}M tokens seen</p>
+{kpis}
+<p class="meta">A natively-ternary model stores <code>w = s·c</code>, <code>c ∈ {{−1,0,+1}}</code>.
+Loss can fall on scale drift alone, so every panel below is anchored on <b>code flips</b> —
+the only change that survives export to a 2-bit GGUF.</p>
 {body}
+{tables}
 """)
-    print(f"[report] {len(figs)} figures -> {args.out}")
+    print(f"[report] {len(figs)} figures{' + tables' if tables else ''} -> {args.out}")
     return 0
+
+
+def headline(steps, vals, flips, traj, hrs, tps) -> str:
+    """The six numbers to read before any chart."""
+    cells: list[tuple[str, str]] = []
+    last = steps[-1]
+    cells.append((f"{last['loss']:.3f}", "train loss"))
+    if vals:
+        best = min(vals, key=lambda v: v["val_masked_ce"])
+        cells.append((f"{vals[-1]['val_masked_ce']:.3f}",
+                      f"val (best {best['val_masked_ce']:.3f} @ {best['step']})"))
+    if flips:
+        at = max(r["step"] for r in flips)
+        tail = [r for r in flips if r["step"] == at]
+        changed = sum(r["flip_pct"] / 100 * r["numel"] for r in tail)
+        total = sum(r["numel"] for r in tail)
+        cells.append((f"{changed / total * 100:.2f}%", "codes changed (tracked)"))
+        cells.append((f"{max(r['flip_pct'] for r in tail):.2f}%", "most-changed tensor"))
+        # efficiency now vs peak — the "should I keep going" number
+        per = {}
+        for r in flips:
+            per[r["step"]] = per.get(r["step"], 0.0) + r["flip_pct"] / 100 * r["numel"]
+        ck = sorted(per)
+        rate = []
+        for a, b in zip(ck, ck[1:], strict=False):
+            dh = (b - a) * last["s_per_step"] / 3600
+            if dh > 0:
+                rate.append((b, (per[b] - per[a]) / dh))
+        if rate:
+            peak = max(rate, key=lambda t: t[1])
+            cells.append((f"{rate[-1][1] / peak[1] * 100:.0f}%",
+                          f"of peak efficiency (peak @ {peak[0]:g})"))
+    if traj:
+        at = max(r["step"] for r in traj)
+        d = [(r["zero_frac"] - r["zero_frac_start"]) * 100 for r in traj if r["step"] == at]
+        if d:
+            cells.append((f"{sum(d) / len(d):+.3f}pp", "mean Δ zero-fraction"))
+    return ('<div class="kpi">'
+            + "".join(f"<div><b>{v}</b><span>{k}</span></div>" for v, k in cells)
+            + "</div>")
 
 
 if __name__ == "__main__":
