@@ -148,8 +148,17 @@ python scripts/ternary_distribution.py census --latents .../trained_latents.pt \
 PYTHONPATH=scripts python scripts/qat_report.py --telemetry out/exp-058/telemetry \
     --census out/exp-058/telemetry/census.csv \
     --latest out/exp-058/telemetry/census_latest.csv --latest-step 325 \
+    --model-config out/exp-057/model/config.json \
     --window 8064 --grad-accum 4 --out out/exp-058/telemetry/report.html
 ```
+
+The report opens with an **Architecture** section: a shape table read from the model's own
+`config.json`, plus the hfviewer graph (inlined when available, so the page stays
+self-contained). Worth recording — **`Ternary-Bonsai-8B` is stock `Qwen3ForCausalLM`**:
+diffed against `Qwen/Qwen3-8B`'s config, every dimension is identical except
+`vocab_size` (151,936 → 151,669) and `max_position_embeddings` (40,960 → 65,536). The
+ternarization is a weight format, not an architecture change, which is why nothing in the
+flip analysis needs a bespoke model definition.
 
 `ternary_distribution.py` is data only (census + trajectory); all plotting is in
 `qat_report.py`.

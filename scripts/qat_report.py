@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import math
 import sys
 from pathlib import Path
@@ -437,6 +438,12 @@ def main() -> int:
                     help="step-0 census CSV (ternary_distribution.py census --model ...)")
     ap.add_argument("--latest", type=Path, help="latest-step census CSV (census --latents ...)")
     ap.add_argument("--latest-step", type=int)
+    ap.add_argument("--arch-repo", default="prism-ml/Ternary-Bonsai-8B-unpacked",
+                    help="HF repo for the hfviewer architecture graph "
+                         "(default: the unpacked view of the model this pipeline trains)")
+    ap.add_argument("--model-config", type=Path,
+                    help="config.json to build the shape table from")
+    ap.add_argument("--no-arch", action="store_true", help="skip the architecture section")
     ap.add_argument("--window", type=int, default=8064)
     ap.add_argument("--grad-accum", type=int, default=4)
     ap.add_argument("--title", default="QAT training dynamics")
@@ -504,6 +511,18 @@ def main() -> int:
     body = "".join(f"<section><h2>{i + 1}. {name}</h2><p>{desc}</p>{svg}</section>"
                    for i, (name, desc, svg) in enumerate(figs))
 
+    arch = ""
+    if not args.no_arch:
+        spec = ""
+        if args.model_config and args.model_config.exists():
+            spec = arch_spec(json.loads(args.model_config.read_text()))
+        arch = (f'<section><h2>Architecture</h2>'
+                f'<p>What the flips below are distributed over — the ternarization is a weight '
+                f'format, not an architecture change. Shapes are read from the model\'s '
+                f'own <code>config.json</code>.</p>'
+                f'<div class="cols"><div>{spec}</div>'
+                f'<div class="archwrap">{arch_card(args.arch_repo)}</div></div></section>')
+
     tables = ""
     if cen:
         ref = {r["tensor"]: r for r in cen}
@@ -539,7 +558,13 @@ def main() -> int:
  .kpi div:nth-child(-n+3){{border-top:0}}
  .kpi b{{display:block;font-size:17px;font-weight:600;letter-spacing:-.01em}}
  .kpi span{{font-size:11px;color:{MUTED}}}
- .cols{{display:flex;gap:2rem;flex-wrap:wrap}}
+ .cols{{display:flex;gap:2rem;flex-wrap:wrap;align-items:flex-start}}
+ /* the global 78ch on p would force this column past the wrap point */
+ .cols p{{max-width:44ch}} .cols>div{{max-width:540px}}
+ .archwrap{{flex:0 1 380px;min-width:280px}}
+ .archwrap svg,.archwrap img{{max-height:460px;max-width:100%;width:auto;height:auto;
+   display:block;border-radius:8px}}
+ a.arch{{display:block}}
  table{{border-collapse:collapse;font-size:12px;margin:0}}
  td,th{{border-bottom:1px solid #eee;padding:3px 10px;text-align:right}}
  th{{color:{MUTED};font-weight:500}}
@@ -550,6 +575,7 @@ def main() -> int:
  {hrs:.1f} GPU-h · {last['s_per_step']:.0f} s/step · {tps:,} tok/step ·
  {last['step'] * tps / 1e6:.1f}M tokens seen</p>
 {kpis}
+{arch}
 <p class="meta">A natively-ternary model stores <code>w = s·c</code>, <code>c ∈ {{−1,0,+1}}</code>.
 Loss can fall on scale drift alone, so every panel below is anchored on <b>code flips</b> —
 the only change that survives export to a 2-bit GGUF.</p>
@@ -558,6 +584,87 @@ the only change that survives export to a 2-bit GGUF.</p>
 """)
     print(f"[report] {len(figs)} figures{' + tables' if tables else ''} -> {args.out}")
     return 0
+
+
+HFVIEWER = ("https://hfviewer.com/api/card.svg?source={src}&granularity=auto"
+            "&v=20260516-title-pills-card")
+HFVIEWER_PAGE = ("https://hfviewer.com/{repo}?utm_source=huggingface"
+                 "&utm_medium=embedded_model_card&utm_campaign={camp}_card"
+                 "&utm_content=embedded_card_open_viewer&from=embedded-model-card")
+
+
+def arch_card(repo: str, timeout: float = 20.0) -> str:
+    """hfviewer's architecture graph, inlined when it is a real graph.
+
+    Inlining keeps the report self-contained and offline-readable, and drops the
+    tracking query string from the rendered page. But hfviewer answers 200 with a
+    ~950-byte placeholder SVG ("Graph temporarily unavailable" / "not available yet")
+    for repos it has not indexed — baking that in would freeze a broken graph into the
+    document. So: inline a real graph, otherwise fall back to the live <img> so the
+    report starts working by itself once the graph exists.
+    """
+    import urllib.parse
+    import urllib.request
+
+    src = urllib.parse.quote(repo, safe="")
+    page = HFVIEWER_PAGE.format(repo=repo, camp=repo.replace("/", "__"))
+    svg = ""
+    try:
+        with urllib.request.urlopen(HFVIEWER.format(src=src), timeout=timeout) as r:
+            svg = r.read().decode("utf-8", "replace")
+    except (OSError, ValueError) as e:
+        print(f"[report] architecture card fetch failed ({e}); using the live embed",
+              flush=True)
+    placeholder = ("aria-label" in svg and "vailable" in svg) or len(svg) < 2000
+    if svg and not placeholder:
+        # strip any XML prolog so it can sit inline in HTML
+        svg = svg[svg.index("<svg"):]
+        return (f'<a href="{page}" target="_blank" rel="noopener" class="arch">{svg}</a>'
+                f'<p class="meta">Graph: hfviewer, inlined. '
+                f'<code>{repo}</code></p>')
+    if svg and placeholder:
+        print(f"[report] hfviewer has no graph for {repo} yet — embedding the live card",
+              flush=True)
+    return (f'<a href="{page}" target="_blank" rel="noopener">'
+            f'<img src="{HFVIEWER.format(src=src)}" width="100%" '
+            f'alt="Architecture graph for {repo}. Open in hfviewer"/></a>'
+            f'<p class="meta">Graph: hfviewer (loaded live — not yet available for '
+            f'inlining). <code>{repo}</code></p>')
+
+
+def arch_spec(cfg: dict) -> str:
+    """Shape table straight from the model's own config.json.
+
+    Verified locally rather than taken from the card: this is the config the run is
+    actually training against.
+    """
+    h, ff = cfg["hidden_size"], cfg["intermediate_size"]
+    nh, nkv = cfg["num_attention_heads"], cfg["num_key_value_heads"]
+    hd = cfg.get("head_dim", h // nh)
+    nl = cfg["num_hidden_layers"]
+    per_layer = 2 * h * nh * hd + 2 * h * nkv * hd + 3 * h * ff   # q,o + k,v + gate,up,down
+    embed = cfg["vocab_size"] * h * (1 if cfg.get("tie_word_embeddings") else 2)
+    # Verified against Qwen/Qwen3-8B's config.json: every shape below is identical
+    # except vocab_size (151,936 -> 151,669) and max_position_embeddings
+    # (40,960 -> 65,536). Nothing the flip analysis depends on differs.
+    stock = {"vocab_size": 151936, "max_position_embeddings": 40960}
+    delta = [k for k, v in stock.items() if cfg.get(k) != v]
+    rows = [
+        ("layers", f"{nl}"),
+        ("hidden / FFN", f"{h} / {ff}"),
+        ("attention", f"{nh} heads × {hd} (GQA {nh // nkv}:1, {nkv} KV)"),
+        ("vocab / ctx", f"{cfg['vocab_size']:,} / {cfg['max_position_embeddings']:,}"
+                        + (" ✻" if delta else "")),
+        ("act / norm", f"{cfg.get('hidden_act', '?')} · RMSNorm {cfg.get('rms_norm_eps')}"),
+        ("rope θ", f"{cfg.get('rope_theta', 0):,.0f}"),
+        ("ternary linears", f"{nl * 7} ({per_layer * nl / 1e9:.2f}B weights)"),
+        ("non-ternary", f"{embed / 1e9:.2f}B embed/head + norms (frozen)"),
+    ]
+    note = ('<p class="meta">Stock <code>Qwen3ForCausalLM</code>. ✻ = the only shapes that '
+            'differ from <code>Qwen/Qwen3-8B</code> (vocab 151,936; ctx 40,960); every '
+            'other dimension is identical.</p>') if delta else ""
+    return ("<table>" + "".join(f"<tr><td>{k}</td><td>{v}</td></tr>" for k, v in rows)
+            + "</table>" + note)
 
 
 def headline(steps, vals, flips, traj, hrs, tps) -> str:

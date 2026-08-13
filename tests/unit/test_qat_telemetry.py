@@ -153,3 +153,67 @@ def test_summarize_reports_the_loss_peak_and_best_val():
     assert s["loss_peak_step"] == 30
     assert s["val_best_step"] == 40
     assert s["total_steps"] == 522
+
+
+# --- architecture section -------------------------------------------------------
+
+def test_arch_spec_reads_shapes_and_flags_the_qwen3_delta():
+    """Shapes come from the model's own config; the ✻ marks where it leaves stock Qwen3."""
+    from scripts.qat_report import arch_spec
+
+    cfg = {"hidden_size": 4096, "intermediate_size": 12288, "num_attention_heads": 32,
+           "num_key_value_heads": 8, "head_dim": 128, "num_hidden_layers": 36,
+           "vocab_size": 151669, "max_position_embeddings": 65536, "hidden_act": "silu",
+           "rms_norm_eps": 1e-6, "rope_theta": 1e6, "tie_word_embeddings": False}
+    html = arch_spec(cfg)
+    assert "36" in html and "4096 / 12288" in html
+    assert "GQA 4:1" in html                      # 32 heads / 8 kv
+    assert f"{36 * 7}" in html                    # ternary linears
+    assert "✻" in html and "Qwen/Qwen3-8B" in html
+
+    stock = {**cfg, "vocab_size": 151936, "max_position_embeddings": 40960}
+    assert "✻" not in arch_spec(stock)            # no delta -> no footnote
+
+
+def test_arch_card_falls_back_to_live_embed_on_a_placeholder(monkeypatch):
+    """hfviewer answers 200 with a ~950-byte 'unavailable' SVG for unindexed repos.
+
+    Inlining that would freeze a broken graph into the report, so it must fall back to
+    the live <img>, which starts working by itself once the graph exists.
+    """
+    from scripts import qat_report
+
+    class Resp:
+        def __init__(self, body):
+            self.body = body
+
+        def read(self):
+            return self.body.encode()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    placeholder = '<svg aria-label="Graph temporarily unavailable"></svg>'
+    monkeypatch.setattr("urllib.request.urlopen", lambda *a, **k: Resp(placeholder))
+    out = qat_report.arch_card("prism-ml/Nope")
+    assert "<img" in out and "hfviewer.com/api/card.svg" in out
+    assert "aria-label=\"Graph temporarily" not in out   # not inlined
+
+    real = '<svg viewBox="0 0 480 300">' + "<rect/>" * 400 + "</svg>"
+    monkeypatch.setattr("urllib.request.urlopen", lambda *a, **k: Resp(real))
+    out = qat_report.arch_card("prism-ml/Yes")
+    assert out.count("<svg") == 1 and "<img" not in out  # inlined, self-contained
+
+
+def test_arch_card_survives_no_network(monkeypatch):
+    from scripts import qat_report
+
+    def boom(*a, **k):
+        raise OSError("no route to host")
+
+    monkeypatch.setattr("urllib.request.urlopen", boom)
+    out = qat_report.arch_card("prism-ml/Whatever")
+    assert "<img" in out  # degrades to the live embed rather than raising
