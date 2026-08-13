@@ -55,21 +55,29 @@ class MasterOptimizer:
     def param_groups(self):  # lr scheduling pokes pg["lr"] — forward to the inner opt
         return self.inner.param_groups
 
-    def clip_and_step(self, max_norm: float | None = 1.0) -> None:
-        """Upcast grads into the masters, clip globally in fp32, step, write back."""
+    def clip_and_step(self, max_norm: float | None = 1.0) -> float:
+        """Upcast grads into the masters, clip globally in fp32, step, write back.
+
+        Returns the PRE-clip global grad norm. That number is the diagnostic for a
+        divergence: clipping hides the excursion from the loss curve, so a run that
+        blows up shows only "loss went up" unless the norm is recorded. Returns 0.0
+        when no grads are present.
+        """
         for p, m in zip(self.params, self.masters, strict=True):
             if p.grad is None:
                 m.grad = None
             else:
                 m.grad = p.grad.detach().to(torch.float32)
                 p.grad = None  # free the bf16 grad immediately (peak-memory trim)
+        norm = 0.0
         if max_norm is not None:
-            torch.nn.utils.clip_grad_norm_(self.masters, max_norm, foreach=False)
+            norm = float(torch.nn.utils.clip_grad_norm_(self.masters, max_norm, foreach=False))
         self.inner.step()
         with torch.no_grad():
             for p, m in zip(self.params, self.masters, strict=True):
                 p.copy_(m.to(p.dtype))
                 m.grad = None
+        return norm
 
     def zero_grad(self, set_to_none: bool = True) -> None:
         for p in self.params:

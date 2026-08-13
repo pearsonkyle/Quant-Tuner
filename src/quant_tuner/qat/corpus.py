@@ -558,6 +558,11 @@ def build_sft_corpus(*, sft_path: Path, data_split: str | None = "train",
     by_source = {s: rs for s, rs in by_source.items() if budgets.get(s, None) != 0}
 
     windows: list[dict] = []
+    # Which source each window came from. Sources are packed separately (a window never
+    # glues two together), so this is exact — and it is what lets the trainer report loss
+    # per source. Without it a 5-source corpus yields one undifferentiated loss curve.
+    window_source: list[int] = []
+    source_names: list[str] = sorted(by_source)
     per_source: dict[str, dict] = {}
     for src in sorted(by_source):
         convs = list(by_source[src])
@@ -605,6 +610,7 @@ def build_sft_corpus(*, sft_path: Path, data_split: str | None = "train",
               f"({100 * per_source[src]['tool_truncation_share']:.0f}% of this source's "
               f"conversation content)", flush=True)
         windows += src_windows
+        window_source += [source_names.index(src)] * len(src_windows)
 
     if not windows:
         sys.exit("[sft] no windows survived packing — check --split / --source / --min-density")
@@ -625,4 +631,6 @@ def build_sft_corpus(*, sft_path: Path, data_split: str | None = "train",
                      extra={"tool_windows": len(windows), "wiki_windows": 0,
                             "assistant_frac": frac, "split": f"sft:{data_split}",
                             "min_density": min_density, "max_tool_tokens": max_tool_tokens,
-                            "sft_path": str(sft_path), "per_source": per_source})
+                            "sft_path": str(sft_path), "per_source": per_source,
+                            "source_names": source_names,
+                            "window_source": torch.tensor(window_source, dtype=torch.int16)})

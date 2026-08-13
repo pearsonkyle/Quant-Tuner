@@ -128,6 +128,22 @@ def test_sources_are_packed_separately(sft_file):
     assert sum(v["windows"] for v in blob["per_source"].values()) == blob["ids"].shape[0]
 
 
+def test_window_source_labels_every_window(sft_file):
+    """Per-source loss in the trainer keys off this; a wrong length silently misattributes."""
+    blob = qc.build_sft_corpus(sft_path=sft_file, window=512, max_tool_tokens=0,
+                               tok=FakeTok(), out=None)
+    src = blob["window_source"]
+    names = blob["source_names"]
+    assert src.shape[0] == blob["ids"].shape[0]
+    assert int(src.max()) < len(names)
+    # contiguous runs: sources are packed separately, so the label never alternates back
+    runs = [int(src[0])] + [int(b) for a, b in zip(src, src[1:], strict=False) if a != b]
+    assert len(runs) == len(set(runs)), "a source's windows must be contiguous"
+    # and the run lengths must match the per-source window counts
+    for i, name in enumerate(names):
+        assert int((src == i).sum()) == blob["per_source"][name]["windows"]
+
+
 def test_build_is_deterministic_for_a_seed(sft_file):
     a = qc.build_sft_corpus(sft_path=sft_file, budgets={"logs": 20_000}, window=512,
                             max_tool_tokens=0, seed=7, tok=FakeTok(), out=None)

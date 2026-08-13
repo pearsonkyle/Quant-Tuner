@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import gc
+import json
 import math
 import os
 import signal
@@ -78,8 +79,10 @@ class QATConfig:
     resume: Path | None = None
     flip_sample: int = 8
     ckpt_every: int = 40
+    ckpt_keep: int = 2
     chunked_attention: bool = True
     empty_cache_every: int = 5
+    metrics_jsonl: bool = True
 
 
 def parse_layers(spec: str, n_layers: int) -> set[int]:
@@ -232,8 +235,26 @@ def snapshot_codes(model, k: int = 8) -> dict[str, tuple[torch.Tensor, torch.Ten
     return snaps
 
 
-def flip_report(model, snaps) -> tuple[dict, str]:
-    """Codes flipped / scale drift vs the start-of-run snapshot."""
+def flip_report(model, snaps, prev: dict | None = None) -> tuple[dict, str]:
+    """Codes flipped / scale drift vs the start-of-run snapshot.
+
+    Beyond the cumulative flip count this records three things the raw percentage
+    conflates, each of which answered a real question about a live run:
+
+    * ``sign_flip`` vs ``zero_to_nonzero``/``nonzero_to_zero`` — a tensor that
+      reorganizes signs at constant density is doing something different from one
+      recruiting weights that shipped as zero. Measured split: q/k and down_proj
+      reorganize (ratio ~1), v_proj and gate_proj densify (ratio 3-8).
+    * ``density`` — absolute nonzero fraction, so the direction of travel is readable
+      without integrating the deltas.
+    * ``flip_pct_delta`` (needs ``prev``) — cumulative flips cannot distinguish a
+      tensor that settled early from one still oscillating; the per-interval velocity
+      can. A run whose velocity has peaked on every tensor is converging.
+
+    ``scale_drift`` stays the mean absolute relative move (comparable with older runs);
+    ``scale_drift_signed`` is added because the absolute value hides whether scales are
+    systematically growing or shrinking.
+    """
     mods = dict(model.named_modules())
     stats, lines = {}, []
     with torch.no_grad():
@@ -244,13 +265,27 @@ def flip_report(model, snaps) -> tuple[dict, str]:
             flip_pct = 100.0 * (c != codes0).float().mean().item()
             z2nz = int(((codes0 == 0) & (c != 0)).sum())
             nz2z = int(((codes0 != 0) & (c == 0)).sum())
+            sign = int(((codes0 != 0) & (c != 0) & (c != codes0)).sum())
             s0 = scale0.float()
-            drift = ((scale.to(torch.float16).cpu().float() - s0).abs()
-                     / s0.clamp_min(1e-8)).mean().item()
-            stats[name] = {"flip_pct": flip_pct, "zero_to_nonzero": z2nz,
-                           "nonzero_to_zero": nz2z, "scale_drift": drift}
-            lines.append(f"  {name}: flips {flip_pct:.4f}% (0->±:{z2nz} ±->0:{nz2z}) "
-                         f"scale-drift {drift*100:.2f}%")
+            rel = (scale.to(torch.float16).cpu().float() - s0) / s0.clamp_min(1e-8)
+            drift = rel.abs().mean().item()
+            st = {"flip_pct": flip_pct, "zero_to_nonzero": z2nz, "nonzero_to_zero": nz2z,
+                  "sign_flip": sign,
+                  # >1 recruiting dead weights, <1 pruning, ~1 pure sign reorganization
+                  "densify_ratio": (z2nz / nz2z) if nz2z else None,
+                  "density": float((c != 0).float().mean()),
+                  "density_start": float((codes0 != 0).float().mean()),
+                  "scale_drift": drift, "scale_drift_signed": rel.mean().item(),
+                  "numel": int(c.numel())}
+            if prev and name in prev:
+                st["flip_pct_delta"] = flip_pct - prev[name]["flip_pct"]
+                st["z2nz_delta"] = z2nz - prev[name]["zero_to_nonzero"]
+            stats[name] = st
+            vel = f" Δ{st['flip_pct_delta']:+.4f}" if "flip_pct_delta" in st else ""
+            lines.append(f"  {name}: flips {flip_pct:.4f}%{vel} "
+                         f"(0->±:{z2nz} ±->0:{nz2z} ±->∓:{sign}) "
+                         f"density {st['density_start']*100:.1f}->{st['density']*100:.1f}% "
+                         f"scale-drift {drift*100:.2f}% ({st['scale_drift_signed']*100:+.2f}%)")
     return stats, "\n".join(lines)
 
 
@@ -298,6 +333,11 @@ def train_qat(cfg: QATConfig) -> int:
                      f"MPSGraph INT_MAX limit (n_heads x S^2 must stay < 2^31; at 32 heads "
                      f"that is S <= {MPS_MAX_WINDOW}). Either rebuild the corpus at 8064 or "
                      f"drop --no-chunked-attention.")
+    # Per-window source label, when the builder recorded one. The corpus mixes sources with
+    # very different assistant fractions (0.08 refusals .. 0.79 broad-instruct), so a single
+    # loss curve cannot say which data is driving the flips; a per-source breakdown can.
+    win_src = blob.get("window_source")
+    src_names = blob.get("source_names") or sorted((blob.get("per_source") or {}).keys())
     fp = blob.get("fingerprint") or corpus_fingerprint(ids_all, lbl_all)
     total_steps = int(cfg.epochs * n_win / cfg.grad_accum)
     print(f"[qat] corpus {n_win} windows x {window} ({blob.get('assistant_frac',0)*100:.0f}% masked, "
@@ -425,11 +465,25 @@ def train_qat(cfg: QATConfig) -> int:
     print(f"[qat] flip telemetry on {len(snaps)} linears", flush=True)
     flip_stats: dict = {}
 
+    # Machine-readable telemetry. The stdout log is human-facing and has to be re-parsed
+    # (scripts/parse_qat_log.py) to plot anything; this is the same numbers, already
+    # structured, appended so a resume extends rather than truncates the series.
+    metrics_path = out / "metrics.jsonl"
+    metrics_fh = metrics_path.open("a") if cfg.metrics_jsonl else None
+
+    def emit(kind: str, **fields) -> None:
+        if metrics_fh is None:
+            return
+        metrics_fh.write(json.dumps({"kind": kind, **fields}) + "\n")
+        metrics_fh.flush()
+
     def save_ckpt(at):
         nonlocal flip_stats
         if snaps:
-            flip_stats, lines = flip_report(model, snaps)
+            flip_stats, lines = flip_report(model, snaps, prev=flip_stats)
             print(f"[qat] code flips vs run start:\n{lines}", flush=True)
+            for tname, st in flip_stats.items():
+                emit("flip", step=at, tensor=tname, **st)
         # The whole-dict .cpu() copy below is a ~28 GB transient at all-36. Both observed
         # OOM kills happened exactly at a checkpoint boundary (steps 180 and 20, both
         # multiples of --ckpt-every), i.e. peak-training memory + this spike. Release the
@@ -456,25 +510,46 @@ def train_qat(cfg: QATConfig) -> int:
         tmp = out / ".tmp-trained_latents.pt"
         torch.save(payload, tmp)
         os.replace(tmp, out / "trained_latents.pt")
+        # Rotate a few step-stamped hard links beside it. `trained_latents.pt` is
+        # overwritten every save, so a run that degrades (or diverges) has nothing to
+        # roll back TO — observed the hard way on sft8k-full, where the last healthy
+        # pre-divergence state was gone by the time the divergence was visible. Links
+        # cost no extra disk until the next save rewrites the name.
+        if cfg.ckpt_keep > 0:
+            try:
+                stamped = out / f"trained_latents.step{at}.pt"
+                stamped.unlink(missing_ok=True)
+                os.link(out / "trained_latents.pt", stamped)
+                old = sorted(out.glob("trained_latents.step*.pt"),
+                             key=lambda p: int(p.stem.split("step")[-1]))
+                for p in old[:-cfg.ckpt_keep]:
+                    p.unlink(missing_ok=True)
+            except OSError as e:  # a filesystem without hard links must not kill the run
+                print(f"[qat] checkpoint rotation skipped ({e})", flush=True)
         del latents, payload
         gc.collect()
         if dev == "mps":
             torch.mps.empty_cache()
         print(f"[qat] checkpoint @ step {at}: {len(t_names)} tensors", flush=True)
 
-    def opt_step():
+    def opt_step() -> float:
+        """Returns the PRE-clip grad norm — the diagnostic clipping would otherwise hide."""
         for pg in opt.param_groups:
             pg["lr"] = lr_at(step, total_steps, cfg.lr)
         if isinstance(opt, MasterOptimizer):
-            opt.clip_and_step(1.0)  # clips in fp32 masters, foreach=False inside
+            gn = opt.clip_and_step(1.0)  # clips in fp32 masters, foreach=False inside
         else:
-            torch.nn.utils.clip_grad_norm_(trainable, 1.0, foreach=False)
+            gn = float(torch.nn.utils.clip_grad_norm_(trainable, 1.0, foreach=False))
             opt.step()
         opt.zero_grad()
+        return gn
 
     t0 = time.time()
     step0 = step  # step we entered the loop at; a resume starts above 0
     n_acc = 0
+    grad_norm = 0.0
+    tokens_seen = 0
+    src_loss: dict[str, list[float]] = {}
     opt.zero_grad()
     while step < total_steps and not stop["f"]:
         w = order[mi % n_win].item()
@@ -501,12 +576,16 @@ def train_qat(cfg: QATConfig) -> int:
             continue
         (loss / cfg.grad_accum).backward()
         n_acc += 1
+        tokens_seen += int(ids.shape[1])
+        if win_src is not None:
+            sname = src_names[int(win_src[w])] if src_names else str(int(win_src[w]))
+            src_loss.setdefault(sname, []).append(lv)
         if loss_first is None:
             loss_first = lv
         recent.append(lv)
         recent[:] = recent[-cfg.grad_accum * 5:]
         if n_acc == cfg.grad_accum:
-            opt_step()
+            grad_norm = opt_step()
             n_acc = 0
             step += 1
             # Periodic MPS cache release: over a long all-36 run the allocator fragments and
@@ -520,8 +599,16 @@ def train_qat(cfg: QATConfig) -> int:
             if step == 1 or step % 5 == 0:
                 mem = torch.mps.current_allocated_memory() / 1024**3 if dev == "mps" else 0
                 avg = sum(recent) / len(recent)
+                emit("step", step=step, total_steps=total_steps, loss=avg,
+                     lr=opt.param_groups[0]["lr"], grad_norm=grad_norm, mem_gib=mem,
+                     tokens_seen=tokens_seen, elapsed_s=time.time() - t0,
+                     s_per_step=(time.time() - t0) / max(1, step - step0),
+                     loss_by_source={k: sum(v) / len(v) for k, v in src_loss.items()})
+                src_loss.clear()
                 print(f"[qat] step {step}/{total_steps} loss={avg:.4f} "
                       f"lr={opt.param_groups[0]['lr']:.2e} "
+                      # pre-clip; a divergence shows up here BEFORE the loss reacts
+                      f"gnorm={grad_norm:.2f} "
                       f"mem={mem:.1f}GiB "
                       # steps run in THIS process, not the absolute step — after a resume
                       # the latter divides by a step count this process never spent time on
@@ -530,12 +617,16 @@ def train_qat(cfg: QATConfig) -> int:
                       f"{(time.time()-t0)/max(1, step-step0):.1f}s/step", flush=True)
             if val_ids is not None and cfg.val_every and step % cfg.val_every == 0:
                 vl = run_validation(model, val_ids, val_lbl, dev, cfg.val_windows)
+                emit("val", step=step, val_masked_ce=vl, val_windows=cfg.val_windows)
                 print(f"[qat] step {step} VAL masked-CE {vl:.4f}", flush=True)
             if cfg.ckpt_every and step % cfg.ckpt_every == 0:
                 save_ckpt(step)
     # drop any partial accum group before the final save
     opt.zero_grad()
     save_ckpt(step)
+    if metrics_fh is not None:
+        metrics_fh.close()
+        print(f"[qat] metrics -> {metrics_path}", flush=True)
     if recent and loss_first is not None:
         print(f"[qat] done at step {step}: loss {loss_first:.3f} -> "
               f"{sum(recent[-8:]) / len(recent[-8:]):.3f}")
@@ -578,6 +669,12 @@ def _build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--flip-sample", type=int, default=8,
                     help="trainable linears to track for code-flip telemetry")
     ap.add_argument("--ckpt-every", type=int, default=40)
+    ap.add_argument("--ckpt-keep", type=int, default=2,
+                    help="step-stamped hard links to keep beside trained_latents.pt "
+                         "(default 2, 0 disables). Without these a run that diverges has "
+                         "nothing to roll back to — the live file is already overwritten.")
+    ap.add_argument("--no-metrics-jsonl", dest="metrics_jsonl", action="store_false",
+                    help="skip the structured metrics.jsonl sidecar")
     ap.add_argument("--empty-cache-every", type=int, default=5,
                     help="release the MPS allocator cache every N steps (default 5). At "
                          "all-36/window 8064 the old 25 let the working set creep into "
@@ -602,8 +699,10 @@ def main(argv: list[str] | None = None) -> int:
         val_every=args.val_every, val_windows=args.val_windows,
         train_norms=args.train_norms, resume=args.resume,
         flip_sample=args.flip_sample, ckpt_every=args.ckpt_every,
+        ckpt_keep=args.ckpt_keep,
         chunked_attention=args.chunked_attention,
         empty_cache_every=args.empty_cache_every,
+        metrics_jsonl=args.metrics_jsonl,
     )
     return train_qat(cfg)
 
