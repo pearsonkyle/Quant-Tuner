@@ -1,6 +1,6 @@
 # Continued QAT of a natively-ternary model: the `sft8k-full` run
 
-**Status: in flight** (step 305/522 at the time of writing). This is the running record of
+**Status: complete** (522/522, exported, benchmarked). This is the running record of
 what the run's telemetry shows, and the source document for a write-up. Numbers here are
 extracted from the training log by `scripts/parse_qat_log.py`; raw series live in
 `out/exp-058/telemetry/{steps,val,flips}.csv`.
@@ -294,6 +294,55 @@ A third finding is **not** yet acted on: figure 4 shows flips concentrating in `
 a ~30× spread. Every tensor is being trained at the same LR and costing the same memory.
 Whether the low-movers are *unimportant* or merely *slow* is untested, and freezing them
 would be a real efficiency win if the former. That needs an ablation, not a guess.
+
+## Outcome — behaviour changed, capability did not
+
+Clean A/B on the 10-instance SWE-rebench holdout, same code, same instances:
+
+| | vanilla Q2_0 | sft8k-full Q2_0 |
+|---|---|---|
+| **resolved** | **0/10** | **0/10** |
+| patch produced | 5/10 | 4/10 (Fisher p = 1.00) |
+| tool-error rate | 0.65 | **0.33** |
+| steps / instance | 6.9 | 97.3 |
+| tokens / instance | 26,363 | 2,196,318 |
+| exit `max_turns` | 0/10 | **7/10** |
+| loop fraction | 0.25 | **0.97** |
+
+**No capability gain.** One real win: tool-error rate halved — the tool-use half of the
+corpus transferred. One serious regression: **the model can no longer terminate**, with up
+to 97 of 100 assistant turns being a single repeated message.
+
+### Why it loops
+Masked CE labels 5,740,167 trainable tokens but only **32,448 terminating `<|im_end|>`
+targets — one stop decision per 176 tokens of "keep going"**. At an 8064 window only 27%
+of SWE trajectories fit whole, so the model rarely saw a complete task→completion arc. It
+learned what the corpus overwhelmingly showed it: continue.
+
+### The 32K hypothesis, and what blocks it
+A 32K window would hold **97% of SWE trajectories whole** (27% at 8064, 52% at 12288, 68%
+at 16128) — the model would see the ending, which is where the stop decision lives. That is
+the right fix in principle.
+
+**It is not reachable in the current config.** Measured in the real loop on this M4 Max
+128 GB at all-36 layers / fp32 latents / adafactor: 8064 = 370 s/step clean, 12288 =
+800 s/step (230 s of it swap), 16128 = **no step completed in 31 minutes** at 99% swap,
+24576 = hard OOM. 32K needs fewer trainable layers, a smaller optimizer state, or different
+hardware — not a flag change.
+
+Cheaper routes to the same signal, in order of effort:
+1. **Upweight the terminating `<|im_end|>` targets** in the masked CE. 0.57% of labels
+   carry the entire stop decision; a loss weight is a one-line change and directly targets
+   the observed failure.
+2. **Pack so every window ends at a conversation boundary**, so the terminal turn is never
+   the part that gets dropped by the density floor.
+3. **Long-window only where it matters**: the SWE trajectories are 106 of 2088 windows.
+   Training just those at 16–32K (with the rest at 8k) is a fraction of the memory cost.
+
+### Measurement caveat
+At n=10 with 0/10 resolved both ways, the 95% upper bound on the true resolve rate is
+~31%. This holdout **cannot detect a small real improvement** — a bigger holdout is needed
+before any negative result is conclusive.
 
 ## Open questions for the next run
 

@@ -43,6 +43,8 @@ from ternary_distribution import trajectory  # noqa: E402  (sibling script, path
 KINDS = ["q_proj", "k_proj", "v_proj", "gate_proj", "up_proj", "down_proj"]
 KIND_COLOR = dict(zip(KINDS, ["#0072b2", "#56b4e9", "#009e73",
                               "#e69f00", "#d55e00", "#cc79a7"], strict=True))
+#: assistant turns a run needs before its repetition fraction means anything
+MIN_LOOP_TURNS = 8
 INK, MUTED, GRID = "#222", "#888", "#eee"
 LOSS, VAL = "#0072b2", "#d55e00"
 
@@ -444,6 +446,11 @@ def main() -> int:
     ap.add_argument("--model-config", type=Path,
                     help="config.json to build the shape table from")
     ap.add_argument("--no-arch", action="store_true", help="skip the architecture section")
+    ap.add_argument("--swe-workspace", type=Path,
+                    help="run_swebench_eval workspace — adds the agentic outcome table")
+    ap.add_argument("--notes", type=Path,
+                    help="a text file of findings/next-steps; '## ' starts a heading, "
+                         "'- ' a bullet, blank lines separate paragraphs")
     ap.add_argument("--window", type=int, default=8064)
     ap.add_argument("--grad-accum", type=int, default=4)
     ap.add_argument("--title", default="QAT training dynamics")
@@ -523,6 +530,31 @@ def main() -> int:
                 f'<div class="cols"><div>{spec}</div>'
                 f'<div class="archwrap">{arch_card(args.arch_repo)}</div></div></section>')
 
+    swe = ""
+    if args.swe_workspace:
+        t_ = swe_section(args.swe_workspace)
+        if t_:
+            swe = (f"<section><h2>Agentic outcome (SWE-rebench)</h2>"
+                   f"<p><b>resolved</b> is the only column that says the model got better "
+                   f"at the task; the rest say how it behaved getting there. <b>loop</b> = "
+                   f"largest share of a run's assistant turns that are one repeated "
+                   f"message (runs of &lt;{MIN_LOOP_TURNS} turns are 'n/a' — too short "
+                   f"for the fraction to mean anything).</p>{t_}</section>")
+
+    notes = ""
+    if args.notes and args.notes.exists():
+        buf = []
+        for line in args.notes.read_text().splitlines():
+            ln = line.rstrip()
+            if ln.startswith("## "):
+                buf.append(f"<h3>{ln[3:]}</h3>")
+            elif ln.startswith("- "):
+                buf.append(f"<li>{ln[2:]}</li>")
+            elif ln:
+                buf.append(f"<p>{ln}</p>")
+        html = "".join(buf).replace("<li>", "<ul><li>", 1)
+        notes = f"<section><h2>Findings &amp; next steps</h2>{html}</ul></section>"
+
     tables = ""
     if cen:
         ref = {r["tensor"]: r for r in cen}
@@ -561,6 +593,8 @@ def main() -> int:
  .cols{{display:flex;gap:2rem;flex-wrap:wrap;align-items:flex-start}}
  /* the global 78ch on p would force this column past the wrap point */
  .cols p{{max-width:44ch}} .cols>div{{max-width:540px}}
+ li{{color:#444;margin:.15rem 0;max-width:78ch}} ul{{padding-left:1.1rem}}
+ h3{{margin-top:1rem}}
  .archwrap{{flex:0 1 380px;min-width:280px}}
  .archwrap svg,.archwrap img{{max-height:460px;max-width:100%;width:auto;height:auto;
    display:block;border-radius:8px}}
@@ -581,6 +615,8 @@ Loss can fall on scale drift alone, so every panel below is anchored on <b>code 
 the only change that survives export to a 2-bit GGUF.</p>
 {body}
 {tables}
+{swe}
+{notes}
 """)
     print(f"[report] {len(figs)} figures{' + tables' if tables else ''} -> {args.out}")
     return 0
@@ -665,6 +701,55 @@ def arch_spec(cfg: dict) -> str:
             'other dimension is identical.</p>') if delta else ""
     return ("<table>" + "".join(f"<tr><td>{k}</td><td>{v}</td></tr>" for k, v in rows)
             + "</table>" + note)
+
+
+def swe_section(ws: Path) -> str:
+    """Agentic SWE-rebench outcome table, including the loop metric.
+
+    `resolved` is the only number that says the model got better at the task; the rest
+    say how it behaved getting there. `loop` is the fraction of a run's assistant turns
+    that are the single most-repeated message — a model that cannot terminate scores
+    near 1.0 and burns its whole token budget saying the same thing.
+    """
+    import collections
+
+    res = ws / "results.csv"
+    if not res.exists():
+        return ""
+    T = lambda v: str(v).strip().lower() in ("true", "1", "yes")  # noqa: E731
+    rows = list(csv.DictReader(res.open()))
+    out = ["<tr><th>model</th><th>resolved</th><th>patch</th><th>tool&nbsp;err</th>"
+           "<th>steps</th><th>tokens</th><th>max_turns</th><th>loop</th></tr>"]
+    for m in dict.fromkeys(r["model"] for r in rows):
+        rs = [r for r in rows if r["model"] == m]
+        n = len(rs)
+        def f(k, _rs=rs, _n=n):
+            return sum(float(r.get(k) or 0) for r in _rs) / _n
+        mt = sum(1 for r in rs if r.get("exit_status") == "max_turns")
+        loops = []
+        for r in rs:
+            t = ws / "trajectories" / m.replace(".gguf", "") / f"{r['instance_id']}.traj.json"
+            if not t.exists():
+                continue
+            blob = json.loads(t.read_text())
+            # backends differ: mini-swe writes "trajectory", openai-agents "messages"
+            msgs = (blob if isinstance(blob, list)
+                    else (blob.get("trajectory") or blob.get("messages") or []))
+            c = [str(x.get("content"))[:150] for x in msgs
+                 if isinstance(x, dict) and x.get("role") == "assistant" and x.get("content")]
+            # A run with 1-3 turns is trivially "100% repeated"; requiring a floor is
+            # what keeps a model that quits immediately from outscoring one that loops.
+            if len(c) >= MIN_LOOP_TURNS:
+                loops.append(collections.Counter(c).most_common(1)[0][1] / len(c))
+        loop = f"{max(loops):.2f}" if loops else "n/a"
+        tool = f("tool_errors") / max(1e-9, f("tools_used"))
+        out.append(
+            f"<tr><td>{m.replace('.gguf', '')}</td>"
+            f"<td><b>{sum(T(r['resolved']) for r in rs)}/{n}</b></td>"
+            f"<td>{sum(T(r['patch_produced']) for r in rs)}/{n}</td>"
+            f"<td>{tool:.2f}</td><td>{f('tools_used'):.0f}</td>"
+            f"<td>{f('total_tokens'):,.0f}</td><td>{mt}/{n}</td><td>{loop}</td></tr>")
+    return f"<table>{''.join(out)}</table>"
 
 
 def headline(steps, vals, flips, traj, hrs, tps) -> str:
