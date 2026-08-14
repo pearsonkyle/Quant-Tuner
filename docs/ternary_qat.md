@@ -244,16 +244,23 @@ Method B below); `--no-chunked-attention` to restore the stock SDPA kernel and i
   reason to use it selectively.** Real training loop, all-36 / fp32 / adafactor, M4 Max
   128 GB, `scripts/probe_window_budget.py`:
 
-  | window | trained tail | layers | s/step (accum 2) | ms / **trained** token | swap Δ | outcome |
-  |---|---|---|---|---|---|---|
-  | 8064 | full | 36 | **178** | **11.1** | flat | clean |
-  | 16128 | full | 36 | — | — | — | no step (documented) |
-  | 32768 | 8192 | 36 | **2230** | **136** | **+29 GB** | steps, but swap-bound |
+  | window | trained tail | s/step (accum 2) | ms / **trained** token | swap Δ | outcome |
+  |---|---|---|---|---|---|
+  | 8064 | full | **178** | **11.1** | flat | clean |
+  | 16128 | full | — | — | — | no step (documented) |
+  | 32768 | 8192, saved scores | 2230 | 136 | **+29 GB** | steps, swap-bound |
+  | 32768 | 16384, saved scores | — | — | — | **OOM at 142.6 GiB** |
+  | 32768 | 8192, **recomputed scores** | **1790** | **109** | **+1.05 GB** | clean, compute-bound |
 
-  Both 32768 rows were taken on an idle box after a 150 s cooldown, so the swap is real,
-  not leftover pressure. It is also the whole story: a roofline estimate from the measured
-  ~3.6 TFLOP/s puts the *compute* for that step at ~890 s, so **~1300 s of the 2230 is
-  swap**. The configuration is memory-bound, not compute-bound.
+  All rows on an idle box after a 150 s cooldown. The swap in the middle rows was NOT
+  leftover pressure — it was the attention weights saved for backward (see the score-
+  recomputation note above), and recomputing them removes essentially all of it.
+
+  What is left is genuine compute: **~10x per trained token vs a full-gradient 8064
+  window**, because a 32768 window forwards 4 tokens for every 1 it trains and attention
+  is quadratic. That ratio is the thing to attack — a bigger tail lowers it directly — but
+  it will not approach 1x, so spend the long window where whole-session context actually
+  buys something.
 
   So prefix-context buys a window that full-gradient training could not reach at any
   speed — but at **8.3× the cost per trained token**, because the `no_grad` prefix still
