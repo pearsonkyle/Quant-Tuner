@@ -456,11 +456,30 @@ no quantization error for imatrix/AWQ/GPTQ to recover. The only lever is **more 
 the ternarization in the loop** (BitNet/TWN STE). Full guide: `docs/ternary_qat.md`.
 - `qat/ternary.py` — per-group TWN straight-through estimator; reproduces the shipped weights
   **exactly** at step 0 (the fine-tune must start from the real model, not a re-derived one).
-- `qat/corpus.py` — masking/packing shared by the log corpus and the trajectory corpus. Loss is
+- `qat/corpus.py` — masking/packing shared by the log corpus, the trajectory corpus and the
+  universal SFT corpus. Loss is
   masked to assistant/tool-call tokens **plus the terminating `<|im_end|>`** — omitting the stop
   token is what caused the iter-2/3 looping, and the builder now asserts labeled stop targets
   exist. `trajectory_to_messages` is also what `datasets/swe_trajectories.py` publishes, so the
   released dataset and the training corpus cannot drift.
+  - **`build_sft_corpus` (+ `scripts/build_sft_qat_corpus.py`) is the preferred path for a
+    new run**: it reads the `sft.jsonl.gz` that `data.universal` writes beside the
+    calibration corpus (FULL conversations, real tool schemas, scrubbed system prompts,
+    a `split` field matching the calibration corpus) and masks/packs it identically.
+    `SFT_DEFAULT_BUDGETS` is **empty — every source is taken whole**, the deliberate
+    opposite of the calibration corpus (budgeted to ~4.4M because the quantizers sample a
+    fixed slice of it); QAT spends its budget in *fractional epochs*, not tokens on disk.
+    Sources are packed **separately** so a window never glues two together.
+  - **The build audits what preprocessing costs** and prints it per source (also stored in
+    the blob's `per_source`): tool-calls and reasoning turns rendered vs. present, tokens
+    lost to tool-output truncation as a share of that source's content, windows dropped by
+    the density floor. Measured on the Qwen3-universal file: tool calls survive 1:1;
+    reasoning survives **only on assistant turns after the last user turn**, so an agentic
+    trajectory keeps all of it (3141/3141) and a multi-turn chat log keeps just its tail
+    (138/367); `--max-tool-tokens` is by far the biggest cut — **1024 drops 28% of all
+    conversation content** and was only ever right at a 4096 window. Scale it with the window (**3072 at 8064**, 4096 at 12288) with
+    `--min-density 0.05` (at 0.10 the extra tool context just sinks windows below the
+    floor, so keeping more history buys nothing).
 - `qat/train.py` — `QATConfig` + `train_qat()`; `scripts/exp058_qat_train_v2.py` is a CLI shim.
 - `qat/export.py` — latents → **Q2_0** GGUF; needs `LLAMA_CPP_DIR=vendor/llama.cpp-prism`
   (ftype 41 is fork-only).
@@ -476,16 +495,76 @@ the ternarization in the loop** (BitNet/TWN STE). Full guide: `docs/ternary_qat.
   (run end-to-end); Method B = CE + KL against the precomputed top-K table (precompute and loss
   validated, trainer wiring still open — `train.py` today only has the in-loop `--kd-teacher`,
   which does not fit alongside an all-36 student).
+- `qat/attention.py` — **query-chunked SDPA; this is what lifted the training window from
+  4096 to 12288.** torch has no MPS training kernel for SDPA, so training materializes
+  `[heads, S, S]` and MPSGraph rejects > INT_MAX elements: the cap was `n_heads·S² < 2³¹`,
+  i.e. `S ≤ 8191` at 32 heads (8192 fails by *one element* — which is why it was recorded
+  as "8k impossible"). Chunking the query dim makes the score tensor `[heads, chunk,
+  kv_len]` and is **bit-identical** to `is_causal=True` (unit-tested, max abs err 0.0 —
+  that exactness is what keeps long-window results comparable with short-window ones). It
+  patches the registered `"sdpa"` entry **in place** rather than adding a name, on purpose:
+  transformers' mask fast path keys off the string `"sdpa"` to return `attention_mask=None`
+  for a causal decoder, and a custom name would instead build a `[1,1,S,S]` float mask
+  (1 GB at 16128). On by default in `train.py`; `--no-chunked-attention` restores the cap.
+  The block is budgeted in **bytes** (`DEFAULT_SCORE_BYTES`, 2 GiB), not elements: the
+  score tensor grows with `kv_len`, so a fixed 2048 block costs 1.97 GiB at kv 8064 and
+  **8 GiB at kv 32768** — that constant looked fine for two runs and then drove a 32768
+  run 26 GB into swap. It also carries the **prefix store** for `--trained-tail`.
+- `qat/train.py` `prefix_window` — **prefix-context training: how a 32K window fits.** All
+  but the last N tokens are encoded under `no_grad` and only the tail backprops, so
+  activations track N (`n_layers·S·hidden` is 19.3 GB fp32 at 32768) while the prefix costs
+  288 KB/token of K/V with no autograd graph. Two silent-failure traps, both unit-tested:
+  the prefix must **not** ride in a transformers `Cache` (`GradientCheckpointingLayer` nulls
+  `past_key_values` under `gradient_checkpointing and training`, so a checkpointed tail
+  attends to nothing and the loss still falls), and the block must span **backward** too
+  (checkpoint recompute re-runs each layer there; without the prefix torch raises
+  `CheckpointError`). Gradients never reach the prefix — the model learns to *use* long
+  context, not build it, which is the right trade for termination.
+- `--stop-weight` — per-vocab CE weight on the terminating `<|im_end|>`. Measured on the
+  sft8k corpus: 5,740,167 trainable tokens vs 32,448 stop targets, i.e. **one stop decision
+  per 176 "keep going"** — the mechanistic cause of sft8k-full's 97% loop rate. The CE
+  denominator becomes `sum(w[target])`, so the effective LR does not swing with how often
+  the token lands in a window.
+- **An 8-bit optimizer is a no-op here.** Adafactor's factored state is `rows + cols` floats
+  per tensor: 65 KB for a 201 MB tensor (**0.03%**), ~9 MB across all 6.95B trainable
+  params. Memory is params (32.8 GB) + grads (27.8 GB) + activations.
 - **Metal constraints are hard, not preferences**: `foreach=False` (MPS multi-tensor kernels
-  deadlock at full-model scale), window ≤ 4096 (`32·8192²` overflows INT_MAX in the unfused
-  training SDPA path), **fp32 latents** (bf16 underflows the ternary threshold → no code flips),
-  `--optim adafactor` to fit all 36 layers (~66-75 GB vs AdamW's ~116 GB). `--compute-dtype bf16`
-  is a **pessimization** at all-36 (54.5 GiB vs 31 GiB — the fp32 master copy stacks on top).
+  deadlock at full-model scale), **fp32 latents** (bf16 underflows the ternary threshold → no
+  code flips), `--optim adafactor` to fit all 36 layers (~66-75 GB vs AdamW's ~116 GB).
+  `--compute-dtype bf16` is a **pessimization** at all-36 (54.5 GiB vs 31 GiB — the fp32
+  master copy stacks on top).
+- **Size the window from the TRAINING LOOP, not a single-window probe.** The probe omits
+  the optimizer step and runs before swap builds; trusting it picked a window that could
+  not train at all. Real s/step at grad-accum 4 on an idle M4 Max 128 GB (all-36, fp32,
+  adafactor): **8064 → 370 s = 11.47 ms/token**, 12288 → 800 s = 16.28, 16128 → *no step
+  in 31 min* (swap at 99%), 24576 → hard OOM. Fixed per-step cost is ~106 s at every
+  size, so 8064's step is exactly `4·66 + 106` — it runs **clean**, while 12288's missing
+  230 s is swap. **8064 is the working default**: 42% more tokens per wall-clock hour
+  than 12288. Longer windows trade tokens-seen for whole-session context (the one real
+  argument is `swe-trajectories`: 27% → 52% → 68% whole at 8064 → 12288 → 16128).
+  Free any resident LM Studio/llama-server model first — worth ~30% at 16128.
+- **The SFT corpus is bimodal in length**: 83% of conversations are short
+  broad-instruct/refusal rows (<2k tokens) but only 2.6% of tokens; **81% of tokens are
+  in conversations over 20k** (median CLI-log session 32k, agent-log 16k, SWE trajectory
+  11.5k, longest 256k). No window has a cliff — even 32k holds only 36% of tokens in
+  whole conversations. Nothing is lost at a smaller window (sessions pack contiguously);
+  what a longer one buys is conditioning a trajectory's tail on its start.
 - **Read the code-flip telemetry, not the loss.** A ternary model only learns by flipping codes;
   lr 3e-4 flips ~0% (scale drift only) while the loss still falls. 5e-4 for ~2.2 epochs is the
   measured sweet spot; 8 epochs memorizes.
-- Peak memory spikes on `--ckpt-every` boundaries (`save_ckpt`'s whole-dict `.cpu()` transient);
-  both observed OOM kills landed exactly there. Keep the MPS-cache release before that copy.
+- **OOM kills give no traceback** (macOS SIGKILL — the log just ends in `Killed: 9`); diagnose
+  by watching `sysctl vm.swapusage` against the step log. Four causes, all fixed, three of which
+  killed the sft8k-full run: (1) `--resume` leaked the whole ~28 GB checkpoint — it was
+  function-scoped and never freed, so it sat next to the 30 GB model for the entire run; now
+  `mmap=True` + consumed via `.pop()` + cleared. (2) the lm_head ran on all K labeled positions
+  at once, and **K varies per window** (density 0.05-1.00) → `[1, K, 151669]` fp32 swings
+  1.55→4.56 GiB, ~3× with backward — an intermittent spike that kills at a *random* step and
+  that no single-window probe reproduces; the non-KD path now chunks it (`need_logits=False`,
+  `LOGIT_CHUNK=1024`) with loss/grad parity unit-tested. (3) `--empty-cache-every` (default 5,
+  was 25) — the working set crept into swap between releases. (4) `save_ckpt`'s whole-dict
+  `.cpu()` transient on a `--ckpt-every` boundary; keep the MPS-cache release before that copy
+  and **do not lower `--ckpt-every` to be safer** — each save is itself an OOM risk.
+  Healthy steady state: MPS resident 30.8 GiB, swap flat/declining, ~356 s/step.
 - Trajectory generation (`scripts/run_ornith_distill_gen.sh`) is Docker-heavy and slow under
   amd64 emulation. `--cleanup-images` *untags* images, leaving `<none>` dangling layers — run
   `scripts/docker_housekeep.sh` alongside long runs (SWE images + dangling only; never `-a`).
@@ -692,6 +771,10 @@ The OmniCoder reproduction is here; the CLI handles ad-hoc runs.
   *against* the generalization number, not instead of it) →
   `run_iter5_autoloop.sh` (unattended grow-data/retrain/bench until it
   generalizes). `kd_precompute.py` is the iter-6 offline-KD entry point.
+  **For a new run prefer the universal-SFT variant**: `build_sft_qat_corpus.py`
+  (`--window 8064 --max-tool-tokens 3072 --min-density 0.05`, train + `--split test`
+  val) → `run_sft_qat_pipeline.sh LR TAG EPOCHS`, which is the same train → export →
+  SWE-rebench chain over all five SFT sources instead of the 12 Python trajectories.
 - **Red-team chain** (see `docs/benchmarks.md#red-team-safety`):
   `eval_redteam.py` (sweep N targets on one frozen bank → `results.csv`,
   `results_per_case.csv`, `bank.json`) → `redteam_ladder.py` (pair every rung

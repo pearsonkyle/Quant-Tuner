@@ -39,63 +39,232 @@ one-off scripts:
 | `qat/export.py` | trained latents → Q2_0 GGUF via the prism fork |
 | `qat/kd_precompute.py` | offline top-K teacher logits + `kd_loss_from_topk` (Method B, below) |
 
-## Quickstart (adapting to a new model)
+## Quickstart — the universal-SFT run (current default)
+
+One command does train → export Q2_0 → agentic SWE-rebench eval:
 
 ```bash
-# 0. trainable checkpoint -> out/<exp>/model/, and the F16 GGUF for the chat template
-#    (extract tokenizer.chat_template from the shipped GGUF -> out/<exp>/chat_template.jinja)
+# corpora (train + the disjoint `test` validation split), then the whole chain
+PYTHONPATH=src .venv/bin/python scripts/build_sft_qat_corpus.py \
+    --sft out/corpora/qwen3-universal/sft.jsonl.gz \
+    --window 8064 --max-tool-tokens 3072 --min-density 0.05 \
+    --out out/exp-058/sft_corpus_universal_8064.pt
+PYTHONPATH=src .venv/bin/python scripts/build_sft_qat_corpus.py \
+    --sft out/corpora/qwen3-universal/sft.jsonl.gz --split test \
+    --window 8064 --max-tool-tokens 3072 --min-density 0.05 \
+    --out out/exp-058/sft_val_universal_8064.pt
 
-# 1. masked, schema-rendered, turn-aware corpora (train + val; window <= 4096 on MPS)
-PYTHONPATH=src .venv/bin/python scripts/build_qat_masked_corpus.py \
-    --window 4096 --wiki-tokens 300000 --max-tool-tokens 1024 \
-    --out out/<exp>/masked_corpus_4096_v2.pt
-PYTHONPATH=src .venv/bin/python scripts/build_qat_masked_corpus.py \
-    --window 4096 --wiki-tokens 0 --max-tool-tokens 1024 --split test \
-    --out out/<exp>/masked_val_4096_v2.pt
-# read the printed density deciles; re-run with --min-density if the low tail is fat
+bash scripts/run_sft_qat_pipeline.sh 5e-4 mytag 1.0        # LR / tag / epochs
+```
 
-# 2. LR probe FIRST (3 x ~40 steps): at 5e-5 the expected code-flip count is ~zero —
-#    pick the highest LR whose val masked-CE is stable and whose flip telemetry moves
-for LR in 5e-5 3e-4 1e-3; do
+`run_sft_qat_pipeline.sh LR TAG EPOCHS` reads these env overrides: `CORPUS`, `VAL`,
+`CKPT_EVERY` (default 10). Interrupted? The trainer signal-saves, and
+`--resume <out>/trained_latents.pt` continues with data order, step and Adafactor state
+(the corpus fingerprint must match).
+
+### Changing the data
+
+Point `--sft` at any `sft.jsonl` / `.jsonl.gz` with this row shape — it is what
+`data.universal` emits, and `scripts/build_universal_corpus.py` regenerates it for a new
+model or new sources:
+
+```json
+{"id": "...", "source": "logs-agents", "split": "train",
+ "messages": [{"role": "...", "content": "...", "tool_calls": [...],
+               "reasoning_content": "..."}],
+ "tools": [ {"type": "function", "function": {...}} ]}
+```
+
+Only `source`, `split` and `messages` are required; `tools` is strongly recommended
+(without it the builder falls back to `reconstruct_tools` name→arg-key stubs, and the
+model trains on schemas it will never see at inference).
+
+- **Subset**: `--source logs-agents --source swe-trajectories` (repeatable).
+- **Cap or drop a source**: `--budget logs=2000000 --budget broad-instruct=0`
+  (`none` = uncapped, `0` = drop). Uncapped is the default — see below.
+- **Different split**: `--split test` for the val corpus; `--split all` only for a
+  throwaway diagnostic, since the eval holdouts live in the same file.
+- Rows are shuffled per source with `--seed` before the budget is spent, so a cap is a
+  random sample, not the head of the file.
+
+### Choosing the parameters
+
+| Knob | How to pick it | Why |
+|---|---|---|
+| `--window` | **8064** on a 128 GB M4 Max. Measure `s/step` for one candidate above and one below before committing. | Not a free parameter — see the window table below. The fastest window is the largest one that does not swap, and that is *not* the largest one that runs. |
+| `--max-tool-tokens` | ≈ **window / 2.6** (3072 at 8064, 4096 at 12288) | One tool result must never eat more than ~a third of a window. Too low silently deletes conversation history — 1024 at an 8064 window drops 28% of it. |
+| `--min-density` | **0.05** | 0.10 negates any gain from keeping more tool history (the extra masked tokens just sink windows below the floor). 0.0 wastes a full forward/backward on near-empty windows. Read the printed density deciles. |
+| `--budget` | uncapped | QAT spends its budget in *fractional epochs*, so put everything on disk. This is the deliberate opposite of the calibration corpus. |
+| `LR` | **5e-4** for this model; probe it for a new one (below) | The whole ballgame — a ternary model only learns by flipping codes. |
+| `EPOCHS` | wall-clock ÷ `s/step`, then × `grad_accum / n_windows` | Fractional epochs are normal on a 19M-token corpus. |
+| `--grad-accum` | 4 | B≥2 does not fit; grad-accum is the equivalent lever. |
+| `--optim` | `adafactor` | The only optimizer that fits all 36 layers (~66-75 GB vs AdamW's ~116 GB). |
+| `--dtype` | `fp32` | bf16 latents underflow the ternary threshold → zero code flips. |
+| `--ckpt-every` | ~1 h of steps (10 at 370 s/step) | Both historical OOM kills landed *on* a checkpoint boundary. |
+
+**Estimating wall-clock before committing.** The step time is linear in the fixed cost:
+
+```
+s/step  ≈  grad_accum · fwd_bwd(window)  +  ~106 s
+```
+
+The ~106 s is Adafactor over 6.95B params + flip telemetry + val, and it is constant
+across window sizes. If a measured `s/step` exceeds that prediction, the excess is swap
+— that is exactly how 12288 was ruled out (800 s measured vs 570 s predicted).
+
+### Adapting to a different model
+
+Update `MODEL` / `CHAT_TEMPLATE` at the top of `qat/corpus.py` (currently
+`out/exp-057/model` + the chat template extracted from the shipped GGUF), then:
+
+1. **Verify the chat template first** — `scripts/verify_chat_template.py`. A template
+   that drops `tools=`, or refuses a window, silently guts the corpus.
+2. **Re-check the window ceiling.** It is `n_heads · S² < 2³¹` *without* chunked
+   attention, and pure memory with it — both depend on the model's head count and size.
+3. **Re-probe the LR** (three ~40-step runs) and read the **flip telemetry**, not the
+   loss: at too low an LR the loss falls while ~0% of codes move, i.e. the run only
+   drifted fp16 scales and changed nothing.
+
+```bash
+for LR in 1e-4 3e-4 5e-4 1e-3; do
   PYTORCH_ENABLE_MPS_FALLBACK=1 PYTHONPATH=src .venv/bin/python scripts/exp058_qat_train_v2.py \
-    --corpus out/<exp>/masked_corpus_4096_v2.pt --val-corpus out/<exp>/masked_val_4096_v2.pt \
+    --corpus <train>.pt --val-corpus <val>.pt \
     --layers 0-35 --optim adafactor --epochs 0.08 --grad-accum 4 --lr $LR \
     --ckpt-every 20 --out out/<exp>/probe_$LR
 done
-
-# 3. the real run: all 36 layers via Adafactor (~66-75 GB), >=1 full epoch, resumable
-PYTORCH_ENABLE_MPS_FALLBACK=1 PYTHONPATH=src .venv/bin/python scripts/exp058_qat_train_v2.py \
-    --corpus out/<exp>/masked_corpus_4096_v2.pt --val-corpus out/<exp>/masked_val_4096_v2.pt \
-    --layers 0-35 --optim adafactor --epochs 1 --grad-accum 8 --lr <probe-winner> \
-    --train-norms --out out/<exp>/trained
-#   ... interrupted? continue with:  --resume out/<exp>/trained/trained_latents.pt
-#   capability lever (adds ~16 GB): --kd-teacher <dense parent, e.g. Qwen/Qwen3-8B>
-#     ^ in-loop KD; prefer the OFFLINE top-K path below (Method B) at all-36 — the resident
-#       teacher does not fit next to a student already at the memory ceiling
-#   speed lever (validate parity):  --compute-dtype bf16
-
-# 4. export -> Q2_0 GGUF (prints code-flips vs shipped — ~0% means the run only
-#    drifted scales: raise LR / train longer before burning a SWE-rebench eval)
-LLAMA_CPP_DIR=vendor/llama.cpp-prism PYTHONPATH=src .venv/bin/python \
-    scripts/exp057_qat_export.py --latents out/<exp>/trained/trained_latents.pt --tag mytune
 ```
 
-To point at a different model, update `MODEL` / `CHAT_TEMPLATE` at the top of the
-three scripts (currently `out/exp-057/model`). Tool schemas are read from the logs
-(`session["tools"]` or `messages[0]["tools"]` via `data.split.session_tools`); only
-log formats with no stored schemas fall back to `reconstruct_tools` stubs.
+Other levers: `--train-norms`; `--compute-dtype bf16` (a *pessimization* at all-36);
+`--kd-teacher` for in-loop KD (does not fit at all-36 — prefer the offline top-K path,
+Method B below); `--no-chunked-attention` to restore the stock SDPA kernel and its
+8191-token cap.
 
 ## Hard constraints on Metal (learned the hard way — see the audit doc)
 
 - **`foreach=False` is mandatory.** MPS multi-tensor (foreach) kernels *deadlock* at
   full-model scale — the "step-5 hang." AdamW, Adafactor (per-tensor by construction),
   `clip_grad_norm_`, and the fp32-master wrapper all stay per-tensor.
-- **Window ≤ 4096** (now enforced by the trainer). seq 8192 errors with *"MPSGraph
-  tensor dims larger than INT_MAX"*: torch 2.12 has **no MPS training kernel for
-  SDPA** (fused paths are inference-only), so training materializes the full
-  `[B, heads, S, S]` scores tensor — and 32·8192² = 2³¹ overflows INT_MAX exactly.
-  Same math rules out B≥4 at 4096; B=2 is legal but compute-bound → grad-accum is
-  equivalent. Throughput is token-bound (~10 ms/token) regardless of window.
+- **The window ceiling is memory, not INT_MAX. It is ~12288 — but the FASTEST window is 8064.** torch 2.12
+  has **no MPS training kernel for SDPA** (fused paths are inference-only), so training
+  materializes the full `[B, heads, S, S]` scores tensor and MPSGraph refuses a tensor
+  with > INT_MAX elements. That gives **`n_heads · S² < 2³¹`** → `S ≤ 8191` at 32 heads;
+  seq 8192 fails by *exactly one element* (32·8192² = 2³¹), which is why it read as
+  "8k is impossible". Measured: 4096 / 6144 / 7168 / 8064 / 8128 / 8191 all pass, 8192 is
+  the sole failure.
+
+  **`qat.attention.enable_chunked_sdpa()` removes that cap outright** (on by default;
+  `--no-chunked-attention` opts out). It computes causal SDPA in query blocks, so the
+  score tensor is `[heads, chunk, kv_len]` and never `[heads, S, S]`. Output is
+  **bit-identical** to `is_causal=True` — unit-tested at max abs err 0.0, which is what
+  makes long-window results comparable with everything produced below 8191. It patches
+  the registered `"sdpa"` entry *in place* rather than adding a name, so transformers'
+  mask fast path still returns `attention_mask=None` for a plain causal decoder (a custom
+  name gets an eager `[1,1,S,S]` float mask — 1 GB at S=16128).
+
+  With chunking on the wall is unified memory. **Size a run from the TRAINING LOOP, not
+  from a single-window probe** — the probe excludes the optimizer step and runs before
+  swap builds, and following it led straight to a window that could not train at all.
+
+  | window | probe fwd+bwd | probe ms/tok | **real s/step** (accum 4) | **real ms/tok** | driver alloc |
+  |---|---|---|---|---|---|
+  | **8064** | 66 s | 8.16 | **370 s** | **11.47** | 93 GiB |
+  | 12288 | 116 s | 9.47 | 800 s | 16.28 | 125 GiB |
+  | 16128 | 227 s | 14.09 | **no step in 31 min** | — | 137 GiB |
+  | 20480 | 499 s | 24.36 | — | — | 137 GiB |
+  | 24576 | hard OOM | — | — | — | (tried 170 GiB) |
+
+  The decomposition is the useful part. Fixed per-step cost (Adafactor over 6.95B params,
+  flip telemetry, val) is **~106 s at every window size**; at 8064 the step is
+  `4·66 + 106 = 370 s`, exactly as predicted, so 8064 runs **clean**. At 12288 the step is
+  800 s against a predicted `4·116 + 106 = 570 s` — the missing 230 s is **swap**, and at
+  16128 swap hits 99% (54.7 of 55.3 GB) and the loop never completes a step even though
+  the probe finished that window in 227 s.
+
+  **8064 is the right window on a 128 GB M4 Max**: 11.47 ms/token vs 12288's 16.28, i.e.
+  **42% more tokens for the same wall-clock** (a 20 h budget buys 6.27M tokens at 8064 vs
+  4.42M at 12288). Going longer trades tokens-seen for whole-session context; see the
+  distribution below for what that actually buys. Same math rules out B≥2; grad-accum is
+  the equivalent lever.
+
+  **Conversation-length distribution** (universal SFT train split, `--max-tool-tokens
+  4096`) is strongly bimodal: 83% of *conversations* are short broad-instruct/refusal
+  rows under 2k tokens but only 2.6% of *tokens*; **81% of tokens live in conversations
+  longer than 20k** (median CLI-log session 32k, agent-log 16k, SWE trajectory 11.5k;
+  longest 256k). Share of conversations that fit whole in one window:
+
+  | source | 4096 | 8064 | 12288 | 16128 | 20480 | 32768 |
+  |---|---|---|---|---|---|---|
+  | logs | 3% | 5% | 9% | 19% | 24% | 51% |
+  | logs-agents | 2% | 22% | 37% | 49% | 58% | 76% |
+  | swe-trajectories | 8% | 27% | 52% | 68% | 81% | 97% |
+  | *all tokens in fitting convs* | 2.9% | 5.7% | 9.5% | 14.6% | 19.2% | 35.9% |
+
+  There is no cliff — it is a long tail, and even 32k only reaches 36% of tokens.
+  Nothing is *lost* at a smaller window (sessions pack contiguously across boundaries);
+  what a longer window buys is the model seeing the far end of a trajectory conditioned
+  on its start. The strongest case is `swe-trajectories`, the source the SWE-rebench
+  eval actually grades: 52% → 68% → 81% whole at 12288 → 16128 → 20480.
+- **The attention block must be budgeted in BYTES, not elements.** `safe_chunk` caps the
+  query block by `n_heads · chunk · kv_len < 2³¹` (the MPSGraph limit) *and* by
+  `DEFAULT_SCORE_BYTES` (2 GiB). The element cap alone is not enough: the score tensor
+  grows with `kv_len`, so a fixed 2048 block costs 1.97 GiB at kv 8064 and **8 GiB at kv
+  32768** — roughly double that with the softmax alive. A 32768 run with the fixed block
+  drove swap up 26 GB and completed no step; the same code at 8064 sat flat, which is why
+  the constant looked fine for two runs. 2 GiB reproduces the 8064 behavior exactly
+  (chunk stays 2048 there) and shrinks the block automatically as context grows.
+- **`--trained-tail N` is how a 32K window becomes affordable.** Activation memory under
+  gradient checkpointing is `n_layers · S · hidden` — 19.3 GB fp32 at S=32768, stacked on
+  32.8 GB of params and 27.8 GB of grads. Prefix-context encodes all but the last N tokens
+  under `no_grad` and backprops only through the tail, so activations track N while the
+  prefix costs `n_layers · 2 · n_kv · head_dim` = **288 KB/token fp32** (7.2 GB for a
+  24576-token prefix) and carries no autograd graph.
+
+  Two implementation facts, both of which fail *silently* if got wrong:
+
+  1. The prefix does **not** ride in a transformers `Cache`.
+     `GradientCheckpointingLayer.__call__` sets `past_key_values = None` whenever
+     `gradient_checkpointing and training`, so a checkpointed tail handed a real cache
+     attends to nothing — and the loss still falls. The K/V ride in `qat.attention`'s
+     prefix store, captured per attention module on the `no_grad` pass.
+  2. The `prefix_window` block must span the **backward**, not just the forward.
+     Checkpoint recompute re-runs each layer inside `.backward()`; a recompute that cannot
+     see the prefix produces a differently-shaped attention and torch raises
+     `CheckpointError`.
+
+  Gradients do not reach the prefix, so the model learns to *use* long context, not to
+  *build* it. For termination — whose signal is the trajectory's final `<|im_end|>` — the
+  gradient lives in the tail anyway.
+- **An 8-bit optimizer buys nothing here; that lever was already pulled.** Adafactor's
+  factored second moment is `exp_avg_sq_row` + `exp_avg_sq_col`, i.e. `rows + cols` floats
+  per tensor: **65 KB of state for a 201 MB tensor, 0.03%**. Across all 6.95 B trainable
+  params the optimizer state is ~9 MB. Quantizing it to 8 bits would save ~7 MB against a
+  ~90 GB working set. The memory is in params (32.8 GB) + grads (27.8 GB) + activations —
+  which is what `--trained-tail` and the byte-budgeted attention block address.
+- **32K prefix-context RUNS, but the frozen prefix is quadratic — measured, and it is the
+  reason to use it selectively.** Real training loop, all-36 / fp32 / adafactor, M4 Max
+  128 GB, `scripts/probe_window_budget.py`:
+
+  | window | trained tail | s/step (accum 2) | ms / **trained** token | swap Δ | outcome |
+  |---|---|---|---|---|---|
+  | 8064 | full | 232 | **14.4** | flat | clean |
+  | 16128 | full | — | — | — | no step (documented) |
+  | 32768 | 8192 | 1964 | **119.9** | +3.7 GB | **completes, does not OOM** |
+
+  So prefix-context buys a window that full-gradient training could not reach at any
+  speed — but at **8.3× the cost per trained token**, because the `no_grad` prefix still
+  forwards 24576 tokens through 36 layers with O(S²) attention every single step. A full
+  epoch over the 2088-window corpus would go from ~67 h to ~570 h. That is not a run.
+
+  **Spend the long window where it pays.** `swe-trajectories` is 106 of 2088 windows (5%
+  of windows, 868k tokens) and is the only source the SWE-rebench eval actually grades.
+  Repacked at 32768 that is ~27 windows; **4 epochs over just those costs ~30 h** — the
+  same order as the original 8064 run — while the other 95% of the corpus keeps the 8064
+  window it already trains well at. Shrinking the *tail* does not help; the prefix is the
+  cost.
+
+  Caveat on the probe itself: give it `--cooldown` (default 120 s) between configurations.
+  A config launched while macOS still holds the previous one's swap gets SIGKILLed during
+  model load in ~30 s, which reads as "this configuration OOMs" when it never ran.
 - **fp32 latents, not bf16.** bf16 either destabilizes (high lr) or *underflows* the
   ternary threshold so no codes flip (low lr) — a ~lr update is below one bf16 ulp of
   a ~1e-2 latent. `--compute-dtype bf16` is the supported middle path: fp32 masters
@@ -306,6 +475,66 @@ chat template, and masks the loss to assistant/tool-call tokens **plus the termi
 iter-2/3 looping). Flattening is `quant_tuner.qat.corpus.trajectory_to_messages`, shared with
 the published dataset builder so the two cannot drift.
 
+### Stage 2b — the universal SFT corpus (preferred for a new run)
+
+`data.universal` writes an `sft.jsonl.gz` next to the calibration corpus: **full**
+conversations (no windowing, no clipping, no stubbing, no chat template applied), real
+tool schemas, system prompts already boilerplate-scrubbed, and a `split` field that
+matches the calibration corpus — so training on `split=="train"` keeps every eval holdout
+held out. `build_sft_qat_corpus.py` masks and packs it exactly like the other two corpora:
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/build_sft_qat_corpus.py \
+    --sft out/corpora/qwen3-universal/sft.jsonl.gz \
+    --window 8064 --max-tool-tokens 3072 --min-density 0.05 \
+    --out out/exp-058/sft_corpus_universal_8064.pt
+# and the disjoint validation corpus for --val-corpus:
+PYTHONPATH=src .venv/bin/python scripts/build_sft_qat_corpus.py \
+    --sft out/corpora/qwen3-universal/sft.jsonl.gz --split test \
+    --window 8064 --max-tool-tokens 3072 --min-density 0.05 \
+    --out out/exp-058/sft_val_universal_8064.pt
+```
+
+**Every source is taken whole** (`SFT_DEFAULT_BUDGETS = {}`). This is the deliberate
+difference from the calibration corpus, which *is* token-budgeted (~4.4M) because
+llama-imatrix/AWQ/GPTQ each sample a fixed slice of it and an unbalanced mix skews
+`E[a²]`. QAT spends its budget in **epochs**, not in tokens on disk — so put everything on
+disk and use fractional `--epochs`. Cap a source with `--budget SOURCE=N` (`0` drops it).
+
+Sources are packed **separately**, so a window never glues two of them together.
+
+#### What the preprocessing costs (audited, printed on every build)
+
+The builder prints per source, and stores in the blob's `per_source`: tool-calls
+rendered / in source, reasoning turns rendered / in source, tokens dropped by tool-output
+truncation as a **share of that source's conversation content**, and windows dropped by
+the density floor. Measured on the Qwen3-universal SFT file:
+
+- **Tool calls survive 1:1.** Nothing in the chain drops a `tool_calls` field.
+- **Reasoning survives for agentic trajectories, not for chat logs.** The template keeps
+  `reasoning_content` only on assistant turns *after the last user turn*. An agent
+  trajectory is one task turn followed by dozens of assistant/tool turns, so **all** of it
+  is kept (measured 74/74 on an agent-log sample); a multi-turn CLI chat log keeps only
+  its tail segment. That is also what the model sees at inference, so it is the right
+  distribution — but it means the ~383 reasoning turns in the CLI logs mostly don't reach
+  the corpus, while the ~3,900 in the agent logs do.
+- **Tool-output truncation is by far the biggest cut, and `--max-tool-tokens` is the
+  knob.** At an 8064 window, measured over a 24-conversation sample:
+
+  | `--max-tool-tokens` | conversation content dropped | windows kept (`--min-density` 0 / .05 / .10) |
+  |---|---|---|
+  | 1024 | **28%** | 74 / 74 / 69 |
+  | 2048 | 20% | 83 / 78 / 74 |
+  | 3072 | 15% | 87 / 81 / 74 |
+  | **4096** | **13%** | **89 / 79 / 75** |
+  | 0 (off) | 0% | 93 / 82 / 75 |
+
+  1024 was right at a 4096 window and is far too aggressive above it. Scale it with the
+  window so one tool result can never eat more than ~a third of it: **3072 at window 8064**
+  (drops 15% of conversation content, down from 28% at 1024), 4096 at 12288 (13%). Note the interaction with `--min-density`: at 0.10 the
+  extra tool context just pushes windows below the floor and they get dropped anyway, so
+  keeping more history buys nothing there. **0.05** is the setting that actually keeps it.
+
 ## Stage 3A — Method A: masked-CE training
 
 ```bash
@@ -403,6 +632,26 @@ bash scripts/run_iter5_indist_eval.sh myrun
 Read them together: in-dist up + generalization flat = it learned but overfit (get more data);
 both up = real learning; both flat = the run was scale-drift, check the flip telemetry.
 
+### Quantifying what actually changed
+
+Three numbers, in the order you should read them — the first one gates the other two:
+
+1. **Code flips vs the shipped weights**, printed by `exp057_qat_export.py` over the whole
+   artifact (the trainer's per-20-step `--flip-sample` telemetry is the live version). This
+   is the only direct measure that the ternary *codes* moved rather than the fp16 scales
+   drifting under them. **~0% flips means the run changed nothing structural** — the loss
+   falling is not evidence otherwise, and there is no point spending ~10 h of agentic eval
+   on it. On this model, lr 3e-4 flipped ~0% and lr 5e-4 flipped ~0.7%.
+2. **Validation masked-CE** (`--val-corpus`, every `--val-every` steps) on the disjoint
+   `test` split. Falling val CE with non-zero flips is the healthy signature; falling
+   train loss with flat val CE at 8 epochs was memorization.
+3. **Agentic `patch_rate` / `pass_rate`** on the 10-instance holdout, printed by the
+   pipeline's last line. `patch_rate` (produced a non-empty diff at all) is the capability
+   floor and moves first; `pass_rate` (gold tests pass) is the real target. Check
+   `tool_error_rate` and `mean_steps` alongside — a model that stops tool-calling scores a
+   deceptively clean-looking run. Full trajectories land in
+   `<workspace>/trajectories/<model>/*.traj.json` for reading the failures directly.
+
 Q2_0 (ftype 41) requires the **prism llama.cpp fork** — hence `LLAMA_CPP_DIR=vendor/llama.cpp-prism`.
 
 ## Unattended: grow data until it generalizes
@@ -431,12 +680,40 @@ More verified data recovers the model's *ability to produce a patch* but has so 
 not a data-quantity wall, which is the motivation for Method B. (A single 8% in-distribution
 solve at 12 trajectories did **not** replicate at 30; treat it as noise.)
 
-## Memory: the OOM you will otherwise hit
+## Memory: the OOMs you will otherwise hit
 
-Both observed OOM kills landed **exactly on a `--ckpt-every` boundary** — peak training memory
-plus `save_ckpt`'s ~28 GB whole-dict `.cpu()` transient. `save_ckpt` now releases the MPS cache
-*before* that copy, the training loop calls `torch.mps.empty_cache()` every 25 steps to bound
-working-set creep, and the auto-loop salvages from the last checkpoint if a run still dies.
+macOS sends **SIGKILL**, so there is no traceback — the log just ends in `Killed: 9`. Diagnose
+these by watching `sysctl vm.swapusage` alongside the step log, not by reading the crash.
+Note that swap `used` is a poor live gauge on its own: it counts stale pages from dead
+processes and does not shrink eagerly, so read the *trend* while a run is up, not the absolute.
+
+Four distinct causes, all now fixed — the first three cost three killed runs on a 128 GB M4 Max
+at all-36 / window 8064:
+
+1. **`--resume` leaked the entire checkpoint.** `torch.load(resume, map_location="cpu")` is
+   function-scoped and was never freed, so ~28 GB of latents sat resident next to the 30 GB
+   model *for the whole run*; `[latents[n] for n in t_names]` also pinned every tensor while
+   applying them. Now loaded with `mmap=True` (file-backed pages the kernel can evict, not
+   anonymous memory that can only go to swap), consumed tensor-by-tensor with `.pop()`, then
+   cleared and gc'd. Resume peak went 70 GB → flat.
+2. **The lm_head ran on all labeled positions at once.** `[1, K, vocab]` fp32 where **K is the
+   window's trainable-token count**, which varies per window (density 0.05–1.00): 1.55 GiB at
+   the mean K, **4.56 GiB at K=8064**, ~3× that with softmax and backward. This is why runs
+   died at step ~12 and ~14 rather than at a fixed point, and why a single-window probe never
+   reproduced it. The plain masked-CE path now passes `need_logits=False` and chunks the
+   lm_head + CE into `LOGIT_CHUNK` (1024) blocks recomputed in the backward — peak ~0.6 GiB
+   regardless of K, at no measurable speed cost. Only KD needs the logits themselves.
+3. **The MPS cache release was too sparse.** Every 25 steps let the allocator working set creep
+   into swap between releases. Now `--empty-cache-every`, default 5; it costs ~1 s against a
+   ~355 s step.
+4. **`save_ckpt`'s ~28 GB whole-dict `.cpu()` transient** on a `--ckpt-every` boundary. It
+   releases the MPS cache *before* the copy. **Do not lower `--ckpt-every` to "be safer"** —
+   that was tried and made things worse, since each save is itself an OOM risk. 25 (~2.5 h of
+   work at risk) is the right side of the trade.
+
+Healthy steady state after all four, for comparison: MPS resident **30.8 GiB**, swap **flat or
+declining**, 356 s/step. If swap climbs monotonically while a run is up, something above has
+regressed.
 
 Stay in **fp32**: `--compute-dtype bf16` is a *pessimization* at all-36 (measured 54.5 GiB vs
 31 GiB), because `MasterOptimizer` keeps a full fp32 master copy on top of the bf16 model+grads.
