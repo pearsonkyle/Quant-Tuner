@@ -242,7 +242,10 @@ def _finalize(windows: list[dict], window: int, tok, *, extra: dict, out: Path |
 
     fp = corpus_fingerprint(ids_t, lbl_t)
     blob = {"ids": ids_t, "labels": lbl_t, "window": window,
-            "im_end_targets": n_im_end, "fingerprint": fp, **extra}
+            # the id, not just the count: `--stop-weight` needs to build a per-vocab CE
+            # weight vector, and reading it from the blob keeps that independent of which
+            # tokenizer the trainer happens to load
+            "im_end_id": im_end_id, "im_end_targets": n_im_end, "fingerprint": fp, **extra}
     if out is not None:
         out = Path(out)
         out.parent.mkdir(parents=True, exist_ok=True)

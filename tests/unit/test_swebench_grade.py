@@ -37,7 +37,9 @@ def test_v2_row_is_detected_and_uses_the_repo_workdir():
 def test_install_config_shape_decides_when_the_image_is_absent():
     from quant_tuner.eval.swebench_grade import is_v2_instance
 
-    v1 = {**V1_ROW}; v1.pop("image_name")
-    v2 = {**V2_ROW}; v2.pop("image_name")
+    v1 = {**V1_ROW}
+    v1.pop("image_name")
+    v2 = {**V2_ROW}
+    v2.pop("image_name")
     assert is_v2_instance(v1) is False   # conda keys -> V1
     assert is_v2_instance(v2) is True    # parser, no conda keys -> V2

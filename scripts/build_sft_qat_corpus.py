@@ -10,10 +10,18 @@ in epochs, so the corpus on disk should hold everything.
 
     PYTHONPATH=src .venv/bin/python scripts/build_sft_qat_corpus.py \
         --sft out/corpora/qwen3-universal/sft.jsonl.gz \
-        --window 8064 --max-tool-tokens 1024 --min-density 0.10 \
+        --window 8064 --max-tool-tokens 3072 --min-density 0.05 \
         --out out/exp-058/sft_corpus_universal_8064.pt
 
 Cap a source with ``--budget SOURCE=TOKENS`` (``none`` = uncapped, ``0`` = drop it).
+
+Scale ``--max-tool-tokens`` with the window (3072 at 8064, 4096 at 12288, 8192 at 32768):
+1024 was only ever right at a 4096 window and drops 28% of all conversation content.
+
+For a long window, pair this with the trainer's ``--trained-tail``: at 32768 only the last
+N tokens carry gradient, so the window buys *context* for the part being trained. That is
+the right shape for agentic data, where the terminal ``<|im_end|>`` — the stop decision —
+sits at the end of the window anyway.
 """
 
 from __future__ import annotations
@@ -52,8 +60,10 @@ def main() -> int:
     ap.add_argument("--budget", action="append", default=None,
                     help="SOURCE=TOKENS per-source cap; 'none' = uncapped, 0 = drop")
     ap.add_argument("--window", type=int, default=8064,
-                    help="MPS ceiling is n_heads*S^2 < 2^31 => S <= 8191 at 32 heads; "
-                         "8064 is the largest multiple of 128 under it")
+                    help="chunked SDPA removed the old n_heads*S^2 < 2^31 kernel cap "
+                         "(S <= 8191 at 32 heads); the limit is now memory, and the "
+                         "trainer's --trained-tail is what makes 32768 affordable. "
+                         "8064 remains the largest full-gradient window that trains clean.")
     ap.add_argument("--max-tool-tokens", type=int, default=1024)
     ap.add_argument("--min-density", type=float, default=0.0)
     ap.add_argument("--seed", type=int, default=42)

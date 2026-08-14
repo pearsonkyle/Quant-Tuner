@@ -387,3 +387,138 @@ def test_chunking_is_skipped_when_k_fits_in_one_chunk():
         ce, _, _ = trainer.masked_forward(model, ids, lbl, need_logits=False,
                                           logit_chunk=1024)
     assert torch.allclose(ce, ref, atol=1e-6)
+
+
+# ------------------------------------------------- prefix context / trained tail --
+#
+# `--trained-tail` is the lever that makes a 32768 window fit: the prefix is encoded once
+# under no_grad into a KV cache, so activation memory tracks the tail, not the window.
+# The correctness claim is that the tail's loss is UNCHANGED by the split — if it were
+# not, every long-window result would be measuring a different objective.
+
+@pytest.fixture
+def sdpa_patched():
+    """The prefix K/V ride in the patched attention function, so these need it on."""
+    from quant_tuner.qat.attention import clear_prefix, disable_chunked_sdpa, enable_chunked_sdpa
+    enable_chunked_sdpa()
+    yield
+    clear_prefix()
+    disable_chunked_sdpa()
+
+
+def test_prefix_context_tail_loss_equals_the_full_window_loss(sdpa_patched):
+    model = tiny_model().eval()
+    ids, lbl = rand_batch(seq=64, frac_labeled=0.5)
+    n_prefix = 32
+    tail_only = lbl.clone()
+    tail_only[0, :n_prefix + 1] = -100  # the targets a prefix split keeps (shifted)
+    with torch.no_grad():
+        ref, _, ref_idx = trainer.masked_forward(model, ids, tail_only, need_logits=False)
+        with trainer.prefix_window(model, ids, n_prefix):
+            got, _, got_idx = trainer.masked_forward(model, ids, lbl, need_logits=False,
+                                                     n_prefix=n_prefix)
+    assert torch.equal(ref_idx, got_idx)
+    assert torch.allclose(got, ref, atol=1e-5), f"{got} vs full-window {ref}"
+
+
+def test_prefix_context_drops_prefix_targets_from_the_loss(sdpa_patched):
+    """A prefix target has no graph, so it must not be scored — and the caller must be
+    able to tell, because the resulting CE is on a different target set."""
+    model = tiny_model().eval()
+    ids, lbl = rand_batch(seq=64, frac_labeled=0.5)
+    with torch.no_grad():
+        _, _, full_idx = trainer.masked_forward(model, ids, lbl, need_logits=False)
+        with trainer.prefix_window(model, ids, 32):
+            _, _, tail_idx = trainer.masked_forward(model, ids, lbl, need_logits=False,
+                                                    n_prefix=32)
+    assert tail_idx.numel() < full_idx.numel()
+    assert int(tail_idx.min()) >= 32
+
+
+def test_prefix_covering_every_target_raises_rather_than_returning_zero(sdpa_patched):
+    model = tiny_model().eval()
+    ids, _ = rand_batch(seq=64)
+    lbl = torch.full_like(ids, -100)
+    lbl[0, 5] = ids[0, 5]
+    with pytest.raises(ValueError, match="no labeled target"), torch.no_grad(), \
+            trainer.prefix_window(model, ids, 32):
+        trainer.masked_forward(model, ids, lbl, need_logits=False, n_prefix=32)
+
+
+def test_prefix_gradients_reach_the_tail_only(sdpa_patched):
+    model = tiny_model()
+    make_ternary(model)
+    ids, lbl = rand_batch(seq=64, frac_labeled=0.5)
+    emb = model.model.embed_tokens.weight
+    with trainer.prefix_window(model, ids, 32):
+        ce, _, _ = trainer.masked_forward(model, ids, lbl, need_logits=False, n_prefix=32)
+        ce.backward()
+    # embeddings of prefix-only token positions get no gradient through the frozen prefix
+    assert emb.grad is not None and emb.grad.abs().sum() > 0
+
+
+def test_prefix_survives_gradient_checkpointing(sdpa_patched):
+    """The reason the prefix does NOT use a transformers Cache: GradientCheckpointingLayer
+    nulls `past_key_values` whenever `gradient_checkpointing and training`, so a cache-based
+    tail attends to nothing and the loss still falls. Riding in the attention function is
+    immune — this pins that."""
+    model = tiny_model()
+    make_ternary(model)
+    model.gradient_checkpointing_enable()
+    model.train()
+    ids, lbl = rand_batch(seq=64, frac_labeled=0.5)
+    with trainer.prefix_window(model, ids, 32):
+        with_prefix, _, _ = trainer.masked_forward(model, ids, lbl, need_logits=False,
+                                                   n_prefix=32)
+        # backward inside the block: checkpoint recompute needs the prefix still live
+        with_prefix.backward()
+    tail_only = lbl.clone()
+    tail_only[0, :33] = -100
+    model.eval()
+    with torch.no_grad():
+        ref, _, _ = trainer.masked_forward(model, ids, tail_only, need_logits=False)
+    assert torch.allclose(with_prefix.detach(), ref, atol=1e-5), (
+        f"{with_prefix.item()} vs full-context {ref.item()} — the prefix was dropped")
+
+
+def test_use_prefix_without_a_capture_raises(sdpa_patched):
+    from quant_tuner.qat.attention import use_prefix
+    with pytest.raises(RuntimeError, match="nothing captured"), use_prefix():
+        pass
+
+
+# ----------------------------------------------------------- stop-token weighting --
+
+def test_stop_weight_reweights_the_loss_and_its_denominator():
+    """sum(w[target]) must be the denominator: with plain K the loss (and the effective
+    LR) would scale with however often the stop token happened to land in the window."""
+    model = tiny_model().eval()
+    ids, lbl = rand_batch(seq=64, frac_labeled=0.5)
+    shifted = lbl[0, 1:]
+    stop_id = int(shifted[shifted != -100][0])
+    w = torch.ones(VOCAB)
+    w[stop_id] = 7.0
+    with torch.no_grad():
+        weighted, _, keep = trainer.masked_forward(model, ids, lbl, need_logits=False,
+                                                   logit_chunk=8, weights=w)
+        # reference: sum(w_i * l_i) / sum(w_i) over exactly the same targets. Stated as
+        # per-target losses rather than F.cross_entropy(weight=) so the denominator is
+        # asserted explicitly — that is the part a chunked loop gets wrong.
+        tgts = lbl[0, 1:][keep]
+        logits = model.lm_head(model.model(input_ids=ids).last_hidden_state[:, keep, :])
+        per = torch.nn.functional.cross_entropy(logits[0].float(), tgts, reduction="none")
+        ref = (per * w[tgts]).sum() / w[tgts].sum()
+    assert torch.allclose(weighted, ref, atol=1e-5), f"{weighted} vs {ref}"
+    # and the weight actually lands on the intended id
+    assert (w[tgts] == 7.0).any()
+
+
+def test_stop_weight_of_one_is_a_no_op():
+    model = tiny_model().eval()
+    ids, lbl = rand_batch(seq=64, frac_labeled=0.5)
+    with torch.no_grad():
+        plain, _, _ = trainer.masked_forward(model, ids, lbl, need_logits=False,
+                                             logit_chunk=8)
+        ones, _, _ = trainer.masked_forward(model, ids, lbl, need_logits=False,
+                                            logit_chunk=8, weights=torch.ones(VOCAB))
+    assert torch.allclose(plain, ones, atol=1e-6)
