@@ -33,7 +33,10 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 #: (window, trained_tail) — 0 tail means full-gradient, the configuration that failed above
 #: 12288. The paired rows are what show whether the prefix split is what bought the window.
-GRID = [(8064, 0), (16128, 0), (16128, 4096), (32768, 8192), (32768, 4096)]
+#: A LARGER tail is better per trained token, not smaller: attention cost is ~S^2 per
+#: window regardless of the split, so cost per trained token goes as S^2/T. Minimizing the
+#: tail minimizes memory and maximizes cost. Sweep upward until it stops fitting.
+GRID = [(8064, 0), (32768, 8192), (32768, 16384), (32768, 24576)]
 
 
 def swap_used_gib() -> float:
