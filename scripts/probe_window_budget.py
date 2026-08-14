@@ -115,6 +115,11 @@ def main() -> int:
     ap.add_argument("--grad-accum", type=int, default=4)
     ap.add_argument("--labeled-frac", type=float, default=0.35)
     ap.add_argument("--model-dir", type=Path)
+    ap.add_argument("--cooldown", type=float, default=120,
+                    help="seconds to wait between configurations (default 120). Without "
+                         "it a config starts while macOS is still holding the previous "
+                         "one's swap and gets SIGKILLed during model load — which reads "
+                         "as 'this configuration OOMs' when it never ran.")
     ap.add_argument("--timeout", type=float, default=2400,
                     help="seconds per configuration (default 2400). A swap-bound config "
                          "does not error, it just never completes a step.")
@@ -126,7 +131,11 @@ def main() -> int:
         return ap.error("pass --window or --grid")
 
     rows = []
-    for window, tail in combos:
+    for n, (window, tail) in enumerate(combos):
+        if n and args.cooldown:
+            print(f"[cooldown] {args.cooldown:.0f}s for the previous run's swap to drain "
+                  f"(now {swap_used_gib():.1f} GiB)", flush=True)
+            time.sleep(args.cooldown)
         print(f"\n=== window {window}  trained_tail {tail or 'full'} ===", flush=True)
         r = run_one(window, tail, steps=args.steps, accum=args.grad_accum,
                     labeled_frac=args.labeled_frac, model_dir=args.model_dir,

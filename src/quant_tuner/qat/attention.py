@@ -88,21 +88,37 @@ def prefix_len() -> int:
 _INT_MAX = 2**31 - 1
 #: Cap on the query block. Smaller = less peak memory, more Python-loop overhead.
 DEFAULT_CHUNK = 2048
+#: Peak bytes allowed for one block's ``[heads, chunk, kv_len]`` score tensor.
+#:
+#: A FIXED chunk is an element-count cap, not a memory cap: the score tensor grows with
+#: ``kv_len``, so the 2048 block that costs 1.97 GiB at kv 8064 costs **8 GiB at kv 32768**
+#: — and roughly double that with the softmax alive. Measured: a 32768-window run with a
+#: fixed 2048 block drove swap up 26 GB and never completed a step, while the same run at
+#: 8064 sat flat. 2 GiB reproduces today's 8064 behavior exactly and shrinks the block
+#: automatically as the context grows.
+DEFAULT_SCORE_BYTES = 2 * 1024**3
 #: Below this window length the unchunked kernel is used verbatim (no behavior change).
 CHUNK_ABOVE = 4096
 
 _original_sdpa = None
 
 
-def safe_chunk(n_heads: int, kv_len: int, hint: int = DEFAULT_CHUNK) -> int:
-    """Largest query block with ``n_heads * chunk * kv_len < INT_MAX``, capped at ``hint``."""
+def safe_chunk(n_heads: int, kv_len: int, hint: int = DEFAULT_CHUNK,
+               itemsize: int = 4, score_bytes: int = DEFAULT_SCORE_BYTES) -> int:
+    """Largest query block satisfying BOTH the MPSGraph element cap and a memory budget.
+
+    The element cap (``n_heads * chunk * kv_len < INT_MAX``) is what makes long windows
+    run at all; the byte budget is what makes them run without swapping.
+    """
     limit = _INT_MAX // max(1, n_heads * kv_len)
-    return max(128, min(hint, limit))
+    by_bytes = score_bytes // max(1, n_heads * kv_len * itemsize)
+    return max(64, min(hint, limit, by_bytes))
 
 
 def chunked_causal_sdpa(query, key, value, *, dropout: float = 0.0,
                         scaling: float | None = None, attention_mask=None,
-                        chunk_hint: int = DEFAULT_CHUNK, **sdpa_kwargs):
+                        chunk_hint: int = DEFAULT_CHUNK,
+                        score_bytes: int = DEFAULT_SCORE_BYTES, **sdpa_kwargs):
     """Causal SDPA computed in query blocks. Bit-identical to the unchunked call.
 
     Handles ``kv_len > q_len`` (a cached prefix): the queries are then the *last*
@@ -117,7 +133,7 @@ def chunked_causal_sdpa(query, key, value, *, dropout: float = 0.0,
     if offset < 0:
         raise ValueError(f"kv_len {kv_len} < q_len {S}: not a causal decoder call")
     n_heads = query.shape[1]
-    chunk = safe_chunk(n_heads, kv_len, chunk_hint)
+    chunk = safe_chunk(n_heads, kv_len, chunk_hint, query.element_size(), score_bytes)
     outs = []
     for i in range(0, S, chunk):
         j = min(i + chunk, S)
@@ -140,7 +156,8 @@ def chunked_causal_sdpa(query, key, value, *, dropout: float = 0.0,
 
 
 def enable_chunked_sdpa(chunk_hint: int = DEFAULT_CHUNK,
-                        chunk_above: int = CHUNK_ABOVE) -> None:
+                        chunk_above: int = CHUNK_ABOVE,
+                        score_bytes: int = DEFAULT_SCORE_BYTES) -> None:
     """Patch transformers' ``sdpa`` attention to chunk long windows. Idempotent."""
     global _original_sdpa
     from transformers.integrations import sdpa_attention as _sdpa_mod
@@ -186,7 +203,7 @@ def enable_chunked_sdpa(chunk_hint: int = DEFAULT_CHUNK,
                 value = _sdpa_mod.repeat_kv(value, module.num_key_value_groups)
         out = chunked_causal_sdpa(query, key, value, dropout=dropout, scaling=scaling,
                                   attention_mask=attention_mask, chunk_hint=chunk_hint,
-                                  **sdpa_kwargs)
+                                  score_bytes=score_bytes, **sdpa_kwargs)
         return out.transpose(1, 2).contiguous(), None
 
     _sdpa_mod.sdpa_attention_forward = forward

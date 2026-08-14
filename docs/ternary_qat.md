@@ -204,6 +204,67 @@ Method B below); `--no-chunked-attention` to restore the stock SDPA kernel and i
   what a longer window buys is the model seeing the far end of a trajectory conditioned
   on its start. The strongest case is `swe-trajectories`, the source the SWE-rebench
   eval actually grades: 52% → 68% → 81% whole at 12288 → 16128 → 20480.
+- **The attention block must be budgeted in BYTES, not elements.** `safe_chunk` caps the
+  query block by `n_heads · chunk · kv_len < 2³¹` (the MPSGraph limit) *and* by
+  `DEFAULT_SCORE_BYTES` (2 GiB). The element cap alone is not enough: the score tensor
+  grows with `kv_len`, so a fixed 2048 block costs 1.97 GiB at kv 8064 and **8 GiB at kv
+  32768** — roughly double that with the softmax alive. A 32768 run with the fixed block
+  drove swap up 26 GB and completed no step; the same code at 8064 sat flat, which is why
+  the constant looked fine for two runs. 2 GiB reproduces the 8064 behavior exactly
+  (chunk stays 2048 there) and shrinks the block automatically as context grows.
+- **`--trained-tail N` is how a 32K window becomes affordable.** Activation memory under
+  gradient checkpointing is `n_layers · S · hidden` — 19.3 GB fp32 at S=32768, stacked on
+  32.8 GB of params and 27.8 GB of grads. Prefix-context encodes all but the last N tokens
+  under `no_grad` and backprops only through the tail, so activations track N while the
+  prefix costs `n_layers · 2 · n_kv · head_dim` = **288 KB/token fp32** (7.2 GB for a
+  24576-token prefix) and carries no autograd graph.
+
+  Two implementation facts, both of which fail *silently* if got wrong:
+
+  1. The prefix does **not** ride in a transformers `Cache`.
+     `GradientCheckpointingLayer.__call__` sets `past_key_values = None` whenever
+     `gradient_checkpointing and training`, so a checkpointed tail handed a real cache
+     attends to nothing — and the loss still falls. The K/V ride in `qat.attention`'s
+     prefix store, captured per attention module on the `no_grad` pass.
+  2. The `prefix_window` block must span the **backward**, not just the forward.
+     Checkpoint recompute re-runs each layer inside `.backward()`; a recompute that cannot
+     see the prefix produces a differently-shaped attention and torch raises
+     `CheckpointError`.
+
+  Gradients do not reach the prefix, so the model learns to *use* long context, not to
+  *build* it. For termination — whose signal is the trajectory's final `<|im_end|>` — the
+  gradient lives in the tail anyway.
+- **An 8-bit optimizer buys nothing here; that lever was already pulled.** Adafactor's
+  factored second moment is `exp_avg_sq_row` + `exp_avg_sq_col`, i.e. `rows + cols` floats
+  per tensor: **65 KB of state for a 201 MB tensor, 0.03%**. Across all 6.95 B trainable
+  params the optimizer state is ~9 MB. Quantizing it to 8 bits would save ~7 MB against a
+  ~90 GB working set. The memory is in params (32.8 GB) + grads (27.8 GB) + activations —
+  which is what `--trained-tail` and the byte-budgeted attention block address.
+- **32K prefix-context RUNS, but the frozen prefix is quadratic — measured, and it is the
+  reason to use it selectively.** Real training loop, all-36 / fp32 / adafactor, M4 Max
+  128 GB, `scripts/probe_window_budget.py`:
+
+  | window | trained tail | s/step (accum 2) | ms / **trained** token | swap Δ | outcome |
+  |---|---|---|---|---|---|
+  | 8064 | full | 232 | **14.4** | flat | clean |
+  | 16128 | full | — | — | — | no step (documented) |
+  | 32768 | 8192 | 1964 | **119.9** | +3.7 GB | **completes, does not OOM** |
+
+  So prefix-context buys a window that full-gradient training could not reach at any
+  speed — but at **8.3× the cost per trained token**, because the `no_grad` prefix still
+  forwards 24576 tokens through 36 layers with O(S²) attention every single step. A full
+  epoch over the 2088-window corpus would go from ~67 h to ~570 h. That is not a run.
+
+  **Spend the long window where it pays.** `swe-trajectories` is 106 of 2088 windows (5%
+  of windows, 868k tokens) and is the only source the SWE-rebench eval actually grades.
+  Repacked at 32768 that is ~27 windows; **4 epochs over just those costs ~30 h** — the
+  same order as the original 8064 run — while the other 95% of the corpus keeps the 8064
+  window it already trains well at. Shrinking the *tail* does not help; the prefix is the
+  cost.
+
+  Caveat on the probe itself: give it `--cooldown` (default 120 s) between configurations.
+  A config launched while macOS still holds the previous one's swap gets SIGKILLed during
+  model load in ~30 s, which reads as "this configuration OOMs" when it never ran.
 - **fp32 latents, not bf16.** bf16 either destabilizes (high lr) or *underflows* the
   ternary threshold so no codes flip (low lr) — a ~lr update is below one bf16 ulp of
   a ~1e-2 latent. `--compute-dtype bf16` is the supported middle path: fp32 masters

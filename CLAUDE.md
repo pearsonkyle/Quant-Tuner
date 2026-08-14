@@ -406,6 +406,28 @@ the ternarization in the loop** (BitNet/TWN STE). Full guide: `docs/ternary_qat.
   transformers' mask fast path keys off the string `"sdpa"` to return `attention_mask=None`
   for a causal decoder, and a custom name would instead build a `[1,1,S,S]` float mask
   (1 GB at 16128). On by default in `train.py`; `--no-chunked-attention` restores the cap.
+  The block is budgeted in **bytes** (`DEFAULT_SCORE_BYTES`, 2 GiB), not elements: the
+  score tensor grows with `kv_len`, so a fixed 2048 block costs 1.97 GiB at kv 8064 and
+  **8 GiB at kv 32768** — that constant looked fine for two runs and then drove a 32768
+  run 26 GB into swap. It also carries the **prefix store** for `--trained-tail`.
+- `qat/train.py` `prefix_window` — **prefix-context training: how a 32K window fits.** All
+  but the last N tokens are encoded under `no_grad` and only the tail backprops, so
+  activations track N (`n_layers·S·hidden` is 19.3 GB fp32 at 32768) while the prefix costs
+  288 KB/token of K/V with no autograd graph. Two silent-failure traps, both unit-tested:
+  the prefix must **not** ride in a transformers `Cache` (`GradientCheckpointingLayer` nulls
+  `past_key_values` under `gradient_checkpointing and training`, so a checkpointed tail
+  attends to nothing and the loss still falls), and the block must span **backward** too
+  (checkpoint recompute re-runs each layer there; without the prefix torch raises
+  `CheckpointError`). Gradients never reach the prefix — the model learns to *use* long
+  context, not build it, which is the right trade for termination.
+- `--stop-weight` — per-vocab CE weight on the terminating `<|im_end|>`. Measured on the
+  sft8k corpus: 5,740,167 trainable tokens vs 32,448 stop targets, i.e. **one stop decision
+  per 176 "keep going"** — the mechanistic cause of sft8k-full's 97% loop rate. The CE
+  denominator becomes `sum(w[target])`, so the effective LR does not swing with how often
+  the token lands in a window.
+- **An 8-bit optimizer is a no-op here.** Adafactor's factored state is `rows + cols` floats
+  per tensor: 65 KB for a 201 MB tensor (**0.03%**), ~9 MB across all 6.95B trainable
+  params. Memory is params (32.8 GB) + grads (27.8 GB) + activations.
 - **Metal constraints are hard, not preferences**: `foreach=False` (MPS multi-tensor kernels
   deadlock at full-model scale), **fp32 latents** (bf16 underflows the ternary threshold → no
   code flips), `--optim adafactor` to fit all 36 layers (~66-75 GB vs AdamW's ~116 GB).

@@ -70,7 +70,7 @@ def test_safe_chunk_keeps_the_score_tensor_under_int_max():
         c = safe_chunk(heads, kv_len)
         assert heads * c * kv_len < 2**31
     # a huge context still yields a usable block, never 0
-    assert safe_chunk(32, 1_000_000) >= 128
+    assert safe_chunk(32, 1_000_000) >= 64
 
 
 def test_patched_forward_matches_stock_forward(patched):
@@ -181,3 +181,24 @@ def test_short_cached_window_is_not_sent_to_the_stock_kernel(patched):
     ref = torch.nn.functional.scaled_dot_product_attention(
         q, mod.repeat_kv(k, 4), mod.repeat_kv(v, 4), attn_mask=mask, scale=0.125)
     assert torch.equal(ref.transpose(1, 2).contiguous(), got)
+
+
+def test_chunk_is_budgeted_by_bytes_not_just_element_count():
+    """A fixed block is an element cap, not a memory cap: the score tensor grows with
+    kv_len, so the 2048 block that costs ~2 GiB at kv 8064 costs 8 GiB at kv 32768. That
+    is what drove a 32768 run 26 GB into swap."""
+    budget = 2 * 1024**3
+    for kv in (8064, 16128, 32768, 65536):
+        c = safe_chunk(32, kv, itemsize=4, score_bytes=budget)
+        assert 32 * c * kv * 4 <= budget, f"kv={kv} chunk={c} exceeds the byte budget"
+        assert 32 * c * kv < 2**31
+    # at the window the published runs used, the budget must not change the old behavior
+    assert safe_chunk(32, 8064, itemsize=4, score_bytes=budget) == 2048
+
+
+def test_byte_budget_does_not_change_the_numerics():
+    q, k, v = _qkv(2048, heads=8, kv=2)
+    ref = torch.nn.functional.scaled_dot_product_attention(q, k, v, is_causal=True,
+                                                           enable_gqa=True)
+    tiny = chunked_causal_sdpa(q, k, v, score_bytes=1 << 20, enable_gqa=True)
+    assert torch.equal(ref, tiny)
