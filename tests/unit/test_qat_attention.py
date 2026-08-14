@@ -213,3 +213,50 @@ def test_cost_per_trained_token_falls_as_the_tail_grows():
     assert cost[4096] > cost[8192] > cost[16384] > cost[24576]
     # ...and a full-gradient short window is still far cheaper per trained token
     assert 8064 * 8064 / 8064 < cost[24576]
+
+
+# --- score recomputation ----------------------------------------------------------------
+#
+# Chunking bounds ONE block's score tensor; it does not bound their sum. With grad enabled
+# every block saves its own softmax output, so the saved total is the whole
+# [heads, q_len, kv_len] matrix regardless of block size — 64 GiB at q 16384 / kv 32768,
+# which OOMed the real model at 142 GiB allocated. Checkpointing each block trades one
+# extra attention pass for that.
+
+def test_recompute_scores_does_not_change_the_forward():
+    q, k, v = _qkv(512, heads=4, kv=4)
+    q.requires_grad_(True)
+    a = chunked_causal_sdpa(q, k, v, chunk_hint=64, recompute_scores=False)
+    b = chunked_causal_sdpa(q, k, v, chunk_hint=64, recompute_scores=True)
+    assert torch.equal(a, b)
+
+
+def test_recompute_scores_does_not_change_the_gradient():
+    q, k, v = _qkv(512, heads=4, kv=4)
+    qa = q.clone().requires_grad_(True)
+    qb = q.clone().requires_grad_(True)
+    chunked_causal_sdpa(qa, k, v, chunk_hint=64, recompute_scores=False).sum().backward()
+    chunked_causal_sdpa(qb, k, v, chunk_hint=64, recompute_scores=True).sum().backward()
+    assert torch.allclose(qa.grad, qb.grad, atol=1e-6)
+
+
+def test_recompute_is_inert_without_grad():
+    """No graph, nothing to save — the checkpoint must not fire (it would cost a second
+    forward for nothing on the no_grad prefix pass, which is the expensive one)."""
+    q, k, v = _qkv(256, heads=4, kv=4)
+    with torch.no_grad():
+        ref = chunked_causal_sdpa(q, k, v, chunk_hint=32, recompute_scores=False)
+        got = chunked_causal_sdpa(q, k, v, chunk_hint=32, recompute_scores=True)
+    assert torch.equal(ref, got)
+
+
+def test_recompute_scores_works_with_a_cached_prefix():
+    prefix, tail = 1024, 256
+    q, k, v = _cached_qkv(prefix, tail)
+    q.requires_grad_(True)
+    mask = torch.ones(tail, prefix + tail, dtype=torch.bool).tril(diagonal=prefix)
+    ref = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask,
+                                                           enable_gqa=True)
+    got = chunked_causal_sdpa(q, k, v, chunk_hint=64, enable_gqa=True,
+                              recompute_scores=True)
+    assert torch.equal(ref, got)

@@ -118,7 +118,8 @@ def safe_chunk(n_heads: int, kv_len: int, hint: int = DEFAULT_CHUNK,
 def chunked_causal_sdpa(query, key, value, *, dropout: float = 0.0,
                         scaling: float | None = None, attention_mask=None,
                         chunk_hint: int = DEFAULT_CHUNK,
-                        score_bytes: int = DEFAULT_SCORE_BYTES, **sdpa_kwargs):
+                        score_bytes: int = DEFAULT_SCORE_BYTES,
+                        recompute_scores: bool = True, **sdpa_kwargs):
     """Causal SDPA computed in query blocks. Bit-identical to the unchunked call.
 
     Handles ``kv_len > q_len`` (a cached prefix): the queries are then the *last*
@@ -126,6 +127,10 @@ def chunked_causal_sdpa(query, key, value, *, dropout: float = 0.0,
     ``offset + r`` and may attend to keys ``0 .. offset + r``. Getting this wrong is
     silent — the shapes still broadcast and the loss still falls, it just trains on a
     truncated context — so the offset is derived from the tensors, never assumed 0.
+
+    ``recompute_scores`` (default on, and a no-op without grad) checkpoints each block so
+    its attention weights are recomputed in backward instead of saved. Chunking alone caps
+    one block's score tensor but not their sum, and the sum is what OOMs a long window.
     """
     S = query.shape[2]
     kv_len = key.shape[2]
@@ -134,30 +139,48 @@ def chunked_causal_sdpa(query, key, value, *, dropout: float = 0.0,
         raise ValueError(f"kv_len {kv_len} < q_len {S}: not a causal decoder call")
     n_heads = query.shape[1]
     chunk = safe_chunk(n_heads, kv_len, chunk_hint, query.element_size(), score_bytes)
+    # Chunking bounds the size of any ONE score tensor; it does not bound their SUM. With
+    # grad enabled each block saves its own softmax output for backward, so the total is
+    # the whole `[heads, q_len, kv_len]` matrix either way — 32 GiB at q 8192 / kv 32768,
+    # 64 GiB at q 16384 (which OOMed at 142 GiB allocated). Recomputing each block in
+    # backward drops that to one block at a time, for one extra attention pass.
+    recompute = recompute_scores and torch.is_grad_enabled() and query.requires_grad
     outs = []
     for i in range(0, S, chunk):
         j = min(i + chunk, S)
         if attention_mask is None:
-            # Causal: block i only ever attends to keys < offset+j, so slice K/V and mask
-            # the block-diagonal. tril(diagonal=offset+i) is the causal pattern for the
-            # absolute query rows offset+i .. offset+j.
-            mask = torch.ones(j - i, offset + j, dtype=torch.bool,
-                              device=query.device).tril(diagonal=offset + i)
             k_c, v_c = key[:, :, :offset + j], value[:, :, :offset + j]
         else:
             # A caller-supplied mask may be non-causal (padding, packing); keep all of K/V
             # and slice only the query rows out of it.
-            mask = attention_mask[..., i:j, :]
             k_c, v_c = key, value
-        outs.append(torch.nn.functional.scaled_dot_product_attention(
-            query[:, :, i:j], k_c, v_c, attn_mask=mask, dropout_p=dropout,
-            scale=scaling, is_causal=False, **sdpa_kwargs))
+
+        def block(q_b, k_b, v_b, i=i, j=j):
+            if attention_mask is None:
+                # Causal: block i only attends to keys < offset+j. tril(diagonal=offset+i)
+                # is the causal pattern for absolute query rows offset+i .. offset+j.
+                # Built INSIDE the block so it is recomputed rather than saved.
+                m = torch.ones(j - i, offset + j, dtype=torch.bool,
+                               device=q_b.device).tril(diagonal=offset + i)
+            else:
+                m = attention_mask[..., i:j, :]
+            return torch.nn.functional.scaled_dot_product_attention(
+                q_b, k_b, v_b, attn_mask=m, dropout_p=dropout,
+                scale=scaling, is_causal=False, **sdpa_kwargs)
+
+        q_c = query[:, :, i:j]
+        if recompute:
+            outs.append(torch.utils.checkpoint.checkpoint(
+                block, q_c, k_c, v_c, use_reentrant=False))
+        else:
+            outs.append(block(q_c, k_c, v_c))
     return torch.cat(outs, dim=2)
 
 
 def enable_chunked_sdpa(chunk_hint: int = DEFAULT_CHUNK,
                         chunk_above: int = CHUNK_ABOVE,
-                        score_bytes: int = DEFAULT_SCORE_BYTES) -> None:
+                        score_bytes: int = DEFAULT_SCORE_BYTES,
+                        recompute_scores: bool = True) -> None:
     """Patch transformers' ``sdpa`` attention to chunk long windows. Idempotent."""
     global _original_sdpa
     from transformers.integrations import sdpa_attention as _sdpa_mod
@@ -203,7 +226,8 @@ def enable_chunked_sdpa(chunk_hint: int = DEFAULT_CHUNK,
                 value = _sdpa_mod.repeat_kv(value, module.num_key_value_groups)
         out = chunked_causal_sdpa(query, key, value, dropout=dropout, scaling=scaling,
                                   attention_mask=attention_mask, chunk_hint=chunk_hint,
-                                  score_bytes=score_bytes, **sdpa_kwargs)
+                                  score_bytes=score_bytes,
+                                  recompute_scores=recompute_scores, **sdpa_kwargs)
         return out.transpose(1, 2).contiguous(), None
 
     _sdpa_mod.sdpa_attention_forward = forward
