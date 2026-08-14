@@ -16,9 +16,9 @@ from __future__ import annotations
 import argparse
 import re
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 import numpy as np
 
@@ -36,7 +36,6 @@ from quant_tuner.calibrate.imatrix import (
 from quant_tuner.experiments import log, phase, step
 from quant_tuner.models.hf_gguf_map import is_ssm
 from quant_tuner.quantize import gguf
-
 
 MODEL = "Jackrong/Qwopus3.5-9B-Coder"
 SLUG = MODEL.replace("/", "__")

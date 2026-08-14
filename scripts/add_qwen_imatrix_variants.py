@@ -30,10 +30,10 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
 
-from quant_tuner.bench import runner as bench_runner   # noqa: E402
-from quant_tuner.experiments import log, phase, step   # noqa: E402
-from quant_tuner.models import llama_cpp                # noqa: E402
-from quant_tuner.quantize import gguf as gguf_mod       # noqa: E402
+from quant_tuner.bench import runner as bench_runner  # noqa: E402
+from quant_tuner.experiments import log, phase, step  # noqa: E402
+from quant_tuner.models import llama_cpp  # noqa: E402
+from quant_tuner.quantize import gguf as gguf_mod  # noqa: E402
 
 WORKSPACE = REPO / "out/benchmark_9b_iq3s"
 SLUG = "qwen"
@@ -46,7 +46,7 @@ WIKI_MAX_BYTES = 2_500_000   # ≈ 600 K wikitext characters ≈ 200–300 K tok
 def _build_wiki_corpus(out_path: Path) -> None:
     """Concatenate wikitext-2-raw-v1 train rows into a single .txt file."""
     from datasets import load_dataset
-    log(f"  downloading wikitext-2-raw-v1 …")
+    log("  downloading wikitext-2-raw-v1 …")
     ds = load_dataset("wikitext", "wikitext-2-raw-v1", split="train", trust_remote_code=False)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     total = 0
@@ -142,7 +142,7 @@ def main() -> int:
     ref_n_params = _n_params(f16)
     log(f"reference n_params (qwen f16): {ref_n_params:,}")
 
-    log(f"=== qwen extra IQ3_S variants ===")
+    log("=== qwen extra IQ3_S variants ===")
     log(f"  f16:       {f16}")
     log(f"  eval:      {eval_ds}")
     log(f"  baseline:  {eval_kld}")

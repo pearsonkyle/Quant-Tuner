@@ -36,9 +36,8 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
 
-from quant_tuner.experiments import log, phase, step
+from quant_tuner.experiments import log, phase
 from quant_tuner.quantize import convert, gguf
-
 
 WORKSPACE = REPO / "out/benchmark_9b_iq3s"
 TRAINING_STEPS = 293   # 2 epochs over 585 chunks @ grad_accum=4

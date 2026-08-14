@@ -48,3 +48,6 @@ vendor/llama.cpp-prism/
 
 # qwen-code local session state
 .qwen/
+
+# unsloth compiled kernels cache
+unsloth_compiled_cache/

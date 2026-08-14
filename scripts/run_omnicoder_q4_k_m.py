@@ -27,7 +27,6 @@ from quant_tuner.leaderboard import aggregate
 from quant_tuner.models import extract, llama_cpp
 from quant_tuner.quantize import convert, gguf
 
-
 WORK = REPO / "out" / "omnicoder_q4_k_m"
 LOGS = WORK / "logs"
 SRC_MODEL = "Tesslate/OmniCoder-9B"

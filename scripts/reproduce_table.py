@@ -47,14 +47,14 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
 
 from quant_tuner.bench import bpw as bpw_mod
-from quant_tuner.bench import kld, runner, speed as speed_mod
+from quant_tuner.bench import kld, runner
+from quant_tuner.bench import speed as speed_mod
 from quant_tuner.calibrate import imatrix
 from quant_tuner.data import ingest, split
 from quant_tuner.experiments import log, phase, step
 from quant_tuner.leaderboard import aggregate
 from quant_tuner.models import extract, llama_cpp
 from quant_tuner.quantize import convert, gguf
-
 
 # ---------------------------------------------------------------------------
 # Layout

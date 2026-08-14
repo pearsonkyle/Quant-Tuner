@@ -97,7 +97,7 @@ def _section(stats: ForwardStats, signal_label: str, signal_key: str,
         if sus:
             suspects.append(cls)
         lines.append(_fmt_row(cls, d, sus))
-    lines.append("\n_⚠ = max/p99 > {:.0f}× (extreme single-channel skew suspected)_\n".format(threshold))
+    lines.append(f"\n_⚠ = max/p99 > {threshold:.0f}× (extreme single-channel skew suspected)_\n")
     return lines, suspects
 
 
