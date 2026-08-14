@@ -164,9 +164,34 @@ def install_config_of(instance: dict) -> dict:
     return cfg if isinstance(cfg, dict) else {}
 
 
+#: install_config keys that only the V1 (conda + /testbed) images carry.
+_V1_INSTALL_KEYS = frozenset({"env_yml_path", "reqs_path", "packages", "python", "no_use_env"})
+
+
 def is_v2_instance(instance: dict) -> bool:
-    """True for SWE-rebench-V2 rows — they name their own log parser."""
-    return bool(install_config_of(instance).get("log_parser"))
+    """True for SWE-rebench-V2 rows (multi-language, ``/<repo-name>``, no conda).
+
+    Do NOT key this on ``log_parser`` alone. V1 rows name a parser too — every V1
+    Python row carries ``log_parser: parse_log_pytest`` — so that test classifies the
+    entire V1 Python holdout as V2, sends the agent to ``/<repo-name>`` (a directory
+    Docker then creates EMPTY), and every run comes back with
+    ``fatal: not a git repository`` as its "patch". That reads downstream as a
+    non-empty diff, i.e. a **100% patch rate on an empty directory**.
+
+    Two independent signals, either of which is decisive:
+      * image namespace — V1 is ``swerebench/sweb.eval.x86_64.*``, V2 is
+        ``docker.io/swerebenchv2/*``
+      * install_config shape — V1 rows carry conda/pip bootstrap keys; V2 rows do not
+    """
+    image = str(instance.get("image_name") or instance.get("docker_image") or "")
+    if "swerebenchv2" in image:
+        return True
+    if "sweb.eval." in image:
+        return False
+    cfg = install_config_of(instance)
+    if _V1_INSTALL_KEYS & set(cfg):
+        return False
+    return bool(cfg.get("log_parser"))
 
 
 def v2_workdir(instance: dict) -> str:
