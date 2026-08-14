@@ -244,11 +244,16 @@ Method B below); `--no-chunked-attention` to restore the stock SDPA kernel and i
   reason to use it selectively.** Real training loop, all-36 / fp32 / adafactor, M4 Max
   128 GB, `scripts/probe_window_budget.py`:
 
-  | window | trained tail | s/step (accum 2) | ms / **trained** token | swap Δ | outcome |
-  |---|---|---|---|---|---|
-  | 8064 | full | 232 | **14.4** | flat | clean |
-  | 16128 | full | — | — | — | no step (documented) |
-  | 32768 | 8192 | 1964 | **119.9** | +3.7 GB | **completes, does not OOM** |
+  | window | trained tail | layers | s/step (accum 2) | ms / **trained** token | swap Δ | outcome |
+  |---|---|---|---|---|---|---|
+  | 8064 | full | 36 | **178** | **11.1** | flat | clean |
+  | 16128 | full | 36 | — | — | — | no step (documented) |
+  | 32768 | 8192 | 36 | **2230** | **136** | **+29 GB** | steps, but swap-bound |
+
+  Both 32768 rows were taken on an idle box after a 150 s cooldown, so the swap is real,
+  not leftover pressure. It is also the whole story: a roofline estimate from the measured
+  ~3.6 TFLOP/s puts the *compute* for that step at ~890 s, so **~1300 s of the 2230 is
+  swap**. The configuration is memory-bound, not compute-bound.
 
   So prefix-context buys a window that full-gradient training could not reach at any
   speed — but at **8.3× the cost per trained token**, because the `no_grad` prefix still
@@ -265,6 +270,27 @@ Method B below); `--no-chunked-attention` to restore the stock SDPA kernel and i
   Caveat on the probe itself: give it `--cooldown` (default 120 s) between configurations.
   A config launched while macOS still holds the previous one's swap gets SIGKILLed during
   model load in ~30 s, which reads as "this configuration OOMs" when it never ran.
+- **Validate prefix-context before spending a long run on it.**
+  `scripts/validate_prefix_context.py` compares the prefix-split loss against a full-window
+  forward over the same target set on the real 36-layer model:
+
+  ```bash
+  PYTHONPATH=src python scripts/validate_prefix_context.py \
+      --corpus out/exp-058/sft_corpus_universal_8064.pt --tail 4096 --windows 4
+  ```
+
+  Measured: **delta 0.00e+00 on 4/4 windows** — bit-exact, not merely within tolerance.
+  All three ways the split fails silently (prefix dropped, mask anchored top-left,
+  `position_ids` restarted) surface here as a loss mismatch and in **none** of them does
+  the training curve look wrong. Run it at a window small enough that the full-gradient
+  reference still fits, then trust the mechanism at 32768.
+- **bf16 is not an option for long windows on Metal.** Chunked attention, one 32-head
+  layer, no_grad: bf16 is par with fp32 at 8064 (161 vs 151 ms) and **collapses at 32768
+  — 68,346 ms vs 2,456 ms, 0.1 vs 3.6 TFLOP/s**. A pathological MPS path, not a gradual
+  falloff. fp32 holds a flat ~3.6 TFLOP/s across 8064 / 16384 / 32768, i.e. attention is
+  running near this GPU's roofline and scales cleanly as S².
+  (Also: torch's `is_causal` is **not** fused on MPS — at 32768 it asks for a 128 GiB
+  buffer. There is no inference fast path to borrow for the no_grad prefix.)
 - **fp32 latents, not bf16.** bf16 either destabilizes (high lr) or *underflows* the
   ternary threshold so no codes flip (low lr) — a ~lr update is below one bf16 ulp of
   a ~1e-2 latent. `--compute-dtype bf16` is the supported middle path: fp32 masters

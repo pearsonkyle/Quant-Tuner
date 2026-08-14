@@ -202,3 +202,14 @@ def test_byte_budget_does_not_change_the_numerics():
                                                            enable_gqa=True)
     tiny = chunked_causal_sdpa(q, k, v, score_bytes=1 << 20, enable_gqa=True)
     assert torch.equal(ref, tiny)
+
+
+def test_cost_per_trained_token_falls_as_the_tail_grows():
+    """Attention is ~S^2 per window whatever the prefix/tail split, so cost per TRAINED
+    token goes as S^2/T. Minimizing the tail minimizes memory and maximizes cost — the
+    probe grid must sweep the tail UPWARD. This pins the arithmetic that decides it."""
+    S = 32768
+    cost = {T: S * S / T for T in (4096, 8192, 16384, 24576)}
+    assert cost[4096] > cost[8192] > cost[16384] > cost[24576]
+    # ...and a full-gradient short window is still far cheaper per trained token
+    assert 8064 * 8064 / 8064 < cost[24576]
