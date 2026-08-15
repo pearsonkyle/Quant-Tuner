@@ -50,6 +50,10 @@ class DatasetSpec:
     splits: list[SplitSpec]
     hf_owner: str = "pearsonkyle"
     license: str = "other"          # provenance is documented in the card; see note below
+    # Refuse a PUBLIC upload of this dataset. For content that is not ours to publish (real
+    # captured usage), remembering `--private` at the call site is not a control — the
+    # registry has to be the thing that says no.
+    private_only: bool = False
     task_categories: list[str] = field(default_factory=lambda: ["text-generation"])
     tags: list[str] = field(default_factory=list)
     # Long-form markdown appended to the card body (provenance, schema, caveats).
@@ -84,6 +88,15 @@ def _redteam(flagged_only: bool) -> Callable[[], Iterator[dict]]:
         from quant_tuner.datasets.redteam_disclosures import iter_redteam_records
 
         yield from iter_redteam_records(flagged_only=flagged_only)
+
+    return build
+
+
+def _universal_sft(split: str) -> Callable[[], Iterator[dict]]:
+    def build() -> Iterator[dict]:
+        from quant_tuner.datasets.universal_sft import iter_sft_records
+
+        yield from iter_sft_records(split)
 
     return build
 
@@ -354,7 +367,119 @@ templated prompts as authored ones is the kind of thing that is discovered later
 """
 
 
+_UNIVERSAL_SFT_BODY = """
+## ⚠️ Private by design
+
+This dataset carries **real captured usage** — interactive CLI coding sessions and agent
+trajectories, ~91% of it by character count. Those logs contain prompts, file contents and
+paths from actual work and are not ours to publish. The registry marks this dataset
+`private_only`, so `scripts/dataset.py push` **refuses a public upload** rather than relying
+on anyone remembering `--private`. Keep the repo private. Do not mirror it.
+
+## What one row is
+
+One complete conversation, exactly as it happened, with nothing trimmed: no windowing, no
+tool-output clipping, no system/schema stubbing, and no chat template applied. `tool_calls`
+and `reasoning_content` stay as separate message fields so a trainer can render them through
+whichever template it wants.
+
+## Sources
+
+| `source` | what it is |
+| --- | --- |
+| `logs` | interactive CLI coding sessions (Claude Code / opencode / qwen code) |
+| `logs-agents` | harvested agent trajectories, 19 languages, tests-verified |
+| `swe-trajectories` | verified SWE-rebench solver runs — real issues, hidden tests passed |
+| `broad-instruct` | the broad-domain supplement's instruction view |
+| `redteam-refusals` | red-team attack prompts paired with **generic refusals** |
+
+The refusal rows never carry what a target model actually said. Every assistant turn is
+replaced from a deterministic refusal bank; the original completions and `target_reasoning`
+do not reach this file. Refusal behaviour is what low-bit quantization erodes first, so the
+attack *distribution* belongs in training — the harmful responses do not.
+
+## The split is an eval boundary, not a ratio
+
+`split` mirrors the calibration corpus's own assignment, so training on `train` leaves the
+tools / agentic / breadth / refusal PPL-KLD eval holdouts genuinely held out. It is not a
+conventional train/validation ratio and should not be reshuffled — re-splitting it randomly
+would put eval rows into training and quietly invalidate every downstream number.
+
+## Using it
+
+```python
+from datasets import load_dataset
+
+ds = load_dataset("pearsonkyle/universal-sft-mixture", split="train")
+agentic = ds.filter(lambda r: r["source"] in ("logs-agents", "swe-trajectories"))
+```
+
+Straight into the repo's QAT path, which is what this file is the input to:
+
+```bash
+PYTHONPATH=src python scripts/build_sft_qat_corpus.py \\
+    --sft out/corpora/qwen3-universal-v2/sft.jsonl.gz \\
+    --window 8064 --max-tool-tokens 3072 --min-density 0.05 \\
+    --out out/sft_corpus_8064.pt
+```
+
+Scale `--max-tool-tokens` with the window (3072 at 8064, 4096 at 12288). 1024 was only ever
+right at a 4096 window and drops 28% of all conversation content.
+
+## Caveats
+
+* **System prompts are scrubbed, not anonymized.** Repeated agent-harness boilerplate is
+  dropped; a repeated block is *kept* when it names a path this conversation actually
+  touches. That is a relevance filter, not a privacy control — real paths and file contents
+  remain throughout.
+* **Heavily imbalanced by length.** `broad-instruct` is 83% of the rows and 5% of the
+  characters; the two log sources are 10% of rows and 91% of characters. Budget per source
+  when training, or the logs dominate.
+* Tool outputs are raw container/shell stdout and can be very long.
+* Reasoning survives a render only on assistant turns after the last user turn — the whole
+  conversation for an agentic trajectory, only the tail for a multi-turn chat log.
+* Token counts are off by default in the build (they cost a second pass and are specific to
+  whichever tokenizer built it), so rows carry `n_chars` rather than `n_tokens`.
+"""
+
+
 REGISTRY: list[DatasetSpec] = [
+    DatasetSpec(
+        name="universal-sft-mixture",
+        title="Universal SFT Mixture",
+        summary=(
+            "Full conversations from every source the calibration pipeline uses — CLI logs, "
+            "agent trajectories, verified SWE solutions, broad-domain instructions and "
+            "refusal pairs — one schema, split-tagged to match the calibration corpus."
+        ),
+        splits=[
+            SplitSpec("train", _universal_sft("train"),
+                      "everything outside the eval holdouts — the fine-tuning set"),
+            SplitSpec("holdout", _universal_sft("holdout"),
+                      "the tools / agentic / breadth / refusal eval holdouts"),
+            SplitSpec("test", _universal_sft("test"),
+                      "the logs' test slice"),
+        ],
+        license="other",
+        private_only=True,
+        task_categories=["text-generation"],
+        tags=["sft", "instruction-tuning", "agentic", "tool-use", "qat", "distillation",
+              "private"],
+        body=_UNIVERSAL_SFT_BODY,
+        schema_md=(
+            "| field | meaning |\n"
+            "| --- | --- |\n"
+            "| `id` | stable id of the source conversation |\n"
+            "| `source` | which corpus it came from (see the table above) |\n"
+            "| `split` | `train` / `holdout` / `test` — **an eval boundary, not a ratio** |\n"
+            "| `messages` | the full conversation; `tool_calls` and `reasoning_content` "
+            "are separate message fields, no template applied |\n"
+            "| `tools` | the tool schemas the conversation was conditioned on, where it had any |\n"
+            "| `meta` | per-source extras (repo/instance for SWE, area/register for breadth) |\n"
+            "| `n_messages`, `n_tool_calls`, `n_tool_results`, `n_reasoning`, `n_chars` | shape |"
+        ),
+        default_split="train",
+    ),
     DatasetSpec(
         name="broad-domain-supplement",
         title="Broad-Domain Calibration & Instruction Supplement",

@@ -325,6 +325,11 @@ def push(spec: DatasetSpec, *, version: str, note: str = "", private: bool = Fal
     ``private``** — a dual-use dataset's harmful content may go to your own private
     repo on purpose, but must never be pushed to a public one by accident.
     """
+    if spec.private_only and not private:
+        raise ValueError(
+            f"{spec.name} is marked private_only: it carries content that is not ours to "
+            f"publish (see its card). Pass --private to push it to your own private repo."
+        )
     if include_withheld and not private:
         raise ValueError(
             "refusing to upload withheld (publish=False) splits to a PUBLIC repo. "
