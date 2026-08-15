@@ -260,3 +260,33 @@ def test_recompute_scores_works_with_a_cached_prefix():
     got = chunked_causal_sdpa(q, k, v, chunk_hint=64, enable_gqa=True,
                               recompute_scores=True)
     assert torch.equal(ref, got)
+
+
+def test_recompute_actually_defers_the_scores_to_backward():
+    """If `recompute_scores` silently stops firing — e.g. the requires_grad probe goes
+    False — the forward and gradients stay correct and the only symptom is that a long
+    window OOMs again. Count the SDPA calls instead: with recompute on, backward must
+    re-run them."""
+    import torch.nn.functional as F
+    calls = {"fwd": 0, "bwd": 0}
+    phase = ["fwd"]
+    real = F.scaled_dot_product_attention
+
+    def counting(*a, **kw):
+        calls[phase[0]] += 1
+        return real(*a, **kw)
+
+    q, k, v = _qkv(512, heads=4, kv=4)
+    q.requires_grad_(True)
+    F.scaled_dot_product_attention = counting
+    try:
+        out = chunked_causal_sdpa(q, k, v, chunk_hint=64, recompute_scores=True)
+        n_blocks = calls["fwd"]
+        phase[0] = "bwd"
+        out.sum().backward()
+    finally:
+        F.scaled_dot_product_attention = real
+    assert n_blocks == 8, f"expected 8 query blocks, got {n_blocks}"
+    assert calls["bwd"] == n_blocks, (
+        f"backward re-ran {calls['bwd']} of {n_blocks} blocks — scores are being SAVED, "
+        "not recomputed, and a long window will OOM")

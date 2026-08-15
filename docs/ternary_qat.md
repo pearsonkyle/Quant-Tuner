@@ -244,23 +244,33 @@ Method B below); `--no-chunked-attention` to restore the stock SDPA kernel and i
   reason to use it selectively.** Real training loop, all-36 / fp32 / adafactor, M4 Max
   128 GB, `scripts/probe_window_budget.py`:
 
-  | window | trained tail | s/step (accum 2) | ms / **trained** token | swap Δ | outcome |
-  |---|---|---|---|---|---|
-  | 8064 | full | **178** | **11.1** | flat | clean |
-  | 16128 | full | — | — | — | no step (documented) |
-  | 32768 | 8192, saved scores | 2230 | 136 | **+29 GB** | steps, swap-bound |
-  | 32768 | 16384, saved scores | — | — | — | **OOM at 142.6 GiB** |
-  | 32768 | 8192, **recomputed scores** | **1790** | **109** | **+1.05 GB** | clean, compute-bound |
+  All rows below: real training loop, all-36 / fp32 / adafactor, accum 2, idle box after a
+  150 s cooldown. **With scores recomputed** unless noted.
 
-  All rows on an idle box after a 150 s cooldown. The swap in the middle rows was NOT
-  leftover pressure — it was the attention weights saved for backward (see the score-
-  recomputation note above), and recomputing them removes essentially all of it.
+  | config | s/step | ms / **trained** token | vs 8064 | targets trained | SWE convs whole | swap Δ |
+  |---|---|---|---|---|---|---|
+  | 8064 full-gradient | 178 | **11.1** | 1.0x | **100%** | 27% | flat |
+  | **16128 full-gradient** | **626** | **19.4** | **1.8x** | **100%** | **68%** | +2.6 GB |
+  | 32768, tail 16384 | 1490 | 45.5 | 4.1x | 54% | 97% | −0.2 GB |
+  | 32768, tail 8192 | 1790 | 109 | 9.9x | 26% | 97% | +1.0 GB |
+  | 32768, tail 24576 | — | — | — | — | — | **OOM at 133.8 GiB** |
+  | *32768, tail 8192, scores SAVED* | *2230* | *136* | *12.3x* | *26%* | *97%* | *+29 GB* |
+  | *32768, tail 16384, scores SAVED* | — | — | — | — | — | *OOM at 142.6 GiB* |
 
-  What is left is genuine compute: **~10x per trained token vs a full-gradient 8064
-  window**, because a 32768 window forwards 4 tokens for every 1 it trains and attention
-  is quadratic. That ratio is the thing to attack — a bigger tail lowers it directly — but
-  it will not approach 1x, so spend the long window where whole-session context actually
-  buys something.
+  **Prefer a full-gradient long window over a longer window with a prefix.** The old
+  "16128 completes no step in 31 min at 99% swap" was 31 GiB of *saved attention weights*,
+  nothing else; recomputing them makes 16128 a clean 626 s/step. It beats 32768+prefix on
+  every axis but whole-conversation coverage, and by a lot — 2.3x cheaper per trained
+  token than tail 16384 while training **100%** of the labeled targets instead of 54%.
+
+  That last column is the one that is easy to miss: a prefix does not merely cost compute,
+  it **discards training signal**. Targets are spread evenly through a window, so a tail of
+  T out of W keeps ~T/W of them. Measured on the 32768 SWE corpus (26 windows, 267,392
+  labeled targets): tail 8192 keeps 25.9%, tail 16384 keeps 53.7%. Paying 9.9x per token
+  to train a quarter of them is the worst of both.
+
+  Prefix-context earns its keep only *past* the full-gradient ceiling — when activations
+  for the whole window will not fit at all.
 
   So prefix-context buys a window that full-gradient training could not reach at any
   speed — but at **8.3× the cost per trained token**, because the `no_grad` prefix still
