@@ -57,6 +57,48 @@ PYTHONPATH=src .venv/bin/python scripts/build_sft_qat_corpus.py \
 bash scripts/run_sft_qat_pipeline.sh 5e-4 mytag 1.0        # LR / tag / epochs
 ```
 
+### The long-window run (32768, full gradient)
+
+Preferred for anything agentic. 97% of SWE trajectories fit whole, every labeled target
+is trained, and it costs 2.5x per token vs 8064 (see the window table below for why a
+*prefix* is the wrong tool here).
+
+```bash
+# 1. corpora. --max-tool-tokens scales with the window; at 8192 nothing is truncated.
+PYTHONPATH=src .venv/bin/python scripts/build_sft_qat_corpus.py \
+    --sft out/corpora/qwen3-universal/sft.jsonl.gz --source swe-trajectories \
+    --window 32768 --max-tool-tokens 8192 --min-density 0.05 \
+    --out out/exp-058/sft_corpus_swe_32768.pt          # 26 windows, 878,010 tok
+PYTHONPATH=src .venv/bin/python scripts/build_sft_qat_corpus.py \
+    --sft out/corpora/qwen3-universal/sft.jsonl.gz --split test \
+    --window 32768 --max-tool-tokens 8192 --min-density 0.05 \
+    --out out/exp-058/sft_corpus_val_32768.pt          # 81 windows
+# NOTE: swe-trajectories has NO rows in the `test` split, so val is agentic-log
+# distribution, not held-out SWE. The real gate stays the SWE-rebench holdout.
+
+# 2. gate — run this BEFORE the long job, not after it fails
+PYTHONPATH=src .venv/bin/python scripts/validate_prefix_context.py \
+    --corpus out/exp-058/sft_corpus_universal_8064.pt --tail 4096 --windows 4
+
+# 3. train. accum 1 (not 2): 26 windows is a small corpus and accum 2 leaves only
+#    13 steps/epoch — too few for the cosine schedule or the grad-spike guard's
+#    20-step median window.
+PYTHONPATH=src .venv/bin/python -m quant_tuner.qat.train \
+    --corpus out/exp-058/sft_corpus_swe_32768.pt \
+    --val-corpus out/exp-058/sft_corpus_val_32768.pt \
+    --train-layers 36 --optim adafactor --dtype fp32 \
+    --grad-accum 1 --epochs 4.0 --lr 5e-4 --warmup-frac 0.05 \
+    --stop-weight 6.0 --val-every 10 --ckpt-every 15 --ckpt-keep 3 \
+    --out out/exp-058/swe32k
+```
+
+~900 s/step at accum 1, 26 steps/epoch → **~26 h for 4 epochs**. Healthy steady state:
+`mem=31.5GiB`, swap flat or declining. Watch `gnorm` and the flip telemetry, not the loss.
+
+`--stop-weight 6.0` is the other half of the fix: the corpus has 1,915 terminating
+`<|im_end|>` targets against 267,392 labeled targets, so unweighted the run sees ~140
+"keep going" decisions per "stop" one.
+
 `run_sft_qat_pipeline.sh LR TAG EPOCHS` reads these env overrides: `CORPUS`, `VAL`,
 `CKPT_EVERY` (default 10). Interrupted? The trainer signal-saves, and
 `--resume <out>/trained_latents.pt` continues with data order, step and Adafactor state
@@ -244,27 +286,39 @@ Method B below); `--no-chunked-attention` to restore the stock SDPA kernel and i
   reason to use it selectively.** Real training loop, all-36 / fp32 / adafactor, M4 Max
   128 GB, `scripts/probe_window_budget.py`:
 
-  | window | trained tail | s/step (accum 2) | ms / **trained** token | swap Δ | outcome |
-  |---|---|---|---|---|---|
-  | 8064 | full | 232 | **14.4** | flat | clean |
-  | 16128 | full | — | — | — | no step (documented) |
-  | 32768 | 8192 | 1964 | **119.9** | +3.7 GB | **completes, does not OOM** |
+  All rows: real training loop, all-36 / fp32 / adafactor, accum 2, idle box after a 150 s
+  cooldown, **scores recomputed** unless italicised.
 
-  So prefix-context buys a window that full-gradient training could not reach at any
-  speed — but at **8.3× the cost per trained token**, because the `no_grad` prefix still
-  forwards 24576 tokens through 36 layers with O(S²) attention every single step. A full
-  epoch over the 2088-window corpus would go from ~67 h to ~570 h. That is not a run.
+  | config | s/step | ms / **trained** token | vs 8064 | targets trained | SWE convs whole | swap Δ |
+  |---|---|---|---|---|---|---|
+  | 8064 full-gradient | 178 | 11.1 | 1.0x | 100% | 27% | flat |
+  | 16128 full-gradient | 626 | 19.4 | 1.8x | 100% | 68% | +2.6 GB |
+  | 20480 full-gradient | 1061 | 25.9 | 2.3x | 100% | 81% | +1.5 GB |
+  | 24576 full-gradient | 1372 | 27.9 | 2.5x | 100% | 88% | +2.1 GB |
+  | **32768 full-gradient** | **1792** | **27.3** | **2.5x** | **100%** | **97%** | **−3.9 GB** |
+  | 32768, tail 16384 | 1490 | 45.5 | 4.1x | 54% | 97% | −0.2 GB |
+  | 32768, tail 8192 | 1790 | 109 | 9.9x | 26% | 97% | +1.0 GB |
+  | 32768, tail 24576 | — | — | — | — | — | **OOM 133.8 GiB** |
+  | *32768, tail 8192, scores SAVED* | *2230* | *136* | *12.3x* | *26%* | *97%* | *+29 GB* |
+  | *32768, tail 16384, scores SAVED* | — | — | — | — | — | *OOM 142.6 GiB* |
 
-  **Spend the long window where it pays.** `swe-trajectories` is 106 of 2088 windows (5%
-  of windows, 868k tokens) and is the only source the SWE-rebench eval actually grades.
-  Repacked at 32768 that is ~27 windows; **4 epochs over just those costs ~30 h** — the
-  same order as the original 8064 run — while the other 95% of the corpus keeps the 8064
-  window it already trains well at. Shrinking the *tail* does not help; the prefix is the
-  cost.
+  **Train the full window; do not use a prefix at 32768.** Recomputing the attention
+  scores is the whole unlock — every "impossible" long window in the old table was really
+  N GiB of *saved attention weights* (31 GiB at 16128, 128 GiB at 32768) and nothing else.
+  With that fixed, **32768 full-gradient runs at 2.5x the per-token cost of 8064 with swap
+  DECLINING**, trains 100% of the labeled targets, and keeps 97% of SWE trajectories whole.
 
-  Caveat on the probe itself: give it `--cooldown` (default 120 s) between configurations.
-  A config launched while macOS still holds the previous one's swap gets SIGKILLed during
-  model load in ~30 s, which reads as "this configuration OOMs" when it never ran.
+  Cost per trained token is essentially flat from 20480 to 32768 (25.9 / 27.9 / 27.3 ms) —
+  the quadratic attention term is still small next to the linear layers at this model size,
+  so the extra context is nearly free. Take the longest window that fits.
+
+  `--trained-tail` is now a fallback, not the plan. A prefix does not merely cost compute,
+  it **discards training signal**: targets are spread evenly through a window, so a tail of
+  T out of W trains ~T/W of them (measured on the 32768 SWE corpus, 26 windows / 267,392
+  labeled targets: tail 8192 → 25.9%, tail 16384 → 53.7%). At 32768 the prefix version is
+  both slower per trained token *and* trains half the data. Reach for it only past the
+  full-gradient activation ceiling — a longer window, or a bigger model.
+
 - **fp32 latents, not bf16.** bf16 either destabilizes (high lr) or *underflows* the
   ternary threshold so no codes flip (low lr) — a ~lr update is below one bf16 ulp of
   a ~1e-2 latent. `--compute-dtype bf16` is the supported middle path: fp32 masters

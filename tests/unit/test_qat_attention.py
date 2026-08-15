@@ -202,3 +202,91 @@ def test_byte_budget_does_not_change_the_numerics():
                                                            enable_gqa=True)
     tiny = chunked_causal_sdpa(q, k, v, score_bytes=1 << 20, enable_gqa=True)
     assert torch.equal(ref, tiny)
+
+
+def test_cost_per_trained_token_falls_as_the_tail_grows():
+    """Attention is ~S^2 per window whatever the prefix/tail split, so cost per TRAINED
+    token goes as S^2/T. Minimizing the tail minimizes memory and maximizes cost — the
+    probe grid must sweep the tail UPWARD. This pins the arithmetic that decides it."""
+    S = 32768
+    cost = {T: S * S / T for T in (4096, 8192, 16384, 24576)}
+    assert cost[4096] > cost[8192] > cost[16384] > cost[24576]
+    # ...and a full-gradient short window is still far cheaper per trained token
+    assert cost[24576] > 8064 * 8064 / 8064
+
+
+# --- score recomputation ----------------------------------------------------------------
+#
+# Chunking bounds ONE block's score tensor; it does not bound their sum. With grad enabled
+# every block saves its own softmax output, so the saved total is the whole
+# [heads, q_len, kv_len] matrix regardless of block size — 64 GiB at q 16384 / kv 32768,
+# which OOMed the real model at 142 GiB allocated. Checkpointing each block trades one
+# extra attention pass for that.
+
+def test_recompute_scores_does_not_change_the_forward():
+    q, k, v = _qkv(512, heads=4, kv=4)
+    q.requires_grad_(True)
+    a = chunked_causal_sdpa(q, k, v, chunk_hint=64, recompute_scores=False)
+    b = chunked_causal_sdpa(q, k, v, chunk_hint=64, recompute_scores=True)
+    assert torch.equal(a, b)
+
+
+def test_recompute_scores_does_not_change_the_gradient():
+    q, k, v = _qkv(512, heads=4, kv=4)
+    qa = q.clone().requires_grad_(True)
+    qb = q.clone().requires_grad_(True)
+    chunked_causal_sdpa(qa, k, v, chunk_hint=64, recompute_scores=False).sum().backward()
+    chunked_causal_sdpa(qb, k, v, chunk_hint=64, recompute_scores=True).sum().backward()
+    assert torch.allclose(qa.grad, qb.grad, atol=1e-6)
+
+
+def test_recompute_is_inert_without_grad():
+    """No graph, nothing to save — the checkpoint must not fire (it would cost a second
+    forward for nothing on the no_grad prefix pass, which is the expensive one)."""
+    q, k, v = _qkv(256, heads=4, kv=4)
+    with torch.no_grad():
+        ref = chunked_causal_sdpa(q, k, v, chunk_hint=32, recompute_scores=False)
+        got = chunked_causal_sdpa(q, k, v, chunk_hint=32, recompute_scores=True)
+    assert torch.equal(ref, got)
+
+
+def test_recompute_scores_works_with_a_cached_prefix():
+    prefix, tail = 1024, 256
+    q, k, v = _cached_qkv(prefix, tail)
+    q.requires_grad_(True)
+    mask = torch.ones(tail, prefix + tail, dtype=torch.bool).tril(diagonal=prefix)
+    ref = torch.nn.functional.scaled_dot_product_attention(q, k, v, attn_mask=mask,
+                                                           enable_gqa=True)
+    got = chunked_causal_sdpa(q, k, v, chunk_hint=64, enable_gqa=True,
+                              recompute_scores=True)
+    assert torch.equal(ref, got)
+
+
+def test_recompute_actually_defers_the_scores_to_backward():
+    """If `recompute_scores` silently stops firing — e.g. the requires_grad probe goes
+    False — the forward and gradients stay correct and the only symptom is that a long
+    window OOMs again. Count the SDPA calls instead: with recompute on, backward must
+    re-run them."""
+    import torch.nn.functional as F
+    calls = {"fwd": 0, "bwd": 0}
+    phase = ["fwd"]
+    real = F.scaled_dot_product_attention
+
+    def counting(*a, **kw):
+        calls[phase[0]] += 1
+        return real(*a, **kw)
+
+    q, k, v = _qkv(512, heads=4, kv=4)
+    q.requires_grad_(True)
+    F.scaled_dot_product_attention = counting
+    try:
+        out = chunked_causal_sdpa(q, k, v, chunk_hint=64, recompute_scores=True)
+        n_blocks = calls["fwd"]
+        phase[0] = "bwd"
+        out.sum().backward()
+    finally:
+        F.scaled_dot_product_attention = real
+    assert n_blocks == 8, f"expected 8 query blocks, got {n_blocks}"
+    assert calls["bwd"] == n_blocks, (
+        f"backward re-ran {calls['bwd']} of {n_blocks} blocks — scores are being SAVED, "
+        "not recomputed, and a long window will OOM")
