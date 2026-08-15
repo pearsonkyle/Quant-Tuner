@@ -60,6 +60,9 @@ def main() -> int:
     p.add_argument("--broad-jsonl", type=Path, default=None,
                    help=f"local override for {universal.BROAD_DATASET} (default: the "
                         "staged datasets/ copy, else the Hub)")
+    p.add_argument("--broad-instruct-jsonl", type=Path, default=None,
+                   help="local broad-domain-supplement `instruct` split "
+                        "(SFT export); default = staged copy, else the Hub")
     p.add_argument("--swe-jsonl", type=Path, default=None,
                    help=f"local override for {universal.SWE_DATASET}")
     p.add_argument("--sources", nargs="+",
@@ -121,6 +124,7 @@ def main() -> int:
         log_files=tuple(a.logs),
         wiki=a.wiki,
         broad_jsonl=a.broad_jsonl,
+        broad_instruct_jsonl=a.broad_instruct_jsonl,
         swe_jsonl=a.swe_jsonl,
         sources=tuple(a.sources),
         cal_logs_tokens=a.cal_logs_tokens,
