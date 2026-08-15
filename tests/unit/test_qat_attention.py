@@ -212,7 +212,7 @@ def test_cost_per_trained_token_falls_as_the_tail_grows():
     cost = {T: S * S / T for T in (4096, 8192, 16384, 24576)}
     assert cost[4096] > cost[8192] > cost[16384] > cost[24576]
     # ...and a full-gradient short window is still far cheaper per trained token
-    assert 8064 * 8064 / 8064 < cost[24576]
+    assert cost[24576] > 8064 * 8064 / 8064
 
 
 # --- score recomputation ----------------------------------------------------------------

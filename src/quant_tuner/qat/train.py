@@ -808,9 +808,23 @@ def train_qat(cfg: QATConfig) -> int:
                       # number a run's wall-clock gets sized from.
                       f"{(time.time()-t0)/max(1, step-step0):.1f}s/step", flush=True)
             if val_ids is not None and cfg.val_every and step % cfg.val_every == 0:
+                # Release first: validation allocates a fresh set of long-window
+                # activations on top of a training cache that is already at the working-set
+                # ceiling. Measured at a 32768 window — the val interval was the only place
+                # swap moved (+11 GiB), and it dragged the surrounding steps with it.
+                if dev == "mps":
+                    torch.mps.empty_cache()
+                t_val = time.time()
                 vl = run_validation(model, val_ids, val_lbl, dev, cfg.val_windows, n_prefix)
-                emit("val", step=step, val_masked_ce=vl, val_windows=cfg.val_windows)
-                print(f"[qat] step {step} VAL masked-CE {vl:.4f}", flush=True)
+                val_s = time.time() - t_val
+                if dev == "mps":
+                    torch.mps.empty_cache()
+                emit("val", step=step, val_masked_ce=vl, val_windows=cfg.val_windows,
+                     val_seconds=val_s)
+                # Report the cost: at a long window validation is not free next to a step,
+                # and `--val-windows` is the knob that pays for itself.
+                print(f"[qat] step {step} VAL masked-CE {vl:.4f} "
+                      f"({cfg.val_windows} windows in {val_s:.0f}s)", flush=True)
             if cfg.ckpt_every and step % cfg.ckpt_every == 0:
                 save_ckpt(step)
     # drop any partial accum group before the final save
