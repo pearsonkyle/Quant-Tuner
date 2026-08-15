@@ -57,6 +57,48 @@ PYTHONPATH=src .venv/bin/python scripts/build_sft_qat_corpus.py \
 bash scripts/run_sft_qat_pipeline.sh 5e-4 mytag 1.0        # LR / tag / epochs
 ```
 
+### The long-window run (32768, full gradient)
+
+Preferred for anything agentic. 97% of SWE trajectories fit whole, every labeled target
+is trained, and it costs 2.5x per token vs 8064 (see the window table below for why a
+*prefix* is the wrong tool here).
+
+```bash
+# 1. corpora. --max-tool-tokens scales with the window; at 8192 nothing is truncated.
+PYTHONPATH=src .venv/bin/python scripts/build_sft_qat_corpus.py \
+    --sft out/corpora/qwen3-universal/sft.jsonl.gz --source swe-trajectories \
+    --window 32768 --max-tool-tokens 8192 --min-density 0.05 \
+    --out out/exp-058/sft_corpus_swe_32768.pt          # 26 windows, 878,010 tok
+PYTHONPATH=src .venv/bin/python scripts/build_sft_qat_corpus.py \
+    --sft out/corpora/qwen3-universal/sft.jsonl.gz --split test \
+    --window 32768 --max-tool-tokens 8192 --min-density 0.05 \
+    --out out/exp-058/sft_corpus_val_32768.pt          # 81 windows
+# NOTE: swe-trajectories has NO rows in the `test` split, so val is agentic-log
+# distribution, not held-out SWE. The real gate stays the SWE-rebench holdout.
+
+# 2. gate — run this BEFORE the long job, not after it fails
+PYTHONPATH=src .venv/bin/python scripts/validate_prefix_context.py \
+    --corpus out/exp-058/sft_corpus_universal_8064.pt --tail 4096 --windows 4
+
+# 3. train. accum 1 (not 2): 26 windows is a small corpus and accum 2 leaves only
+#    13 steps/epoch — too few for the cosine schedule or the grad-spike guard's
+#    20-step median window.
+PYTHONPATH=src .venv/bin/python -m quant_tuner.qat.train \
+    --corpus out/exp-058/sft_corpus_swe_32768.pt \
+    --val-corpus out/exp-058/sft_corpus_val_32768.pt \
+    --train-layers 36 --optim adafactor --dtype fp32 \
+    --grad-accum 1 --epochs 4.0 --lr 5e-4 --warmup-frac 0.05 \
+    --stop-weight 6.0 --val-every 10 --ckpt-every 15 --ckpt-keep 3 \
+    --out out/exp-058/swe32k
+```
+
+~900 s/step at accum 1, 26 steps/epoch → **~26 h for 4 epochs**. Healthy steady state:
+`mem=31.5GiB`, swap flat or declining. Watch `gnorm` and the flip telemetry, not the loss.
+
+`--stop-weight 6.0` is the other half of the fix: the corpus has 1,915 terminating
+`<|im_end|>` targets against 267,392 labeled targets, so unweighted the run sees ~140
+"keep going" decisions per "stop" one.
+
 `run_sft_qat_pipeline.sh LR TAG EPOCHS` reads these env overrides: `CORPUS`, `VAL`,
 `CKPT_EVERY` (default 10). Interrupted? The trainer signal-saves, and
 `--resume <out>/trained_latents.pt` continues with data order, step and Adafactor state
