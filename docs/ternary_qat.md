@@ -244,70 +244,39 @@ Method B below); `--no-chunked-attention` to restore the stock SDPA kernel and i
   reason to use it selectively.** Real training loop, all-36 / fp32 / adafactor, M4 Max
   128 GB, `scripts/probe_window_budget.py`:
 
-  All rows below: real training loop, all-36 / fp32 / adafactor, accum 2, idle box after a
-  150 s cooldown. **With scores recomputed** unless noted.
+  All rows: real training loop, all-36 / fp32 / adafactor, accum 2, idle box after a 150 s
+  cooldown, **scores recomputed** unless italicised.
 
   | config | s/step | ms / **trained** token | vs 8064 | targets trained | SWE convs whole | swap Δ |
   |---|---|---|---|---|---|---|
-  | 8064 full-gradient | 178 | **11.1** | 1.0x | **100%** | 27% | flat |
-  | **16128 full-gradient** | **626** | **19.4** | **1.8x** | **100%** | **68%** | +2.6 GB |
+  | 8064 full-gradient | 178 | 11.1 | 1.0x | 100% | 27% | flat |
+  | 16128 full-gradient | 626 | 19.4 | 1.8x | 100% | 68% | +2.6 GB |
+  | 20480 full-gradient | 1061 | 25.9 | 2.3x | 100% | 81% | +1.5 GB |
+  | 24576 full-gradient | 1372 | 27.9 | 2.5x | 100% | 88% | +2.1 GB |
+  | **32768 full-gradient** | **1792** | **27.3** | **2.5x** | **100%** | **97%** | **−3.9 GB** |
   | 32768, tail 16384 | 1490 | 45.5 | 4.1x | 54% | 97% | −0.2 GB |
   | 32768, tail 8192 | 1790 | 109 | 9.9x | 26% | 97% | +1.0 GB |
-  | 32768, tail 24576 | — | — | — | — | — | **OOM at 133.8 GiB** |
+  | 32768, tail 24576 | — | — | — | — | — | **OOM 133.8 GiB** |
   | *32768, tail 8192, scores SAVED* | *2230* | *136* | *12.3x* | *26%* | *97%* | *+29 GB* |
-  | *32768, tail 16384, scores SAVED* | — | — | — | — | — | *OOM at 142.6 GiB* |
+  | *32768, tail 16384, scores SAVED* | — | — | — | — | — | *OOM 142.6 GiB* |
 
-  **Prefer a full-gradient long window over a longer window with a prefix.** The old
-  "16128 completes no step in 31 min at 99% swap" was 31 GiB of *saved attention weights*,
-  nothing else; recomputing them makes 16128 a clean 626 s/step. It beats 32768+prefix on
-  every axis but whole-conversation coverage, and by a lot — 2.3x cheaper per trained
-  token than tail 16384 while training **100%** of the labeled targets instead of 54%.
+  **Train the full window; do not use a prefix at 32768.** Recomputing the attention
+  scores is the whole unlock — every "impossible" long window in the old table was really
+  N GiB of *saved attention weights* (31 GiB at 16128, 128 GiB at 32768) and nothing else.
+  With that fixed, **32768 full-gradient runs at 2.5x the per-token cost of 8064 with swap
+  DECLINING**, trains 100% of the labeled targets, and keeps 97% of SWE trajectories whole.
 
-  That last column is the one that is easy to miss: a prefix does not merely cost compute,
-  it **discards training signal**. Targets are spread evenly through a window, so a tail of
-  T out of W keeps ~T/W of them. Measured on the 32768 SWE corpus (26 windows, 267,392
-  labeled targets): tail 8192 keeps 25.9%, tail 16384 keeps 53.7%. Paying 9.9x per token
-  to train a quarter of them is the worst of both.
+  Cost per trained token is essentially flat from 20480 to 32768 (25.9 / 27.9 / 27.3 ms) —
+  the quadratic attention term is still small next to the linear layers at this model size,
+  so the extra context is nearly free. Take the longest window that fits.
 
-  Prefix-context earns its keep only *past* the full-gradient ceiling — when activations
-  for the whole window will not fit at all.
+  `--trained-tail` is now a fallback, not the plan. A prefix does not merely cost compute,
+  it **discards training signal**: targets are spread evenly through a window, so a tail of
+  T out of W trains ~T/W of them (measured on the 32768 SWE corpus, 26 windows / 267,392
+  labeled targets: tail 8192 → 25.9%, tail 16384 → 53.7%). At 32768 the prefix version is
+  both slower per trained token *and* trains half the data. Reach for it only past the
+  full-gradient activation ceiling — a longer window, or a bigger model.
 
-  So prefix-context buys a window that full-gradient training could not reach at any
-  speed — but at **8.3× the cost per trained token**, because the `no_grad` prefix still
-  forwards 24576 tokens through 36 layers with O(S²) attention every single step. A full
-  epoch over the 2088-window corpus would go from ~67 h to ~570 h. That is not a run.
-
-  **Spend the long window where it pays.** `swe-trajectories` is 106 of 2088 windows (5%
-  of windows, 868k tokens) and is the only source the SWE-rebench eval actually grades.
-  Repacked at 32768 that is ~27 windows; **4 epochs over just those costs ~30 h** — the
-  same order as the original 8064 run — while the other 95% of the corpus keeps the 8064
-  window it already trains well at. Shrinking the *tail* does not help; the prefix is the
-  cost.
-
-  Caveat on the probe itself: give it `--cooldown` (default 120 s) between configurations.
-  A config launched while macOS still holds the previous one's swap gets SIGKILLed during
-  model load in ~30 s, which reads as "this configuration OOMs" when it never ran.
-- **Validate prefix-context before spending a long run on it.**
-  `scripts/validate_prefix_context.py` compares the prefix-split loss against a full-window
-  forward over the same target set on the real 36-layer model:
-
-  ```bash
-  PYTHONPATH=src python scripts/validate_prefix_context.py \
-      --corpus out/exp-058/sft_corpus_universal_8064.pt --tail 4096 --windows 4
-  ```
-
-  Measured: **delta 0.00e+00 on 4/4 windows** — bit-exact, not merely within tolerance.
-  All three ways the split fails silently (prefix dropped, mask anchored top-left,
-  `position_ids` restarted) surface here as a loss mismatch and in **none** of them does
-  the training curve look wrong. Run it at a window small enough that the full-gradient
-  reference still fits, then trust the mechanism at 32768.
-- **bf16 is not an option for long windows on Metal.** Chunked attention, one 32-head
-  layer, no_grad: bf16 is par with fp32 at 8064 (161 vs 151 ms) and **collapses at 32768
-  — 68,346 ms vs 2,456 ms, 0.1 vs 3.6 TFLOP/s**. A pathological MPS path, not a gradual
-  falloff. fp32 holds a flat ~3.6 TFLOP/s across 8064 / 16384 / 32768, i.e. attention is
-  running near this GPU's roofline and scales cleanly as S².
-  (Also: torch's `is_causal` is **not** fused on MPS — at 32768 it asks for a 128 GiB
-  buffer. There is no inference fast path to borrow for the no_grad prefix.)
 - **fp32 latents, not bf16.** bf16 either destabilizes (high lr) or *underflows* the
   ternary threshold so no codes flip (low lr) — a ~lr update is below one bf16 ulp of
   a ~1e-2 latent. `--compute-dtype bf16` is the supported middle path: fp32 masters
