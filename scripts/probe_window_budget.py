@@ -18,6 +18,12 @@ on what the tokens mean. `--labeled-frac` should match the corpus you intend to 
 Read `s/step` against `swap_delta_gib`: a step that is slow with flat swap is compute-bound
 and merely expensive; a step that is slow with swap climbing is the failure mode that
 killed the 16128 attempt, and it does not improve with patience.
+
+ALWAYS let the machine settle before loading the model — `--cooldown` does this between
+configurations, but the same applies to any script you write by hand. Loading 30 GB of
+weights seconds after killing a training process (while macOS still holds its pages and
+tens of GB of swap) took the whole box down once, and it looks exactly like an OOM in
+whatever configuration happened to be next.
 """
 
 from __future__ import annotations
