@@ -87,8 +87,18 @@ if [ "${busy:-0}" -gt 2048 ]; then
 fi
 
 mkdir -p "$OUT"
+# RESUME pins a specific checkpoint. Needed to roll BACK past the newest one: the default
+# picks up trained_latents.pt, which is the most recent save and therefore includes
+# whatever went wrong. Note GradSpikeGuard needs `min_history` (20) norms before it arms,
+# so resuming immediately before a known-bad step leaves it disarmed through exactly the
+# region you resumed to protect -- roll back far enough to build a median first.
 RESUME_ARGS=()
-[ -f "${OUT}/trained_latents.pt" ] && RESUME_ARGS=(--resume "${OUT}/trained_latents.pt")
+if [ -n "${RESUME:-}" ]; then
+    [ -f "$RESUME" ] || { echo "RESUME=$RESUME not found"; exit 1; }
+    RESUME_ARGS=(--resume "$RESUME")
+elif [ -f "${OUT}/trained_latents.pt" ]; then
+    RESUME_ARGS=(--resume "${OUT}/trained_latents.pt")
+fi
 
 echo "[run] tag=${TAG} lr=${LR} epochs=${EPOCHS} accum=${ACCUM} compute=${COMPUTE_DTYPE}" \
      "precision=${PRECISION}"

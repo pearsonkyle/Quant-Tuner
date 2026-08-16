@@ -1,6 +1,7 @@
 # Continued QAT of a natively-ternary model: the `sft32k` run
 
-**Status: in progress** (see the tail of this file for what is still open). Companion to
+**Status: in progress** — run 3 (fp32, resumed from step 350). Runs 1 and 2 both diverged
+under bf16; see Observation 8, which is the most consequential result so far. Companion to
 `docs/ternary_qat_sft8k_study.md`, which is the *reference run* every number here is read
 against. Method and reproduction live in `docs/ternary_qat.md`; the CUDA port, the
 measurement tables and the resume runbook live in `docs/qat_32k_handoff.md` §10. This
@@ -38,8 +39,8 @@ the target-to-stop ratio is nearly identical at both window sizes (6,060,840/35,
 | tokens / step | 32,256 | 32,768 |
 | lr / warmup | 5e-4 cosine, step 30 | 5e-4 cosine, step 30 |
 | spike guard | none (did not exist) | **off** (see below) |
-| compute | fp32, M4 Max / MPS | **bf16 + fp32 masters**, RTX PRO 6000 |
-| cost | 55.4 GPU-h, ~384 s/step | **~2.3 h, 13.9 s/step** |
+| compute | fp32, M4 Max / MPS | bf16 → **fp32** after two divergences (Obs. 8) |
+| cost | 55.4 GPU-h, ~384 s/step | 13.9 s/step (bf16) / 63.5 (fp32) |
 
 Tokens-per-step was held constant deliberately so that lr 5e-4 transfers like-for-like
 rather than being re-derived. **That is not free**, and it is the one design tension in
@@ -176,6 +177,72 @@ reference's val was similarly flat (0.90–1.06 from step 160 to 320) before cre
 0.859.
 
 **Fix for the next run:** build the val split to contain the sources under test.
+
+## Observation 8 — bf16 diverged twice, non-reproducibly, and the guard could not see it
+
+**This is the run's most consequential finding, and it cost two restarts.**
+
+Run 1 (bf16, no guard) trained cleanly for 260 steps and then, at step 265 with the cosine
+*annealing* and no LR trigger, went 0.71 → 7.89 → 9.56 with **every source spiking at
+once** (`logs` 0.66 → 17.83, `logs-agents` 0.87 → 5.41). Validation confirmed it
+independently: 0.8429 at step 250 → **8.1433** at step 275.
+
+Run 2 resumed from the step-200 checkpoint with `--grad-spike-factor 4.0`. It is a
+controlled comparison: same corpus, same seed, same window order, same schedule, and it
+tracked run 1 to three decimal places on the way in (step 260: 0.7112 vs 0.7147).
+
+**It passed step 265 cleanly at loss 1.1753 — and `n_skipped` was 0.** The guard never
+fired. The divergence simply did not recur:
+
+```
+run 1   ... 225:0.7882  250:0.8429  275:8.1433   <- blew up
+run 2   ... 225:0.8193  250:0.8306  275:0.8045   <- held, guard never fired
+```
+
+Since the window order is deterministic, a pathological *batch* would have recurred. It did
+not. **The divergence is a stochastic numerical event** — the only run-to-run variation
+available is non-deterministic reduction order in the backward pass and kernel selection,
+amplified by bf16's 8-bit mantissa.
+
+Run 2 then diverged anyway at step **368–371**, a completely different location, with the
+same all-sources-at-once signature (`logs` 7.33, `logs-agents` 5.14).
+
+### Why `GradSpikeGuard` is the wrong instrument here
+
+Steps 368, 369, 370 and 371 were **all skipped** (norms 121.6, 46.8, 129.2, 106.7). If none
+of them updated the weights, then the weights were **already corrupted at step ~367**, by an
+update whose norm was *below* the 3.6 threshold and therefore invisible. The enormous norms
+that follow are a **symptom of broken weights, not the cause**.
+
+Three separate ways the guard is miscalibrated for a cosine schedule, all observed here:
+
+1. **Too tight at the start.** Not warmup-aware (activates on `min_history` alone), so at
+   factor 4.0 it would have skipped the healthy post-warmup excursion — invisibly.
+2. **Too tight at the end.** The threshold is a fixed multiple of a *falling* median. As the
+   run annealed, `grad_median` went 1.1 → 0.9 and the absolute threshold fell 4.4 → 3.6, so
+   it began skipping ordinary steps (step 327 was skipped at `gnorm` **4.0** — a norm seen
+   repeatedly earlier in the run with no ill effect). Skip rate reached 3.7%.
+3. **It traps a run that has already broken.** Once in a high-gradient state every step
+   exceeds the threshold, so everything is skipped: the model can neither degrade further
+   nor recover. It freezes and burns wall-clock.
+
+`gnorm` magnitude is *not* the mechanism either way — **90.96 at step 55 was survived
+without incident** while 15.80 at step 265 diverged.
+
+### What this means
+
+- **Prefer fp32 for the ternary QAT loop until this is understood.** bf16 is 5.15× faster
+  and its *ternarization* is provably safe (0 of 117M codes differ, §10.2 of the handoff) —
+  but that test covers rounding a latent, not accumulating gradients over hundreds of steps,
+  which is where this broke. The earlier "bf16 is measured safe" conclusion was scoped too
+  narrowly.
+- **Checkpoint frequently and watch validation.** Those are the mitigations that worked.
+  `--ckpt-every 50` with `--ckpt-keep 3` made both rollbacks cost minutes.
+- **Roll back further than the newest checkpoint** if re-arming the guard: it needs 20 norms
+  of history, so resuming immediately before a known-bad step leaves it disarmed through
+  exactly the region you resumed to protect. `RESUME=` in the launcher pins an older one.
+- Not yet separable: whether bf16 is causal, or whether a 32K window at lr 5e-4 is simply
+  fragile and bf16 only makes it likelier. The lr 2.5e-4 control would help.
 
 ## Cost and the CUDA port
 
