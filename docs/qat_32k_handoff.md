@@ -510,10 +510,48 @@ carries kernel autotune and allocator growth. Those numbers are comparable *to e
 price a real run, run ~12 steps and take the marginal rate between the step-5 and step-10
 `elapsed_s` in `metrics.jsonl` — that is what §10.6 does.
 
-### 10.6 Pre-flight on the real corpus
+### 10.6 Pre-flight on the real corpus — and why the run is bf16
 
-*(populated by `preflight2` — real corpus, real config, 12 steps, validation and a
-checkpoint save included, fp32 vs TF32 vs bf16 on an identical window order.)*
+12 steps of the real corpus at the real config (grad-accum 1, `--stop-weight 6.0`,
+validation and a checkpoint save included). The seed is fixed at 1234 inside `train.py`,
+so both configurations saw an **identical window order** — the `loss_by_source` labels in
+`metrics.jsonl` confirm it step by step, which is what makes this a precision comparison
+rather than two unrelated runs.
+
+| step | source(s) | loss fp32 -> bf16 | **gnorm** fp32 -> bf16 |
+|---|---|---|---|
+| 1 | `logs-agents` | 0.6854 -> 0.6836 (0.26%) | 1.316 -> 1.307 (**0.68%**) |
+| 5 | `broad-instruct`, `logs` | 1.0174 -> 1.0178 (0.04%) | 1.172 -> 1.153 (**1.6%**) |
+| 10 | `logs`, `swe-trajectories` | 0.8528 -> 0.8530 (0.02%) | 4.890 -> 1.485 (**3.3x**) |
+
+**Speed — take the marginal rate, not the cumulative average.** Steps 1->5 contain no
+validation and no checkpoint, so that span is the clean rate:
+
+| | clean s/step | 613 steps | validation | checkpoint save |
+|---|---|---|---|---|
+| fp32 | 63.3 s | ~11.5 h | 59.0 s (4 windows) | ~32 s |
+| **bf16** | **12.3 s** | **~2.3 h** | 12.2 s | ~32 s |
+
+Peak memory is 68.1 GiB (bf16) against 70.6 (fp32) — the fp32 masters give back most of
+what half-size activations save, so bf16 buys speed here, not headroom. Note both are far
+under the **88.6 GiB the synthetic probe reported** at the same window; the real-corpus
+figure is the one that governs. Carry one caveat: the densest window in the corpus has
+31,273 labeled targets against the 18,486 maximum these 12 windows happened to draw, so
+watch `mem_peak_gib` rather than treating 68.1 as the ceiling.
+
+**The step-10 gnorm divergence is not evidence against bf16.** Three samples cannot
+separate "bf16 flattens the gradient tail" from "nine optimizer steps have moved the two
+runs apart" — and the per-source losses show the weights *have* separated by then, while
+fp32's own norms swing 1.17 -> 4.89 inside its own run. Step 1, where the weights are
+still identical, is the clean precision read, and 0.68% is parity. The live run resolves
+the rest: `n_skipped` and the `gnorm` series over 613 steps are a better instrument than
+a longer pre-check would have been, and rolling back to a checkpoint costs minutes.
+
+**What settled it:** bf16 changes 0 of 117M ternary codes (§10.2), the CE is fp32 either
+way (`masked_forward` upcasts before `cross_entropy`, and computes the `sum(w[target])`
+stop-weight denominator in fp32), and both the export and — since this branch — the flip
+telemetry read the optimizer's fp32 masters. What bf16 *does* change is the fp16 scale, by
+0.05-0.10% against what the exported Q2_0 carries.
 
 ### 10.7 Grading the A/B somewhere else
 
