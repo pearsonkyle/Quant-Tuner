@@ -113,6 +113,10 @@ module = [
     "agents.*",
     "yaml",
     "pyarrow.*",
+    # Vendored gguf-py. Not installed into the venv at all — `paths.ensure_gguf_py()`
+    # puts it on sys.path at call time from the llama.cpp submodule, so mypy can
+    # never resolve it in any environment.
+    "gguf",
 ]
 ignore_missing_imports = true
 
