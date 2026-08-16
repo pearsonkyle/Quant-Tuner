@@ -62,6 +62,22 @@ class QuantizeConfig(BaseModel):
     # so a hardcoded index on the wrong model quantizes the draft head with the
     # trunk and only shows up as a mediocre acceptance rate. Set to null to disable.
     mtp_pin: str | None = "q8_0"
+    # Jinja chat template to bake into the finished GGUF's
+    # `tokenizer.ggml.chat_template`, replacing whatever the HF checkpoint
+    # carried. A loose .jinja beside the model does nothing for llama.cpp
+    # users — the template llama-server uses lives INSIDE the GGUF — so a
+    # template fix only ships if it is written into the container here.
+    # Any candidate must be byte-identical to the stock template on real
+    # traffic first (scripts/ab_chat_template.py); Qwen-family models are
+    # trained on one exact rendered format, and a render change is a quality
+    # change that needs its own A/B.
+    chat_template: Path | None = None
+    # Overrides `general.name`, which the converter otherwise fills from the
+    # extraction directory name (`Model_Extracted` — a display-visible wart on
+    # the model card and in Ollama). Rides along in the same rewrite pass as
+    # chat_template; `gguf_set_metadata.py` cannot fix it afterwards (no STRING
+    # entry in its scalar map), so a full rewrite is the only retrofit.
+    general_name: str | None = None
 
 
 class BenchConfig(BaseModel):

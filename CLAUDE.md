@@ -745,6 +745,17 @@ The OmniCoder reproduction is here; the CLI handles ad-hoc runs.
 - **An imatrix cannot be precomputed without the weights** — it is per-model `E[a²]`
   activation statistics. Borrowing another model's (even same-architecture) gives a quant
   that loads and is quietly worse. Same for AWQ scales and GPTQ Hessians.
+- **`llama-imatrix` skips `output.weight` unless you ask for it.** `imatrix.cpp` only
+  collects tensors whose name starts with `blk.` (`m_params.process_output` defaults
+  **false**), so the largest quantized tensor — and the one that directly shapes the token
+  distribution KLD measures — was calibrated blind on every run before exp-060.
+  `models.llama_cpp.imatrix` now passes `--process-output` by default; pass
+  `process_output=False` to reproduce pre-exp-060 published numbers. **Audit this per run**:
+  llama-quantize prints `did not find weights for <tensor>` to stderr and quantizes anyway,
+  so the only symptom is a line in `logs/quantize.log`. On the Qwen3.8 ladder the *expected*
+  members of that list are `token_embd.weight` (an embedding lookup, not a matmul — never
+  collectable) and the `blk.64.*` MTP head (not exercised by a forward pass; mitigated by the
+  Q8_0 pin). Anything else in that list is a bug.
 - `data/system_prompt.py` — **SFT-only** system-prompt scrubbing. 90% of system-prompt
   characters in the logs are blocks repeated verbatim across sessions (tone, git etiquette,
   worked examples). A repeated block is dropped **unless it names a path/file the same

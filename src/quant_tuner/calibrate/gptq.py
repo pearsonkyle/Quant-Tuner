@@ -39,7 +39,7 @@ from pathlib import Path
 
 import torch
 
-from quant_tuner.calibrate._device import resolve_device
+from quant_tuner.calibrate._device import release_gpu_memory, resolve_device
 from quant_tuner.calibrate._hf import forward_no_logits
 from quant_tuner.calibrate._ingest import load_chunks
 from quant_tuner.calibrate._quant_mix import (
@@ -688,6 +688,10 @@ def apply(
         src = model_dir / name
         if src.exists():
             shutil.copy2(src, out_dir / name)
+    # Same handoff as AWQ: the next stage runs llama-imatrix on this checkpoint
+    # in a separate process, which cannot use blocks torch still has reserved.
+    del model
+    release_gpu_memory("gptq.apply")
     return out_dir
 
 

@@ -50,11 +50,22 @@ def _load_recipe(
         raise typer.BadParameter(
             "recipe leaves `model` as PLACEHOLDER; pass --model to override."
         )
-    if cfg.calibration.method != "none" and (
-        cfg.data.logs is None or str(cfg.data.logs) == "PLACEHOLDER"
+    # Logs are only needed when the corpora still have to be BUILT. A recipe that
+    # pins a pre-built calibration corpus and a pre-built eval corpus (see
+    # pipeline.prepare_corpora) never reads the logs — and demanding one there
+    # forces a fake provenance path into the recipe, which is worse than useless
+    # when the corpus was actually packed from a different source.
+    has_prebuilt_corpora = (
+        cfg.data.corpus is not None and cfg.bench.eval_corpus is not None
+    )
+    if (
+        cfg.calibration.method != "none"
+        and not has_prebuilt_corpora
+        and (cfg.data.logs is None or str(cfg.data.logs) == "PLACEHOLDER")
     ):
         raise typer.BadParameter(
-            "recipe leaves `data.logs` as PLACEHOLDER; pass --logs to override."
+            "recipe leaves `data.logs` as PLACEHOLDER; pass --logs to override "
+            "(or pin both `data.corpus` and `bench.eval_corpus` to pre-built files)."
         )
     return cfg
 

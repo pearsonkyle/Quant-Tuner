@@ -18,6 +18,7 @@ from typing import Any, cast
 from quant_tuner.bench import bpw as bpw_mod
 from quant_tuner.bench import kld, runner
 from quant_tuner.calibrate import awq, gptq, imatrix
+from quant_tuner.calibrate._device import release_gpu_memory
 from quant_tuner.config import RunConfig
 from quant_tuner.data import ingest, split
 from quant_tuner.experiments import log, phase, step
@@ -207,6 +208,9 @@ def _calibrate_imatrix(
     params: dict[str, Any] = dict(cfg.calibration.params)
     imatrix_ctx = int(params.pop("imatrix_ctx", DEFAULT_IMATRIX_CTX))
 
+    # llama-imatrix is a separate process and can only offload into memory the
+    # driver reports free — hand back anything torch is still holding first.
+    release_gpu_memory("pipeline")
     step("llama-imatrix (base)", base_imatrix,
          lambda: llama_cpp.imatrix(f16, train_corpus, base_imatrix,
                                    ctx=imatrix_ctx, log=logs / "imatrix-base.log"))
@@ -293,6 +297,11 @@ def _imatrix_with_variant(
     ``imatrix-{method}-{variant}.gguf`` — the shared tail of the AWQ (folded
     F16) and GPTQ (rounded F16) calibration branches."""
     base = ws.calibration_dir / f"imatrix-{method}.gguf"
+    # Both callers (AWQ fold, GPTQ round) have just run a full-model HF forward
+    # pass on the GPU. Torch keeps those blocks reserved, and llama-imatrix —
+    # a separate process — cannot use them: measured 2.26x slowdown on exp-060
+    # when 69.7 GB of a 96 GB card stayed reserved. Release before spawning it.
+    release_gpu_memory("pipeline")
     step(collect_label, base,
          lambda: llama_cpp.imatrix(f16_src, train_corpus, base,
                                    ctx=imatrix_ctx, log=logs / f"imatrix-{method}.log"))
@@ -447,6 +456,23 @@ def quantize_model(
                                imatrix=imatrix_path,
                                tensor_types=tensor_types or None,
                                log=logs / f"quantize-{cfg.quantize.type}.log"))
+
+    if cfg.quantize.chat_template is not None or cfg.quantize.general_name:
+        # The template llama-server actually uses is the one inside the GGUF,
+        # not a .jinja shipped beside it — so this is the only place a template
+        # fix reaches users (and our own llama-server evals below). Both keys
+        # go in ONE pass: gguf_new_metadata rewrites the whole container.
+        tmpl = Path(cfg.quantize.chat_template) if cfg.quantize.chat_template else None
+        name = cfg.quantize.general_name
+        what = ", ".join(
+            x for x in (tmpl.name if tmpl else None,
+                        f"general.name={name}" if name else None) if x
+        )
+        step(f"bake GGUF metadata ({what})",
+             gguf.template_stamp(out_quant, tmpl, name),
+             lambda: gguf.set_metadata(
+                 out_quant, template=tmpl, general_name=name,
+                 log=logs / "chat-template.log"))
     return out_quant
 
 

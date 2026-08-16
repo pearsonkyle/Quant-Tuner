@@ -59,6 +59,12 @@ EVALS = {
     "tools": ("corpus.eval.tools.txt", "baseline.tools.kld", "results.tools.csv"),
     "agentic": ("corpus.eval.agentic.txt", "baseline.agentic.kld", "results.agentic.csv"),
     "broad": ("corpus.eval.broad.txt", "baseline.broad.kld", "results.broad.csv"),
+    "redteam": ("corpus.eval.redteam.txt", "baseline.redteam.kld",
+                "results.redteam.csv"),
+    # In-distribution FIT against the published build's calibration distribution — it
+    # shares source sessions with our calibration slice, so it is not a holdout. See
+    # scripts/exp060_build_indist_evals.py.
+    "cal8k": ("corpus.eval.cal8k.txt", "baseline.cal8k.kld", "results.cal8k.csv"),
 }
 
 
@@ -98,7 +104,15 @@ def main() -> int:
                    help="quantize the draft layer along with the trunk (don't; this exists "
                         "for A/B measuring what the Q8 pin buys)")
     p.add_argument("--suite", default="kld", choices=["quick", "kld", "speed", "full"])
+    p.add_argument("--ctx", type=int, default=CTX,
+                   help="calibration ctx. The corpus is PACKED for this — moving it "
+                        "without repacking glues unrelated windows into one context.")
+    p.add_argument("--eval-ctx", type=int, default=EVAL_CTX,
+                   help="PPL/KLD chunking only. Separate from --ctx: the eval corpora are "
+                        "packed for this, and every baseline must be built at the same "
+                        "value it is benched at.")
     a = p.parse_args()
+    ctx, eval_ctx = a.ctx, a.eval_ctx
 
     root = REPO / "out" / a.run
     hf_dir = root / "model_extracted"
@@ -132,7 +146,7 @@ def main() -> int:
              lambda: universal.build(universal.UniversalConfig(
                  out_dir=corpora, model_dir=hf_dir,
                  log_files=tuple(a.logs_jsonl), wiki=a.wiki,
-                 ctx=CTX,   # packs windows to fill exactly one imatrix context
+                 ctx=ctx,   # packs windows to fill exactly one imatrix context
              )))
     audit = json.loads((corpora / "corpora_audit.json").read_text())
     cal = audit["calibration"]
@@ -142,10 +156,10 @@ def main() -> int:
 
     base_imatrix = root / "imatrix-base.gguf"
     var_imatrix = root / f"imatrix-{a.imatrix_variant}.gguf"
-    with phase(f"[{a.run}] base imatrix (ctx={CTX})"):
+    with phase(f"[{a.run}] base imatrix (ctx={ctx})"):
         step("imatrix-base", base_imatrix,
              lambda: llama_cpp.imatrix(f16, corpora / "corpus.cal.txt", base_imatrix,
-                                       ctx=CTX, log=logs / "imatrix-base.log"))
+                                       ctx=ctx, log=logs / "imatrix-base.log"))
     with phase(f"[{a.run}] re-weight imatrix -> {a.imatrix_variant}"):
         step("imatrix-variant", var_imatrix,
              lambda: imatrix_cal.calibrate(
@@ -166,7 +180,7 @@ def main() -> int:
         with phase(f"[{a.run}] F16 baseline KLD on {name}"):
             step(f"baseline-{name}", baseline,
                  lambda c=corpus, b=baseline, n=name: kld.build_baseline(
-                     f16, c, b, ctx=EVAL_CTX, log=logs / f"baseline-{n}.log"))
+                     f16, c, b, ctx=eval_ctx, log=logs / f"baseline-{n}.log"))
         baselines[name] = (corpus, baseline)
 
     # --- stage 3: quantize + bench ----------------------------------------------------
@@ -196,7 +210,7 @@ def main() -> int:
                 r = runner.bench_one(
                     qpath, label, reference_n_params=n_params,
                     eval_dataset=corpus, eval_baseline=baseline,
-                    eval_ctx=EVAL_CTX, log_dir=log_dir, suite=a.suite,
+                    eval_ctx=eval_ctx, log_dir=log_dir, suite=a.suite,
                 )
                 runner.append_row(csv_path, r)
                 log(f"  {qpath.name} [{name}]: size={r.size_gib:.2f}GiB bpw={r.bpw:.3f} "
