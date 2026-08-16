@@ -83,6 +83,15 @@ class PTQConfig:
 
     trust_remote_code: bool = False
 
+    model_class: str | None = None
+    """transformers class used to load the checkpoint. ``None`` uses
+    ``AutoModelForCausalLM``, which resolves via ``MODEL_FOR_CAUSAL_LM_MAPPING``
+    and on multimodal checkpoints picks the **text-only** class — silently
+    dropping every tower tensor from the export. Qwen3.5 is exactly that case:
+    ``qwen3_5`` maps to ``Qwen3_5ForCausalLM`` (no ``model.visual.*``), while the
+    checkpoint declares ``Qwen3_5ForConditionalGeneration``. Name the class here
+    to keep the tower (and then ignore it — see :func:`audit_ignore`)."""
+
     pipeline: str = "sequential"
     """llmcompressor calibration pipeline. "sequential" (layer-sliced, lowest
     memory) breaks on architectures with cross-layer state — gemma-4's shared
@@ -138,6 +147,102 @@ def build_calibration_samples(cfg: PTQConfig, tokenizer: Any) -> list[list[int]]
     return samples
 
 
+def resolve_model_class(model_class: str | None) -> Any:
+    """Resolve a transformers class by name; ``None`` → ``AutoModelForCausalLM``."""
+    import transformers
+
+    if model_class is None:
+        return transformers.AutoModelForCausalLM
+    cls = getattr(transformers, model_class, None)
+    if cls is None:
+        raise ValueError(f"transformers has no class named {model_class!r}")
+    return cls
+
+
+def model_module_names(model_id: str | Path, model_class: str | None = None) -> list[str]:
+    """Module names of the *instantiated* model, built on the meta device.
+
+    This — not the weight map — is what llmcompressor's ``ignore`` patterns are
+    actually matched against, and the two can disagree profoundly: a tensor
+    present in the checkpoint but absent from the module tree is dropped from
+    the export entirely. See :func:`dropped_tensors`.
+    """
+    import torch
+    from transformers import AutoConfig
+
+    cfg = AutoConfig.from_pretrained(model_id)
+    cls = resolve_model_class(model_class)
+    with torch.device("meta"):
+        model = cls.from_config(cfg) if model_class is None else cls._from_config(cfg)
+    return [n for n, _ in model.named_modules() if n]
+
+
+def checkpoint_module_names(model_id: str | Path) -> list[str]:
+    """Module names implied by a local checkpoint's safetensors weight map.
+
+    Derived by stripping the parameter leaf (``.weight``/``.bias``/``.scale``…)
+    off each tensor name. This describes what is *on disk*, which is not
+    necessarily what gets loaded — pair it with :func:`model_module_names`.
+    """
+    root = Path(model_id)
+    index = root / "model.safetensors.index.json"
+    if index.is_file():
+        names = list(json.loads(index.read_text())["weight_map"])
+    else:
+        from safetensors import safe_open
+
+        shards = sorted(root.glob("*.safetensors"))
+        if not shards:
+            raise FileNotFoundError(f"no safetensors found under {root}")
+        names = []
+        for shard in shards:
+            with safe_open(str(shard), framework="pt") as f:
+                names.extend(f.keys())
+    return sorted({n.rsplit(".", 1)[0] if "." in n else n for n in names})
+
+
+def _match_counts(names: list[str], ignore: tuple[str, ...] | list[str]) -> dict[str, int]:
+    import re
+
+    counts: dict[str, int] = {}
+    for pattern in ignore:
+        if pattern.startswith("re:"):
+            rx = re.compile(pattern[3:])
+            counts[pattern] = sum(1 for n in names if rx.match(n))
+        else:
+            counts[pattern] = sum(1 for n in names if n == pattern)
+    return counts
+
+
+def audit_ignore(
+    model_id: str | Path,
+    ignore: tuple[str, ...] | list[str],
+    model_class: str | None = None,
+) -> dict[str, int]:
+    """Map each ignore pattern to the number of *live modules* it matches.
+
+    A pattern matching **zero** modules is the silent failure this exists to
+    catch: ``DEFAULT_IGNORE``'s ``re:.*vision_tower.*`` matches nothing on a
+    checkpoint whose tower is ``model.visual.*``, so the tower gets quantized to
+    int4 against a text-only calibration corpus without any error.
+    """
+    return _match_counts(model_module_names(model_id, model_class), ignore)
+
+
+def dropped_tensors(model_id: str | Path, model_class: str | None = None) -> list[str]:
+    """Checkpoint tensors with no corresponding module in the loaded model.
+
+    These are silently discarded by ``from_pretrained`` and will be **absent
+    from the export** — a strictly worse outcome than being quantized, and one
+    no ``ignore`` entry can prevent. On Qwen3.5 this is how the ``mtp.*`` draft
+    head disappears (transformers lists it in
+    ``_keys_to_ignore_on_load_unexpected``), and, under the default text-only
+    class, the entire ``model.visual.*`` tower with it.
+    """
+    live = set(model_module_names(model_id, model_class))
+    return [n for n in checkpoint_module_names(model_id) if n not in live]
+
+
 def _fingerprint(path: Path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -162,7 +267,7 @@ def run_ptq(cfg: PTQConfig) -> Path:
             "llmcompressor is required for vLLM PTQ — install the 'vllm-ptq' extra"
         ) from exc
 
-    from transformers import AutoModelForCausalLM, AutoTokenizer
+    from transformers import AutoTokenizer
 
     from datasets import Dataset
 
@@ -176,12 +281,23 @@ def run_ptq(cfg: PTQConfig) -> Path:
         [{"input_ids": ids, "attention_mask": [1] * len(ids)} for ids in samples]
     )
 
-    model = AutoModelForCausalLM.from_pretrained(
+    requested = resolve_model_class(cfg.model_class)
+    model = requested.from_pretrained(
         cfg.model_id,
         torch_dtype="bfloat16",
         device_map=cfg.device_map,
         trust_remote_code=cfg.trust_remote_code,
     )
+    # A named class that does not survive the load means the export will be
+    # missing whatever that class was chosen to keep — hours of calibration
+    # spent on the wrong module tree, discoverable only afterwards from
+    # provenance. Fail before any of it is spent.
+    if cfg.model_class is not None and type(model).__name__ != cfg.model_class:
+        raise RuntimeError(
+            f"requested model_class={cfg.model_class!r} but from_pretrained "
+            f"returned {type(model).__name__!r} — the export would not contain "
+            "the modules that class was selected for"
+        )
 
     # Preset schemes carry their own group size (W4A16 = group-128); llmcompressor
     # >= 0.12 rejects a top-level group_size kwarg. Non-default groupings need a
@@ -200,8 +316,14 @@ def run_ptq(cfg: PTQConfig) -> Path:
         offload_hessians=(cfg.pipeline == "basic"),
     )
 
+    # `processor` must be passed explicitly: given a dataset, llmcompressor
+    # otherwise auto-initializes one via AutoProcessor, which raises on a
+    # multimodal checkpoint whose processor needs image/video config it cannot
+    # resolve. Our dataset is already tokenized, so the tokenizer is the correct
+    # processor here — it is used for saving, not for preprocessing.
     oneshot(
         model=model,
+        processor=tokenizer,
         dataset=dataset,
         recipe=recipe,
         max_seq_length=cfg.ctx,
@@ -219,7 +341,12 @@ def run_ptq(cfg: PTQConfig) -> Path:
         "ctx": cfg.ctx,
         "budget_tokens": cfg.budget_tokens,
         "num_samples": len(samples),
+        "model_class": type(model).__name__,
         "ignore": list(cfg.ignore),
+        "ignore_match_counts": _match_counts(
+            [n for n, _ in model.named_modules() if n], cfg.ignore
+        ),
+        "dropped_checkpoint_tensors": dropped_tensors(cfg.model_id, cfg.model_class),
         "corpus": [
             {"path": str(p), "sha256": _fingerprint(Path(p))} for p in cfg.corpus_files
         ],

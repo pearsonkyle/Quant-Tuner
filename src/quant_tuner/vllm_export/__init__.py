@@ -7,6 +7,26 @@ so importing this package — and resolving configs in tests — never needs it
 (same convention as ``eval.agents``).
 """
 
-from quant_tuner.vllm_export.w4a16 import PTQConfig, build_calibration_samples, run_ptq
+from quant_tuner.vllm_export.w4a16 import (
+    DEFAULT_IGNORE,
+    PTQConfig,
+    audit_ignore,
+    build_calibration_samples,
+    checkpoint_module_names,
+    dropped_tensors,
+    model_module_names,
+    resolve_model_class,
+    run_ptq,
+)
 
-__all__ = ["PTQConfig", "build_calibration_samples", "run_ptq"]
+__all__ = [
+    "DEFAULT_IGNORE",
+    "PTQConfig",
+    "audit_ignore",
+    "build_calibration_samples",
+    "checkpoint_module_names",
+    "dropped_tensors",
+    "model_module_names",
+    "resolve_model_class",
+    "run_ptq",
+]
