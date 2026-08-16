@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import json
 import os
 import sys
 from dataclasses import asdict
@@ -102,6 +103,18 @@ def main() -> int:
     per_turn_log = log_dir / f"toolcall_{stem}_{ts}.jsonl"
     server_log = log_dir / f"server_{stem}_{ts}.log" if args.model and not base_url else None
 
+    # On the --base-url path the server is already running, so template flags
+    # cannot go in as a CLI arg: ride them through extra_body instead. Without
+    # this, a served model is benchmarked with reasoning ENABLED against
+    # llama-server numbers collected with it DISABLED.
+    template_kwargs = None
+    if base_url and args.chat_template_kwargs:
+        try:
+            template_kwargs = json.loads(args.chat_template_kwargs)
+        except json.JSONDecodeError as exc:
+            print(f"ERROR: --chat-template-kwargs is not valid JSON: {exc}", file=sys.stderr)
+            return 1
+
     sampling = Sampling(
         temperature=args.temperature,
         max_tokens=args.max_tokens,
@@ -111,7 +124,10 @@ def main() -> int:
         presence_penalty=args.presence_penalty,
         repetition_penalty=args.repetition_penalty,
         seed=args.seed,
+        chat_template_kwargs=template_kwargs,
     )
+    if template_kwargs:
+        print(f"chat_template_kwargs (via extra_body): {template_kwargs}", flush=True)
     if any(v is not None for v in (args.top_p, args.top_k, args.min_p,
                                    args.presence_penalty, args.repetition_penalty,
                                    args.seed)):
