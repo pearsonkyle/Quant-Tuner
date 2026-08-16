@@ -43,12 +43,35 @@ LOG="${OUT}/train.log"
 # instead of being re-derived, and 613 steps/epoch keeps the cosine schedule and the
 # spike guard's 25-step median at the resolution they were measured at.
 ACCUM="${ACCUM:-1}"
-# 0.10, not 0.05: sft8k-full's 9x loss excursion began FOUR steps after warmup ended.
-WARMUP="${WARMUP:-0.10}"
+# 0.05 = 30 of 613 steps, matching sft8k-full's warmup (step 30 of 522) in both absolute
+# steps and fraction. Its 1.06 -> 9.80 loss rise just after that point was NOT a
+# divergence to be warmed-up away: validation improved monotonically through it and ended
+# at its best value. Do not lengthen warmup to suppress a transient that is supposed to
+# happen -- the window and the stop weight are the variables under test, not this.
+WARMUP="${WARMUP:-0.05}"
+# OFF, like sft8k-full, which had no guard at all. GradSpikeGuard is not warmup-aware
+# (see its docstring): at factor 4.0 it would skip the healthy post-warmup excursion and
+# do it invisibly, since a skipped step leaves no mark on the loss curve. This run is
+# ~2.3 h with a checkpoint every 50 steps, so a genuine runaway is recoverable by
+# rollback -- which is the cheaper trade than silently suppressing the reorganization.
+SPIKE_FACTOR="${SPIKE_FACTOR:-0}"
 STOP_WEIGHT="${STOP_WEIGHT:-6.0}"
 # fp32 latents + true-fp32 matmuls: identical numerics to every published run. `high`
-# (TF32) keeps the latents and ternarization exact and only reduces matmul accumulation.
+# (TF32) keeps the latents and ternarization exact and only reduces matmul accumulation,
+# and is worth 1.38x at this window. Ignored when COMPUTE_DTYPE=bf16.
 PRECISION="${PRECISION:-highest}"
+# bf16 is the fast path on CUDA (5x, and 17.7 GiB lighter at 32768) and the exact
+# opposite of the Metal finding. The latents stay fp32 in the optimizer's masters, which
+# is what export_qat ternarizes and what the flip telemetry reads. Measured: bf16
+# rounding of the latent changes 0 of 117M ternary codes, because a ternary latent sits
+# at 0 or +-s and the TWN threshold sits between. What it does change is the fp16 scale
+# (0.05-0.10%) and the gradient precision -- see the pre-flight gnorm parity in
+# docs/qat_32k_handoff.md §10.6 before assuming it is free.
+COMPUTE_DTYPE="${COMPUTE_DTYPE:-fp32}"
+# Scaled for 613 steps/epoch. At 306 (grad-accum 2) or a resized corpus, halve them --
+# these are step counts, not fractions, and a corpus change moves steps/epoch.
+VAL_EVERY="${VAL_EVERY:-25}"
+CKPT_EVERY="${CKPT_EVERY:-50}"
 
 for f in "$CORPUS" "$VAL"; do
     [ -f "$f" ] || { echo "missing $f — see docs/qat_32k_handoff.md"; exit 1; }
@@ -67,17 +90,19 @@ mkdir -p "$OUT"
 RESUME_ARGS=()
 [ -f "${OUT}/trained_latents.pt" ] && RESUME_ARGS=(--resume "${OUT}/trained_latents.pt")
 
-echo "[run] tag=${TAG} lr=${LR} epochs=${EPOCHS} accum=${ACCUM} precision=${PRECISION}"
+echo "[run] tag=${TAG} lr=${LR} epochs=${EPOCHS} accum=${ACCUM} compute=${COMPUTE_DTYPE}" \
+     "precision=${PRECISION}"
 echo "[run] log -> ${LOG}"
 
 nohup $PY -m quant_tuner.qat.train \
     --corpus "$CORPUS" --val-corpus "$VAL" \
     --train-layers 36 --optim adafactor --dtype fp32 \
+    --compute-dtype "$COMPUTE_DTYPE" \
     --matmul-precision "$PRECISION" \
     --grad-accum "$ACCUM" --epochs "$EPOCHS" --lr "$LR" --warmup-frac "$WARMUP" \
-    --stop-weight "$STOP_WEIGHT" \
-    --val-every 25 --val-windows 4 \
-    --ckpt-every 50 --ckpt-keep 3 \
+    --stop-weight "$STOP_WEIGHT" --grad-spike-factor "$SPIKE_FACTOR" \
+    --val-every "$VAL_EVERY" --val-windows 4 \
+    --ckpt-every "$CKPT_EVERY" --ckpt-keep 3 \
     "${RESUME_ARGS[@]}" \
     --out "$OUT" > "$LOG" 2>&1 &
 

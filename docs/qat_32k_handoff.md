@@ -275,12 +275,21 @@ optimizer step, all-36 / adafactor / grad-accum 2 / 3 steps, synthetic corpus at
 `--labeled-frac 0.35`. "fused" = stock SDPA with the fp32 GQA fix; "chunked" =
 `--chunked-attention on`. `peak` is `torch.cuda.max_memory_allocated`.
 
-| window | fp32 fused | fp32 chunked | bf16 fused | bf16 chunked |
-|---|---|---|---|---|
-| 8064  | **20.1 s** / 64.8 GiB | 27.3 s / 69.3 GiB | **5.5 s** / 67.8 GiB | 17.4 s / 67.8 GiB |
-| 16128 | **45.2 s** / 72.6 GiB | — | **10.8 s** / 67.9 GiB | — |
-| 32768 | **124.2 s** / 88.6 GiB | 228.6 s / 88.6 GiB | **24.7 s** / 70.9 GiB | — |
-| 65536 | **OOM** | — | *(see below)* | — |
+| window | fp32 fused | fp32 + TF32 | fp32 chunked | bf16 fused | bf16 chunked |
+|---|---|---|---|---|---|
+| 8064  | **20.1 s** / 64.8 GiB | **11.8 s** / 64.8 GiB | 27.3 s / 69.3 GiB | **5.5 s** / 67.8 GiB | 17.4 s / 67.8 GiB |
+| 16128 | **45.2 s** / 72.6 GiB | — | — | **10.8 s** / 67.9 GiB | — |
+| 32768 | **124.2 s** / 88.6 GiB | **90.1 s** / 88.6 GiB | 228.6 s / 88.6 GiB | **24.7 s** / 70.9 GiB | — |
+| 65536 | **OOM** | — | **66.5 s** / 87.4 GiB | — |
+
+**The ceiling is 65536, and it is bf16-only.** 65536 is the model's
+`max_position_embeddings`, so it is also the last rung that exists. fp32 cannot reach it
+(fp32 is already at 88.6 GiB of 95.0 at 32768); bf16 gets there with **7.6 GiB spare —
+and that figure excludes validation and the checkpoint transient**, so it is not a
+configuration to run without a real pre-flight. Note also that bf16's cost per trained
+token stops being flat there: 0.32 / 0.32 / 0.37 / **0.51 ms** at 8064 / 16128 / 32768 /
+65536. Doubling the window past 32768 costs 38% more per token and buys SWE
+conversations-whole from 97% to 100%.
 
 Before the fp32 GQA fix, `fp32 fused` **OOM'd at every window including 8064**.
 
@@ -325,6 +334,45 @@ cost — note that fixed cost was **~106 s** on the M4 Max and is essentially fr
   Adafactor provides in 9 MB — while discarding the one hyperparameter this project has
   actually measured (lr 5e-4 under Adafactor). Not worth it for a run whose purpose is to
   test two data-side interventions.
+- **TF32 (`--matmul-precision high`) is free speed that is bit-exact where it counts —
+  but the gain shrinks with the window.** 1.70x at 8064 (11.8 vs 20.1 s), only **1.38x at
+  32768** (90.1 vs 124.2 s), at identical memory in both cases. torch defaults to
+  `highest`, so every plain-fp32 number above is a *true*-fp32 matmul. The narrowing is
+  the point: TF32 accelerates the linear layers, and at a long window attention — served
+  in fp32 by the memory-efficient kernel, which TF32 does not speed up the same way —
+  takes a growing share of the step. It reduces only the matmul's internal accumulation to
+  10 mantissa bits; the latents, the TWN threshold, `ternarize_group` and its deliberate
+  fp16 scale rounding are all elementwise fp32 and untouched. bf16 remains 3.6x ahead of
+  it at 32768, because bf16 reaches FlashAttention and TF32 cannot.
+- **`--matmul-precision medium` is not worth considering.** 90.8 s at 32768 against
+  `high`'s 90.1 — identical within noise, for two fewer mantissa bits. That null result is
+  the confirmation of the paragraph above: at a long window what is left in the step is
+  attention, not linear-layer matmul precision, so there is nothing for `medium` to buy.
+  `high` is the only fp32 precision knob worth having.
+
+#### Does reduced precision actually move the ternary codes?
+
+The obvious worry about `--compute-dtype bf16` is that it rounds the latent to 8 mantissa
+bits *before* ternarizing, so a weight near the TWN threshold ternarizes differently than
+the fp32 master the export reads. **Measured, it does not happen at all:**
+
+| tensor | codes differing, fp32 vs bf16 ternarization |
+|---|---|
+| `layers.17.self_attn.q_proj` | 0 / 16,777,216 |
+| `layers.35.mlp.gate_proj` | 0 / 50,331,648 |
+| `layers.0.mlp.down_proj` | 0 / 50,331,648 |
+
+Nor is anything close: counting weights within a given relative distance of `delta`, on
+real trained latents, gives **0 within bf16 precision, 0 within TF32 precision, and 0
+within *fp32* precision**. The reason is structural — a ternary latent sits at 0 or `±s`
+while `delta = 0.7·mean|W|` sits between them, so the boundary region is empty by
+construction. Codes only cross it transiently, while flipping.
+
+What bf16 *does* move is smaller and elsewhere: `ternarize_group` rounds the scale to
+**fp16 on purpose**, to match deployed Q2_0 numerics, and under bf16 compute that scale is
+bf16-rounded on top — measured 0.05-0.10% off the value the exported GGUF will carry. And
+the gradients are computed at 8 mantissa bits, which shifts `gnorm` and therefore what
+`GradSpikeGuard` treats as a spike. Neither is settled by argument; §10.6 measures them.
 
 ### 10.3 What the port changed in the code
 
@@ -454,3 +502,40 @@ plateau §3 recorded.
 PYTHONPATH=src .venv/bin/python scripts/probe_window_budget.py \
     --window W --trained-tail 0 --steps 3 --grad-accum 1 --cooldown 0
 ```
+
+**Probe caveat — the tables in §10.2 are WARM-UP steps.** `train.py` emits a step record
+at step 1 and then every 5th, so a `--steps 3` probe only ever logged **step 1**, which
+carries kernel autotune and allocator growth. Those numbers are comparable *to each other*
+(every config paid the same cost) but they are not the rate a 613-step run bills at. To
+price a real run, run ~12 steps and take the marginal rate between the step-5 and step-10
+`elapsed_s` in `metrics.jsonl` — that is what §10.6 does.
+
+### 10.6 Pre-flight on the real corpus
+
+*(populated by `preflight2` — real corpus, real config, 12 steps, validation and a
+checkpoint save included, fp32 vs TF32 vs bf16 on an identical window order.)*
+
+### 10.7 Grading the A/B somewhere else
+
+The eval cannot run on the training box (§10.4). What has to move is small:
+
+| artifact | what it is |
+|---|---|
+| `out/exp-057/Ternary-Bonsai-8B-<tag>-Q2_0.gguf` | the run's export, ~2.5 GiB |
+| `out/exp-057/Ternary-Bonsai-8B-vanilla-Q2_0.gguf` | the untrained control, same build |
+| `out/external/swe-rebench/holdout50.jsonl` | 50 instances, **0 overlap** with the 71 trained on |
+
+Both GGUFs must come from the *same* llama.cpp build, and the eval box needs a Docker
+daemon plus the `swebench` extra:
+
+```bash
+PYTHONPATH=src python scripts/run_swebench_eval.py \
+    --models Ternary-Bonsai-8B-vanilla-Q2_0.gguf Ternary-Bonsai-8B-<tag>-Q2_0.gguf \
+    --holdout holdout50.jsonl --workspace out/ab-<tag>
+```
+
+**Loop fraction is the primary endpoint** for this iteration, not resolve rate: sft8k-full
+already showed that behaviour can move (tool errors 0.65 -> 0.33) while capability does
+not (0/10 both ways). Report resolved, patch rate, tool-error rate, `max_turns` exits and
+loop fraction together. At 0/50 the 95% upper bound on the resolve rate is ~5.8%, versus
+~31% at n=10 — which is the whole reason for the larger holdout.

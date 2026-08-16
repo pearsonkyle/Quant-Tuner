@@ -179,12 +179,20 @@ class GradSpikeGuard:
 
     The guard compares each step's pre-clip norm against the median of a trailing window.
     A step above `factor` x median is dropped (grads zeroed, LR schedule untouched), so a
-    handful of pathological batches cannot move the weights. It deliberately does NOT
-    trigger during warmup, when there is no stable median yet and norms are legitimately
-    large.
+    handful of pathological batches cannot move the weights.
 
-    `factor=0` disables. Skipping is recorded so a run that skips constantly is visible
-    as a too-low `factor` rather than as a mysteriously slow run.
+    **It is NOT warmup-aware, and that is a real hazard — read this before enabling it.**
+    The only thing delaying it is `min_history`, so with 20 norms accumulated it goes live
+    at step 21 regardless of where warmup ends. On the sft8k-full run the LR peaked at
+    step 30 and the loss rose 1.06 -> 9.80 over the next five steps while validation
+    improved *monotonically* through it — a healthy post-warmup reorganization, not a
+    divergence. A factor of 4.0 would have skipped exactly those steps and suppressed it
+    silently, since a skipped step is invisible in the loss curve.
+
+    So: leave it OFF (`factor=0`) for a run whose warmup transient is expected, and use it
+    only to protect a run that has already been shown to diverge. Skipping is recorded in
+    `n_skipped` so a run that skips constantly is visible as a too-low `factor` rather
+    than as a mysteriously slow run.
     """
 
     def __init__(self, factor: float = 4.0, window: int = 25, min_history: int = 20):
@@ -489,11 +497,18 @@ def train_qat(cfg: QATConfig) -> int:
     print(f"[qat] device {backend.describe()}", flush=True)
     if cfg.matmul_precision != "highest":
         # TF32/bf16 tensor cores for the fp32 MATMULS only. This is a different knob from
-        # --compute-dtype: the latents, the TWN threshold and ternarize_group are all
-        # elementwise fp32 and stay bit-exact, so the codes a step produces are unchanged
-        # in a way --compute-dtype bf16 cannot promise (it rounds the latent itself to 8
-        # mantissa bits before ternarizing). Only the matmul's internal accumulation is
-        # reduced: TF32 keeps 10 mantissa bits, bf16 8.
+        # --compute-dtype: the latents, the TWN threshold, ternarize_group and its
+        # deliberate fp16 scale rounding are all elementwise fp32 and stay bit-exact, so
+        # the codes AND the scales a step produces are unchanged. Only the matmul's
+        # internal accumulation is reduced (TF32 keeps 10 mantissa bits, bf16 8).
+        #
+        # --compute-dtype bf16 rounds the latent itself to 8 mantissa bits before
+        # ternarizing. Measured, that does NOT move the codes: on the shipped weights and
+        # on real trained latents, 0 of 117M codes differ, because a ternary latent sits
+        # at 0 or +-s while delta = 0.7*mean|W| sits between them — nothing is within even
+        # fp32 precision of the threshold. What it does move is the SCALE (0.05-0.10% off
+        # the fp16 value the exported Q2_0 carries) and the gradients, and therefore what
+        # GradSpikeGuard sees as a spike.
         torch.set_float32_matmul_precision(cfg.matmul_precision)
         print(f"[qat] fp32 matmul precision '{cfg.matmul_precision}' "
               f"(tensor cores; latents and ternarization stay exact fp32)", flush=True)
