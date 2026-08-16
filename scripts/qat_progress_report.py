@@ -104,8 +104,19 @@ def render(out_dir: Path) -> str:
              + (f" ({last['tokens_seen'] / max(1e-9, last.get('elapsed_s', 1)):.0f} tok/s)"
                 if last.get("tokens_seen") else ""))
     if last.get("mem_gib"):
-        L.append(f"- device memory **{last['mem_gib']:.1f} GiB** "
-                 f"(0 means the trainer has no reporter for this device)")
+        # Live bytes tell you the steady state; the PEAK tells you whether the next
+        # checkpoint save or long-window validation has room. On CUDA the peak is a real
+        # high-water mark (max_memory_allocated); MPS has no peak counter and repeats the
+        # live figure. A run reporting 0 has no reporter for its device at all.
+        mem = f"- device memory **{last['mem_gib']:.1f} GiB** live"
+        peak = last.get("mem_peak_gib")
+        if peak:
+            head = peak - last["mem_gib"]
+            mem += (f", **{peak:.1f} GiB** peak"
+                    + (f" (+{head:.1f} GiB of transient)" if head > 0.05 else ""))
+        if last.get("device"):
+            mem += f" on {last['device']}"
+        L.append(mem)
     L.append(f"- lr {last.get('lr', 0):.2e}")
     L.append("")
 
