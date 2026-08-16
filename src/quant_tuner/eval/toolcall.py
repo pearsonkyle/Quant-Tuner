@@ -120,6 +120,17 @@ class Sampling:
     presence_penalty: float | None = None
     repetition_penalty: float | None = None
     seed: int | None = None
+    chat_template_kwargs: dict | None = None
+    """Template flags (e.g. ``{"enable_thinking": false}``) for an
+    **already-running** server, forwarded per-request through ``extra_body``.
+
+    Spawned llama-servers take these as a CLI flag instead, so this field only
+    matters on the ``base_url`` path — which is exactly where they used to be
+    dropped. That silently benchmarked a served model with reasoning ENABLED
+    against llama-server numbers collected with it DISABLED: the model spends
+    ``max_tokens`` on a chain of thought and gets truncated before it can emit a
+    tool call, which scores as "chose not to call a tool". Both vLLM and
+    llama-server honor ``chat_template_kwargs`` in the request body."""
 
     def to_request_kwargs(self) -> dict:
         kwargs: dict = {
@@ -127,6 +138,8 @@ class Sampling:
             "max_tokens": self.max_tokens,
         }
         extra: dict = {}
+        if self.chat_template_kwargs:
+            extra["chat_template_kwargs"] = self.chat_template_kwargs
         if self.top_p is not None:
             kwargs["top_p"] = self.top_p
         if self.presence_penalty is not None:

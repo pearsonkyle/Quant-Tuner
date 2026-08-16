@@ -39,7 +39,7 @@ from typing import Literal
 
 import torch
 
-from quant_tuner.calibrate._device import resolve_device
+from quant_tuner.calibrate._device import release_gpu_memory, resolve_device
 from quant_tuner.calibrate._hf import forward_no_logits
 from quant_tuner.calibrate._ingest import load_chunks, sample_rows
 from quant_tuner.calibrate._quant_mix import (
@@ -970,6 +970,11 @@ def calibrate(
     print("[awq] alpha histogram:", file=sys.stderr)
     for a in sorted(hist):
         print(f"   α={a:.2f}  {hist[a]:3d} groups", file=sys.stderr)
+
+    # awq.apply immediately reloads the model in a fresh forward pass; leaving
+    # this pass's blocks reserved just doubles peak footprint for no reuse.
+    del model
+    release_gpu_memory("awq.calibrate")
     return out_path
 
 
@@ -1214,6 +1219,14 @@ def apply(
         if src.exists():
             shutil.copy2(src, out_dir / name)
     _preserve_auxiliary_tensors(model_dir, out_dir)
+    # The next pipeline stage converts this checkpoint and then runs
+    # llama-imatrix on it — a separate process, which can only offload into
+    # memory the driver reports free. Drop the model and hand its cached blocks
+    # back before that happens (see _device.release_gpu_memory).
+    del model
+    if ref_logits is not None:
+        del ref_logits
+    release_gpu_memory("awq.apply")
     return out_dir
 
 

@@ -1,0 +1,76 @@
+# Qwen3.8-27B -> IQ4_XS via AWQ + hybrid_custom imatrix, MTP draft head at Q8_0.
+# exp-062 arm; third sibling of iq2_m_qwen3_8_awq_v2.yaml / iq3_m_qwen3_8_awq.yaml.
+#
+# Opponent: the shipped plain-imatrix IQ4_XS rung (14.47 GiB / 4.549 bpw /
+# mean_kld 0.458 external / tool-call param_acc 0.2738).
+#
+# TEMPER EXPECTATIONS ON THIS RUNG, and read it differently from the other two.
+# AWQ's whole mechanism is protecting salient channels from quantization error, so
+# its headroom shrinks as that error shrinks — the gains are largest at 2 bits and
+# smallest at 4. Two concrete reasons to expect little here:
+#
+#   1. The shipped IQ4_XS is ALREADY the ladder's best tool-call rung (0.2738,
+#      above even the F16's 0.2562). There is not an obvious defect to repair, the
+#      way IQ3_M scoring below IQ2_M was.
+#   2. At 4 bits the alpha search scores through `int4_g128` — a plain uniform
+#      grid, not one of the E8-lattice codebook proxies. The codebook proxies are
+#      where the low-bit rungs' alpha choice earns its keep.
+#
+# So the useful outcome here is most likely "no regression", which is still worth
+# having: it would let the whole repo ship on one calibration corpus and one
+# template instead of a mix. Do NOT swap this rung for a delta inside noise — at
+# n=92 smoke turns the SE is ~4.8pp and at n=174 full-holdout turns it is ~3.3pp.
+#
+# The fold is NOT shared with the other rungs; alpha is searched through a proxy
+# chosen from quantize.type, so each rung pays for its own fold + imatrix pass.
+#
+# Output: gguf/IQ4_XS-awq-best-hybrid_custom-mtp.gguf
+name: iq4_xs_qwen3_8_awq
+
+model: Qwen/Qwen3.8-27B
+
+workspace: ./out/exp-062-awq-iq4xs
+
+data:
+  # Same corpus as the IQ2_M / IQ3_M arms — see iq2_m_qwen3_8_awq_v2.yaml for how
+  # it was cut and why. NEVER read it at a ctx other than 32768.
+  corpus: ./out/exp-062-32k/corpora/corpus.cal.txt
+
+extract:
+  keep_mtp: true
+
+calibration:
+  method: awq
+  variant: best
+  params:
+    ctx: 32768
+    imatrix_ctx: 32768
+    tokens: 524288
+    proxy_tokens: 256
+
+    # --- alpha-search proxy: DELIBERATELY UNPINNED --------------------------
+    # `proxy_for_quant_type` resolves 4-bit targets to int4_g128, and the
+    # pipeline defaults `proxy_mix` from quantize.type so each member is scored at
+    # its REAL stored type — under IQ4_XS that is attn_v -> Q5_K when GQA >= 4.
+    # Pinning a proxy would silently disable that per-member mix.
+
+    imatrix_variant: hybrid_custom
+
+    rmsnorm_plus_one: true
+    sanity_max_rel: 0.03
+
+    device: auto
+
+quantize:
+  type: IQ4_XS
+  mtp_pin: q8_0
+  chat_template: ./data/chat_templates/qwen3_8_safe_v2.jinja
+  general_name: Qwen3.8-27B
+
+bench:
+  # Eval corpora and FP16 baselines stay PINNED to exp-060 — that is what keeps
+  # this comparable to the shipped IQ4_XS rung.
+  suite: full
+  eval_ctx: 8192
+  eval_corpus: ./out/exp-060-32k/corpora/corpus.eval.txt
+  eval_tools_corpus: ./out/exp-060-32k/corpora/corpus.eval.tools.txt

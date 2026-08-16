@@ -174,7 +174,20 @@ crosses the HF↔GGUF boundary (imatrix variants, AWQ apply) goes through this m
 `bench/runner.py` defines `BenchRow` and `CSV_COLUMNS`. Sub-modules:
 - `bpw.py` — bits-per-weight from `n_params(f16)` and file size.
 - `kld.py` — `build_baseline(f16, eval_ds)` produces a reference KLD file via llama.cpp;
-  subsequent runs diff against it.
+  subsequent runs diff against it. **GGUF only** — it shells out to
+  `llama-perplexity --kl-divergence-base`.
+- `kld_hf.py` — the torch-side equivalent, for checkpoints llama.cpp cannot read
+  (the `vllm_export` compressed-tensors path). Same *shape* as the GGUF ladder —
+  six eval distributions, never concatenated, chunked at `eval_ctx` 8192,
+  reporting median KLD + top-token agreement — but **not numerically comparable**
+  to it: the reference is the bf16 HF model rather than the F16 GGUF, and unlike
+  llama-perplexity it tokenizes chat control tokens to their real single ids
+  (which makes `tools`/`agentic`/`broad`/`cal8k` *more* correct here, and so
+  unusable in the same column). Reductions are fp32 and **chunked over the vocab
+  dim** — a `[8192, 248320]` fp32 logits tensor is 8 GB. `--two-pass` holds one
+  model on the GPU at a time, caching reference logits as fp16 in CPU RAM
+  (lossless: fp16 has more mantissa than bf16), for when a bf16 reference plus a
+  quantized model exceed the card. CLI: `scripts/run_hf_kld.py`.
 - `speed.py` — wraps `llama-bench` for prefill/decode tok/s + TTFT with N repetitions
   (mean ± stdev).
 
@@ -366,6 +379,44 @@ calibrated on *our* distribution instead of Google's generic QAT.
   avoiding ("Pineple"). Multimodal towers/embeddings/PLE are ignored by default
   (matches Google's official QAT W4A16 layout); text-only models match none of
   those patterns, so defaults are architecture-safe.
+- **`DEFAULT_IGNORE` is gemma-shaped — audit it per model, never assume.** The
+  patterns name gemma's `vision_tower`/`audio_tower`/`per_layer`; a tower called
+  anything else matches **nothing** and gets quantized to int4 against a
+  text-only calibration corpus, with no error. Qwen3.5's tower is
+  `model.visual.*` — measured: `re:.*vision_tower.*` → 0 modules,
+  `re:.*visual.*` → 281. Run `scripts/run_vllm_ptq.py --dry-run-ignore` (prints
+  per-pattern match counts and flags dead patterns) before every new model, and
+  add patterns with the repeatable `--ignore`.
+- **`ignore` matches the LIVE MODULE TREE, not the checkpoint.** The far worse
+  failure is a tensor that has no module at all: `from_pretrained` discards it
+  and it is simply **absent from the export**, which no `ignore` entry can
+  prevent. `dropped_tensors()` reports these and `--dry-run-ignore` prints them.
+- **`AutoModelForCausalLM` silently picks the text-only class on a multimodal
+  checkpoint.** `qwen3_5` maps to `Qwen3_5ForCausalLM`, whose modules are
+  `model.layers.*`, while the checkpoint stores `model.language_model.*` +
+  `model.visual.*` — so the Auto class matches *none* of the 850 text tensors.
+  `PTQConfig.model_class` / `--model-class Qwen3_5ForConditionalGeneration`
+  loads the declared class, whose tree matches the checkpoint 1:1.
+- **A processor must be passed explicitly.** llmcompressor ≥ 0.13 auto-initializes
+  `AutoProcessor` whenever a dataset is given, which raises on a multimodal dir
+  ("An error occurred when attempting to initialize model processor"). `run_ptq`
+  passes the tokenizer as `processor=` — the dataset is already tokenized, so it
+  is only used for saving.
+- **transformers drops MTP draft heads on load, at every precision.** Every
+  `qwen3_5` class declares `_keys_to_ignore_on_load_unexpected = ['^mtp.*']`, so
+  the 15 `mtp.*` tensors never become modules and cannot be quantized *or*
+  ignored — they just vanish from the export. Restore them with
+  `scripts/inject_mtp_bf16.py`, which hardlinks the export and adds the raw bf16
+  tensors as one extra shard (0.85 GB). **vLLM 0.27.1 supports this**: it
+  registers `Qwen3_5MTP`, accepts `speculative_config` `method: qwen3_5_mtp`,
+  reads `mtp.*` straight out of the served checkpoint (remapping `mtp.` →
+  `model.`), and explicitly tolerates a bf16 `mtp.fc` inside a quantized
+  checkpoint. Quantizing the head is not worth it — int8 saves 0.4 GB of ~14 GB.
+- **Hybrid linear attention does NOT break the sequential pipeline** (VERIFIED
+  on Qwen3.8-27B: 48 `linear_attention` + 16 `full_attention` layers traced
+  cleanly into 65 slices). Do not reach for `--pipeline basic` on a recurrent
+  architecture by analogy with gemma-4 — that trap is cross-layer *shared KV*,
+  which is a different thing. `basic` costs 60–100 GB of Hessian offload.
 - Output dir gains `quant_tuner_ptq.json` (corpus SHA-256s, ctx, budget, scheme)
   and `run_ptq` **fails loudly** if the exported config lacks
   `quantization_config` (otherwise vLLM would silently serve bf16).
@@ -694,6 +745,17 @@ The OmniCoder reproduction is here; the CLI handles ad-hoc runs.
 - **An imatrix cannot be precomputed without the weights** — it is per-model `E[a²]`
   activation statistics. Borrowing another model's (even same-architecture) gives a quant
   that loads and is quietly worse. Same for AWQ scales and GPTQ Hessians.
+- **`llama-imatrix` skips `output.weight` unless you ask for it.** `imatrix.cpp` only
+  collects tensors whose name starts with `blk.` (`m_params.process_output` defaults
+  **false**), so the largest quantized tensor — and the one that directly shapes the token
+  distribution KLD measures — was calibrated blind on every run before exp-060.
+  `models.llama_cpp.imatrix` now passes `--process-output` by default; pass
+  `process_output=False` to reproduce pre-exp-060 published numbers. **Audit this per run**:
+  llama-quantize prints `did not find weights for <tensor>` to stderr and quantizes anyway,
+  so the only symptom is a line in `logs/quantize.log`. On the Qwen3.8 ladder the *expected*
+  members of that list are `token_embd.weight` (an embedding lookup, not a matmul — never
+  collectable) and the `blk.64.*` MTP head (not exercised by a forward pass; mitigated by the
+  Q8_0 pin). Anything else in that list is a bug.
 - `data/system_prompt.py` — **SFT-only** system-prompt scrubbing. 90% of system-prompt
   characters in the logs are blocks repeated verbatim across sessions (tone, git etiquette,
   worked examples). A repeated block is dropped **unless it names a path/file the same
