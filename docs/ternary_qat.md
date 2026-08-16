@@ -197,8 +197,11 @@ Method B below); `--no-chunked-attention` to restore the stock SDPA kernel and i
   **`qat.attention.enable_chunked_sdpa()` removes that cap outright** (on by default;
   `--no-chunked-attention` opts out). It computes causal SDPA in query blocks, so the
   score tensor is `[heads, chunk, kv_len]` and never `[heads, S, S]`. Output is
-  **bit-identical** to `is_causal=True` — unit-tested at max abs err 0.0, which is what
-  makes long-window results comparable with everything produced below 8191. It patches
+  **mathematically identical** to `is_causal=True`, and bit-identical wherever the SDPA
+  kernel's reduction order allows (single block, and the MPS training path); a multi-block
+  call on an x86 CPU flash kernel lands 1-2 ULP away. What makes long-window results
+  comparable with everything produced below 8191 is that the error is **flat in the window
+  length** — the same 2.1e-07 at 4 blocks and at 256 — so it does not accumulate. It patches
   the registered `"sdpa"` entry *in place* rather than adding a name, so transformers'
   mask fast path still returns `attention_mask=None` for a plain causal decoder (a custom
   name gets an eager `[1,1,S,S]` float mask — 1 GB at S=16128).
@@ -707,6 +710,21 @@ Three numbers, in the order you should read them — the first one gates the oth
    `<workspace>/trajectories/<model>/*.traj.json` for reading the failures directly.
 
 Q2_0 (ftype 41) requires the **prism llama.cpp fork** — hence `LLAMA_CPP_DIR=vendor/llama.cpp-prism`.
+It is **not** a tracked submodule (seven scripts export that path and none of them said where
+it comes from, which cost a session's worth of rediscovery on a fresh box). Clone and build
+it before the export stage:
+
+```bash
+git clone https://github.com/PrismML-Eng/llama.cpp vendor/llama.cpp-prism   # `prism` is the default branch
+cmake -S vendor/llama.cpp-prism -B vendor/llama.cpp-prism/build -DGGML_CUDA=ON  # -DGGML_METAL=ON on a Mac
+cmake --build vendor/llama.cpp-prism/build -j --target llama-quantize llama-cli llama-perplexity
+```
+
+The URL is recorded in the `prism-ml/Ternary-Bonsai-8B-gguf` model card. Note the sibling
+GGUF repo `prism-ml/Ternary-Bonsai-8B` **404s** — the weights live under
+`…-8B-gguf` (packed) and `…-8B-unpacked` (the trainable fp16 safetensors this pipeline
+starts from), so `out/exp-057/model` is a snapshot of the *unpacked* repo and its
+`chat_template.jinja` is the authoritative template to restore at export.
 
 ## Unattended: grow data until it generalizes
 

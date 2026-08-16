@@ -551,8 +551,14 @@ the ternarization in the loop** (BitNet/TWN STE). Full guide: `docs/ternary_qat.
   `[heads, S, S]` and MPSGraph rejects > INT_MAX elements: the cap was `n_heads·S² < 2³¹`,
   i.e. `S ≤ 8191` at 32 heads (8192 fails by *one element* — which is why it was recorded
   as "8k impossible"). Chunking the query dim makes the score tensor `[heads, chunk,
-  kv_len]` and is **bit-identical** to `is_causal=True` (unit-tested, max abs err 0.0 —
-  that exactness is what keeps long-window results comparable with short-window ones). It
+  kv_len]` and is **mathematically identical** to `is_causal=True`. Bit-exactness is a
+  property of the SDPA kernel, not of this code: slicing K/V per block changes each
+  kernel's reduction length, so it holds for a single block and on MPS but lands 1-2 ULP
+  away for multi-block calls on an x86 CPU flash kernel (2.4e-07 vs outputs of magnitude
+  ~3). Don't assert `torch.equal` across backends — what keeps long- and short-window
+  results comparable is that the error is **flat in the window length** (same 2.1e-07 at
+  4 and at 256 blocks), i.e. per-element rounding that does not accumulate. Both are
+  unit-tested; a real causality bug measures ~2.7e+00, six orders clear of the bound. It
   patches the registered `"sdpa"` entry **in place** rather than adding a name, on purpose:
   transformers' mask fast path keys off the string `"sdpa"` to return `attention_mask=None`
   for a causal decoder, and a custom name would instead build a `[1,1,S,S]` float mask
@@ -582,8 +588,35 @@ the ternarization in the loop** (BitNet/TWN STE). Full guide: `docs/ternary_qat.
 - **Metal constraints are hard, not preferences**: `foreach=False` (MPS multi-tensor kernels
   deadlock at full-model scale), **fp32 latents** (bf16 underflows the ternary threshold → no
   code flips), `--optim adafactor` to fit all 36 layers (~66-75 GB vs AdamW's ~116 GB).
-  `--compute-dtype bf16` is a **pessimization** at all-36 (54.5 GiB vs 31 GiB — the fp32
-  master copy stacks on top).
+  On Metal `--compute-dtype bf16` is a **pessimization** at all-36 (54.5 GiB vs 31 GiB — the
+  fp32 master copy stacks on top); on CUDA it is the opposite (see below).
+- **`qat/_device.py` owns every backend difference — do not add `if dev == "mps"` branches.**
+  `resolve_backend("auto")` (cuda > mps > cpu) returns a `Backend` carrying `foreach`,
+  `needs_chunked_sdpa`, `max_window`, `teacher_dtype`, `default_empty_cache_every` plus the
+  memory probes. Before this existed `train.py` read
+  `dev = "mps" if torch.backends.mps.is_available() else "cpu"`, which on a CUDA box
+  **silently selects CPU** — no error, ~100x slow, checkpoints still save. Two defaults
+  invert per backend: `foreach` (MPS deadlocks, CUDA wants it) and the allocator-cache
+  release (`--empty-cache-every` 5 on MPS to stop the working set creeping into swap, **0 on
+  CUDA** where the failure mode does not exist and the release costs a sync plus reusable
+  blocks). `--device` pins one; `mem_peak_gib` in `metrics.jsonl` is the number to size from.
+- **fp32 + GQA has no fused SDPA kernel on CUDA — the trainer patches around it.**
+  transformers passes `enable_gqa=True` to SDPA whenever the mask is None on CUDA
+  (`use_gqa_in_sdpa`) instead of expanding K/V. FlashAttention consumes grouped K/V natively
+  in fp16/bf16, but **rejects fp32 outright**, and the memory-efficient kernel (which does
+  support fp32) does not support `enable_gqa` — so the dispatcher falls back to **math** and
+  materializes `[batch, heads, S, S]`. On Qwen3-8B (32 heads / 8 KV) that is **7.75 GiB at a
+  8064 window**, and an all-36 fp32 run OOMs a 95 GiB card while doing nothing unusual.
+  `attention.enable_fp32_gqa_repeat()` makes the predicate honest about fp32 so transformers'
+  own `repeat_kv` branch is taken; `train.py` calls it on CUDA whenever `compute_dtype` is
+  fp32. Measured at S=2048 fp32, one fwd+bwd: `repeat_kv` 0.251 GiB (fused) vs `enable_gqa`
+  2.156 GiB (math). **This is why `--no-chunked-attention` alone was not enough on CUDA** —
+  the chunked path was masking a dispatch bug, not just an MPSGraph cap.
+- **Chunked SDPA is a Metal workaround and pure overhead on CUDA.** `--chunked-attention` is
+  tri-state: `auto` (default) patches it only where the backend needs it — MPS, and
+  `--trained-tail` on any device, which carries its prefix K/V — `on` forces it for
+  benchmarking, `off` refuses it. Measured cost of forcing it on at 8064: bf16 5.5 → 17.4
+  s/step (3.2x).
 - **Size the window from the TRAINING LOOP, not a single-window probe.** The probe omits
   the optimizer step and runs before swap builds; trusting it picked a window that could
   not train at all. Real s/step at grad-accum 4 on an idle M4 Max 128 GB (all-36, fp32,

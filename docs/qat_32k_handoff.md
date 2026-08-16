@@ -9,6 +9,11 @@ Reference box: **M4 Max, 128 GB unified memory, macOS/MPS, torch 2.12, transform
 Every number below is from that box; **none of it transfers to CUDA unchanged** (see
 "Porting to a different machine").
 
+> **2026-08-16: ported and re-measured on CUDA.** See §10 — it supersedes §3's ladder and
+> corrects §9's central prediction. The short version: CUDA does **not** hand fp32 a fused
+> attention kernel, chunked SDPA is pure overhead here, 32768 full-gradient fits with
+> 6.4 GiB to spare, and one epoch of the universal corpus costs ~10 h instead of ~152 h.
+
 ---
 
 ## 1. Why this work happened
@@ -217,3 +222,235 @@ The *numbers* are not. Re-derive them:
 - Adafactor was chosen because AdamW's 55.6 GB of state did not fit in 128 GB shared.
   On an 80 GB+ dedicated GPU, revisit AdamW.
 - Re-run step 2 of the resume block to get s/step before sizing the run.
+
+---
+
+## 10. The CUDA port (2026-08-16)
+
+Box: **1x NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 95.0 GiB VRAM, cc 12.0**,
+driver 590.48.01, torch 2.12.0+cu130, transformers 5.12.1, python 3.11.
+
+### 10.1 The finding that mattered — fp32 has no fused attention kernel on CUDA
+
+§9 predicted that "PyTorch has a genuinely fused SDPA (FlashAttention) … which makes
+`chunked_causal_sdpa` unnecessary and slower" and that "the whole memory problem this
+document solves largely evaporates". **Half right, and the wrong half is load-bearing.**
+
+The first fp32 run on this box OOM'd at a **8064** window on a 95 GiB card, asking for
+7.75 GiB. That number is exactly `32 heads x 8064^2 x 4 bytes` — the full score matrix,
+i.e. the very tensor chunking exists to avoid, materialized on the hardware that was
+supposed to make chunking unnecessary.
+
+The cause is a dispatch fallback, not a missing kernel:
+
+- FlashAttention and cuDNN attention **reject fp32 outright** (`Expected query, key and
+  value to all be of dtype: {Half, BFloat16}`).
+- The **memory-efficient** kernel *does* support fp32 — but not together with
+  `enable_gqa`.
+- transformers passes `enable_gqa=True` to SDPA whenever the attention mask is None on
+  CUDA (`integrations/sdpa_attention.py::use_gqa_in_sdpa`) instead of expanding K/V
+  itself. Qwen3-8B is 32 heads / 8 KV, so that branch is always taken.
+
+With no kernel able to serve fp32 + GQA, the dispatcher falls all the way back to
+**math**, which materializes `[batch, heads, S, S]` for backward. Measured at S=2048,
+fp32, one fwd+bwd (`[H,S,S]` would be 0.500 GiB):
+
+| call shape | peak | kernel |
+|---|---|---|
+| `repeat_kv` + `is_causal` | 0.251 GiB | fused |
+| `enable_gqa=True` + `is_causal` | 2.156 GiB | **math** |
+| `repeat_kv` + explicit bool mask | 0.266 GiB | fused |
+
+`attention.enable_fp32_gqa_repeat()` makes the predicate honest about fp32 so
+transformers' own `repeat_kv` branch is taken; `train.py` calls it on CUDA whenever
+`compute_dtype` is fp32. That is what turns "8064 OOMs" into "32768 fits".
+
+**Consequence for §9:** `--no-chunked-attention` alone was never the answer on CUDA. The
+chunked path was masking a dispatch bug, not merely working around an MPSGraph cap.
+
+### 10.2 The measured ladder — this replaces §3
+
+Same protocol as §3: `scripts/probe_window_budget.py`, the real training loop with the
+optimizer step, all-36 / adafactor / grad-accum 2 / 3 steps, synthetic corpus at
+`--labeled-frac 0.35`. "fused" = stock SDPA with the fp32 GQA fix; "chunked" =
+`--chunked-attention on`. `peak` is `torch.cuda.max_memory_allocated`.
+
+| window | fp32 fused | fp32 chunked | bf16 fused | bf16 chunked |
+|---|---|---|---|---|
+| 8064  | **20.1 s** / 64.8 GiB | 27.3 s / 69.3 GiB | **5.5 s** / 67.8 GiB | 17.4 s / 67.8 GiB |
+| 16128 | **45.2 s** / 72.6 GiB | — | **10.8 s** / 67.9 GiB | — |
+| 32768 | **124.2 s** / 88.6 GiB | 228.6 s / 88.6 GiB | **24.7 s** / 70.9 GiB | — |
+| 65536 | **OOM** | — | *(see below)* | — |
+
+Before the fp32 GQA fix, `fp32 fused` **OOM'd at every window including 8064**.
+
+Cost per trained token (per-window fwd+bwd, netting out the ~0.4-0.5 s fixed per-step
+cost — note that fixed cost was **~106 s** on the M4 Max and is essentially free here):
+
+| window | fp32 | bf16 | MPS fp32 (§3) |
+|---|---|---|---|
+| 8064  | 1.22 ms | 0.32 ms | 11.1 ms |
+| 16128 | 1.39 ms | 0.32 ms | 19.4 ms |
+| 32768 | 1.89 ms | 0.37 ms | 27.3 ms |
+
+**Conclusions, and where they differ from §3:**
+
+- **Train the full window at 32768. Still no prefix.** §3's headline conclusion survives:
+  extra context remains cheap relative to the linear layers. But the CUDA slope is not
+  flat the way MPS's 20480-32768 plateau was — fp32 costs **55% more per token** at 32768
+  than at 8064 (bf16, on flash, is nearly flat at +16%). It is still overwhelmingly worth
+  it, because a prefix discards ~T/W of the targets and this buys 27% -> 97% of SWE
+  conversations whole.
+- **Chunked SDPA is a Metal workaround. It is pure overhead here** — 3.2x on bf16 at 8064
+  (5.5 -> 17.4 s), and 26% slower plus 4.5 GiB heavier than the fp32 fused path. It is now
+  opt-in per backend (`--chunked-attention auto|on|off`), enabled automatically only on
+  MPS and for `--trained-tail` on any device.
+- **bf16 compute is a 5x speedup and 17.7 GiB lighter at 32768** — the exact opposite of
+  the Metal finding in §3, where bf16 was a pathological 28x pessimization. Its memory is
+  also nearly flat in the window (67.8 -> 70.9 GiB from 8064 to 32768) because the
+  `MasterOptimizer` static footprint dominates and bf16 activations are half-size, whereas
+  fp32's lower static footprint (56.4 GiB) is swamped by full-size activations.
+- **`--optim adamw` still does not fit, now for a VRAM reason rather than a shared-memory
+  one.** Static footprint before any activations, against 95.0 GiB:
+
+  | configuration | params | grads/masters | optimizer state | total | |
+  |---|---|---|---|---|---|
+  | fp32 + adafactor | 30.5 | 25.9 | ~0 | **56.4 GiB** | fits |
+  | fp32 + adamw | 30.5 | 25.9 | 51.8 | **108.1 GiB** | over by 13.2 |
+  | bf16-compute + adafactor | 15.2 | 51.8 | ~0 | **67.0 GiB** | fits |
+  | bf16-compute + adamw | 15.2 | 51.8 | 51.8 | **118.8 GiB** | over by 23.8 |
+  | bf16-compute + adamw-8bit | 15.2 | 51.8 | 12.9 | **80.0 GiB** | fits, ~15 GiB left |
+
+  8-bit AdamW is the only AdamW that fits, and it costs 12.9 GiB to buy state that
+  Adafactor provides in 9 MB — while discarding the one hyperparameter this project has
+  actually measured (lr 5e-4 under Adafactor). Not worth it for a run whose purpose is to
+  test two data-side interventions.
+
+### 10.3 What the port changed in the code
+
+`qat/_device.py` is new and owns every backend difference; the trainer asks it rather than
+branching on `dev ==`. The line it replaces was
+`dev = "mps" if torch.backends.mps.is_available() else "cpu"`, which on a CUDA box
+**silently selects CPU** — no error, ~100x slower, checkpoints still saving.
+
+| decision | MPS | CUDA | why it inverts |
+|---|---|---|---|
+| `foreach` | False | True | MPS multi-tensor kernels deadlock at full-model scale; on CUDA they replace ~250 small launches |
+| chunked SDPA | forced | off | MPSGraph INT_MAX score cap vs a fused kernel (given the fp32 GQA fix) |
+| `max_window` w/o chunking | 8191 | none | `n_heads * S^2 < 2^31` is a Metal limit |
+| teacher dtype | fp16 | bf16 | no bf16 on M1-generation parts |
+| `--empty-cache-every` | 5 | 0 (off) | macOS OOM-kills a run whose working set creeps into swap; CUDA has no such mode and the release costs a sync plus reusable blocks |
+| memory reporting | `current_allocated_memory` | `max_memory_allocated` | MPS exposes no peak counter |
+
+Also changed:
+
+- **`metrics.jsonl` gains `mem_peak_gib` and `device`**, and the step line prints
+  `mem=<live>/<peak>GiB`. The peak is what a run is sized from — the transient a
+  checkpoint save or a long-window validation spikes to is what decides whether the next
+  one OOMs, and a point sample of live bytes will not show it.
+  `scripts/qat_progress_report.py` renders both.
+- **`--matmul-precision {highest,high,medium}`** (new). This is a different knob from
+  `--compute-dtype`: the latents, the TWN threshold and `ternarize_group` are all
+  elementwise fp32 and stay bit-exact, so the codes a step produces are unperturbed in a
+  way `--compute-dtype bf16` cannot promise. Only the matmul accumulation is reduced
+  (TF32 keeps 10 mantissa bits, bf16 8). Default `highest` = true fp32 = what every
+  published run used. Note torch defaults to `highest`, so **the fp32 numbers above are
+  true-fp32 matmuls, not TF32.**
+- **Flip telemetry now reads the fp32 masters under bf16 compute.** `snapshot_codes` read
+  `linear.weight` — the live *bf16 copy* — while `export_qat` ternarizes the masters. bf16
+  carries 8 mantissa bits, so a latent within ~0.2% of the TWN threshold ternarizes
+  differently in the two, and flips get recorded at the wrong step. Since flip velocity,
+  not loss, is how this project decides whether a ternary run is learning at all, that
+  instrument has to read the tensor that will actually ship. `latent_weights(model, opt)`
+  resolves it; unit-tested.
+- **`scripts/probe_window_budget.py` refuses to start against a busy card.** A killed
+  sweep leaves its trainer holding the whole GPU, the next configuration cannot even load
+  the model, and the probe records "OOM" against a configuration that never ran. This
+  happened here: a leaked 32768 run sat at 96.9 of 97.9 GiB and two innocent configs were
+  recorded as OOM. It is the CUDA analogue of §5's macOS cooldown trap and fails the same
+  misleading way. Swap reporting also now reads `/proc/meminfo` on Linux.
+- **`scripts/watch_qat_run_cuda.sh`** is the CUDA sibling of `watch_qat_run.sh` (added,
+  not edited — §"Constraints"). It watches VRAM, the process list on the card, and the log
+  for real tracebacks, because on CUDA an OOM is an ordinary exception rather than §5's
+  silent SIGKILL.
+- **`export_qat` now raises if `chat_template.jinja` is missing** instead of skipping it
+  silently. Without the template the F16 conversion bakes a thinking-enabled Qwen3 default
+  and the exported model emits `<think>` and never tool-calls — which reads as a model
+  that lost its agentic ability, not as a missing file.
+
+Unit tests: **1003 pass** (915 before; the additions cover the backend table, the fp32 GQA
+predicate, and the bf16 telemetry path). `mypy src` reports the same 5 errors in
+`qat/` before and after the port — none introduced.
+
+### 10.4 Environment gaps found on a fresh box
+
+None of these are in any runbook, and all three block a step:
+
+1. **`out/exp-057/chat_template.jinja`** — `qat/corpus.py` reads it from `exp-057/`, but
+   the unpacked HF repo ships it inside `model/`. Copy it up one level or every corpus
+   build dies on `FileNotFoundError`.
+2. **`vendor/llama.cpp-prism` is not a tracked submodule** and seven scripts export the
+   path without ever saying where it comes from. It is
+   `https://github.com/PrismML-Eng/llama.cpp` (`prism` branch, default), recorded only in
+   the `prism-ml/Ternary-Bonsai-8B-gguf` model card. Build command now in
+   `docs/ternary_qat.md`. Confirmed: `llama-quantize` lists `41 or Q2_0`.
+3. **`prism-ml/Ternary-Bonsai-8B` 404s.** The weights live at `…-8B-gguf` (packed) and
+   `…-8B-unpacked` (the trainable fp16 safetensors `out/exp-057/model` is a snapshot of).
+
+**The SWE-rebench eval cannot run on this box.** It is an unprivileged container: no
+Docker daemon, no `/var/run/docker.sock`, and no `cap_sys_admin`, so no container runtime
+can be installed. Training and export work; the A/B has to be graded on a Docker-capable
+machine. The holdout *file* is network-only and was built here.
+
+### 10.5 Resuming this run with more data
+
+The point of this branch is that the next iteration should be a corpus change and a
+launch, not a re-derivation. Everything below is already in place.
+
+**What is pinned.** The SFT blob is `out/corpora/qwen3-universal-v2/sft.jsonl.gz`
+(sha256 `32ed736c…`, 22,686,353 bytes). The packed corpora are
+`out/exp-058/sft_corpus_{universal,val}_32768.pt`, and the trainer stores a
+`corpus_fingerprint` in every checkpoint — a `--resume` against a corpus that does not
+match is refused rather than silently continuing on different data. **Adding data
+therefore ends the old run**; it does not extend it.
+
+**To rebuild with more data:**
+
+```bash
+# 1. regenerate the SFT blob (data.universal writes sft.jsonl.gz beside the corpus)
+PYTHONPATH=src .venv/bin/python scripts/build_universal_corpus.py --ctx 32768 ...
+
+# 2. repack, at the window the run will use. --max-tool-tokens scales WITH the window:
+#    1024 drops 28% of all conversation content and was only ever right at 4096.
+PYTHONPATH=src .venv/bin/python scripts/build_sft_qat_corpus.py \
+    --window 32768 --max-tool-tokens 4096 --min-density 0.05 \
+    --out out/exp-058/sft_corpus_universal_32768.pt
+# ...and again with --split test for the val corpus.
+
+# 3. relaunch (fresh --out; do not resume across a corpus change)
+bash scripts/run_sft32k_qat_cuda.sh <tag> <lr> <epochs>
+```
+
+**Do not plan to extend epochs with `--resume`.** `total_steps` is recomputed from
+`--epochs`, so resuming a finished 1.0-epoch run at 2.0 puts the cosine schedule back
+near its peak with no warmup: **5.0e-5 -> 2.9e-4, a 5.9x step up**, at exactly the
+annealed point. That is the same shape as the trigger that cost sft8k-full 90 steps.
+Commit to the epoch count at launch. `--resume` is for continuing an *interrupted* run
+of the same schedule on the same corpus, which is what it is safe for.
+
+**What scales with more data, and what does not.** Steps per epoch is
+`n_windows / grad_accum`, so a corpus 2x the size doubles the run at a fixed
+tokens-per-step — the numbers in §10.2 are per-step and stay valid. What does *not*
+carry over is the stop-token ratio: `--stop-weight` corrects the measured imbalance in
+*this* blob (35,359 terminating `<|im_end|>` in 6,071,948 targets, one per 172). Recheck
+it against the new corpus's `im_end_targets` and rescale, or the weight silently means
+something different.
+
+**If the window changes**, re-run the probe rather than interpolating §10.2 — fp32 cost
+per trained token is *not* flat on CUDA (+55% from 8064 to 32768), unlike the MPS
+plateau §3 recorded.
+
+```bash
+PYTHONPATH=src .venv/bin/python scripts/probe_window_budget.py \
+    --window W --trained-tail 0 --steps 3 --grad-accum 1 --cooldown 0
+```
