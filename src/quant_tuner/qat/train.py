@@ -40,11 +40,13 @@ from pathlib import Path
 import torch
 import torch.nn.functional as F
 
+from quant_tuner.qat._device import MPS_MAX_WINDOW, resolve_backend
 from quant_tuner.qat.attention import (
     DEFAULT_CHUNK,
     capture_prefix,
     clear_prefix,
     enable_chunked_sdpa,
+    enable_fp32_gqa_repeat,
     use_prefix,
 )
 from quant_tuner.qat.corpus import corpus_fingerprint
@@ -53,12 +55,8 @@ from quant_tuner.qat.ternary import TernaryLinear, ternarize_group
 
 REPO = Path(__file__).resolve().parents[3]
 MODEL = REPO / "out" / "exp-057" / "model"
-# MPSGraph refuses a tensor with > INT_MAX elements, and the unfused training SDPA path
-# materializes [n_heads, S, S]. The ceiling is therefore n_heads*S^2 < 2^31, i.e. S <= 8191
-# at 32 heads — 8192 fails by exactly ONE element (32*8192^2 == 2^31). Measured fwd+bwd on
-# torch 2.12/M4 Max: 4096/6144/7168/8064/8128/8191 all pass, 8192 is the only failure. Use
-# 8064 (a multiple of 128) for an ~8k window; it holds the universal corpus's 7500-token cap.
-MPS_MAX_WINDOW = 8191
+
+__all__ = ["MPS_MAX_WINDOW", "QATConfig", "main", "train_qat"]
 
 
 @dataclass
@@ -89,11 +87,17 @@ class QATConfig:
     ckpt_keep: int = 2
     warmup_frac: float = 0.05
     grad_spike_factor: float = 4.0
-    chunked_attention: bool = True
-    empty_cache_every: int = 5
+    #: "auto" (patch only where the backend needs it, or for --trained-tail),
+    #: "on" (always patch — for benchmarking it against a fused kernel), "off"
+    chunked_attention: str = "auto"
+    #: None -> the backend's default (5 on MPS, off on CUDA); see qat._device
+    empty_cache_every: int | None = None
     metrics_jsonl: bool = True
     trained_tail: int = 0
     stop_weight: float = 1.0
+    device: str = "auto"
+    #: torch.set_float32_matmul_precision; see the --matmul-precision help
+    matmul_precision: str = "highest"
 
 
 def parse_layers(spec: str, n_layers: int) -> set[int]:
@@ -349,8 +353,34 @@ def kd_kl(teacher, ids: torch.Tensor, keep_idx: torch.Tensor,
     return F.kl_div(s_logp, t_logp, log_target=True, reduction="none").sum(-1).mean()
 
 
-def snapshot_codes(model, k: int = 8) -> dict[str, tuple[torch.Tensor, torch.Tensor]]:
-    """Snapshot (codes int8, scale fp16) of k trainable linears spread across layers."""
+def latent_weights(model, opt) -> dict[str, torch.Tensor]:
+    """Map module name -> the tensor that IS the trained latent.
+
+    Under ``--compute-dtype bf16`` the live ``linear.weight`` is a bf16 *copy* of an fp32
+    master owned by the optimizer, and :func:`export_qat` ternarizes the **masters**. Read
+    the live copy instead and the flip telemetry describes a model that is never exported:
+    bf16 carries 8 mantissa bits, so a latent sitting within ~0.2% of the TWN threshold
+    ternarizes differently in the two, and flips get recorded at the wrong step. Since flip
+    velocity — not loss — is how this project decides whether a ternary run is learning at
+    all, that instrument has to read the same tensor the artifact will.
+
+    Returns ``{}`` in the fp32 case, where the live weight already is the latent.
+    """
+    if not isinstance(opt, MasterOptimizer):
+        return {}
+    by_param = {id(p): m for p, m in zip(opt.params, opt.masters, strict=True)}
+    return {name: by_param[id(mod.linear.weight)]
+            for name, mod in model.named_modules()
+            if isinstance(mod, TernaryLinear) and id(mod.linear.weight) in by_param}
+
+
+def snapshot_codes(model, k: int = 8, latents: dict[str, torch.Tensor] | None = None,
+                   ) -> dict[str, tuple[torch.Tensor, torch.Tensor]]:
+    """Snapshot (codes int8, scale fp16) of k trainable linears spread across layers.
+
+    ``latents`` (see :func:`latent_weights`) overrides where each module's latent is read
+    from — required under bf16 compute, a no-op otherwise.
+    """
     mods = [(n, m) for n, m in model.named_modules()
             if isinstance(m, TernaryLinear) and m.linear.weight.requires_grad]
     if not mods or k <= 0:
@@ -361,12 +391,14 @@ def snapshot_codes(model, k: int = 8) -> dict[str, tuple[torch.Tensor, torch.Ten
     with torch.no_grad():
         for i in picks:
             n, m = mods[i]
-            codes, scale, _ = ternarize_group(m.linear.weight.detach().float())
+            w = (latents or {}).get(n, m.linear.weight)
+            codes, scale, _ = ternarize_group(w.detach().float())
             snaps[n] = (codes.to(torch.int8).cpu(), scale.to(torch.float16).cpu())
     return snaps
 
 
-def flip_report(model, snaps, prev: dict | None = None) -> tuple[dict, str]:
+def flip_report(model, snaps, prev: dict | None = None,
+                latents: dict[str, torch.Tensor] | None = None) -> tuple[dict, str]:
     """Codes flipped / scale drift vs the start-of-run snapshot.
 
     Beyond the cumulative flip count this records three things the raw percentage
@@ -385,12 +417,15 @@ def flip_report(model, snaps, prev: dict | None = None) -> tuple[dict, str]:
     ``scale_drift`` stays the mean absolute relative move (comparable with older runs);
     ``scale_drift_signed`` is added because the absolute value hides whether scales are
     systematically growing or shrinking.
+
+    ``latents`` must be passed whatever was passed to :func:`snapshot_codes`, or the
+    comparison is against a differently-rounded baseline.
     """
     mods = dict(model.named_modules())
     stats, lines = {}, []
     with torch.no_grad():
         for name, (codes0, scale0) in snaps.items():
-            w = mods[name].linear.weight.detach().float()
+            w = (latents or {}).get(name, mods[name].linear.weight).detach().float()
             codes, scale, _ = ternarize_group(w)
             c = codes.to(torch.int8).cpu()
             flip_pct = 100.0 * (c != codes0).float().mean().item()
@@ -447,7 +482,24 @@ def run_validation(model, ids_all, lbl_all, dev, max_windows: int,
 
 
 def train_qat(cfg: QATConfig) -> int:
-    dev = "mps" if torch.backends.mps.is_available() else "cpu"
+    backend = resolve_backend(cfg.device)
+    dev = backend.name
+    empty_cache_every = (cfg.empty_cache_every if cfg.empty_cache_every is not None
+                         else backend.default_empty_cache_every)
+    print(f"[qat] device {backend.describe()}", flush=True)
+    if cfg.matmul_precision != "highest":
+        # TF32/bf16 tensor cores for the fp32 MATMULS only. This is a different knob from
+        # --compute-dtype: the latents, the TWN threshold and ternarize_group are all
+        # elementwise fp32 and stay bit-exact, so the codes a step produces are unchanged
+        # in a way --compute-dtype bf16 cannot promise (it rounds the latent itself to 8
+        # mantissa bits before ternarizing). Only the matmul's internal accumulation is
+        # reduced: TF32 keeps 10 mantissa bits, bf16 8.
+        torch.set_float32_matmul_precision(cfg.matmul_precision)
+        print(f"[qat] fp32 matmul precision '{cfg.matmul_precision}' "
+              f"(tensor cores; latents and ternarization stay exact fp32)", flush=True)
+    if backend.name == "cpu":
+        print("[qat] WARNING: no accelerator found — training on CPU is ~100x slower "
+              "and is almost certainly not what you want.", flush=True)
     if cfg.dtype == "bf16":
         print("[qat] WARNING: bf16 latents underflow the ternary threshold — no codes "
               "will flip at stable LRs. Use compute_dtype=bf16 (fp32 masters) instead.",
@@ -460,25 +512,41 @@ def train_qat(cfg: QATConfig) -> int:
     blob = torch.load(cfg.corpus, weights_only=False)
     ids_all, lbl_all = blob["ids"], blob["labels"]
     n_win, window = ids_all.shape
-    if cfg.trained_tail and not cfg.chunked_attention:
+    if cfg.trained_tail and cfg.chunked_attention == "off":
         sys.exit("[qat] --trained-tail needs the patched attention: the prefix K/V ride in "
                  "qat.attention's store, not a transformers Cache. Drop "
                  "--no-chunked-attention.")
-    if dev == "mps" or cfg.trained_tail:
-        # Query-chunked SDPA removes the MPSGraph INT_MAX score-tensor cap entirely
-        # (bit-identical output; see qat.attention). Without it the ceiling is
-        # n_heads*S^2 < 2^31, i.e. S <= 8191 at 32 heads. It is also what carries the
-        # prefix K/V, so --trained-tail requires it on every device.
-        if cfg.chunked_attention:
-            enable_chunked_sdpa()
-            print(f"[qat] chunked SDPA enabled (query blocks of {DEFAULT_CHUNK}) — the "
-                  f"{MPS_MAX_WINDOW}-token MPSGraph cap does not apply; the limit is memory",
-                  flush=True)
-        elif window > MPS_MAX_WINDOW:
-            sys.exit(f"[qat] window {window} > {MPS_MAX_WINDOW}: MPS attention hits the "
-                     f"MPSGraph INT_MAX limit (n_heads x S^2 must stay < 2^31; at 32 heads "
-                     f"that is S <= {MPS_MAX_WINDOW}). Either rebuild the corpus at 8064 or "
-                     f"drop --no-chunked-attention.")
+    # Query-chunked SDPA is REQUIRED on Metal (it removes the MPSGraph INT_MAX
+    # score-tensor cap; bit-identical output — see qat.attention) and is what carries the
+    # prefix K/V for --trained-tail on every device. On CUDA neither applies to a plain
+    # full-gradient run: FlashAttention never materializes the score matrix, so the
+    # chunked path is pure overhead there and stays off unless asked for.
+    # fp32 + GQA has no fused SDPA kernel, so transformers' enable_gqa=True drops the
+    # whole call to the math backend and materializes [batch, heads, S, S] — 7.75 GiB at
+    # a 8064 window, which OOMs a 95 GiB card. Expanding K/V instead reaches the
+    # memory-efficient kernel. bf16/fp16 keep the native grouped path.
+    if backend.is_cuda and cfg.compute_dtype == "fp32":
+        enable_fp32_gqa_repeat()
+        print("[qat] fp32 GQA: expanding K/V so SDPA reaches the memory-efficient kernel "
+              "(enable_gqa=True would fall back to math and materialize [heads,S,S])",
+              flush=True)
+
+    want_chunked = (cfg.chunked_attention == "on" or
+                    (cfg.chunked_attention == "auto"
+                     and (backend.needs_chunked_sdpa or cfg.trained_tail)))
+    if want_chunked:
+        enable_chunked_sdpa()
+        print(f"[qat] chunked SDPA enabled (query blocks of {DEFAULT_CHUNK}) — the "
+              f"{MPS_MAX_WINDOW}-token MPSGraph cap does not apply; the limit is memory",
+              flush=True)
+    elif backend.max_window and window > backend.max_window:
+        sys.exit(f"[qat] window {window} > {backend.max_window}: MPS attention hits the "
+                 f"MPSGraph INT_MAX limit (n_heads x S^2 must stay < 2^31; at 32 heads "
+                 f"that is S <= {backend.max_window}). Either rebuild the corpus at 8064 or "
+                 f"drop --no-chunked-attention.")
+    else:
+        print(f"[qat] stock SDPA on {backend.name} (fused/flash kernels; no score matrix "
+              f"is materialized, so there is no window cap to chunk around)", flush=True)
     # Per-window source label, when the builder recorded one. The corpus mixes sources with
     # very different assistant fractions (0.08 refusals .. 0.79 broad-instruct), so a single
     # loss curve cannot say which data is driving the flips; a per-source breakdown can.
@@ -505,7 +573,7 @@ def train_qat(cfg: QATConfig) -> int:
 
     teacher = None
     if cfg.kd_teacher:
-        tdtype = torch.float16 if dev == "mps" else torch.float32
+        tdtype = backend.teacher_dtype
         teacher = AutoModelForCausalLM.from_pretrained(cfg.kd_teacher, dtype=tdtype).to(dev)
         teacher.config.use_cache = False
         teacher.eval().requires_grad_(False)
@@ -525,13 +593,15 @@ def train_qat(cfg: QATConfig) -> int:
             return Adafactor(params, lr=cfg.lr, scale_parameter=False,
                              relative_step=False, warmup_init=False,
                              beta1=cfg.beta1, weight_decay=cfg.weight_decay)
+        # foreach fuses ~250 tiny per-tensor kernels into a handful of multi-tensor ones
+        # on CUDA; on MPS the same kernels deadlock at full-model scale (qat._device).
         return torch.optim.AdamW(params, lr=cfg.lr, weight_decay=cfg.weight_decay,
-                                 foreach=False)
+                                 foreach=backend.foreach)
 
     if cfg.compute_dtype == "bf16":
         # masters are cloned fp32 BEFORE the bf16 cast; the cast keeps Parameter
         # identity, so the wrapper's param references stay live
-        opt = MasterOptimizer(trainable, make_inner)
+        opt = MasterOptimizer(trainable, make_inner, foreach=backend.foreach)
         model.to(torch.bfloat16)
         print("[qat] bf16 compute + fp32 masters "
               f"({sum(m.numel() for m in opt.masters)/1e9:.2f}B master params)", flush=True)
@@ -604,11 +674,14 @@ def train_qat(cfg: QATConfig) -> int:
         ck.clear()
         del latents, ck
         gc.collect()
-        if dev == "mps":
-            torch.mps.empty_cache()
+        backend.empty_cache()
 
-    snaps = snapshot_codes(model, cfg.flip_sample)
-    print(f"[qat] flip telemetry on {len(snaps)} linears", flush=True)
+    # Under bf16 compute the latents live in the optimizer's fp32 masters, and that is
+    # what export ternarizes — so that is what the flip telemetry must read.
+    latents_for_flips = latent_weights(model, opt)
+    snaps = snapshot_codes(model, cfg.flip_sample, latents=latents_for_flips)
+    print(f"[qat] flip telemetry on {len(snaps)} linears"
+          f"{' (reading fp32 masters)' if latents_for_flips else ''}", flush=True)
     flip_stats: dict = {}
 
     # Machine-readable telemetry. The stdout log is human-facing and has to be re-parsed
@@ -626,7 +699,8 @@ def train_qat(cfg: QATConfig) -> int:
     def save_ckpt(at):
         nonlocal flip_stats
         if snaps:
-            flip_stats, lines = flip_report(model, snaps, prev=flip_stats)
+            flip_stats, lines = flip_report(model, snaps, prev=flip_stats,
+                                            latents=latents_for_flips)
             print(f"[qat] code flips vs run start:\n{lines}", flush=True)
             for tname, st in flip_stats.items():
                 emit("flip", step=at, tensor=tname, **st)
@@ -635,8 +709,7 @@ def train_qat(cfg: QATConfig) -> int:
         # multiples of --ckpt-every), i.e. peak-training memory + this spike. Release the
         # cached MPS blocks and the flip-report temporaries FIRST so the copy has headroom.
         gc.collect()
-        if dev == "mps":
-            torch.mps.empty_cache()
+        backend.empty_cache()
         if isinstance(opt, MasterOptimizer):
             latents = {n: m.detach().cpu() for n, m in zip(t_names, opt.masters, strict=True)}
         else:
@@ -674,8 +747,7 @@ def train_qat(cfg: QATConfig) -> int:
                 print(f"[qat] checkpoint rotation skipped ({e})", flush=True)
         del latents, payload
         gc.collect()
-        if dev == "mps":
-            torch.mps.empty_cache()
+        backend.empty_cache()
         print(f"[qat] checkpoint @ step {at}: {len(t_names)} tensors", flush=True)
 
     def opt_step() -> tuple[float, bool]:
@@ -690,7 +762,8 @@ def train_qat(cfg: QATConfig) -> int:
                 return gn, True
             opt.step_staged(1.0)
         else:
-            gn = float(torch.nn.utils.clip_grad_norm_(trainable, 1.0, foreach=False))
+            gn = float(torch.nn.utils.clip_grad_norm_(trainable, 1.0,
+                                                      foreach=backend.foreach))
             if guard.check(gn):
                 opt.zero_grad()
                 return gn, True
@@ -778,20 +851,22 @@ def train_qat(cfg: QATConfig) -> int:
                       f"SKIPPED ({guard.n_skipped} so far)", flush=True)
             n_acc = 0
             step += 1
-            # Periodic MPS cache release: over a long all-36 run the allocator fragments and
-            # working-set creeps until it swaps (s/step balloons) and macOS OOM-kills the
-            # process. Release at the post-step memory trough to keep it bounded.
-            # Every 25 steps was NOT enough at window 8064/all-36: an OOM kill landed at
-            # ~step 12 with swap at 63 GB, i.e. mid-interval, before the release ever fired.
-            # The release is cheap (~1 s) next to a ~390 s step, so err on frequent.
-            if dev == "mps" and step % cfg.empty_cache_every == 0:
-                torch.mps.empty_cache()
+            # Periodic allocator-cache release. On MPS this is load-bearing: over a long
+            # all-36 run the allocator fragments and the working set creeps until it swaps
+            # (s/step balloons) and macOS OOM-kills the process. Every 25 steps was NOT
+            # enough at window 8064/all-36 — a kill landed at ~step 12 with swap at 63 GB,
+            # mid-interval, before the release ever fired, so the MPS default is 5. On CUDA
+            # the failure mode does not exist and the release costs a device sync plus the
+            # blocks the allocator would have reused, so the default there is off.
+            if empty_cache_every and step % empty_cache_every == 0:
+                backend.empty_cache()
             if step == 1 or step % 5 == 0:
-                mem = torch.mps.current_allocated_memory() / 1024**3 if dev == "mps" else 0
+                mem, mem_peak = backend.allocated_gib(), backend.peak_gib()
                 avg = sum(recent) / len(recent)
                 emit("step", step=step, total_steps=total_steps, loss=avg,
                      lr=opt.param_groups[0]["lr"], grad_norm=grad_norm,
                      grad_median=guard.last_median, n_skipped=guard.n_skipped, mem_gib=mem,
+                     mem_peak_gib=mem_peak, device=backend.name,
                      n_tail_empty=n_tail_empty,
                      tokens_seen=tokens_seen, elapsed_s=time.time() - t0,
                      s_per_step=(time.time() - t0) / max(1, step - step0),
@@ -801,7 +876,9 @@ def train_qat(cfg: QATConfig) -> int:
                       f"lr={opt.param_groups[0]['lr']:.2e} "
                       # pre-clip; a divergence shows up here BEFORE the loss reacts
                       f"gnorm={grad_norm:.2f} "
-                      f"mem={mem:.1f}GiB "
+                      # live bytes, then the high-water mark — the peak is what decides
+                      # whether the next checkpoint save or validation OOMs
+                      f"mem={mem:.1f}/{mem_peak:.1f}GiB "
                       # steps run in THIS process, not the absolute step — after a resume
                       # the latter divides by a step count this process never spent time on
                       # and under-reports by (step / steps_here), which is exactly the
@@ -812,13 +889,11 @@ def train_qat(cfg: QATConfig) -> int:
                 # activations on top of a training cache that is already at the working-set
                 # ceiling. Measured at a 32768 window — the val interval was the only place
                 # swap moved (+11 GiB), and it dragged the surrounding steps with it.
-                if dev == "mps":
-                    torch.mps.empty_cache()
+                backend.empty_cache()
                 t_val = time.time()
                 vl = run_validation(model, val_ids, val_lbl, dev, cfg.val_windows, n_prefix)
                 val_s = time.time() - t_val
-                if dev == "mps":
-                    torch.mps.empty_cache()
+                backend.empty_cache()
                 emit("val", step=step, val_masked_ce=vl, val_windows=cfg.val_windows,
                      val_seconds=val_s)
                 # Report the cost: at a long window validation is not free next to a step,
@@ -890,14 +965,36 @@ def _build_parser() -> argparse.ArgumentParser:
                          "nothing to roll back to — the live file is already overwritten.")
     ap.add_argument("--no-metrics-jsonl", dest="metrics_jsonl", action="store_false",
                     help="skip the structured metrics.jsonl sidecar")
-    ap.add_argument("--empty-cache-every", type=int, default=5,
-                    help="release the MPS allocator cache every N steps (default 5). At "
-                         "all-36/window 8064 the old 25 let the working set creep into "
-                         "swap and OOM-kill the process mid-interval; the release costs "
-                         "~1 s against a ~390 s step.")
-    ap.add_argument("--no-chunked-attention", dest="chunked_attention", action="store_false",
-                    help="use the stock SDPA kernel; caps the MPS window at 8191 tokens "
-                         "(n_heads*S^2 < 2^31). Chunked SDPA is bit-identical and on by default.")
+    ap.add_argument("--empty-cache-every", type=int, default=None,
+                    help="release the allocator cache every N steps (default: 5 on MPS, "
+                         "off on CUDA). On MPS at all-36/window 8064 a cadence of 25 let "
+                         "the working set creep into swap and OOM-kill the process "
+                         "mid-interval, and the release costs ~1 s against a ~390 s step. "
+                         "CUDA has no such failure mode and the release costs a device "
+                         "sync plus reusable blocks; 0 disables.")
+    ap.add_argument("--matmul-precision", choices=["highest", "high", "medium"],
+                    default="highest",
+                    help="torch.set_float32_matmul_precision for the fp32 path. 'highest' "
+                         "(default) is true fp32 — what every published run used. 'high' "
+                         "uses TF32 tensor cores (10 mantissa bits) and 'medium' bf16 "
+                         "ones (8). Unlike --compute-dtype this leaves the LATENTS in "
+                         "exact fp32, so the TWN threshold and every code flip are "
+                         "unperturbed; only the matmul accumulation is reduced. No effect "
+                         "under --compute-dtype bf16, which is already not doing fp32 "
+                         "matmuls.")
+    ap.add_argument("--device", default="auto",
+                    help="cuda / mps / cpu / cuda:N (default auto: cuda > mps > cpu)")
+    ap.add_argument("--chunked-attention", choices=["auto", "on", "off"], default="auto",
+                    help="query-chunked SDPA (qat.attention). 'auto' patches it only where "
+                         "the backend needs it — on MPS, where the stock kernel caps the "
+                         "window at 8191 tokens (n_heads*S^2 < 2^31), and for "
+                         "--trained-tail on any device, which carries its prefix K/V. On "
+                         "CUDA the fused/flash kernel never materializes the score matrix, "
+                         "so auto leaves it off. 'on' forces it (benchmarking); 'off' "
+                         "refuses it everywhere.")
+    ap.add_argument("--no-chunked-attention", dest="chunked_attention",
+                    action="store_const", const="off",
+                    help="alias for --chunked-attention off")
     ap.add_argument("--trained-tail", type=int, default=0,
                     help="prefix-context mode: encode all but the last N tokens of each "
                          "window under no_grad into a KV cache and backprop only through "
@@ -934,6 +1031,7 @@ def main(argv: list[str] | None = None) -> int:
         empty_cache_every=args.empty_cache_every,
         metrics_jsonl=args.metrics_jsonl,
         trained_tail=args.trained_tail, stop_weight=args.stop_weight,
+        device=args.device, matmul_precision=args.matmul_precision,
     )
     return train_qat(cfg)
 

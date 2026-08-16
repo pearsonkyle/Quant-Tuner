@@ -47,6 +47,8 @@ from typing import Any
 
 import torch
 
+from quant_tuner.qat._device import resolve_backend
+
 DEFAULT_TOPK = 64
 
 
@@ -190,8 +192,9 @@ def precompute_topk(
     student_chat_template: Path | None = None,
 ) -> dict:
     """Run the teacher over ``corpus`` and store top-K logprobs at labeled positions."""
-    dev = device or ("mps" if torch.backends.mps.is_available() else "cpu")
-    tdtype = dtype or (torch.float16 if dev == "mps" else torch.float32)
+    backend = resolve_backend(device or "auto")
+    dev = backend.name
+    tdtype = dtype or backend.teacher_dtype
 
     blob = torch.load(corpus, weights_only=False)
     ids_all, lbl_all = blob["ids"], blob["labels"]
@@ -251,8 +254,7 @@ def precompute_topk(
             print(f"[kd] window {w+1}/{n_win}  positions={n_pos_total}  "
                   f"{el:.0f}s ({el/(w+1):.1f}s/window)", flush=True)
         del lg, logp_full
-        if dev == "mps":
-            torch.mps.empty_cache()
+        backend.empty_cache()
 
     payload = {
         "win": torch.cat(wins), "pos": torch.cat(poss),
