@@ -174,7 +174,20 @@ crosses the HF↔GGUF boundary (imatrix variants, AWQ apply) goes through this m
 `bench/runner.py` defines `BenchRow` and `CSV_COLUMNS`. Sub-modules:
 - `bpw.py` — bits-per-weight from `n_params(f16)` and file size.
 - `kld.py` — `build_baseline(f16, eval_ds)` produces a reference KLD file via llama.cpp;
-  subsequent runs diff against it.
+  subsequent runs diff against it. **GGUF only** — it shells out to
+  `llama-perplexity --kl-divergence-base`.
+- `kld_hf.py` — the torch-side equivalent, for checkpoints llama.cpp cannot read
+  (the `vllm_export` compressed-tensors path). Same *shape* as the GGUF ladder —
+  six eval distributions, never concatenated, chunked at `eval_ctx` 8192,
+  reporting median KLD + top-token agreement — but **not numerically comparable**
+  to it: the reference is the bf16 HF model rather than the F16 GGUF, and unlike
+  llama-perplexity it tokenizes chat control tokens to their real single ids
+  (which makes `tools`/`agentic`/`broad`/`cal8k` *more* correct here, and so
+  unusable in the same column). Reductions are fp32 and **chunked over the vocab
+  dim** — a `[8192, 248320]` fp32 logits tensor is 8 GB. `--two-pass` holds one
+  model on the GPU at a time, caching reference logits as fp16 in CPU RAM
+  (lossless: fp16 has more mantissa than bf16), for when a bf16 reference plus a
+  quantized model exceed the card. CLI: `scripts/run_hf_kld.py`.
 - `speed.py` — wraps `llama-bench` for prefill/decode tok/s + TTFT with N repetitions
   (mean ± stdev).
 
