@@ -1,0 +1,73 @@
+# Qwen3.8-27B -> IQ3_M via AWQ + hybrid_custom imatrix, MTP draft head at Q8_0.
+# exp-062 arm; sibling of iq2_m_qwen3_8_awq_v2.yaml. Same corpus, same fold
+# machinery, same MTP pin — only `quantize.type` and the alpha-search proxy differ.
+#
+# Opponent: the shipped plain-imatrix IQ3_M rung (12.14 GiB / 3.816 bpw /
+# mean_kld 0.739 external / tool-call param_acc 0.2395).
+#
+# Why this rung is worth rebuilding at all: on the shipped ladder IQ3_M scores
+# WORSE on tool-call accuracy than IQ2_M (0.2395 vs 0.2601) despite 0.75 more bpw
+# and roughly half the KLD. A rung that is better on every distributional metric
+# and worse on the task is the signature of a calibration mismatch, not of the bit
+# width — which is exactly what AWQ + a tool-dense corpus is supposed to fix. Read
+# the tool-call number here as the headline and KLD as the guardrail.
+#
+# NOTE the fold is NOT shared with the IQ2_M arm. AWQ's alpha search scores
+# candidates through a proxy quantizer chosen from `quantize.type`, so a 3-bit
+# search yields different scales and therefore a different folded F16. Each rung
+# pays for its own fold + imatrix pass; they cannot be deduplicated.
+#
+# Output: gguf/IQ3_M-awq-best-hybrid_custom-mtp.gguf
+name: iq3_m_qwen3_8_awq
+
+model: Qwen/Qwen3.8-27B
+
+workspace: ./out/exp-062-awq-iq3m
+
+data:
+  # Same corpus as the IQ2_M arm — see that recipe for how it was cut and why.
+  corpus: ./out/exp-062-32k/corpora/corpus.cal.txt
+
+extract:
+  keep_mtp: true
+
+calibration:
+  method: awq
+  variant: best
+  params:
+    ctx: 32768
+    imatrix_ctx: 32768
+    tokens: 524288
+    proxy_tokens: 256
+
+    # --- alpha-search proxy: DELIBERATELY UNPINNED --------------------------
+    # The IQ2_M arm pins `proxy: q2k_b16` to reproduce the gemma-4-31B conditions.
+    # That pin exists because the pure iq2_s codebook mis-scores members that
+    # llama-quantize actually stores at higher precision. At 3 bits the pipeline
+    # default is the better-engineered path: `proxy_for_quant_type` selects
+    # q3k_b16 and `proxy_mix: IQ3_M` (pipeline-defaulted from quantize.type)
+    # scores each member at its REAL target — under IQ3_M that is attn_v -> Q4_K
+    # always, attn_output -> Q4_K, and first-eighth ffn_down -> Q4_K. Pinning a
+    # proxy here would silently disable that per-member mix (pinning opts out of
+    # both auto-selection and the mix), so leave both unset.
+
+    imatrix_variant: hybrid_custom
+
+    rmsnorm_plus_one: true
+    sanity_max_rel: 0.03
+
+    device: auto
+
+quantize:
+  type: IQ3_M
+  mtp_pin: q8_0
+  chat_template: ./data/chat_templates/qwen3_8_safe_v2.jinja
+  general_name: Qwen3.8-27B
+
+bench:
+  # Eval corpora and FP16 baselines stay PINNED to exp-060 — that is what keeps
+  # this comparable to the shipped IQ3_M rung.
+  suite: full
+  eval_ctx: 8192
+  eval_corpus: ./out/exp-060-32k/corpora/corpus.eval.txt
+  eval_tools_corpus: ./out/exp-060-32k/corpora/corpus.eval.tools.txt

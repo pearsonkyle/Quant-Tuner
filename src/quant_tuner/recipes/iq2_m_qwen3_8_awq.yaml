@@ -1,0 +1,124 @@
+# Qwen3.8-27B -> IQ2_M via AWQ + hybrid_custom imatrix, MTP draft head at Q8_0.
+#
+# The A/B opponent for the shipped plain-imatrix IQ2_M rung of the exp-060 ladder
+# (out/exp-060-32k/iq2_m/Qwen3.8-27B-IQ2_M.gguf, 9.74 GiB / 3.062 bpw). Same
+# corpus, same ctx, same MTP pin — the ONLY difference is the AWQ fold. Full
+# rationale and decision criterion: docs/qwen3_8_awq_2bit_handoff.md.
+#
+# Decide on TOOL-CALL PARAM ACCURACY, not KLD. The gemma-4-31B precedent went the
+# other way on KLD/top_p and still won by +54% on tool arguments.
+#
+# Pipeline order (pipeline._calibrate_awq): AWQ calibrate -> fold into HF weights
+# -> convert folded to F16 GGUF -> collect imatrix ON THE FOLDED F16 ->
+# hybrid_custom re-weight -> llama-quantize. The imatrix must be collected on the
+# folded weights: folding rescales per-channel activations, so an unfolded
+# imatrix would over-weight exactly the channels AWQ boosted.
+#
+# Hybrid architecture note: 48 of the 64 layers are linear-attention and have no
+# `self_attn` module, so awq._build_groups emits no attention group for them (no
+# crash, and — critically — no incorrect fold onto SSM tensors). MEASURED on the
+# 2026-08-15 run: 80 groups (16 attn + 64 mlp) covering 12.080 B of 19.823 B
+# matmul weight = 60.9%. Uncovered: down_proj 5.704 B + o_proj 0.503 B (both
+# skipped because awq's `include_output_proj` defaults false) + linear-attn
+# projections 1.536 B — all fall back to plain imatrix. gemma-4-31B ran the same
+# default, so the A/B is apples-to-apples; `include_output_proj: true` (~90%
+# coverage) is the cheap follow-up if this run is a wash.
+#
+# Output: gguf/IQ2_M-awq-best-hybrid_custom-mtp.gguf
+name: iq2_m_qwen3_8_awq
+
+model: Qwen/Qwen3.8-27B
+
+workspace: ./out/exp-060-32k-awq
+
+data:
+  # Pinned, NOT rebuilt. This corpus is packed for ctx 32768 (window_cap 32076,
+  # 4,255,761 tokens) and the 32K packing is the whole point of this ladder — a
+  # rebuild at a different ctx silently invalidates comparability with the
+  # opponent. corpora_audit.json records ctx/window_cap; keep them in sync with
+  # calibration.params.ctx and .imatrix_ctx below.
+  corpus: ./out/exp-060-32k/corpora/corpus.cal.txt
+
+extract:
+  keep_mtp: true
+
+calibration:
+  method: awq
+  variant: best
+  params:
+    # --- ctx: a PACKING parameter, not a runtime flag ---------------------
+    # Both of these MUST equal the corpus's packing ctx. `ctx` reaches
+    # awq.calibrate (default 4096 — leaving it unset would calibrate on
+    # 32K-packed windows sliced into 4K chunks); `imatrix_ctx` reaches
+    # llama-imatrix -c on the folded F16.
+    ctx: 32768
+    imatrix_ctx: 32768
+
+    # --- calibration coverage ---------------------------------------------
+    # Deviation from the gemma recipe, forced by ctx. The budget is spread as
+    # ceil(tokens/ctx) evenly-strided corpus windows: the 65,536 default gives
+    # 16 windows at ctx 4096 but only TWO at 32768, so mean(|x|) and the
+    # α-search rows would be drawn from ~1.5% of the corpus concentrated in two
+    # places. 524,288 restores gemma's 16-window coverage at this ctx. Cost is
+    # forward passes only — the α-search activation matrix X is capped by
+    # proxy_tokens (awq.py x_rows_per_chunk), not by this.
+    tokens: 524288
+    proxy_tokens: 256
+
+    # --- α-search proxy ----------------------------------------------------
+    # Pinned to q2k_b16 for comparability with the gemma build, where scoring
+    # every group member with the pure iq2_s codebook regressed top_p (the
+    # codebook's steep α penalty plus v_proj's *fictitious* 2-bit error — it is
+    # really Q4_K under GQA>=4 — dragged the shared group α down). That was
+    # established on gemma, where all 60 layers are standard attention; here only
+    # 16 layers have a v_proj at all, so the distortion it corrects for applies to
+    # a quarter as many groups. Deleting this line re-enables the pipeline default
+    # (iq2_s base + proxy_mix: IQ2_M per-member scoring) — a genuinely open A/B on
+    # this architecture, and the first knob to try if run 1 is a wash.
+    proxy: q2k_b16
+
+    imatrix_variant: hybrid_custom
+
+    # --- fold-stage params (routed to awq.apply via _AWQ_APPLY_PARAMS) -----
+    # transformers 5.12.1 Qwen3_5RMSNorm computes output * (1.0 + weight) with
+    # weight initialised to zeros — the (1 + γ) form, so the fold must use
+    # (1 + γ)/scale - 1. Setting this false produces a subtly wrong model that
+    # still loads and generates. There is no crash to warn you.
+    rmsnorm_plus_one: true
+    sanity_max_rel: 0.03
+
+    device: auto
+
+quantize:
+  type: IQ2_M
+  # Qwen3.8 ships a trained MTP head (15 tensors, mapped to blk.64). The head
+  # sits outside the forward pass, so it receives no imatrix statistics and AWQ
+  # never touches it — pin it. quantize_model resolves the draft layer out of the
+  # *folded* F16 via models.mtp.describe rather than hardcoding blk.64;
+  # llama-quantize silently accepts a --tensor-type pattern that matches nothing,
+  # so verify per output file (see the handoff §5.4 snippet).
+  mtp_pin: q8_0
+  # Fixes four bugs in Qwen's stock template: reasoning_effort="high" (the
+  # OpenAI-standard value) raising -> HTTP 400, JSON-string tool `arguments`
+  # crashing the render, a leading tool message rendering malformed, and a bare
+  # string in a content list emitting a vision token while DISCARDING the text.
+  # Re-verified byte-identical on 382/382 real holdout prefixes 2026-08-15
+  # (scripts/ab_chat_template.py) — that identity is the whole safety argument:
+  # it is what keeps this build comparable with the stock-template IQ2_M opponent
+  # AND with the published ladder numbers. Runbook: docs/patch_gguf_chat_template.md.
+  chat_template: ./data/chat_templates/qwen3_8_safe_v2.jinja
+  # The converter fills general.name from the extraction directory, so the F16
+  # carries "Model_Extracted" and every quant inherits it. The shipped IQ2_M was
+  # retrofitted at release; setting it here means the A/B opponents match and the
+  # release needs no extra 10 GB rewrite (handoff §7 item 2).
+  general_name: Qwen3.8-27B
+
+bench:
+  # eval_ctx 8192 while calibration is 32768: eval ctx is PPL/KLD chunking only
+  # (more chunks, more stable) and keeps the headline numbers on the published
+  # footing. The six FP16 KLD baselines in out/exp-060-32k/ were built at 8192
+  # and are reused — do not change this or they all need regenerating (143 GB).
+  suite: full
+  eval_ctx: 8192
+  eval_corpus: ./out/exp-060-32k/corpora/corpus.eval.txt
+  eval_tools_corpus: ./out/exp-060-32k/corpora/corpus.eval.tools.txt
