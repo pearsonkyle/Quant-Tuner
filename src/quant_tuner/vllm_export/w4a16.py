@@ -320,10 +320,13 @@ def run_ptq(cfg: PTQConfig) -> Path:
     # otherwise auto-initializes one via AutoProcessor, which raises on a
     # multimodal checkpoint whose processor needs image/video config it cannot
     # resolve. Our dataset is already tokenized, so the tokenizer is the correct
-    # processor here — it is used for saving, not for preprocessing.
+    # processor here — it is used for saving, not for preprocessing. The
+    # annotation says `str | ProcessorMixin | None`, but llmcompressor accepts
+    # and expects a tokenizer on the text path; the type is narrower than the
+    # contract.
     oneshot(
         model=model,
-        processor=tokenizer,
+        processor=tokenizer,  # type: ignore[arg-type]
         dataset=dataset,
         recipe=recipe,
         max_seq_length=cfg.ctx,
