@@ -1,0 +1,50 @@
+{
+  "name": "universal-sft-mixture",
+  "version": "0.1.0",
+  "splits": {
+    "train": {
+      "file": "data/train.jsonl",
+      "description": "everything outside the eval holdouts \u2014 the fine-tuning set",
+      "publish": true,
+      "rows": 6170,
+      "resolved_rows": 0,
+      "mean_tool_calls": 4.3,
+      "bytes": 89378995,
+      "sha256": "b3ee426926fc7d1e690a1d648ebdcd8baf7d9c63cf633c6082412af651329115"
+    },
+    "holdout": {
+      "file": "data/holdout.jsonl",
+      "description": "the tools / agentic / breadth / refusal eval holdouts",
+      "publish": true,
+      "rows": 406,
+      "resolved_rows": 0,
+      "mean_tool_calls": 9.8,
+      "bytes": 11568283,
+      "sha256": "5637a6ffc0c747b57d678d2aa65870230112cc242dee4663b7775a61847d1de3"
+    },
+    "test": {
+      "file": "data/test.jsonl",
+      "description": "the logs' test slice",
+      "publish": true,
+      "rows": 67,
+      "resolved_rows": 0,
+      "mean_tool_calls": 47.6,
+      "bytes": 11960597,
+      "sha256": "7b4a02d1d2748cd27ee896c745cc4ea9be6167a73164a1cccb67622a4c46684c"
+    }
+  },
+  "published": [
+    {
+      "version": "0.1.0",
+      "at": "2026-08-15T09:00:10",
+      "note": "Initial private release: 6,643 conversations across 5 sources, split-tagged to the calibration corpus. SFT holdout now mirrors the PPL/KLD eval slice rather than the quantization calib/mtp half.",
+      "splits": {
+        "train": 6170,
+        "holdout": 406,
+        "test": 67
+      }
+    }
+  ],
+  "hf_repo": "pearsonkyle/universal-sft-mixture",
+  "built_at": "2026-08-15T08:58:48"
+}

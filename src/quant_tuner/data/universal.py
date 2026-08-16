@@ -101,6 +101,7 @@ class UniversalConfig:
     log_files: tuple[Path, ...] = DEFAULT_LOG_FILES
     wiki: Path | None = DEFAULT_WIKI
     broad_jsonl: Path | None = None       # local override; else pulled from the Hub
+    broad_instruct_jsonl: Path | None = None   # ditto, for the supplement's `instruct` split
     swe_jsonl: Path | None = None
     redteam_jsonl: Path | None = None     # local staging only (the splits are unpublished)
 
@@ -630,6 +631,7 @@ def _write_sft(
     log_splits: dict[str, list[dict]],
     swe_cal: list[dict], swe_eval: list[dict],
     redteam_cal: list[dict], redteam_eval: list[dict],
+    broad_heldout_ids: set[str],
 ) -> dict:
     """Write ``sft.jsonl.gz``: every chat-shaped source, full fidelity, split-tagged.
 
@@ -708,14 +710,18 @@ def _write_sft(
                 yield _rec(s, split_name=name, source=SOURCE_REDTEAM)
 
         # the supplement's instruction view — already prompt/response pairs
-        for r in _hub_jsonl(BROAD_DATASET, "instruct", None):
-            s = {"id": r.get("id"), "messages": r.get("messages") or [],
-                 "meta": {k: r.get(k) for k in ("area", "subject", "register", "half",
-                                                "prompt_source")}}
-            # `half` mirrors the calibration split: calib was seen by the imatrix, mtp
-            # was not (it is reserved for draft-head training).
-            yield _rec(s, split_name="train" if r.get("half") == "calib" else "holdout",
-                       source="broad-instruct")
+        if cfg.enabled(SOURCE_BROAD):
+            for r in _hub_jsonl(BROAD_DATASET, "instruct", cfg.broad_instruct_jsonl):
+                s = {"id": r.get("id"), "messages": r.get("messages") or [],
+                     "meta": {k: r.get(k) for k in ("area", "subject", "register", "half",
+                                                    "prompt_source")}}
+                # Hold out exactly the rows the PPL/KLD eval slice uses, and nothing else.
+                # `half` is the QUANTIZATION axis (calib vs. reserved-for-draft-head) and
+                # says nothing about instruction tuning — splitting SFT on it stranded the
+                # whole mtp half in holdout for no SFT-related reason.
+                held = r.get("id") in broad_heldout_ids
+                yield _rec(s, split_name="holdout" if held else "train",
+                           source="broad-instruct")
 
     path = out / "sft.jsonl.gz"
     n, nbytes = write_jsonl_gz(path, records())
@@ -819,6 +825,9 @@ def build(cfg: UniversalConfig) -> dict:
     broad_cal: list[str] = []
     broad_val: list[str] = []
     broad_eval: list[str] = []
+    # Ids of the supplement rows reserved for eval/val. The SFT export needs these to keep
+    # its holdout aligned with the PPL/KLD holdout — see `_write_sft`.
+    broad_heldout_ids: set[str] = set()
     redteam_cal: list[dict] = []
     redteam_eval: list[dict] = []
 
@@ -951,6 +960,7 @@ def build(cfg: UniversalConfig) -> dict:
                 broad_cal.append(text)
             elif _stable_fraction(f"broad:{key}", cfg.seed) < cfg.broad_eval_fraction:
                 broad_eval.append(text)
+                broad_heldout_ids.add(key)
             else:
                 mtp_held += 1
         # The validation slice is drawn from the EVAL side of the mtp half, then removed
@@ -1263,6 +1273,7 @@ def build(cfg: UniversalConfig) -> dict:
             log_splits=log_splits,
             swe_cal=swe_cal, swe_eval=swe_eval,
             redteam_cal=redteam_cal, redteam_eval=redteam_eval,
+            broad_heldout_ids=broad_heldout_ids,
         )
 
     (out / "corpora_audit.json").write_text(json.dumps(audit, indent=2, default=str))
