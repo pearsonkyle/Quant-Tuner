@@ -12,10 +12,14 @@
 Work out whether we can produce a usable **ternary** (or near-ternary) `gemma-4-E4B-it`,
 and by what route. Two candidate paths, neither decided:
 
-* **Path A — logit distillation.** Ternarize E4B and train it against
-  `google/gemma-4-31B-it`'s output distribution (offline top-K KD).
+* **Path A — logit distillation.** Ternarize E4B and train it against a 31B teacher's
+  output distribution (offline top-K KD).
 * **Path B — gradual ternarization.** Walk E4B onto the ternary grid on our own training
   corpus, then use logit distillation as a repair/polish stage.
+
+**Start from `google/gemma-4-E4B-it-qat-q4_0-unquantized`, not the stock release** — see
+"Verified before you start". It is the QAT-trained distribution in dense bf16, which is a
+strictly easier ternarization target and costs nothing to adopt.
 
 I want a reasoned design, the cheapest experiments that would falsify it, and one GPU
 validation run at the end. **Negative results are valuable** — "path A is dead because X"
@@ -31,10 +35,13 @@ ternary** — it ships as `w = s·c`, `c ∈ {−1,0,+1}`, and `qat/ternary.py` 
 weights *exactly* at step 0. Every tuned number we have assumes the model starts **on** the
 grid and we are nudging codes across thresholds.
 
-`gemma-4-E4B-it` is dense bf16. It is **not** on that grid. This is
-"ternarize a dense model", a strictly harder problem, and our headline constants
-(lr 5e-4, ~0.7% code flips as the sweet spot, the ~2.2-epoch schedule) **do not transfer**.
-Treat them as inspiration. If you find yourself reusing one, say so explicitly and justify it.
+gemma-4-E4B is dense bf16 — even the QAT checkpoint, whose weights were *shaped by* 4-bit
+quantization but are not stored on any ternary grid. So this is still "ternarize a dense
+model", a strictly harder problem than continued QAT, and our headline constants (lr 5e-4,
+~0.7% code flips as the sweet spot, the ~2.2-epoch schedule) **do not transfer**. Treat
+them as inspiration. If you find yourself reusing one, say so explicitly and justify it.
+
+The QAT base helps with the *distance* to the grid, not with the *kind* of problem.
 
 Expect the naive approach — hard-ternarize everything at step 0, then fine-tune — to
 destroy the model. The interesting design space is *how to get there gradually*.
@@ -43,19 +50,50 @@ destroy the model. The interesting design space is *how to get there gradually*.
 
 ## Verified before you start (desk work already done — build on it, don't redo it)
 
-**KD between the two sizes is FEASIBLE.** This was the single gating question and it passes:
+### START FROM THE QAT CHECKPOINT, NOT THE DENSE RELEASE
 
-```
-tokenizers agree on all 262144 shared ids (student 262144, teacher 262144)
-```
+Google's **Gemma 4 QAT Q4_0** collection ships three flavours per size. The one to use is
+`*-qat-q4_0-**unquantized**`: those are the **QAT-trained weights stored densely in bf16**,
+with **no `quantization_config`**. Verified:
 
-| | architecture | vocab | hidden | layers |
+| repo | arch | dtype | quantization_config | vocab / hidden / layers |
 |---|---|---|---|---|
-| `google/gemma-4-E4B-it` (student) | `Gemma4ForConditionalGeneration` | 262,144 | 2,560 | 42 |
-| `google/gemma-4-31B-it` (teacher) | `Gemma4ForConditionalGeneration` | 262,144 | 5,376 | 60 |
+| `google/gemma-4-E4B-it-qat-q4_0-unquantized` | `Gemma4ForConditionalGeneration` | **bf16** | **absent** | 262,144 / 2,560 / 42 |
+| `google/gemma-4-31B-it-qat-q4_0-unquantized` | `Gemma4ForConditionalGeneration` | **bf16** | **absent** | 262,144 / 5,376 / 60 |
 
-So `qat/kd_precompute.py` + `--kd-table` can be used as-is on the tokenizer front. Verify
-with `kd_precompute.tokenizer_compatibility()` yourself before a long run; it is seconds.
+Why this is the right base, and materially easier than the dense `gemma-4-E4B-it`:
+
+* Its weight distribution has already been **shaped by quantization-in-the-loop**, so it
+  is far more tolerant of coarse rounding than a stock bf16 release. Google paid for that
+  training; take it.
+* It is **dense**, so it loads as an ordinary model and `qat/ternary.py`'s TWN applies
+  directly — no int4 unpacking, no dequantization step to get wrong.
+* The alternative, `gemma-4-E4B-it-qat-w4a16-ct`, is `compressed-tensors` /
+  `pack-quantized`: symmetric **int4, group strategy, group_size 32**, `targets:
+  ['Linear']`, with **250 ignored modules** (vision tower, etc.). Ternarizing from there
+  means unpacking to dense first *and* inheriting a group-32 lattice that may fight a
+  ternary per-group scale. Use it as a **reference for which modules Google considered
+  quantizable** — that `ignore` list is a free answer to "what stays bf16" — but not as
+  the starting weights.
+* There are also `*-qat-q4_0-gguf` (llama.cpp Q4_0) and `*-unquantized-assistant` (the MTP
+  drafters) variants, plus `E2B`, `12B` and a `26B-A4B` MoE if you want a smaller pilot or
+  a different teacher.
+
+### KD between the sizes is FEASIBLE — the gating question, and it passes
+
+Both pairings verified with `kd_precompute.tokenizer_compatibility()`:
+
+```
+student = E4B-it-qat-q4_0-unquantized
+  teacher = gemma-4-31B-it-qat-q4_0-unquantized   OK  all 262144 ids agree
+  teacher = gemma-4-31B-it                        OK  all 262144 ids agree
+```
+
+So `qat/kd_precompute.py` + `--kd-table` work as-is on the tokenizer front. **Which 31B to
+distil from is an open design question worth stating in your write-up**: the dense
+`gemma-4-31B-it` is the stronger teacher, while `gemma-4-31B-it-qat-q4_0-unquantized`
+produces a distribution that a coarsely-quantized student may find easier to reach. Cheap
+to test both — precompute is forward-only and the teacher never enters the training loop.
 
 **gemma-4's chat markers are NOT gemma-2/3's, and this WILL silently break a ported probe.**
 
@@ -127,18 +165,28 @@ you do not need to repeat.
    matches none of the checkpoint's tensors — inspect the **live module tree**, and note
    `DEFAULT_IGNORE` in `vllm_export/w4a16.py` is already gemma-shaped.
 
-4. **EXPORT MAY NOT EXIST — scope this before training.** Our Q2_0 export is ftype 41,
-   which lives only in `vendor/llama.cpp-prism` and was built for the Bonsai architecture.
-   Whether that fork can represent a ternary gemma-4 at all is **open, and possibly a hard
-   blocker**. A model we cannot export is a research note, not a deliverable. The
-   compressed-tensors/vLLM path (`src/quant_tuner/vllm_export/`) is the fallback and is
-   already validated E2E on gemma-4-E4B (W4A16, ~68 tok/s).
+4. **SCOPE THE SERVING PATH BEFORE TRAINING.** Decide early where a ternary gemma-4 would
+   actually run, because a model we cannot serve is a research note, not a deliverable.
+   Since we are on CUDA, **compressed-tensors + vLLM is the primary candidate**
+   (`src/quant_tuner/vllm_export/`, already validated E2E on gemma-4-E4B at W4A16,
+   ~68 tok/s) — and note vLLM has no native 1.58-bit kernel, so "ternary" may have to be
+   *stored* in a supported low-bit container, or served via a custom kernel, or evaluated
+   in-framework only. Our Q2_0 GGUF export is ftype 41, exists only in
+   `vendor/llama.cpp-prism`, and was built for the Bonsai architecture; whether it can
+   express a ternary gemma-4 is open. Answer "what would we serve this with?" in the desk
+   phase, and say plainly if the honest answer is "nothing yet, this is an in-framework
+   research result".
 
-5. **Prior art in this repo, both directions.** `google/gemma-4-E4B-it-qat-w4a16-ct` exists
-   — Google ships a QAT checkpoint for this model, so it has known QAT tolerance and is a
-   reference point. But `scripts/exp034_release_v3.py` drops **QAT IQ2_M as broken
-   (PPL ~2e10)** on gemma-4-31B. Low-bit gemma has failed here before; find out why before
-   assuming ternary will behave.
+5. **Prior art in this repo — and why one piece of it probably does NOT apply.**
+   `scripts/exp034_release_v3.py` drops **QAT IQ2_M as broken (PPL ~2e10)** on
+   gemma-4-31B. Do not treat that as evidence against this project: it was a **llama.cpp
+   GGUF k-quant** result on a *different size*, and the natural serving target here is
+   CUDA via vLLM / compressed-tensors, where the IQ2_M block format is simply not
+   involved. Worth a paragraph in your write-up establishing whether it was a format
+   pathology or a gemma-at-low-bit pathology — the distinction decides how much it should
+   worry us — but it should not gate the design. The genuinely encouraging prior is the
+   other direction: Google ships QAT checkpoints for this exact model, so its tolerance
+   for quantization-in-the-loop is established.
 
 6. **`rmsnorm_plus_one=False` for gemma** (an AWQ-path gotcha already recorded). Any
    norm-folding you do needs the same care.
