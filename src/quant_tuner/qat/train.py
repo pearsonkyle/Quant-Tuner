@@ -647,10 +647,35 @@ def train_qat(cfg: QATConfig) -> int:
 
     def make_inner(params):
         if cfg.optim == "adafactor":
+            # scale_parameter=False + relative_step=False makes this "Adam with a rank-1
+            # second moment", and beta1 defaults to None — i.e. NO MOMENTUM. That is the
+            # variable the 8-bit options below exist to test: a ternary latent only
+            # changes anything when it crosses the ternarization threshold, and crossing
+            # needs pressure accumulated over many steps. Without momentum a latent near
+            # the threshold jitters on instantaneous gradients, while a coarse signal
+            # present in nearly every batch is reinforced every step regardless.
             from transformers import Adafactor
             return Adafactor(params, lr=cfg.lr, scale_parameter=False,
                              relative_step=False, warmup_init=False,
                              beta1=cfg.beta1, weight_decay=cfg.weight_decay)
+        if cfg.optim in ("adamw8bit", "lion8bit", "ademamix8bit"):
+            # 8-bit state is what makes real per-parameter moments affordable here.
+            # Measured against Adafactor's 70.6 GiB peak on a 95 GiB card at all-36:
+            #   AdamW      +55.6 GiB -> ~126 GiB   OOM
+            #   Adafactor + beta1  +27.8 GiB -> ~98 GiB   OOM
+            #   AdamW8bit  +13.9 GiB -> ~84 GiB    fits
+            #   Lion8bit    +7.0 GiB -> ~78 GiB    fits
+            # NOTE the CLAUDE.md line "an 8-bit optimizer is a no-op here" is about
+            # 8-bit ADAFACTOR (whose state is already ~9 MB). Against AdamW it is the
+            # difference between fitting and not.
+            import bitsandbytes as bnb
+            cls = {"adamw8bit": bnb.optim.AdamW8bit,
+                   "lion8bit": bnb.optim.Lion8bit,
+                   "ademamix8bit": bnb.optim.AdEMAMix8bit}[cfg.optim]
+            kw = {"lr": cfg.lr, "weight_decay": cfg.weight_decay}
+            if cfg.beta1 is not None and cfg.optim != "ademamix8bit":
+                kw["betas"] = (cfg.beta1, 0.999 if cfg.optim == "adamw8bit" else 0.99)
+            return cls(params, **kw)
         # foreach fuses ~250 tiny per-tensor kernels into a handful of multi-tensor ones
         # on CUDA; on MPS the same kernels deadlock at full-model scale (qat._device).
         return torch.optim.AdamW(params, lr=cfg.lr, weight_decay=cfg.weight_decay,
@@ -723,7 +748,7 @@ def train_qat(cfg: QATConfig) -> int:
             print(f"[qat] resumed at step {step} (mi={mi}) with adafactor state", flush=True)
         else:
             print(f"[qat] resumed at step {step} (mi={mi}); OPTIMIZER STATE RESET "
-                  f"({'adamw state is not checkpointed (56 GB at all-36)' if cfg.optim == 'adamw' else 'no state in ckpt'})",
+                  f"({'optimizer state is not checkpointed for ' + cfg.optim if cfg.optim != 'adafactor' else 'no state in ckpt'})",
                   flush=True)
         loss_first = ck.get("loss_first")
         # `ck` is function-scoped, so without this it stays alive for the WHOLE run —
@@ -1022,7 +1047,9 @@ def _build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--epochs", type=float, default=3.0)
     ap.add_argument("--grad-accum", type=int, default=8)
     ap.add_argument("--lr", type=float, default=5e-5)
-    ap.add_argument("--optim", choices=["adamw", "adafactor"], default="adamw",
+    ap.add_argument("--optim",
+                    choices=["adamw", "adafactor", "adamw8bit", "lion8bit",
+                             "ademamix8bit"], default="adamw",
                     help="adafactor: factored 2nd moment (~MBs vs AdamW's 56 GB at "
                          "all-36) -> full-36 fp32 fits. Per-tensor loop, MPS-safe.")
     ap.add_argument("--weight-decay", type=float, default=0.0,
