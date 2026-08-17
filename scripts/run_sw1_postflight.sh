@@ -43,6 +43,11 @@ else
 fi
 [ -f "$GGUF" ] || { echo "[postflight] export produced no GGUF"; exit 1; }
 
+# The export leaves ~50 GB of HF-checkpoint + F16 intermediates behind for a 2.1 GB
+# deliverable. The curriculum that follows needs that space more than we need a
+# regenerable intermediate; the pruner refuses if the Q2_0 above is missing.
+bash scripts/prune_export_intermediates.sh "$TAG" || true
+
 # The primary endpoint. CPU (--ngl 0) so it never contends with anything on the card.
 echo "[postflight] 2/4 P(im_end) probe — the primary endpoint"
 LLAMA_CPP_DIR=vendor/llama.cpp-prism PYTHONPATH=src $PY scripts/probe_stop_prob.py \

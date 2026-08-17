@@ -204,6 +204,10 @@ run_round() {      # n name sft budget
     # Only AFTER the export succeeded: the intermediate checkpoints are the fallback if
     # the export needs re-running, so they are worth their 27.8 GB until it has.
     prune_round "$outdir"
+    # Each export leaves ~50 GB of HF-checkpoint + F16 intermediates behind to produce a
+    # 2.1 GB Q2_0. Across three rounds that is ~150 GB the disk does not have, and the
+    # failure would land mid-chain rather than up front.
+    bash scripts/prune_export_intermediates.sh "$tag" || true
     df -h /workspace | tail -1
 }
 
