@@ -272,3 +272,59 @@ round 2*, or on harvesting more trajectories, rather than on more ultrachat.
 
 Worth building only if the curriculum's agent benchmark shows the model is limited by
 general fluency rather than by agentic exposure.
+
+## The stop-weight ablation failed, and so did the corpus hypothesis
+
+`sft32k_sw1` set `--stop-weight` back to 1.0 with the 32768 window as the only
+intervention. Result, against the two controls:
+
+| probe | vanilla | sft32k (sw 6.0) | **sft32k_sw1 (sw 1.0)** |
+|---|---|---|---|
+| start | 0.00002 | 0.12194 | 0.01105 |
+| mid_sentence | <6.2e-06 | 0.00002 | <2.9e-05 |
+| **sentence_period** | **0.00919** | **0.97435** | **0.95310** |
+| sentence_newline | 0.00000 | 0.89579 | 0.12922 |
+| after_tool_call | 0.99995 | 0.95285 | 0.81426 |
+
+**A 6x change in the stop weight moved the diagnostic by 0.02.** The weight is not the
+mechanism. It is not inert either — it fixed the model's ability to start (0.122 → 0.011)
+and the newline case (0.896 → 0.129) — but the sentence-end collapse is untouched, and
+`after_tool_call`, the control where stopping is CORRECT, got *worse* (0.953 → 0.814).
+
+The agent benchmark says the same thing behaviourally: sw1 **loops harder than vanilla** —
+60 tool calls, hitting max turns, the same command repeated **58 times in a row**. So the
+three ternary models fail three different ways (vanilla loops mildly, sft32k goes mute,
+sw1 loops severely), and `choose_stop_weight.py` classified it as CONTRADICTORY: stops too
+early at a sentence *and* fails to stop after a tool call. **The model has not learned to
+stop too much or too little — it has lost the position-dependence of the stop decision.**
+
+### The corpus does not teach this either
+
+`scripts/analyze_stop_context.py` measures the conditional directly, in the probe's exact
+situation — a sentence end within the first 32 tokens of a fresh assistant turn:
+
+| corpus | marginal | P(stop \| sentence end) | **P(stop \| sentence end, <32 tok into turn)** |
+|---|---|---|---|
+| ours (SFT) | 0.0062 | 0.0697 | **0.0555** |
+| ultrachat | 0.0034 | 0.0665 | **0.0166** |
+| distillation | 0.0033 | 0.0280 | **0.0025** |
+
+The corpus teaches at most **0.055**; the trained model emits **0.95**. A **17x
+over-shoot**, so this is not the model learning its data — it is the model collapsing a
+mild positional tendency into a near-deterministic rule. Note the ordering also
+contradicts a simple data explanation: the distillation corpus has the *lowest* rate at
+the probe position (0.0025), 22x below ours.
+
+What follows a sentence end when it is NOT a stop is the tell: in our corpus it is
+` Let` (25%), ` The` (20%), `<tool_call>` (10%) — the continuations the agent needs and
+the model no longer produces.
+
+### What is still open
+
+Neither the objective nor the data explains a 17x over-shoot, which leaves the *training*
+itself: lr 5e-4 flips 4.2% of codes in the leading tensor (sft32k managed 1.8% and is
+equally broken, vanilla flips 0% and is fine). A ternary model has three values per weight
+and no room for a finely-conditioned decision boundary, so the working hypothesis is that
+continued QAT at this lr coarsens the stop decision into a positional rule regardless of
+what the corpus says. The curriculum tests it for free: three rounds, three corpora whose
+probe-position rates span 22x, each probed straight after its export.
