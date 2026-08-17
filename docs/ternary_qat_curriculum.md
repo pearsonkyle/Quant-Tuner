@@ -328,3 +328,80 @@ and no room for a finely-conditioned decision boundary, so the working hypothesi
 continued QAT at this lr coarsens the stop decision into a positional rule regardless of
 what the corpus says. The curriculum tests it for free: three rounds, three corpora whose
 probe-position rates span 22x, each probed straight after its export.
+
+## The corpus defect, found and fixed
+
+The 17x gap between what the corpus taught (0.055) and what the model emitted (0.95) sent
+me to read the actual training windows rather than more statistics. `scripts/inspect_corpus_window.py`
+prints a packed window with supervised targets bracketed, and the first one showed this:
+
+```
+<|im_start|>assistant
+[[That's not right - I accidentally removed too much. Let me check the current state:<|im_end|>]]
+<|im_start|>assistant
+[[I made a mistake. Let me restore the file from git and redo this properly:<|im_end|>]]
+<|im_start|>assistant
+[[<tool_call>...</tool_call><|im_end|>]]
+```
+
+Three consecutive assistant turns with nothing between them. In the real session that was
+ONE assistant message — prose followed by a tool call — but the log records an assistant
+response's content blocks as separate messages, and each fragment rendered as its own
+`<|im_start|>assistant … <|im_end|>` turn. So the corpus explicitly taught that a short
+prose preamble is followed by the STOP token rather than by the tool call that came next.
+
+Two defects, both specific to our ingestion:
+
+| defect | ours | ultrachat | distillation |
+|---|---|---|---|
+| assistant msgs preceded by another assistant msg | **21.2%** (logs-agents), 9.0% (logs) | 0.0% | 0.0% |
+| "Let me…" turns ending at their first sentence | **18.5%** | 0.0% | 0.0% |
+| empty assistant turns (`<|im_start|>assistant\n<|im_end|>`) | **2,155** | 0 | 0 |
+
+The empty turns are the sharper of the two: a supervised span whose ONLY trained token is
+the stop token — the purest possible lesson in "emit `<|im_end|>` immediately". That is
+what the `start` probe measures, and it moved 0.00002 → 0.12194 in the run trained on this
+corpus.
+
+### The fix, and what it costs
+
+`merge_consecutive_assistant` + `drop_empty_assistant` in `qat/corpus.py`, applied before
+truncation and before rendering. Merging LOSES NOTHING — verified by accounting over the
+whole corpus:
+
+```
+tool_calls      33,572 -> 33,572   (zero delta)
+content chars   79,090,289 -> 79,090,795   (+506: the "\n\n" paragraph joins)
+reasoning chars  1,966,416 ->  1,966,468   (+52)
+messages           85,643 ->     79,499    (-6,144 merged into their turn)
+```
+
+Only **assistant** messages merge. Tool results arrive as `user`-role messages under this
+template, so merging consecutive user messages would fuse a real user turn with a tool
+response — a different and worse corruption.
+
+Ten conversations are dropped outright: they QUOTE a chat control token in their content
+(our own past sessions debugging chat templates, where the assistant wrote
+`rendered.find('<|im_end|>')` in a code block and special-token parsing turned it into a
+real stop token inside supervised prose). Dropped rather than repaired — rewriting the
+token would corrupt the code the message is about.
+
+Rebuilt result, our SFT corpus at a 32768 window:
+
+| metric | before | after |
+|---|---|---|
+| consecutive assistant turns | 511 | **0** |
+| turns ending at their first sentence | 3.7% | **0.5%** |
+| "Let me…" turns ending there | 18.5% | **0.0%** |
+| empty assistant turns | 2,155 | **0** |
+| labeled `<|im_end|>` targets | 35,359 | **29,843** |
+| real supervised leakage | — | **0** |
+
+The distillation corpus rebuilt to fingerprint `b36696c8ce45c1ca`, **byte-identical** to
+before — the fix is provably a no-op where the defect was absent, which is the check that
+makes the merge trustworthy on the corpus where it does fire.
+
+`CORPUS_DIR` in `run_curriculum_qat.sh` now defaults to `out/exp-058/fixed`. Round 3 no
+longer symlinks sw1's corpus, so **curriculum-r3 vs sft32k_sw1 is no longer a clean A/B** —
+it differs in both training history and corpus. That is deliberate: preserving the A/B
+would mean deliberately re-teaching the defect. The per-round probes separate the causes.
