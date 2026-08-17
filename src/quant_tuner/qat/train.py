@@ -489,6 +489,44 @@ def run_validation(model, ids_all, lbl_all, dev, max_windows: int,
     return tot / max(1, n)
 
 
+def write_run_config(out: Path, cfg: QATConfig, **facts) -> Path:
+    """Record everything needed to reproduce and compare this run, at step 0.
+
+    Comparing two QAT runs after the fact needs the hyper-parameters, and those used to
+    exist only in the launch command — so a run directory could not answer "what lr and
+    window produced this?" once the shell was gone. Written before the first step so a
+    killed run still explains itself, and never overwritten on ``--resume`` (the resumed
+    leg gets its own numbered file) because the two legs can differ in lr or corpus and
+    collapsing them would misattribute whichever one is read.
+    """
+    import dataclasses
+    import subprocess
+
+    rec: dict = {"kind": "run_config"}
+    for f in dataclasses.fields(cfg):
+        v = getattr(cfg, f.name)
+        rec[f.name] = str(v) if isinstance(v, Path) else v
+    rec.update(facts)
+    rec["argv"] = sys.argv
+    rec["started_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    rec["torch"] = torch.__version__
+    try:  # provenance is best-effort — a dirty tree or no git must not kill a 10 h run
+        rec["git_commit"] = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=Path(__file__).resolve().parent,
+            capture_output=True, text=True, timeout=10).stdout.strip() or None
+    except (OSError, subprocess.SubprocessError):
+        rec["git_commit"] = None
+
+    path = out / "run_config.json"
+    n = 1
+    while path.exists():           # a resume leg is a new record, not a replacement
+        path = out / f"run_config.{n}.json"
+        n += 1
+    path.write_text(json.dumps(rec, indent=2, default=str) + "\n")
+    print(f"[qat] run config -> {path}", flush=True)
+    return path
+
+
 def train_qat(cfg: QATConfig) -> int:
     backend = resolve_backend(cfg.device)
     dev = backend.name
@@ -704,6 +742,16 @@ def train_qat(cfg: QATConfig) -> int:
     # structured, appended so a resume extends rather than truncates the series.
     metrics_path = out / "metrics.jsonl"
     metrics_fh = metrics_path.open("a") if cfg.metrics_jsonl else None
+
+    # The run's own provenance, written BEFORE the first step so it exists even if the run
+    # is killed. Until this existed the hyper-parameters lived only in the launch command
+    # and died with the shell: a finished run directory could not say what lr, window or
+    # stop-weight produced it, which makes two runs uncomparable after the fact. Everything
+    # here is either cfg, or a fact the trainer alone knows (corpus fingerprint, resolved
+    # device, effective step count).
+    write_run_config(out, cfg, fingerprint=fp, n_windows=n_win, window=window,
+                     total_steps=total_steps, device=str(dev),
+                     assistant_frac=blob.get("assistant_frac"))
 
     def emit(kind: str, **fields) -> None:
         if metrics_fh is None:
