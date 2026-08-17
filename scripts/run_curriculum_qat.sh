@@ -199,7 +199,23 @@ run_round() {      # n name sft budget
     LLAMA_CPP_DIR=vendor/llama.cpp-prism $PY scripts/exp057_qat_export.py \
         --latents "${outdir}/trained_latents.pt" --tag "$tag" \
         > "out/exp-058/export_${tag}.log" 2>&1 || echo "[curriculum] export failed for $tag"
+    # PROBE EVERY ROUND, not just the last one. The sft32k_sw1 ablation showed the stop
+    # WEIGHT is not what breaks termination — 6.0 and 1.0 both land at P(stop|sentence
+    # end) ~0.95 against vanilla's 0.009 — so the cause is in the data. Each round here
+    # trains on a DIFFERENT corpus, which makes the curriculum a natural experiment on
+    # exactly that question: ultrachat (no tools, no reasoning), distillation (agentic),
+    # ours (CLI logs + trajectories). Probing only the final model would collapse three
+    # independent observations into one and tell us nothing about which corpus is
+    # responsible. It costs ~2 min on CPU and needs no GPU.
+    local q2="out/exp-057/Ternary-Bonsai-8B-${tag}-Q2_0.gguf"
+    if [ -f "$q2" ]; then
+        LLAMA_CPP_DIR=vendor/llama.cpp-prism $PY scripts/probe_stop_prob.py \
+            --model "$q2" --label "$tag" --out out/exp-058/eval/stop_prob.csv \
+            --json-out "out/exp-058/eval/stop_prob_${tag}.json" --ngl 0 \
+            2>&1 | tail -8 || echo "[curriculum] probe failed for $tag (not fatal)"
+    fi
     bash scripts/qat_report_refresh.sh "$outdir" "${tag} — ternary QAT" || true
+    $PY scripts/qat_registry.py >/dev/null 2>&1 || true
 
     # Only AFTER the export succeeded: the intermediate checkpoints are the fallback if
     # the export needs re-running, so they are worth their 27.8 GB until it has.

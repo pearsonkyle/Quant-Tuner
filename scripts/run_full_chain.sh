@@ -90,15 +90,21 @@ fi
 if [ "$START" -le 5 ]; then
     FINAL_TAG="${PREFIX}-r3-ourssft"
     say "5/6 agent benchmark: $FINAL_TAG"
-    # The probe is cheap and is the other half of the termination picture, so take it on
-    # the final model too rather than only on the ablation.
+    # The probe is now taken by run_curriculum_qat.sh after EVERY round's export, so the
+    # final model already has a row — running it again here would append a duplicate under
+    # the same label, and the registry/chooser take the LAST row per label. Only probe if
+    # the round-level probe did not produce one (e.g. its llama-server failed).
     FINAL_GGUF="out/exp-057/Ternary-Bonsai-8B-${FINAL_TAG}-Q2_0.gguf"
     if [ -f "$FINAL_GGUF" ]; then
-        LLAMA_CPP_DIR=vendor/llama.cpp-prism PYTHONPATH=src $PY scripts/probe_stop_prob.py \
-            --model "$FINAL_GGUF" --label "$FINAL_TAG" \
-            --out out/exp-058/eval/stop_prob.csv \
-            --json-out "out/exp-058/eval/stop_prob_${FINAL_TAG}.json" --ngl 0 \
-            2>&1 | tail -12 || echo "[chain] probe failed — continuing"
+        if ! grep -q "^${FINAL_TAG}," out/exp-058/eval/stop_prob.csv 2>/dev/null; then
+            LLAMA_CPP_DIR=vendor/llama.cpp-prism PYTHONPATH=src $PY scripts/probe_stop_prob.py \
+                --model "$FINAL_GGUF" --label "$FINAL_TAG" \
+                --out out/exp-058/eval/stop_prob.csv \
+                --json-out "out/exp-058/eval/stop_prob_${FINAL_TAG}.json" --ngl 0 \
+                2>&1 | tail -12 || echo "[chain] probe failed — continuing"
+        else
+            echo "[chain] probe row for $FINAL_TAG already recorded by its round"
+        fi
         bash scripts/run_swe_mimic.sh "$FINAL_TAG" 2>&1 \
             | tee "$LOG_DIR/5-swe-final.log" | tail -25
     else
