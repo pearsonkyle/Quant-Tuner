@@ -48,6 +48,16 @@ MAX_TOOL_TOKENS="${MAX_TOOL_TOKENS:-12288}"   # scale with the window (3072 at 8
 MIN_DENSITY="${MIN_DENSITY:-0.05}"
 VAL_EVERY="${VAL_EVERY:-25}"
 CKPT_EVERY="${CKPT_EVERY:-50}"
+# DISK IS THE BINDING CONSTRAINT, not GPU memory. One checkpoint of this model is 27.8 GB
+# and the trainer writes the new one BEFORE pruning the oldest, so a round needs
+# (CKPT_KEEP + 1) x 27.8 GB of headroom. At the old --ckpt-keep 3 the three rounds would
+# want ~252 GB between them; the sft32k_sw1 run reached 95% disk at step 350 and its next
+# save would have failed outright. Two is enough to survive a crash without a third copy
+# sitting idle, and prune_round() below drops a finished round to just its final latents.
+CKPT_KEEP="${CKPT_KEEP:-2}"
+# Refuse to start a round without room for a save plus a margin. Dying at step 400 of 613
+# wastes 7 h; refusing at step 0 wastes nothing.
+MIN_FREE_GIB="${MIN_FREE_GIB:-90}"
 
 # Per-round token budgets, as the `SOURCE=TOKENS` pairs build_sft_qat_corpus.py takes
 # (there is no global cap — a budget names a source). Only round 1 needs one: ultrachat is
@@ -101,6 +111,38 @@ build_corpus() {   # name sft_path budget-pairs
     echo "$out|$val"
 }
 
+prune_round() {    # outdir — drop a FINISHED round to just its final latents
+    # Numbered checkpoints exist to resume an interrupted round. Once the round has
+    # finished and exported, the only file the next round needs is trained_latents.pt,
+    # and each leftover is 27.8 GB. Hardlink-aware: trained_latents.pt usually shares an
+    # inode with the last numbered checkpoint, so deleting that one frees nothing and
+    # loses nothing — but deleting the OTHERS is where the space comes from.
+    local outdir="$1" keep n
+    [ -f "${outdir}/trained_latents.pt" ] || return 0
+    keep=$(stat -c %i "${outdir}/trained_latents.pt")
+    n=0
+    for f in "${outdir}"/trained_latents.step*.pt; do
+        [ -e "$f" ] || continue
+        [ "$(stat -c %i "$f")" = "$keep" ] && continue   # same inode as the final
+        rm -f "$f" && n=$((n + 1))
+    done
+    [ "$n" -gt 0 ] && echo "[curriculum] pruned $n intermediate checkpoint(s) from $outdir"
+    return 0
+}
+
+require_disk() {   # gib label
+    local want="$1" label="$2" free
+    free=$(df -BG --output=avail /workspace | tail -1 | tr -dc '0-9')
+    if [ "${free:-0}" -lt "$want" ]; then
+        echo "[curriculum] only ${free} GiB free, need ${want} GiB for $label."
+        echo "[curriculum] a checkpoint is 27.8 GB and the trainer writes before pruning."
+        df -h /workspace | tail -1
+        return 1
+    fi
+    echo "[curriculum] disk ok: ${free} GiB free (need ${want})"
+    return 0
+}
+
 run_round() {      # n name sft budget
     local n="$1" name="$2" sft="$3" budget="$4"
     local tag="${PREFIX}-r${n}-${name}"
@@ -108,9 +150,12 @@ run_round() {      # n name sft budget
 
     if [ -f "${outdir}/trained_latents.pt" ] && [ -f "${outdir}/.round_complete" ]; then
         echo "[curriculum] round $n ($name) already complete — skipping"
+        prune_round "$outdir"
         RESUME_FROM="${outdir}/trained_latents.pt"
         return 0
     fi
+
+    require_disk "$MIN_FREE_GIB" "round $n ($name)" || exit 1
 
     local pair; pair=$(build_corpus "$name" "$sft" "$budget")
     local corpus="${pair%%|*}" valc="${pair##*|}"
@@ -143,7 +188,7 @@ run_round() {      # n name sft budget
         --grad-accum "$ACCUM" --epochs "$EPOCHS" --lr "$LR" --warmup-frac 0.05 \
         --stop-weight "$STOP_WEIGHT" --grad-spike-factor 0 \
         --val-every "$VAL_EVERY" --val-windows 4 \
-        --ckpt-every "$CKPT_EVERY" --ckpt-keep 3 \
+        --ckpt-every "$CKPT_EVERY" --ckpt-keep "$CKPT_KEEP" \
         "${resume_args[@]}" \
         --out "$outdir" > "${outdir}/train.log" 2>&1
 
@@ -155,6 +200,11 @@ run_round() {      # n name sft budget
         --latents "${outdir}/trained_latents.pt" --tag "$tag" \
         > "out/exp-058/export_${tag}.log" 2>&1 || echo "[curriculum] export failed for $tag"
     bash scripts/qat_report_refresh.sh "$outdir" "${tag} — ternary QAT" || true
+
+    # Only AFTER the export succeeded: the intermediate checkpoints are the fallback if
+    # the export needs re-running, so they are worth their 27.8 GB until it has.
+    prune_round "$outdir"
+    df -h /workspace | tail -1
 }
 
 echo "[curriculum] prefix=$PREFIX lr=$LR epochs/round=$EPOCHS window=$WINDOW precision=$PRECISION"

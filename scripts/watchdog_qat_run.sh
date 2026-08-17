@@ -53,8 +53,17 @@ HEARTBEAT_STEPS="${HEARTBEAT_STEPS:-50}"
 # fixed separation from bf16's 129 divergence, so do NOT read a single spike as failure —
 # NaN/Inf is the unambiguous signal, and this bound only catches a genuine runaway.
 GNORM_MAX="${GNORM_MAX:-200.0}"
+# DISK, the failure this watchdog originally could not see. One checkpoint of this model is
+# 27.8 GB and the trainer writes the new one BEFORE pruning the oldest, so a save needs a
+# full 28 GB free however many are kept. The sft32k_sw1 run reached 95% / 27 GB free at
+# step 350 with its next save ~55 min away; nothing in the metrics stream would have hinted
+# at it, and the failure arrives as a dead run 7 h into a 11 h job. Warn with enough margin
+# to act (one save plus a little), not at the moment it becomes fatal.
+MIN_FREE_GIB="${MIN_FREE_GIB:-45}"
+DISK_PATH="${DISK_PATH:-$PWD}"
 
-echo "[watchdog] $RUN pid=$PID stall=${STALL}s heartbeat=${HEARTBEAT_STEPS} steps" >&2
+echo "[watchdog] $RUN pid=$PID stall=${STALL}s heartbeat=${HEARTBEAT_STEPS} steps" \
+     "min-free=${MIN_FREE_GIB}GiB" >&2
 
 read_metrics() {
     python3 - "$METRICS" <<'PY' 2>/dev/null || true
@@ -123,6 +132,22 @@ except Exception:
     if [ "$bad" = "1" ]; then
         echo "DIVERGED: step $step/$total loss=$loss gnorm=$gnorm (limit $GNORM_MAX)"
         break
+    fi
+
+    # Disk. Checked every poll but reported at most once per crossing, so a run that sits
+    # just under the line does not spam — while a run that is genuinely filling the disk
+    # says so long before the save that would kill it.
+    free_gib=$(df -BG --output=avail "$DISK_PATH" 2>/dev/null | tail -1 | tr -dc '0-9')
+    if [ -n "$free_gib" ] && [ "$free_gib" -lt "$MIN_FREE_GIB" ]; then
+        if [ "${disk_warned:-0}" = "0" ]; then
+            echo "DISK LOW: ${free_gib} GiB free on $DISK_PATH (threshold ${MIN_FREE_GIB});"
+            echo "  a checkpoint is ~28 GB and is written BEFORE the oldest is pruned, so"
+            echo "  the next save at a --ckpt-every boundary may fail. Free space now."
+            du -sh "$RUN" 2>/dev/null
+            disk_warned=1
+        fi
+    else
+        disk_warned=0
     fi
 
     if [ "$step" -ge "$((last_hb + HEARTBEAT_STEPS))" ]; then
