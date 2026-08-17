@@ -610,8 +610,14 @@ def main() -> int:
     args.out.write_text(f"""<!doctype html><meta charset="utf-8">
 <title>{args.title}</title>
 <style>
+ /* This page commits to a light ground on purpose: the Okabe-Ito series colors are chosen
+    for contrast against white, and re-deriving them per theme would break comparability
+    with every published figure. So paint it explicitly rather than inheriting — an
+    unpainted body renders #222 text on the host's ground, which is unreadable anywhere
+    the page is embedded in a dark context. */
+ :root{{color-scheme:light}}
  body{{font:14px/1.55 -apple-system,system-ui,sans-serif;margin:2rem auto;max-width:1000px;
-       color:{INK};padding:0 1rem}}
+       color:{INK};background:#fff;padding:0 1rem}}
  h1{{font-size:21px;margin:0 0 .2rem}} h2{{font-size:15px;margin:0 0 .2rem}}
  h3{{font-size:12px;color:{MUTED};font-weight:600;margin:0 0 .3rem;text-transform:uppercase;
      letter-spacing:.04em}}
