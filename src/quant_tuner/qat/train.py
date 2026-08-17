@@ -95,6 +95,9 @@ class QATConfig:
     #: 0 disables. A collapsing run is visible by ~step 50 and monotone from there; this
     #: converts an 11-hour post-mortem into a 40-minute one.
     probe_abort: float = 0.0
+    #: "group-scale" gives each latent tensor lr * median(s)/median-of-medians (clamped
+    #: to [0.5, 2.0]) so large-scale tensors (v/up/gate) are not flip-starved. fp32 only.
+    lr_scale: str = "none"
     val_windows: int = 16
     train_norms: bool = False
     resume: Path | None = None
@@ -114,6 +117,19 @@ class QATConfig:
     device: str = "auto"
     #: torch.set_float32_matmul_precision; see the --matmul-precision help
     matmul_precision: str = "highest"
+    #: Which layers are ternarized AT ALL (None = every layer). Distinct from ``layers``/
+    #: ``train_layers``, which choose what gets GRADIENTS. On a natively-ternary model the
+    #: two coincide — everything is already on the grid, so a frozen layer is ternary for
+    #: free. On a DENSE model they must not: a progressive schedule needs a third state,
+    #: "still bf16, not on the grid, not being moved there yet", and without this every
+    #: layer would be ternarized from step 0 — the all-at-once approach the schedule exists
+    #: to avoid.
+    ternary_layers: str | None = None
+    #: Tensor-name substrings kept DENSE wherever they appear, e.g. "down_proj". Measured
+    #: on gemma-4-E4B (docs/gemma4_ternary_feasibility.md): ternarizing mlp.down_proj alone
+    #: takes perplexity from ~19 to 149 while every other kind stays in band, so it is the
+    #: one tensor worth spending bits on. Applied on top of ``ternary_layers``.
+    dense_kinds: tuple[str, ...] = ()
 
 
 def parse_layers(spec: str, n_layers: int) -> set[int]:
@@ -131,9 +147,33 @@ def parse_layers(spec: str, n_layers: int) -> set[int]:
     return {layer for layer in out if 0 <= layer < n_layers}
 
 
+#: Where a decoder's layer list lives, most-specific first. A plain CausalLM keeps it at
+#: ``model.model.layers``; a multimodal wrapper like ``Gemma4ForConditionalGeneration``
+#: nests it under a language_model, and reading the wrong one raises rather than silently
+#: training a vision tower — but only because we look it up instead of hard-coding.
+_LAYER_PATHS = ("model.language_model.layers", "model.layers",
+                "model.model.layers", "model.decoder.layers")
+
+
+def decoder_layers(model):
+    """The transformer block list, wherever this architecture puts it."""
+    for path in _LAYER_PATHS:
+        obj = model
+        for part in path.split("."):
+            obj = getattr(obj, part, None)
+            if obj is None:
+                break
+        if obj is not None and hasattr(obj, "__len__") and len(obj):
+            return obj
+    raise AttributeError(
+        f"no decoder layer list found on {type(model).__name__} (tried {_LAYER_PATHS}); "
+        f"add its path to _LAYER_PATHS")
+
+
 def wrap_model(model, n_train: int, layer_spec: str | None = None,
-               train_norms: bool = False) -> int:
-    layers = model.model.layers
+               train_norms: bool = False, ternary_spec: str | None = None,
+               dense_kinds: tuple[str, ...] = ()) -> int:
+    layers = decoder_layers(model)
     if layer_spec:
         trainable_idx = parse_layers(layer_spec, len(layers))
         label = f"explicit layers {sorted(trainable_idx)}"
@@ -141,10 +181,32 @@ def wrap_model(model, n_train: int, layer_spec: str | None = None,
         trainable_idx = set(range(max(0, len(layers) - n_train), len(layers)))
         label = f"last {n_train} layers"
 
-    def swap(mod, trainable):
+    ternary_idx = (parse_layers(ternary_spec, len(layers)) if ternary_spec
+                   else set(range(len(layers))))
+    if not trainable_idx <= ternary_idx:
+        raise ValueError(
+            f"layers {sorted(trainable_idx - ternary_idx)} are set to train but not to "
+            f"ternarize — their gradients would move a latent nothing quantizes, which "
+            f"is plain fine-tuning wearing a QAT label")
+    n_dense = 0
+    #: Parameter ids of weights deliberately kept DENSE inside a trainable layer. They are
+    #: ordinary ``Linear.weight``s, not ``.linear.weight`` latents, so the requires_grad
+    #: pass below cannot recognise them by name — and they DO train: letting the dense
+    #: tensors adapt to their ternarized neighbours is most of why a partial schedule beats
+    #: all-at-once.
+    dense_trainable: set[int] = set()
+
+    def swap(mod, trainable, ternary=True, prefix=""):
+        nonlocal n_dense
         c = 0
         for name, child in list(mod.named_children()):
+            full = f"{prefix}{name}"
             if isinstance(child, torch.nn.Linear) and child.in_features % 128 == 0:
+                if not ternary or any(k in full for k in dense_kinds):
+                    n_dense += 1
+                    if trainable:
+                        dense_trainable.add(id(child.weight))
+                    continue
                 if not trainable:
                     # Frozen layer: shipped weights are already exactly on the ternary
                     # grid, so TernaryLinear would be a bit-exact no-op costing ~5 W-sized
@@ -161,20 +223,53 @@ def wrap_model(model, n_train: int, layer_spec: str | None = None,
                 setattr(mod, name, TernaryLinear(child, trainable=trainable))
                 c += 1
             else:
-                c += swap(child, trainable)
+                c += swap(child, trainable, ternary, f"{full}.")
         return c
 
-    nw = sum(swap(layer, i in trainable_idx) for i, layer in enumerate(layers))
+    nw = sum(swap(layer, i in trainable_idx, i in ternary_idx)
+             for i, layer in enumerate(layers))
     for name, p in model.named_parameters():
         li = int(name.split("layers.")[1].split(".")[0]) if "layers." in name else -1
         is_latent = ".linear.weight" in name and li in trainable_idx
         is_norm = train_norms and li in trainable_idx and "norm" in name
-        p.requires_grad_(is_latent or is_norm)
+        p.requires_grad_(is_latent or is_norm or id(p) in dense_trainable)
     nt = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    dense_note = (f"; {n_dense} linears left DENSE "
+                  f"({len(dense_trainable)} of them trainable)" if n_dense else "")
     print(f"[qat] training {label} ({len(trainable_idx)} layers"
-          f"{', +norms' if train_norms else ''}); wrapped {nw}; "
+          f"{', +norms' if train_norms else ''}); ternary layers "
+          f"{len(ternary_idx)}/{len(layers)}; wrapped {nw}{dense_note}; "
           f"trainable {nt/1e9:.2f}B", flush=True)
     return nw
+
+
+def latent_lr_mults(
+    named_params, *, clamp: tuple[float, float] = (0.5, 2.0),
+) -> dict[str, float]:
+    """Per-tensor lr multipliers proportional to the median TWN group scale.
+
+    A flip needs the latent to cross its group's threshold, and that distance is
+    proportional to the group scale ``s`` — while adafactor's normalized step is ~lr
+    for every coordinate. So at uniform lr, large-scale tensors are structurally
+    starved of code flips. Measured on the shipped model: v/up/gate carry the largest
+    scales (0.035-0.048, growing with depth) and flip least (0.0000-0.0002% in the
+    59-step arms); q/down carry the smallest (~0.022-0.026) and flip most (0.0145%,
+    0.0057%); sorting the tracked tensors by ``s`` almost exactly anti-orders them by
+    observed flip rate. ``lr_t = lr * s_t / median(s)`` (clamped) equalizes flip
+    opportunity; non-2D params (norms, biases) keep 1.0.
+    """
+    from quant_tuner.qat.ternary import DEFAULT_GROUP_SIZE, ternarize_group
+    scales: dict[str, float] = {}
+    with torch.no_grad():
+        for n, p in named_params:
+            if p.ndim == 2 and p.shape[1] % DEFAULT_GROUP_SIZE == 0:
+                _, s, _ = ternarize_group(p.detach())
+                scales[n] = float(s.float().median())
+    if not scales:
+        return {n: 1.0 for n, _ in named_params}
+    ref = sorted(scales.values())[len(scales) // 2]
+    return {n: (min(max(scales[n] / ref, clamp[0]), clamp[1]) if n in scales else 1.0)
+            for n, _ in named_params}
 
 
 def lr_at(step, total, base, warmup_frac=0.05):
@@ -689,7 +784,9 @@ def train_qat(cfg: QATConfig) -> int:
     model = AutoModelForCausalLM.from_pretrained(cfg.model_dir, dtype=dtype).to(dev)
     model.config.use_cache = False
     model.gradient_checkpointing_enable()  # transformers>=5 defaults use_reentrant=False
-    wrap_model(model, cfg.train_layers, layer_spec=cfg.layers, train_norms=cfg.train_norms)
+    wrap_model(model, cfg.train_layers, layer_spec=cfg.layers,
+               train_norms=cfg.train_norms, ternary_spec=cfg.ternary_layers,
+               dense_kinds=cfg.dense_kinds)
     model.train()
 
     teacher = None
@@ -744,6 +841,11 @@ def train_qat(cfg: QATConfig) -> int:
         return torch.optim.AdamW(params, lr=cfg.lr, weight_decay=cfg.weight_decay,
                                  foreach=backend.foreach)
 
+    if cfg.lr_scale not in ("none", "group-scale"):
+        sys.exit(f"[qat] unknown --lr-scale {cfg.lr_scale!r}")
+    if cfg.lr_scale != "none" and cfg.compute_dtype == "bf16":
+        sys.exit("[qat] --lr-scale is not wired for the bf16 master path (fp32 is the "
+                 "supported training dtype for this model anyway)")
     if cfg.compute_dtype == "bf16":
         # masters are cloned fp32 BEFORE the bf16 cast; the cast keeps Parameter
         # identity, so the wrapper's param references stay live
@@ -752,7 +854,19 @@ def train_qat(cfg: QATConfig) -> int:
         print("[qat] bf16 compute + fp32 masters "
               f"({sum(m.numel() for m in opt.masters)/1e9:.2f}B master params)", flush=True)
     else:
-        opt = make_inner(trainable)
+        if cfg.lr_scale == "group-scale":
+            # One param group per tensor, each carrying its multiplier; the schedule
+            # (opt_step) applies `base_lr * lr_mult` every step, so warmup/cosine and
+            # the multiplier compose. Extra dict keys survive add_param_group.
+            mults = latent_lr_mults(trainable_named)
+            opt = make_inner([{"params": [p], "lr_mult": mults[n]}
+                              for n, p in trainable_named])
+            scaled = [m for m in mults.values() if m != 1.0]
+            print(f"[qat] lr-scale group-scale: {len(scaled)} tensors, "
+                  f"mult {min(scaled):.2f}..{max(scaled):.2f} "
+                  f"(median-scale-normalized, clamp [0.5, 2.0])", flush=True)
+        else:
+            opt = make_inner(trainable)
     print(f"[qat] optimizer {cfg.optim} (wd={cfg.weight_decay}"
           f"{f', beta1={cfg.beta1}' if cfg.beta1 else ''})", flush=True)
 
@@ -946,8 +1060,9 @@ def train_qat(cfg: QATConfig) -> int:
 
     def opt_step() -> tuple[float, bool]:
         """Step unless the guard rejects it. Returns (pre-clip grad norm, skipped)."""
+        base = lr_at(step, total_steps, cfg.lr, cfg.warmup_frac)
         for pg in opt.param_groups:
-            pg["lr"] = lr_at(step, total_steps, cfg.lr, cfg.warmup_frac)
+            pg["lr"] = base * pg.get("lr_mult", 1.0)
         if isinstance(opt, MasterOptimizer):
             # clip_and_step needs the norm BEFORE deciding, so measure on the masters
             gn = opt.stage_grads_and_norm()
@@ -1079,9 +1194,11 @@ def train_qat(cfg: QATConfig) -> int:
             if step == 1 or step % 5 == 0:
                 mem, mem_peak = backend.allocated_gib(), backend.peak_gib()
                 avg = sum(recent) / len(recent)
+                # base schedule lr; with --lr-scale each group runs base * its lr_mult
+                cur_lr = lr_at(step, total_steps, cfg.lr, cfg.warmup_frac)
                 emit("step", step=step, total_steps=total_steps, loss=avg,
                      kd_kl=(sum(kl_acc) / len(kl_acc)) if kl_acc else None,
-                     lr=opt.param_groups[0]["lr"], grad_norm=grad_norm,
+                     lr=cur_lr, grad_norm=grad_norm,
                      grad_median=guard.last_median, n_skipped=guard.n_skipped, mem_gib=mem,
                      mem_peak_gib=mem_peak, device=backend.name,
                      n_tail_empty=n_tail_empty,
@@ -1092,7 +1209,7 @@ def train_qat(cfg: QATConfig) -> int:
                 src_loss.clear()
                 kl_acc.clear()
                 print(f"[qat] step {step}/{total_steps} loss={avg:.4f}{kl_str} "
-                      f"lr={opt.param_groups[0]['lr']:.2e} "
+                      f"lr={cur_lr:.2e} "
                       # pre-clip; a divergence shows up here BEFORE the loss reacts
                       f"gnorm={grad_norm:.2f} "
                       # live bytes, then the high-water mark — the peak is what decides
@@ -1170,6 +1287,17 @@ def _build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--train-layers", type=int, default=18)
     ap.add_argument("--layers", type=str, default=None,
                     help="explicit layer indices to train, e.g. '0-14,32,34,35'; overrides --train-layers")
+    ap.add_argument("--ternary-layers", type=str, default=None,
+                    help="layer indices to TERNARIZE, e.g. '24-41'; default = all. "
+                         "Separate from --layers, which picks what gets gradients: on a "
+                         "dense model (gemma-4) a layer left out of this stays bf16 and "
+                         "off the grid, which is what makes a progressive schedule "
+                         "expressible at all. Every trained layer must also be ternarized.")
+    ap.add_argument("--dense-kind", action="append", default=None, metavar="SUBSTR",
+                    help="keep linears whose name contains SUBSTR dense, in every layer "
+                         "(repeatable). Measured on gemma-4-E4B: 'down_proj' alone takes "
+                         "PPL ~19 -> 149 when ternarized, against <1.0 KLD for every other "
+                         "kind — see docs/gemma4_ternary_feasibility.md.")
     ap.add_argument("--epochs", type=float, default=3.0)
     ap.add_argument("--grad-accum", type=int, default=8)
     ap.add_argument("--lr", type=float, default=5e-5)
@@ -1205,6 +1333,10 @@ def _build_parser() -> argparse.ArgumentParser:
                     help="abort (exit 3, checkpoint saved) when the probe diagnostic "
                          "exceeds this (0 disables). E.g. 0.09 = 10x the vanilla "
                          "0.0092 — every observed collapse blew far past that.")
+    ap.add_argument("--lr-scale", choices=["none", "group-scale"], default="none",
+                    help="group-scale: per-tensor lr proportional to the median TWN "
+                         "group scale (clamped [0.5, 2.0]) so large-scale tensors "
+                         "(v/up/gate) are not flip-starved at uniform lr. fp32 only.")
     ap.add_argument("--val-windows", type=int, default=16)
     ap.add_argument("--train-norms", action="store_true",
                     help="also train RMSNorm/q_norm/k_norm weights in the trainable layers")
@@ -1280,7 +1412,9 @@ def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     cfg = QATConfig(
         corpus=args.corpus, out=args.out, model_dir=args.model_dir,
-        train_layers=args.train_layers, layers=args.layers, epochs=args.epochs,
+        train_layers=args.train_layers, layers=args.layers,
+        ternary_layers=args.ternary_layers,
+        dense_kinds=tuple(args.dense_kind or ()), epochs=args.epochs,
         grad_accum=args.grad_accum, lr=args.lr, optim=args.optim,
         weight_decay=args.weight_decay, beta1=args.beta1, dtype=args.dtype,
         compute_dtype=args.compute_dtype, kd_teacher=args.kd_teacher,
@@ -1288,6 +1422,7 @@ def main(argv: list[str] | None = None) -> int:
         kd_alpha=args.kd_alpha, kd_temp=args.kd_temp, val_corpus=args.val_corpus,
         val_every=args.val_every, val_windows=args.val_windows,
         probe_every=args.probe_every, probe_abort=args.probe_abort,
+        lr_scale=args.lr_scale,
         train_norms=args.train_norms, resume=args.resume,
         flip_sample=args.flip_sample, ckpt_every=args.ckpt_every,
         ckpt_keep=args.ckpt_keep, warmup_frac=args.warmup_frac,

@@ -218,3 +218,32 @@ def test_stopprobe_log_line_parses_without_the_gloss_overwriting_values():
     row = {kv.group("k"): float(kv.group("v")) for kv in parse.KV_RE.finditer(body)}
     assert row["sentence_period"] == 0.0017      # not the gloss's 0.9999
     assert row["after_tool_call"] == 0.9999      # not the gloss's 0.0001
+
+
+def test_latent_lr_mults_track_group_scale():
+    """Flip distance is proportional to the group scale, so the multiplier must be too:
+    a tensor with 2x the magnitudes gets ~2x the lr (relative to the median tensor),
+    non-2D params stay at 1.0, and the clamp bounds runaway ratios."""
+    import torch
+
+    from quant_tuner.qat.train import latent_lr_mults
+
+    g = torch.Generator().manual_seed(0)
+    base = torch.randn(4, 256, generator=g) * 0.02
+    named = [
+        ("small.weight", torch.nn.Parameter(base.clone())),
+        ("mid.weight", torch.nn.Parameter(base.clone() * 1.5)),
+        ("large.weight", torch.nn.Parameter(base.clone() * 3.0)),
+        ("norm.weight", torch.nn.Parameter(torch.ones(64))),          # 1D -> 1.0
+        ("odd.weight", torch.nn.Parameter(torch.randn(4, 100))),      # not /128 -> 1.0
+    ]
+    m = latent_lr_mults(named)
+    assert m["norm.weight"] == 1.0 and m["odd.weight"] == 1.0
+    # median tensor is the reference
+    assert m["mid.weight"] == pytest.approx(1.0, abs=1e-6)
+    # small is 1/1.5 of the median; large is 3/1.5 = 2.0 (right at the clamp)
+    assert m["small.weight"] == pytest.approx(1 / 1.5, rel=1e-3)
+    assert m["large.weight"] == pytest.approx(2.0, rel=1e-3)
+    # a 10x tensor clamps rather than running away
+    named.append(("huge.weight", torch.nn.Parameter(base.clone() * 15.0)))
+    assert latent_lr_mults(named)["huge.weight"] <= 2.0
