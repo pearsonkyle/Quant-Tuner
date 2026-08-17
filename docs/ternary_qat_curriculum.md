@@ -199,6 +199,28 @@ two standard code benchmarks — mixed in with synthetic Evol-Code and CodeAlpac
 opts back in. Keeping them means MMLU-Pro, HumanEval and MBPP stop being quotable for this
 model, and this repo's leaderboard runs MMLU-Pro.
 
+## The two termination failures, and why one number cannot see both
+
+`scripts/analyze_swe_anomalies.py` re-reads the saved agent trajectories and names the
+failure mode. Run over what exists today it separates the two ternary results into
+*opposite* failures:
+
+| model | mode | evidence |
+|---|---|---|
+| vanilla Q2_0 | **loop** | 19 tool calls, 4 distinct commands (21%); alternates `cat utils.py` with `cat utils.py#L437` — a GitHub line-anchor pasted into a shell path — failing 8 times and never adapting |
+| sft32k (sw 6.0) | **mute** | 1 output token, 0 tool calls: emits its stop token immediately |
+
+Every non-ternary rung resolves the same instance (F16, IQ2_M, IQ3_M, IQ4_XS, Q5_K_M,
+W4A16), so the instance is solvable at 2 bits and this is the ternary model's problem,
+not the harness's.
+
+**The probe and the trajectory measure different things, and vanilla proves it.** Vanilla's
+P(im_end) probe is textbook healthy — 0.0092 after a sentence, 0.99995 after a tool call —
+and its trajectory still loops. A single-token probe at a fixed position cannot see a
+multi-turn loop; conversely the trajectory cannot distinguish early stopping from plain
+incapacity. `scripts/choose_stop_weight.py` therefore reads both, and when they disagree
+it returns the natural rate and says so rather than picking a side.
+
 ## The stop-signal ratio, per round
 
 Relevant to `--stop-weight`, since that is what `sft32k_sw1` is measuring:
@@ -213,3 +235,40 @@ Both new rounds are ~1.7x SPARSER in stop signal than the corpus whose stop spar
 diagnosed as the cause of sft8k-full's 97% loop rate. If `sft32k_sw1` shows the 32K window
 alone did not fix termination, that is the number to act on — and it argues for carrying
 the chosen stop weight into every round, not just round 3.
+
+## The proposed super-dataset: sized, not built
+
+The follow-on idea is one big run instead of three rounds — 75K ultrachat conversations,
+50K distillation conversations, and all of our SFT — released as a `qwen3-coder` model.
+`scripts/size_super_dataset.py` measures it against the local parquet caches:
+
+| source | take | available | tok/conv | tokens |
+|---|---|---|---|---|
+| ultrachat | 75,000 | 166,341 | 1,170 | 87.7M |
+| distillation | **46,101** | 46,101 | 1,132 | 52.2M |
+| our SFT (all) | 6,170 | 6,170 | 2,749 | 17.0M |
+| **TOTAL** | | | | **156.9M** |
+
+Three things this changes about the proposal:
+
+**1. "50K from distillation" is more than exists.** The benchmark-free deduped train pool
+is **46,101** conversations. The ask silently becomes "all of it" — which is fine, but it
+means the distillation half cannot be scaled up further without re-admitting the
+benchmark rows (SciQ/ARC/CommonsenseQA/QASC/OpenBookQA, HumanEval, MBPP) and giving up
+MMLU-Pro, HumanEval and MBPP as quotable numbers for this model.
+
+**2. It costs ~86 h fp32 for ONE epoch** — 4,692 windows at 32768, at the measured 66
+s/step. TF32 (`--matmul-precision high`, safe here) brings it to **~62 h**. For scale,
+each curriculum round is ~610 windows / ~11 h, and the whole three-round curriculum is
+~33 h. So the super-dataset is roughly **two curricula** of wall-clock.
+
+**3. It DILUTES the agentic content, which is the scarce thing.** The agentic domains
+total 10.6M tokens and that is all of them — the same 10.6M whether the run is 20M tokens
+or 157M. So agentic share falls from **52% in round 2** to **~7% of the super-dataset**.
+Per hour of training, the super-dataset teaches agentic behaviour ~7x less than round 2
+does. If the agent benchmark is the target, that is the wrong direction, and the honest
+alternative is to keep the staged curriculum and spend extra budget on more *epochs of
+round 2*, or on harvesting more trajectories, rather than on more ultrachat.
+
+Worth building only if the curriculum's agent benchmark shows the model is limited by
+general fluency rather than by agentic exposure.
