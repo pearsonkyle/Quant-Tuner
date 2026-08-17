@@ -95,7 +95,7 @@ def profile(
     rows: list[dict] = []
     for f in _safetensors_files(d):
         with safe_open(f, framework="pt") as h:
-            for name in h.keys():
+            for name in h.keys():  # noqa: SIM118 — safe_open is not iterable
                 if not pat.search(name):
                     continue
                 W = h.get_tensor(name)

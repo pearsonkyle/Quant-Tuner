@@ -18,10 +18,19 @@ from quant_tuner.qat import corpus as qc
 class FakeTok:
     """Character-per-token stand-in with the surface the builder uses.
 
-    Renders ``<|im_start|>{role}\\n{content}<|im_end|>\\n`` per message so the real
-    ``_ASST_RE`` span logic runs, and returns byte offsets so the label mapping is the
-    production code path.
+    Renders ``<|im_start|>{role}\\n{content}<|im_end|>\\n`` per message so the real Qwen
+    span logic runs, and returns byte offsets so the label mapping is the production code
+    path. It answers ``<|im_end|>`` in ``convert_tokens_to_ids`` because that is how
+    ``qat.dialect.detect`` identifies the family — a stub that renders ChatML but denies
+    having its stop token is not a Qwen tokenizer, and detection rightly refuses it.
     """
+
+    #: Qwen3's real control-token ids. The encoder below emits them as SINGLE tokens, the
+    #: way a real tokenizer does with special-token parsing on. Without that the corpus's
+    #: stop-token audit can never see a labeled terminator and is inert here, which is how
+    #: this stub used to silently opt out of it.
+    IM_START_ID = 151644
+    IM_END_ID = 151645
 
     def apply_chat_template(self, msgs, tools=None, tokenize=False, add_generation_prompt=False):
         parts = []
@@ -32,18 +41,37 @@ class FakeTok:
             parts.append(f"<|im_start|>{m['role']}\n{body}<|im_end|>\n")
         return "".join(parts)
 
+    #: (surface, id) for the control tokens, longest first so the scan is unambiguous.
+    SPECIALS = (("<|im_start|>", IM_START_ID), ("<|im_end|>", IM_END_ID))
+
     def __call__(self, text, add_special_tokens=False, return_offsets_mapping=False):
-        ids = [ord(c) % 256 for c in text]
+        ids: list[int] = []
+        offs: list[tuple[int, int]] = []
+        i = 0
+        while i < len(text):
+            for surface, tid in self.SPECIALS:
+                if text.startswith(surface, i):
+                    ids.append(tid)
+                    offs.append((i, i + len(surface)))
+                    i += len(surface)
+                    break
+            else:
+                ids.append(ord(text[i]) % 256)
+                offs.append((i, i + 1))
+                i += 1
         out = {"input_ids": ids}
         if return_offsets_mapping:
-            out["offset_mapping"] = [(i, i + 1) for i in range(len(text))]
+            out["offset_mapping"] = offs
         return out
 
     def decode(self, ids):
         return "".join(chr(i) for i in ids)
 
-    def convert_tokens_to_ids(self, tokenizer):
-        return None  # no <|im_end|> id -> _finalize skips the stop-token assert
+    def convert_tokens_to_ids(self, piece):
+        return self.IM_END_ID if piece == "<|im_end|>" else None
+
+    def convert_ids_to_tokens(self, i):
+        return "<|im_end|>" if i == self.IM_END_ID else "<unk>"
 
 
 def _row(idx, source, split, n_chars=4000):

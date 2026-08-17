@@ -223,9 +223,45 @@ is required: it currently forces `--token-embedding-type Q2_0` and
 grid. Given the size table above (that saves 1.2 GB) and the rare-token risk, this needs to
 become a flag, with Q4_0 the default for embeddings.
 
-Not verified yet: that the prism converter accepts *this* checkpoint end to end, and that a
-Q2_0 gemma-4 actually loads and generates. That is the first thing to test, and it needs no
-training — see Next steps.
+### Round-trip: measured, and it works
+
+Done end to end on CPU + a 5.5 GB slice of the GPU, with no training:
+
+```
+convert_hf_to_gguf.py <qat snapshot> --outtype f16            -> 666 tensors, 14,236 MiB
+llama-quantize --token-embedding-type q4_0 \
+               --tensor-type per_layer_token_embd=q4_0  … Q2_0 ->        2,926 MiB
+```
+
+Both overrides landed where intended — `per_layer_token_embd` 5376 → 1512 MiB and
+`token_embd` 1280 → 360 MiB at Q4_0, while `blk.*` went to Q2_0 at the expected 2.125 bpw
+(`attn_q` 10.00 → 1.33 MiB). The model **loads and generates** on the prism fork.
+
+The control is what makes the result readable. Same F16 GGUF, same converter, same fork,
+same prompt, same greedy settings — only the trunk type differs:
+
+| trunk | embeddings | size | BPW | output for *"What is the capital of France?"* |
+|---|---|---:|---:|---|
+| **Q4_0** | Q4_0 | 4,043 MiB | 4.54 | *"The capital of France is Paris."* |
+| **Q2_0 (ternary)** | Q4_0 | 2,926 MiB | 3.29 | `земeling บ GUNኝነት वइसटू गोवा porn memungkinkan…` |
+
+Three things follow.
+
+1. **The serving path is real.** gemma-4 + per-layer embeddings + Q2_0 converts, quantizes,
+   loads and runs on `vendor/llama.cpp-prism`. Nothing about the format or the architecture
+   blocks this project.
+2. **The garbage is the ternarization, not the plumbing.** A one-variable A/B is what
+   licenses that claim; without the Q4_0 arm the token soup would equally well be a broken
+   converter.
+3. **The size prize, measured rather than estimated: 2,926 vs 4,043 MiB — 28% smaller than
+   the same-pipeline Q4_0.** (Against Google's shipped 5.15 GB Q4_0 GGUF it is 40%, but
+   that file makes different choices about embedding precision, so the like-for-like number
+   is 28%.) Of the 2,926 MiB, **1,872 is embeddings and only ~1,054 is the ternary trunk** —
+   the artifact is two-thirds embedding table even after ternarizing every linear weight.
+
+This is the expected starting point, not a failure: hard-ternarizing a dense model with no
+training destroys it, which is the whole premise of doing QAT. What the round-trip buys is
+that the deliverable end of the pipeline is no longer an unknown.
 
 ---
 
@@ -257,6 +293,15 @@ Consequences, all of which differ from Qwen:
    also means the empty-assistant defect (`drop_empty_assistant`) cannot produce a
    stop-token-only turn the way it did on Qwen. Re-measure, do not assume either way.
 
+**This is now implemented**, not just described. `qat/dialect.py` holds the rule per
+family: `QwenChatDialect` keeps the character-span regex verbatim (published corpora
+fingerprints depend on it byte-for-byte) and `Gemma4ChatDialect` walks token ids —
+supervise from after the 3-token `<|turn>model\n` header through the terminating `<turn|>`
+inclusive, minus every `[50 … 51]` span. `qat.dialect.detect(tok)` picks by vocabulary
+rather than by model name, and **refuses** an unknown family instead of guessing.
+`tests/unit/test_qat_dialect.py` pins it, including a test that asserts the naive regex
+port would have supervised the tool result.
+
 All control tokens are single ids: `<|turn>` 105, `<turn|>` **106** (the stop token,
 `eos_token_id: [1, 106]`), `<|tool>` 46, `<tool|>` 47, `<|tool_call>` 48, `<tool_call|>` 49,
 `<|tool_response>` 50, `<tool_response|>` 51, `<|"|>` 52, `<|think|>` 98, `<|channel>` 100,
@@ -270,21 +315,46 @@ Reasoning renders as `<|channel>thought\n…<channel|>` and is gated to assistan
 
 ---
 
+## What is built
+
+The pipeline is wired for gemma-4 up to the point where it needs a GPU.
+
+* **`qat/dialect.py`** (new) — per-family supervised-span rule, id-based for gemma-4, with
+  `detect()` refusing an unknown family. Qwen's rule is byte-identical to before.
+* **`qat/train.py` — `decoder_layers()`** replaces the hard-coded `model.model.layers`,
+  which does not exist on `Gemma4ForConditionalGeneration` (its decoder is at
+  `model.language_model.layers`). `AutoModelForCausalLM` *does* resolve correctly for
+  gemma-4, so the `--model-class` trap from `vllm_export` does not apply here — verified.
+* **`qat/train.py` — `--ternary-layers` and `--dense-kind`** (new) — the third weight state
+  a progressive schedule needs. Until now a layer was either *trainable and ternary* or
+  *frozen and ternary*; on a natively-ternary model those are the only two that exist. A
+  dense model needs **"still bf16, not on the grid yet"**, or every layer is ternarized at
+  step 0 and there is no schedule. `--dense-kind down_proj` keeps the one catastrophic
+  tensor off the grid everywhere. Weights left dense inside a *trainable* layer still get
+  gradients — letting them adapt to their ternarized neighbours is most of why a partial
+  schedule should beat all-at-once — and that is pinned by a test, because they are plain
+  `Linear.weight`s that the name-based `requires_grad` pass cannot see.
+* **`qat/stop_probe.py`** — dialect-aware markers, and `PROBE_SPECS[...].vanilla` is `None`
+  for gemma until measured, so the log prints "no measured baseline" rather than quoting
+  Bonsai's 0.0092 next to a gemma reading.
+* **`scripts/measure_stop_baseline.py`** (new) — produces that baseline, forward-only.
+* **`scripts/build_sft_qat_corpus.py --model`** — render our SFT corpus with any
+  tokenizer instead of the hard-wired Bonsai one.
+
 ## Next steps
 
-Ordered cheapest-falsifying-first; nothing below needs the GPU until step 4.
-
-1. **Finish the output-space damage profile** (running): per-layer as well as per-kind, plus
-   a cumulative walk along the ranking. The cumulative curve is the one that answers "is
-   fully ternary reachable at all" — if damage compounds superlinearly, no schedule saves it.
-2. **Round-trip a Q2_0 gemma-4 through the prism fork with no training** — convert, quantize
-   the trunk to Q2_0 with embeddings at Q4_0, load, generate. Forward-only, and it either
-   validates the serving path or kills it in an afternoon.
-3. **Port `corpus.py`'s mask to token ids** and `stop_probe.py` to `<turn|>`/`model`, with a
-   unit test that a tool-response span is excluded from the loss. This is the piece that
-   fails silently if it is wrong.
-4. **60-step A/B on the damage-ordered schedule** vs. all-at-once, stop probe on from step 1,
-   watching code flips and termination together.
+1. **Measure the gemma-4 stop-probe baseline** (`scripts/measure_stop_baseline.py`, CPU,
+   minutes). The probe is uninterpretable until this exists. Note the CONTROL point does
+   not mean the same thing here: after `<tool_call|>` gemma's template hands to the harness,
+   so a low reading there is correct rather than a regression.
+2. **Build the 32K gemma corpus** from `sft.jsonl.gz` with `--model
+   google/gemma-4-E4B-it-qat-q4_0-unquantized`, then audit one window with
+   `inspect_corpus_window.py --audit` before trusting it.
+3. **Finish the output-space damage profile** (running): per layer as well as per kind, plus
+   the cumulative walk. The cumulative curve is what answers "is fully ternary reachable at
+   all" — if damage compounds superlinearly, no ordering saves it.
+4. **60-step A/B on the damage-ordered schedule vs. all-at-once**, stop probe on from step 1,
+   watching code flips and termination together. This is the first step that needs the GPU.
 
 ### Open design questions, stated rather than resolved
 

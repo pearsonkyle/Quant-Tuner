@@ -34,8 +34,10 @@ REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
 
 from quant_tuner.qat.corpus import (  # noqa: E402
+    MODEL,
     SFT_DEFAULT_BUDGETS,
     build_sft_corpus,
+    load_tokenizer,
 )
 
 
@@ -67,11 +69,27 @@ def main() -> int:
     ap.add_argument("--max-tool-tokens", type=int, default=1024)
     ap.add_argument("--min-density", type=float, default=0.0)
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--model", default=None,
+                    help="tokenizer to render with — a local dir or an HF repo id. "
+                         "Default: the unpacked Bonsai model, with the prism chat "
+                         "template restored from out/exp-057. Pass e.g. "
+                         "google/gemma-4-E4B-it-qat-q4_0-unquantized for another family; "
+                         "the supervised-span rule is then chosen by "
+                         "qat.dialect.detect from the tokenizer's own vocabulary.")
+    ap.add_argument("--chat-template", type=Path, default=None,
+                    help="override the tokenizer's chat template. Only for a tokenizer "
+                         "that ships none (the unpacked Bonsai one); substituting a "
+                         "template on a model that has its own changes the spans.")
     ap.add_argument("--out", type=Path,
                     default=REPO / "out" / "exp-058" / "sft_corpus_universal.pt")
     args = ap.parse_args()
 
+    tok = None
+    if args.model or args.chat_template:
+        tok = load_tokenizer(args.model or MODEL, args.chat_template)
+
     build_sft_corpus(
+        tok=tok,
         sft_path=args.sft,
         data_split=None if args.split == "all" else args.split,
         sources=args.source,

@@ -132,7 +132,7 @@ def compare(ref: list[torch.Tensor], cand: list[torch.Tensor],
     """
     kld_sum = agree = nll_sum = 0.0
     n = 0
-    for r16, c16, w in zip(ref, cand, windows):
+    for r16, c16, w in zip(ref, cand, windows, strict=True):
         for i in range(0, r16.shape[0] - 1, 256):
             r = r16[i : i + 256].float()
             c = c16[i : i + 256].float()
