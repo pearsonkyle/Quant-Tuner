@@ -18,7 +18,7 @@ where a HIGH value is correct.
 |---|---|---|---|---|---|
 | vanilla (shipped) | untrained | control | — | — | — |
 | sft32k | complete | backfilled | 3 | 2 | 350 |
-| sft32k_sw1 | running 105/613 | backfilled | 2 | — | — |
+| sft32k_sw1 | running 110/613 | backfilled | 2 | — | — |
 
 ## Config
 
@@ -34,7 +34,7 @@ where a HIGH value is correct.
 |---|---|---|---|---|---|---|---|---|
 | vanilla (shipped) | — | — | — | — | — | — | — | — |
 | sft32k | 0.6836 | 1.029 | 1.346 | 0.6853 | 0.6853 | 1.801 | 66.4 | 70.6 |
-| sft32k_sw1 | 0.7004 | 1.545 | 9.979 | 0.815 | 0.9111 | 0.5432 | 66 | 70.6 |
+| sft32k_sw1 | 0.7004 | 1.035 | 9.979 | 0.815 | 0.9111 | 0.5432 | 65.9 | 70.6 |
 
 ## Termination
 
@@ -72,5 +72,5 @@ being overwritten by the attempt that worked.
 | sft32k | `train.diverged-run2.log` | diverged | 205–370 | 0.5244 → 4.672 | 4.672 | 200 |
 | sft32k | `train.log` | complete | 355–610 | 0.7676 → 1.029 | 1.346 | 350 |
 | sft32k_sw1 | `train.log.dead-step1` | died | 1–1 | 0.7004 → 0.7004 | 0.7004 | — |
-| sft32k_sw1 | `train.log` | running | 1–105 | 0.7004 → 1.545 | 9.979 | — |
+| sft32k_sw1 | `train.log` | running | 1–110 | 0.7004 → 1.035 | 9.979 | — |
 

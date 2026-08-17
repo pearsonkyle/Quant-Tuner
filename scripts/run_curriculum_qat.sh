@@ -62,6 +62,16 @@ SFT_R1="${SFT_R1:-out/corpora/round1-ultrachat/sft.jsonl.gz}"
 SFT_R2="${SFT_R2:-out/corpora/round2-distill/sft.jsonl.gz}"
 SFT_R3="${SFT_R3:-out/corpora/qwen3-universal-v2/sft.jsonl.gz}"
 
+# ROUND 3 REUSES THE ABLATION'S EXACT CORPUS, by symlink:
+#   out/exp-058/corpus_ourssft_32768.pt -> out/exp-058/sft_corpus_universal_32768.pt
+# The headline question this curriculum answers is "do three rounds beat one round of our
+# SFT?", i.e. curriculum-r3 against sft32k_sw1. Rebuilding round 3 at MAX_TOOL_TOKENS
+# 12288 when sw1 was packed at 8192 would change the DATA as well as the training history,
+# and the comparison could no longer attribute a difference to the curriculum. build_corpus
+# below skips any corpus that already exists, so the symlink is what it picks up
+# (fingerprint 5a2d5d65f640fb74, identical to sw1's). 12288 is still right for round 2 —
+# it is a different source, compared against nothing.
+
 RESUME_FROM="${RESUME_FROM:-}"
 
 build_corpus() {   # name sft_path budget-pairs
