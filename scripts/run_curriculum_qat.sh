@@ -55,6 +55,10 @@ MAX_TOOL_TOKENS="${MAX_TOOL_TOKENS:-8192}"   # scale with the window (3072 at 80
 CORPUS_DIR="${CORPUS_DIR:-out/exp-058/fixed}"
 MIN_DENSITY="${MIN_DENSITY:-0.05}"
 VAL_EVERY="${VAL_EVERY:-25}"
+# Termination telemetry, passed EXPLICITLY rather than inherited from the trainer default:
+# the whole reason to run three rounds instead of one combined corpus is per-round
+# attribution of the stop-probe drift, and that rests entirely on this being on.
+PROBE_EVERY="${PROBE_EVERY:-25}"
 CKPT_EVERY="${CKPT_EVERY:-50}"
 # DISK IS THE BINDING CONSTRAINT, not GPU memory. One checkpoint of this model is 27.8 GB
 # and the trainer writes the new one BEFORE pruning the oldest, so a round needs
@@ -195,6 +199,7 @@ run_round() {      # n name sft budget
         --grad-accum "$ACCUM" --epochs "$EPOCHS" --lr "$LR" --warmup-frac 0.05 \
         --stop-weight "$STOP_WEIGHT" --grad-spike-factor 0 \
         --val-every "$VAL_EVERY" --val-windows 4 \
+        --probe-every "$PROBE_EVERY" \
         --ckpt-every "$CKPT_EVERY" --ckpt-keep "$CKPT_KEEP" \
         "${resume_args[@]}" \
         --out "$outdir" > "${outdir}/train.log" 2>&1
