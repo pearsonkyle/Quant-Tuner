@@ -44,7 +44,15 @@ ACCUM="${ACCUM:-1}"
 PRECISION="${PRECISION:-high}"
 COMPUTE_DTYPE=fp32
 STOP_WEIGHT="${STOP_WEIGHT:-1.0}"
-MAX_TOOL_TOKENS="${MAX_TOOL_TOKENS:-12288}"   # scale with the window (3072 at 8064)
+MAX_TOOL_TOKENS="${MAX_TOOL_TOKENS:-8192}"   # scale with the window (3072 at 8064)
+# out/exp-058/fixed holds the corpora rebuilt AFTER the split-assistant-turn fix
+# (merge_consecutive_assistant + drop_empty_assistant). The pre-fix corpora in
+# out/exp-058 taught "short prose preamble -> <|im_end|>" (18.5% of "Let me..." turns
+# ended at their first sentence, vs 0.0% in ultrachat and distillation) and carried 2,155
+# assistant turns whose only supervised token was the stop token. Training on them is
+# what produced P(stop | sentence end) = 0.95. Do not point this back at the old
+# directory without re-reading docs/ternary_qat_curriculum.md.
+CORPUS_DIR="${CORPUS_DIR:-out/exp-058/fixed}"
 MIN_DENSITY="${MIN_DENSITY:-0.05}"
 VAL_EVERY="${VAL_EVERY:-25}"
 CKPT_EVERY="${CKPT_EVERY:-50}"
@@ -72,22 +80,21 @@ SFT_R1="${SFT_R1:-out/corpora/round1-ultrachat/sft.jsonl.gz}"
 SFT_R2="${SFT_R2:-out/corpora/round2-distill/sft.jsonl.gz}"
 SFT_R3="${SFT_R3:-out/corpora/qwen3-universal-v2/sft.jsonl.gz}"
 
-# ROUND 3 REUSES THE ABLATION'S EXACT CORPUS, by symlink:
-#   out/exp-058/corpus_ourssft_32768.pt -> out/exp-058/sft_corpus_universal_32768.pt
-# The headline question this curriculum answers is "do three rounds beat one round of our
-# SFT?", i.e. curriculum-r3 against sft32k_sw1. Rebuilding round 3 at MAX_TOOL_TOKENS
-# 12288 when sw1 was packed at 8192 would change the DATA as well as the training history,
-# and the comparison could no longer attribute a difference to the curriculum. build_corpus
-# below skips any corpus that already exists, so the symlink is what it picks up
-# (fingerprint 5a2d5d65f640fb74, identical to sw1's). 12288 is still right for round 2 —
-# it is a different source, compared against nothing.
+# ROUND 3 NO LONGER REUSES THE ABLATION'S CORPUS. It used to, by symlink, so that
+# curriculum-r3 vs sft32k_sw1 differed only in training history. That comparison is now
+# void by design: sw1's corpus carries the split-assistant-turn defect and reproducing it
+# to preserve a clean A/B would mean deliberately re-teaching "prose preamble -> stop".
+# Round 3 uses the REBUILT corpus (${CORPUS_DIR}, fingerprint 7f947cbd2adc1544 against
+# sw1's 5a2d5d65f640fb74) and MAX_TOOL_TOKENS matches sw1's 8192 so that stays constant.
+# So a curriculum-r3 vs sw1 difference now has two causes — curriculum AND corpus fix —
+# and the per-round probes are what separate them.
 
 RESUME_FROM="${RESUME_FROM:-}"
 
 build_corpus() {   # name sft_path budget-pairs
     local name="$1" sft="$2" budget="$3"
-    local out="out/exp-058/corpus_${name}_${WINDOW}.pt"
-    local val="out/exp-058/corpus_${name}_val_${WINDOW}.pt"
+    local out="${CORPUS_DIR}/corpus_${name}_${WINDOW}.pt"
+    local val="${CORPUS_DIR}/corpus_${name}_val_${WINDOW}.pt"
     local bargs=() pair
     # budget is a space-separated list of SOURCE=TOKENS
     for pair in $budget; do bargs+=(--budget "$pair"); done
