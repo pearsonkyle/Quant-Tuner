@@ -39,7 +39,8 @@ export PYTORCH_CUDA_ALLOC_CONF="${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:T
 
 CORPUS="${CORPUS:-out/exp-058/fixed/corpus_ourssft_32768.pt}"
 VAL="${VAL:-out/exp-058/fixed/corpus_ourssft_val_32768.pt}"
-OUT="out/exp-058/verify-opt-${OPTIM}"
+ARM="${ARM:-${OPTIM}$([ "$LR" != "5e-4" ] && echo "-lr${LR}")}"
+OUT="out/exp-058/verify-opt-${ARM}"
 
 [ -f "${OUT}/.done" ] && { echo "[verify-opt] ${OPTIM} already run"; }
 busy=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | head -1)
@@ -48,13 +49,20 @@ busy=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | head -
 nwin=$($PY -c "import torch;print(torch.load('$CORPUS',weights_only=False)['ids'].shape[0])")
 ep=$($PY -c "print(f'{$STEPS/$nwin:.6f}')")
 
+# Momentum is a SEPARATE variable from the optimizer choice, and conflating them makes an
+# lr arm uninterpretable: `verify_optimizer.sh adafactor` with LR=2.5e-4 is meant to change
+# ONE thing against the baseline, and silently adding beta1=0.9 changes two (and costs
+# +27.8 GiB, which does not fit). Adafactor therefore keeps its beta1=None default unless
+# BETA1 is set explicitly; the 8-bit optimizers have momentum by construction, and testing
+# them without it would defeat the point.
 beta_args=()
 case "$OPTIM" in
-    adafactor|adamw8bit|lion8bit) beta_args=(--beta1 "$BETA1") ;;
+    adamw8bit|lion8bit) beta_args=(--beta1 "$BETA1") ;;
+    *) [ -n "${BETA1_EXPLICIT:-}" ] && beta_args=(--beta1 "$BETA1") ;;
 esac
 
 mkdir -p "$OUT"
-echo "[verify-opt] ${OPTIM} lr=${LR} beta1=${BETA1} -> ${STEPS} steps (epochs ${ep})"
+echo "[verify-opt] arm=${ARM} optim=${OPTIM} lr=${LR} beta1=$([ ${#beta_args[@]} -gt 0 ] && echo "$BETA1" || echo none) -> ${STEPS} steps (epochs ${ep})"
 $PY -m quant_tuner.qat.train \
     --corpus "$CORPUS" --val-corpus "$VAL" \
     --train-layers 36 --optim "$OPTIM" --dtype fp32 \
