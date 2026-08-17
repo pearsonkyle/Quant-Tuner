@@ -565,10 +565,31 @@ benchmarked GGUF, with the check that must pass at each step).
   refused (per-token KD across tokenizers is silently wrong). `kd_loss_from_topk` must
   renormalize **both** sides over the stored top-K; normalizing only the teacher leaves a
   constant offset (an identical student scored 0.89 instead of 0 — pinned by a unit test).
-- **Two training methods, one pipeline**: Method A = masked CE on verified trajectories
-  (run end-to-end); Method B = CE + KL against the precomputed top-K table (precompute and loss
-  validated, trainer wiring still open — `train.py` today only has the in-loop `--kd-teacher`,
-  which does not fit alongside an all-36 student).
+- **Two training methods, one pipeline**: Method A = masked CE on verified trajectories;
+  **Method B = CE + KL against a precomputed top-K table, now wired end-to-end** via
+  `--kd-table` (`qat/kd_table.py`). Offline, so KD costs NO GPU memory — the table sits on
+  CPU (~1.7 GB at top-64 over our corpus) and a window's slice is ~3.6 MB; that is what
+  makes it composable with an all-36 student, which the in-loop `--kd-teacher` never was.
+  KD is computed inside the existing CE logit chunks from one lm_head call, because a
+  separate pass re-materializes `[K, vocab]` fp32 (5.8 GiB at 29% density on a 32768
+  window). Runner: `scripts/run_kd_qat.sh`.
+  - **The teacher must share the student's tokenizer id→string map**, and the obvious
+    teacher fails it: `Qwen3.8-27B` (which solves our SWE instance at IQ2_M) is vocab
+    248,320 against the student's 151,669 and is REFUSED.
+    `SWE-Lego/SWE-Lego-Qwen3-{8B,32B}` both agree on all 151,669 ids — the 8B is
+    architecturally identical to the student (hidden 4096, 36 layers). A `vocab_size`
+    difference alone is fine (they declare 151,936; the extra rows are embedding padding
+    the checker slices). Both need `load_tokenizer_tolerant`: their configs carry
+    `max_position_embeddings: 163840.0`, a float where transformers demands an int.
+  - **Read `coverage` at startup.** It is the teacher mass captured by the stored top-K
+    (0.998 for the 8B on our corpus, i.e. the KL constrains essentially the full
+    distribution). Below 0.8 the trainer warns — a low-coverage table makes the KL far
+    weaker than it looks and nothing later can detect it.
+  - Three silent failures are refused: a table from a DIFFERENT corpus (fingerprint — it
+    would resolve fine and distil against the wrong distribution everywhere), positions
+    that disagree with the trainer's `keep_idx` (especially *equal counts, different
+    positions*, which misaligns every row), and a PARTIAL table (uncovered windows would
+    train on plain CE while the rest train on CE+KL).
 - `qat/attention.py` — **query-chunked SDPA; this is what lifted the training window from
   4096 to 12288.** torch has no MPS training kernel for SDPA, so training materializes
   `[heads, S, S]` and MPSGraph rejects > INT_MAX elements: the cap was `n_heads·S² < 2³¹`,
