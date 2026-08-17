@@ -820,6 +820,17 @@ def train_qat(cfg: QATConfig) -> int:
     if cfg.kd_table:
         kd_table = KDTable.load(cfg.kd_table, corpus_fingerprint=fp)
         print(f"[qat] KD {kd_table}", flush=True)
+        # A PARTIAL table is the quiet failure: windows it does not cover would train on
+        # plain CE while the rest train on CE+KL, so the objective silently changes from
+        # window to window and the run is neither one experiment nor the other. Refuse it
+        # rather than letting a --max-windows smoke table drive a real run.
+        missing = [w for w in range(n_win) if not kd_table.has_window(w)]
+        if missing:
+            sys.exit(f"[qat] KD table covers {n_win - len(missing)}/{n_win} windows "
+                     f"(first uncovered: {missing[0]}). Windows without teacher rows would "
+                     f"train on plain CE while the others train on CE+KL — the objective "
+                     f"would change from window to window. Re-run kd_precompute without "
+                     f"--max-windows, or pass a corpus matching the table.")
         print(f"[qat] KD alpha={cfg.kd_alpha} T={cfg.kd_temp}; loss = "
               f"{1 - cfg.kd_alpha:g}*CE + {cfg.kd_alpha:g}*T^2*KL", flush=True)
         if kd_table.coverage() < 0.8:
