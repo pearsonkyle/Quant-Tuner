@@ -269,3 +269,74 @@ If you do nothing else from this document:
 1. `inspect_corpus_window.py --audit` before training on a corpus.
 2. `--probe-every 25` on every run.
 3. Read `sentence_period` and the agent trajectory together, never the loss alone.
+
+---
+
+## 9. Offline KD (Method B) — when plain CE trades learning against termination
+
+Four levers were tested against the termination collapse and all four failed or traded
+against learning (`docs/ternary_qat_curriculum.md`): `--stop-weight`, the corpus defect,
+the optimizer, and the lr. Hard CE supplies one target per position and says nothing about
+the SHAPE of the distribution, so the model is free to collapse P(stop) anywhere the argmax
+survives. A KL term against a teacher that terminates correctly constrains exactly that.
+
+```bash
+bash scripts/run_kd_qat.sh                                    # 8B teacher, 60-step A/B
+STEPS=613 bash scripts/run_kd_qat.sh                          # full run
+TEACHER=SWE-Lego/SWE-Lego-Qwen3-32B TAG=kd32b STEPS=613 bash scripts/run_kd_qat.sh
+```
+
+### The teacher requirement, which silently ruins a run
+
+Per-token KD needs the teacher and student to share a tokenizer **id -> string** map.
+`kd_precompute.tokenizer_compatibility` compares the strings, not `vocab_size`, and refuses
+a mismatch — per-token KL across different tokenizers is *wrong*, not approximate.
+
+| teacher | verdict |
+|---|---|
+| `SWE-Lego/SWE-Lego-Qwen3-8B` | **OK** — agrees on all 151,669 ids; hidden 4096, 36 layers (identical to the student) |
+| `SWE-Lego/SWE-Lego-Qwen3-32B` | **OK** — agrees on all 151,669 ids; hidden 5120, 64 layers |
+| `Qwen/Qwen3.8-27B` | **NO** — vocab 248,320, a different tokenizer family |
+
+The 27B is the obvious teacher to reach for (it solves our SWE instance at IQ2_M) and it is
+the one that cannot be used. A vocab_size difference alone is fine: the SWE-Lego models
+declare 151,936 against the student's 151,669 and the extra rows are embedding padding,
+which the checker slices away.
+
+Both teachers need `load_tokenizer_tolerant` — their configs carry
+`max_position_embeddings: 163840.0`, a float where transformers demands an int, and stock
+`AutoTokenizer.from_pretrained` refuses outright.
+
+### Why offline
+
+`--kd-teacher` loads a DENSE teacher alongside the student and cannot fit an all-36 run.
+`--kd-table` reads a precomputed top-K table, so KD costs **no GPU memory at all** — the
+table lives on CPU (~1.7 GB at top-64 over our corpus) and a window's slice is ~3.6 MB.
+
+Precompute is cheap: **2.8 s/window** for the 8B, so 592 windows is ~28 minutes.
+
+### What to check at startup
+
+```
+[qat] KD KDTable(teacher=..., topk=64, positions=..., windows=592, coverage=0.998)
+[qat] KD alpha=0.5 T=1.0; loss = 0.5*CE + 0.5*T^2*KL
+[qat] step 1/59 loss=0.9086 kl=0.5443 ...
+```
+
+**`coverage` is the number that de-risks the whole approach.** It is the teacher
+probability mass captured by the stored top-K; at 0.998 the KL constrains essentially the
+full distribution rather than a truncated shadow of it. Below 0.8 the trainer warns —
+a low-coverage table makes the KL a far weaker constraint than it looks, and that is a
+property of the teacher's entropy on this corpus that nothing later can detect.
+
+### Two guards that exist because the failures are silent
+
+* **Corpus fingerprint.** A table built from a different pack still resolves — same window
+  count, same position range — and would distil every position against the wrong
+  distribution without erroring anywhere.
+* **Position alignment.** The stored positions must equal the `keep_idx` the trainer
+  recomputes from the labels. The dangerous case is *equal counts, different positions*,
+  which misaligns every row; the error names it.
+* **Full coverage.** A partial table (e.g. one built with `--max-windows` for a smoke test)
+  would let uncovered windows train on plain CE while the rest train on CE+KL — the
+  objective changing from window to window. Refused at startup.
