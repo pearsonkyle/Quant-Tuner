@@ -49,10 +49,19 @@ fi
 bash scripts/prune_export_intermediates.sh "$TAG" || true
 
 # The primary endpoint. CPU (--ngl 0) so it never contends with anything on the card.
+# Skip if this tag already has rows: probe_stop_prob APPENDS, and re-running the
+# postflight (which a chain restart does) would otherwise leave two copies of every probe
+# under one label. The registry and the stop-weight chooser take the last row per label,
+# so duplicates are not wrong — just noise that hides whether a row was ever re-measured.
 echo "[postflight] 2/4 P(im_end) probe — the primary endpoint"
+if grep -q "^${TAG}," "$STOP_CSV" 2>/dev/null; then
+    echo "  already recorded for ${TAG} — skipping (delete its rows to re-measure)"
+    grep "^${TAG}," "$STOP_CSV" | awk -F, '{printf "    %-18s %s\n", $2, ($4==""?"<tail":$4)}'
+else
 LLAMA_CPP_DIR=vendor/llama.cpp-prism PYTHONPATH=src $PY scripts/probe_stop_prob.py \
     --model "$GGUF" --label "$TAG" --out "$STOP_CSV" \
     --json-out "out/exp-058/eval/stop_prob_${TAG}.json" --ngl 0
+fi
 
 echo "[postflight] 3/4 tool-call eval (n is tiny — read it with the probe, not alone)"
 LLAMA_CPP_DIR=vendor/llama.cpp-prism PYTHONPATH=src $PY scripts/eval_toolcall.py \

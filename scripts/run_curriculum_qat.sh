@@ -208,7 +208,9 @@ run_round() {      # n name sft budget
     # independent observations into one and tell us nothing about which corpus is
     # responsible. It costs ~2 min on CPU and needs no GPU.
     local q2="out/exp-057/Ternary-Bonsai-8B-${tag}-Q2_0.gguf"
-    if [ -f "$q2" ]; then
+    # Skip if already recorded: the probe APPENDS, so a re-run of this round (or of the
+    # chain) would leave two identical copies of every probe under one label.
+    if [ -f "$q2" ] && ! grep -q "^${tag}," out/exp-058/eval/stop_prob.csv 2>/dev/null; then
         LLAMA_CPP_DIR=vendor/llama.cpp-prism $PY scripts/probe_stop_prob.py \
             --model "$q2" --label "$tag" --out out/exp-058/eval/stop_prob.csv \
             --json-out "out/exp-058/eval/stop_prob_${tag}.json" --ngl 0 \
