@@ -20,11 +20,12 @@ Then paste the printed `ProbeSpec(...)` line into `qat/stop_probe.py`. It is rec
 source rather than a data file on purpose: it is a property of a specific released
 checkpoint, and a run's log should be readable years later without the file alongside it.
 
-**The control point does not mean the same thing in every family.** For Qwen, after
-``</tool_call>`` the model should emit the stop token (0.99995). For gemma-4 the template
-hands over to the harness after ``<tool_call|>`` — it emits an opening ``<|tool_response>``
-as the generation prompt — so a low reading there is correct, not a regression. Read the
-control as "unchanged from this baseline", never as "should be high".
+**The probe POINTS differ per family, not just the markers.** Qwen's assistant turn ends
+at its tool call, so ``after_tool_call`` reads 0.99995 and is a clean "stopping is right"
+control. gemma-4's template hands over to the harness there, and the shipped model reads
+**0.00004** — the same point, the opposite meaning. gemma therefore gets its own points
+(``after_tool_response``, ``answer_after_tool``); see ``PROBE_SPECS`` for the measured
+values behind each choice.
 """
 
 from __future__ import annotations
@@ -36,7 +37,7 @@ from pathlib import Path
 import torch
 
 from quant_tuner.qat.dialect import detect as detect_dialect
-from quant_tuner.qat.stop_probe import CONTROL, DIAGNOSTIC, StopProbe
+from quant_tuner.qat.stop_probe import StopProbe
 
 
 def _load(model_id: str, device: str, dtype: str):
@@ -91,11 +92,12 @@ def main() -> None:
 
     print("\n=== shipped-model stop probabilities ===")
     for k, v in probs.items():
-        tag = ("  <- DIAGNOSTIC" if k == DIAGNOSTIC else
-               "  <- CONTROL" if k == CONTROL else "")
+        tag = ("  <- DIAGNOSTIC (stopping here is WRONG)" if k == probe.diagnostic
+               else "  <- CONTROL (stopping here is RIGHT)" if k == probe.control
+               else "")
         print(f"  {k:18s} {v:.5f}{tag}")
     print(f"\npaste into qat/stop_probe.py PROBE_SPECS[{dialect.name!r}]:")
-    print(f"    vanilla=({probs[DIAGNOSTIC]:.4g}, {probs[CONTROL]:.5g}),")
+    print(f"    vanilla=({probs[probe.diagnostic]:.4g}, {probs[probe.control]:.5g}),")
 
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)

@@ -72,17 +72,34 @@ DIAGNOSTIC = "sentence_period"
 CONTROL = "after_tool_call"
 
 
+#: gemma-4 markers. Its tool RESULT is rendered inside the same model turn, so a probe
+#: point can sit after one — which Qwen's format has no equivalent of.
+_G_TOOL_CALL = '<|tool_call>call:bash{command:<|"|>ls -la<|"|>}<tool_call|>'
+_G_TOOL_RESP = ('<|tool_response>response:bash{value:<|"|>src/table.py  tests/<|"|>}'
+                '<tool_response|>')
+_G_ANSWER = "I fixed it: the error message now names the expected column order."
+
+
 @dataclass(frozen=True)
 class ProbeSpec:
-    """Per-family probe text and the shipped model's readings.
+    """Per-family probe text, which points mean what, and the shipped model's readings.
 
     The probe is only interpretable against a baseline: "sentence_period = 0.95" means
     nothing until you know the shipped model reads 0.009 there. Those references are
     per-model measurements, not constants — `scripts/measure_stop_baseline.py` produces
     them, and a family with none yet prints the raw numbers rather than a false comparison.
+
+    ``diagnostic`` is a position where stopping is WRONG (it should stay low; it rising is
+    the early-termination collapse). ``control`` is a position where stopping is RIGHT (it
+    should stay high-ish; it falling is the opposite failure — a model that has lost the
+    ability to end a turn, i.e. the looping mode). Both are needed: a run can hold one and
+    break the other, and only reading them together tells the two apart.
     """
 
     tool_call: str
+    points: list[tuple[str, str]]
+    diagnostic: str
+    control: str
     #: (diagnostic, control) readings for the untrained model, or None if not yet measured.
     vanilla: tuple[float, float] | None = None
 
@@ -90,15 +107,42 @@ class ProbeSpec:
 #: Qwen/Bonsai values are the ones the curriculum doc is written against — do not edit
 #: them; a different number here silently rewrites every past run's interpretation.
 PROBE_SPECS: dict[str, ProbeSpec] = {
-    "qwen": ProbeSpec(tool_call=TOOL_CALL, vanilla=(0.0092, 0.99995)),
-    # gemma-4 renders a call as <|tool_call>call:NAME{arg:<|"|>v<|"|>}<tool_call|>, and
-    # its stop token is <turn|>. Note the CONTROL does not mean the same thing here: after
-    # <tool_call|> gemma's template hands over to the harness (it emits an opening
-    # <|tool_response> as the generation prompt), so the model is not expected to stop
-    # there the way Qwen is. Read the control as "unchanged from vanilla", not "high".
+    "qwen": ProbeSpec(tool_call=TOOL_CALL, points=PROBE_POINTS,
+                      diagnostic=DIAGNOSTIC, control=CONTROL,
+                      vanilla=(0.0092, 0.99995)),
+    # gemma-4 needs DIFFERENT POINTS, not just different markers, and the reason is
+    # structural. Qwen's assistant turn ends at its tool call, so `after_tool_call` reads
+    # 0.99995 and is a clean "stopping is right" control. gemma's template instead hands
+    # over to the harness there (it emits an opening <|tool_response> as the generation
+    # prompt), and the shipped model duly reads **0.00004** — using it as the control would
+    # invert the test.
+    #
+    # Measured on the shipped E4B, the honest position is that gemma-4 has NO sharp stop
+    # point: after a complete answer it prefers "\n\n" (0.275) over <turn|>, and
+    # `answer_after_tool` at **0.0703** is still the highest of every candidate tried
+    # (after_tool_call 0.00004, after_tool_response 0.00021, an answer with no tool use
+    # 0.026, mid-answer 0.000). So the control has ~25x of headroom above the diagnostic
+    # where Qwen's had ~10^4. It still detects the looping direction — 0.07 -> ~0 is a real
+    # signal — but it is a weaker instrument than Qwen's, and a run that moves it should be
+    # checked against a trajectory rather than trusted alone.
     "gemma4": ProbeSpec(
-        tool_call='<|tool_call>call:bash{command:<|"|>ls -la<|"|>}<tool_call|>',
-        vanilla=None,
+        tool_call=_G_TOOL_CALL,
+        points=[
+            ("start", ""),
+            ("mid_sentence", "Let me explore the repository"),
+            ("sentence_period", SENTENCE),
+            ("sentence_newline", SENTENCE + "\n"),
+            ("after_tool_call", SENTENCE + "\n" + _G_TOOL_CALL),
+            # stopping is WRONG here: the model should issue the next call (top-1 is
+            # <|tool_call> at 0.392 on the shipped model)
+            ("after_tool_response", SENTENCE + "\n" + _G_TOOL_CALL + _G_TOOL_RESP),
+            # stopping is RIGHT here: the task is done and the turn should end
+            ("answer_after_tool",
+             SENTENCE + "\n" + _G_TOOL_CALL + _G_TOOL_RESP + _G_ANSWER),
+        ],
+        diagnostic="sentence_period",
+        control="answer_after_tool",
+        vanilla=(0.002744, 0.070316),
     ),
 }
 
@@ -110,6 +154,20 @@ class StopProbe:
     stop_id: int
     prompts: list[tuple[str, torch.Tensor]]
     dialect: str = "qwen"
+
+    @property
+    def spec(self) -> ProbeSpec:
+        return PROBE_SPECS[self.dialect]
+
+    @property
+    def diagnostic(self) -> str:
+        """Name of the point where stopping is WRONG — what --probe-abort watches."""
+        return self.spec.diagnostic
+
+    @property
+    def control(self) -> str:
+        """Name of the point where stopping is RIGHT."""
+        return self.spec.control
 
     @classmethod
     def build(cls, tok, dialect: ChatDialect | None = None) -> StopProbe:
@@ -127,9 +185,8 @@ class StopProbe:
              {"role": "user", "content": USER}],
             tools=TOOLS, tokenize=False, add_generation_prompt=True,
         )
-        points = [(n, s.replace(TOOL_CALL, spec.tool_call)) for n, s in PROBE_POINTS]
         prompts = []
-        for name, suffix in points:
+        for name, suffix in spec.points:
             # Special tokens in `suffix` (the tool-call markers) must encode to their real
             # single ids, which is transformers' default for in-text special tokens.
             ids = tok(prefix + suffix, add_special_tokens=False,
@@ -159,16 +216,18 @@ class StopProbe:
 
 def format_line(probs: dict[str, float], dialect: str = "qwen") -> str:
     """One compact log line; the diagnostic and control are named so a reader of the raw
-    log does not need to remember which of the five points matters.
+    log does not need to remember which of the points matters.
 
-    The "vs vanilla" comparison is printed only for a family whose baseline has been
-    measured — quoting Bonsai's 0.0092 next to a gemma reading would be worse than
-    printing nothing."""
+    Which points those ARE is per family (see :class:`ProbeSpec`), and the "vs vanilla"
+    comparison is printed only for a family whose baseline has been measured — quoting
+    Bonsai's 0.0092 next to a gemma reading would be worse than printing nothing."""
+    spec = PROBE_SPECS.get(dialect, PROBE_SPECS["qwen"])
     parts = " ".join(f"{k}={v:.4f}" for k, v in probs.items())
-    d, c = probs.get(DIAGNOSTIC, float("nan")), probs.get(CONTROL, float("nan"))
-    vanilla = PROBE_SPECS.get(dialect, PROBE_SPECS["qwen"]).vanilla
-    if vanilla is None:
-        return (f"{parts}  [diagnostic {DIAGNOSTIC}={d:.4f}; control {CONTROL}={c:.4f}; "
-                f"no measured {dialect} baseline — run scripts/measure_stop_baseline.py]")
-    return (f"{parts}  [diagnostic {DIAGNOSTIC}={d:.4f} vs vanilla {vanilla[0]}; "
-            f"control {CONTROL}={c:.4f} vs vanilla {vanilla[1]}]")
+    d = probs.get(spec.diagnostic, float("nan"))
+    c = probs.get(spec.control, float("nan"))
+    if spec.vanilla is None:
+        return (f"{parts}  [diagnostic {spec.diagnostic}={d:.4f}; "
+                f"control {spec.control}={c:.4f}; no measured {dialect} baseline — "
+                f"run scripts/measure_stop_baseline.py]")
+    return (f"{parts}  [diagnostic {spec.diagnostic}={d:.4f} vs vanilla {spec.vanilla[0]}; "
+            f"control {spec.control}={c:.4f} vs vanilla {spec.vanilla[1]}]")

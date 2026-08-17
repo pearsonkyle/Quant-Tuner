@@ -50,7 +50,6 @@ CHAT_TEMPLATE = REPO / "out" / "exp-057" / "chat_template.jinja"
 LOGTRAIN = REPO / "datasets" / "agent-logs" / "data" / "logs-cli.jsonl.gz"
 WIKI = REPO / "out" / "exp-001" / "wiki" / "wiki.test.raw"
 
-# assistant span in Qwen render: from "<|im_start|>assistant\n" to the next "<|im_end|>"
 #: Historical alias. The span rule itself now lives in :mod:`quant_tuner.qat.dialect`
 #: (per family); this is kept only because the audit scripts print it.
 IM_END = "<|im_end|>"
@@ -665,6 +664,11 @@ def build_sft_corpus(*, sft_path: Path, data_split: str | None = "train",
     combined window list is shuffled by :func:`_finalize`.
     """
     tok = tok or load_tokenizer()
+    # Resolved once and threaded through: the inline-control-token filter below has to
+    # look for THIS family's tokens. Left to the Qwen default it would wave through a
+    # gemma conversation quoting "<turn|>", putting a real stop token inside supervised
+    # prose — the exact defect the filter exists to catch.
+    dl = detect_dialect(tok)
     budgets = SFT_DEFAULT_BUDGETS if budgets is None else budgets
     rows = read_sft_jsonl(sft_path)
     if data_split is not None:
@@ -701,7 +705,7 @@ def build_sft_corpus(*, sft_path: Path, data_split: str | None = "train",
             # token in their content (our own past sessions debugging chat templates), so
             # the token becomes real inside supervised prose. Rewriting it would corrupt
             # the code the message is about, and there are only a handful.
-            if has_inline_control_tokens(conv.get("messages") or []):
+            if has_inline_control_tokens(conv.get("messages") or [], dl):
                 au.update({"dropped_control": 1})
                 continue
             ids, lbl, a = _sft_conversation_ids(conv, tok, max_tool_tokens)
@@ -769,7 +773,7 @@ def build_sft_corpus(*, sft_path: Path, data_split: str | None = "train",
           f"tool-output truncation dropped {tot_drop:,} tok "
           f"({100 * tot_drop / max(1, tot_tok + tot_drop):.0f}% of conversation content) "
           f"at --max-tool-tokens {max_tool_tokens}", flush=True)
-    return _finalize(windows, window, tok, tool_windows=len(windows), out=out,
+    return _finalize(windows, window, tok, tool_windows=len(windows), out=out, dialect=dl,
                      extra={"tool_windows": len(windows), "wiki_windows": 0,
                             "assistant_frac": frac, "split": f"sft:{data_split}",
                             "min_density": min_density, "max_tool_tokens": max_tool_tokens,

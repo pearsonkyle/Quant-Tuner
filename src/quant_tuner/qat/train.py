@@ -53,7 +53,6 @@ from quant_tuner.qat.corpus import corpus_fingerprint
 from quant_tuner.qat.kd_precompute import kd_loss_from_topk
 from quant_tuner.qat.kd_table import KDTable
 from quant_tuner.qat.master_opt import MasterOptimizer
-from quant_tuner.qat.stop_probe import DIAGNOSTIC as PROBE_DIAGNOSTIC
 from quant_tuner.qat.stop_probe import StopProbe
 from quant_tuner.qat.stop_probe import format_line as stop_probe_fmt
 from quant_tuner.qat.ternary import TernaryLinear, ternarize_group
@@ -1253,14 +1252,17 @@ def train_qat(cfg: QATConfig) -> int:
                 except Exception as exc:            # never let telemetry kill a long run
                     print(f"[qat] step {step} STOPPROBE failed: {exc}", flush=True)
                 backend.empty_cache()
+                # The diagnostic point is per chat family (gemma-4's control point means
+                # the opposite of Qwen's), so read its name off the probe, not a constant.
+                diag = stop_probe.diagnostic
                 if (probs is not None and cfg.probe_abort
-                        and probs.get(PROBE_DIAGNOSTIC, 0.0) > cfg.probe_abort):
+                        and probs.get(diag, 0.0) > cfg.probe_abort):
                     # Every collapse so far was visible by ~step 50 and monotone from
                     # there; a full run spends 8+ hours past that point learning nothing
                     # we will ship. Save what exists and stop while the checkpoint is
                     # still analyzable.
-                    print(f"[qat] step {step} PROBE-ABORT: {PROBE_DIAGNOSTIC}="
-                          f"{probs[PROBE_DIAGNOSTIC]:.4f} > --probe-abort "
+                    print(f"[qat] step {step} PROBE-ABORT: {diag}="
+                          f"{probs[diag]:.4f} > --probe-abort "
                           f"{cfg.probe_abort} — termination is collapsing; saving and "
                           f"stopping.", flush=True)
                     save_ckpt(step)

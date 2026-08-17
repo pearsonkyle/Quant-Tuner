@@ -315,6 +315,45 @@ Reasoning renders as `<|channel>thought\n…<channel|>` and is gated to assistan
 
 ---
 
+## The stop probe does not port — and gemma-4 has no sharp stop point
+
+Termination is the failure mode this pipeline broke every previous time, and the in-training
+stop probe is the instrument that catches it. Porting it is not a marker swap.
+
+Measured on the shipped E4B (`scripts/measure_stop_baseline.py`, fp32, CPU), P(`<turn|>`) at
+each point of the probe prefix:
+
+| probe point | shipped E4B | Qwen/Bonsai analogue |
+|---|---:|---:|
+| `start` | 0.00000 | — |
+| `mid_sentence` | 0.00000 | — |
+| **`sentence_period`** (DIAGNOSTIC — stopping here is wrong) | **0.00274** | 0.0092 |
+| `sentence_newline` | 0.01335 | — |
+| `after_tool_call` | **0.00004** | **0.99995** |
+| `after_tool_response` | 0.00021 | *no equivalent* |
+| **`answer_after_tool`** (CONTROL — stopping here is right) | **0.07032** | — |
+
+**`after_tool_call` means the opposite thing in the two families.** Qwen's assistant turn
+*ends* at its tool call, so 0.99995 there is a clean "can still stop when it should"
+control. gemma's template instead hands over to the harness at that point (it emits an
+opening `<|tool_response>` as the generation prompt), and the shipped model reads 0.00004 —
+correctly. Reusing Qwen's control would have inverted the test: a healthy gemma would look
+like a model that had lost the ability to terminate.
+
+So gemma-4 gets its own probe points, and `PROBE_SPECS` is now per-family (points,
+diagnostic, control, baseline) rather than a single shared list.
+
+**The honest limitation:** gemma-4 has no position where stopping is strongly preferred.
+After a complete answer it puts 0.275 on `\n\n` and only 0.070 on `<turn|>`, and 0.070 was
+the *highest* of every candidate tried (`after_tool_response` 0.00021, an answer with no
+tool use 0.026, mid-answer 0.000). The control therefore has ~25× of headroom over the
+diagnostic where Qwen's had ~10⁴. It still detects the looping direction — 0.070 → ~0 is a
+real signal — but it is a weaker instrument than the one the curriculum doc was written
+against, and a gemma run that moves it should be checked against a trajectory rather than
+trusted on the probe alone.
+
+---
+
 ## What is built
 
 The pipeline is wired for gemma-4 up to the point where it needs a GPU.
