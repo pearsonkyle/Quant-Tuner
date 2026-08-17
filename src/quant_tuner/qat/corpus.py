@@ -150,6 +150,71 @@ def truncate_tool_messages(
     return out, n_trunc, saved
 
 
+#: Control tokens that must never appear inside message CONTENT. The corpus is rendered
+#: with special-token parsing on (it has to be — that is how the chat structure works), so
+#: a log that quotes one of these gets a REAL control token in the middle of prose.
+CONTROL_TOKEN_STRINGS = ("<|im_start|>", "<|im_end|>")
+
+
+def merge_consecutive_assistant(msgs: list[dict]) -> tuple[list[dict], int]:
+    """Merge adjacent assistant messages into one turn. Returns (msgs, n_merged).
+
+    THE DEFECT THIS FIXES. Agent logs record one logical assistant turn as several
+    messages — a prose message ("Let me check the current state:") followed by a separate
+    message carrying only ``tool_calls``. Rendered verbatim, each fragment becomes its own
+    ``<|im_start|>assistant ... <|im_end|>`` turn, so the corpus teaches that a short
+    prose preamble is followed by the STOP token rather than by the tool call that
+    actually came next. Measured on the universal SFT corpus: 21.2% of logs-agents
+    assistant messages and 9.0% of logs ones are preceded by another assistant message,
+    and 18.5% of "Let me..."-opening assistant turns end at their first sentence, against
+    0.0% in both the ultrachat and distillation corpora.
+
+    That is the corpus half of the termination collapse (P(stop | sentence end) 0.95 in
+    trained models against the shipped model's 0.009).
+
+    Only ASSISTANT messages are merged. Tool results arrive as ``user``-role messages in
+    this template, so merging consecutive user messages would fuse a real user turn with a
+    tool response — a different and worse corruption.
+    """
+    out: list[dict] = []
+    merged = 0
+    for m in msgs:
+        if (out and m.get("role") == "assistant" and out[-1].get("role") == "assistant"):
+            prev = out[-1]
+            a, b = (prev.get("content") or ""), (m.get("content") or "")
+            # Two prose fragments are separate paragraphs of one turn; prose followed by a
+            # tool-call-only message must not gain a trailing separator.
+            prev["content"] = f"{a}\n\n{b}" if (a.strip() and b.strip()) else (a or b)
+            calls = list(prev.get("tool_calls") or []) + list(m.get("tool_calls") or [])
+            if calls:
+                prev["tool_calls"] = calls
+            ra, rb = (prev.get("reasoning_content") or ""), (m.get("reasoning_content") or "")
+            if ra.strip() or rb.strip():
+                prev["reasoning_content"] = f"{ra}\n\n{rb}" if (ra.strip() and rb.strip()) \
+                    else (ra or rb)
+            merged += 1
+            continue
+        out.append(dict(m))
+    return out, merged
+
+
+def has_inline_control_tokens(msgs: list[dict]) -> bool:
+    """True if any message CONTENT quotes a chat control token.
+
+    These come from our own past sessions debugging chat templates: the assistant wrote
+    ``rendered.find('<|im_end|>')`` in a code block, and with special-token parsing on that
+    becomes a real stop token inside supervised prose. Rare (2 of 6,645 occurrences) but
+    unambiguously teaches the model to emit a control token mid-sentence, so the
+    conversation is dropped rather than repaired — rewriting the token would corrupt the
+    code the message is about.
+    """
+    for m in msgs:
+        blob = (m.get("content") or "") + (m.get("reasoning_content") or "")
+        if any(t in blob for t in CONTROL_TOKEN_STRINGS):
+            return True
+    return False
+
+
 def masked_ids_for_session(
     msgs: list[dict], tok, tools: list | None = None, text: str | None = None
 ) -> tuple[list[int], list[int]]:
@@ -506,6 +571,9 @@ def _sft_conversation_ids(conv: dict, tok, max_tool_tokens: int) -> tuple[list[i
     assistant/tool turns) but only the tail segment of a multi-turn chat log.
     """
     msgs = [dict(m) for m in conv["messages"]]
+    # BEFORE truncation and before rendering: merging changes which messages exist, so
+    # doing it after would truncate and mask a message layout the template never sees.
+    msgs, n_merged = merge_consecutive_assistant(msgs)
     msgs, n_tr, saved = truncate_tool_messages(msgs, tok, max_tool_tokens)
     tools = conv.get("tools") or None
     if tools is None:
@@ -516,6 +584,7 @@ def _sft_conversation_ids(conv: dict, tok, max_tool_tokens: int) -> tuple[list[i
                                    add_generation_prompt=False)
     ids, lbl = masked_ids_for_session(msgs, tok, tools=tools, text=text)
     audit = {
+        "assistant_msgs_merged": n_merged,
         "tool_msgs_truncated": n_tr,
         "tool_tokens_dropped": saved,
         "src_tool_calls": sum(len(m.get("tool_calls") or []) for m in msgs),
@@ -576,6 +645,13 @@ def build_sft_corpus(*, sft_path: Path, data_split: str | None = "train",
         n_conv = 0
         au: collections.Counter = collections.Counter()
         for conv in convs:
+            # Dropped, not repaired: these are conversations that QUOTE a chat control
+            # token in their content (our own past sessions debugging chat templates), so
+            # the token becomes real inside supervised prose. Rewriting it would corrupt
+            # the code the message is about, and there are only a handful.
+            if has_inline_control_tokens(conv.get("messages") or []):
+                au.update({"dropped_control": 1})
+                continue
             ids, lbl, a = _sft_conversation_ids(conv, tok, max_tool_tokens)
             au.update(a)
             ids_stream += ids
@@ -598,6 +674,8 @@ def build_sft_corpus(*, sft_path: Path, data_split: str | None = "train",
             "tool_truncation_share": round(
                 au["tool_tokens_dropped"] / max(1, kept + au["tool_tokens_dropped"]), 4),
             "tool_msgs_truncated": au["tool_msgs_truncated"],
+            "assistant_msgs_merged": au.get("assistant_msgs_merged", 0),
+            "conversations_dropped_control_tokens": au.get("dropped_control", 0),
             "tool_calls_rendered": au["rendered_tool_calls"],
             "tool_calls_in_source": au["src_tool_calls"],
             "reasoning_rendered": au["rendered_reasoning"],
@@ -612,6 +690,11 @@ def build_sft_corpus(*, sft_path: Path, data_split: str | None = "train",
               f"tool-output truncation dropped {au['tool_tokens_dropped']:,} tok "
               f"({100 * per_source[src]['tool_truncation_share']:.0f}% of this source's "
               f"conversation content)", flush=True)
+        if au.get("assistant_msgs_merged") or au.get("dropped_control"):
+            print(f"[sft]   {'':<16} merged {au.get('assistant_msgs_merged', 0):,} split "
+                  f"assistant messages into their turn · dropped "
+                  f"{au.get('dropped_control', 0)} conversation(s) quoting a control token",
+                  flush=True)
         windows += src_windows
         window_source += [source_names.index(src)] * len(src_windows)
 

@@ -150,3 +150,83 @@ def test_build_is_deterministic_for_a_seed(sft_file):
     b = qc.build_sft_corpus(sft_path=sft_file, budgets={"logs": 20_000}, window=512,
                             max_tool_tokens=0, seed=7, tok=FakeTok(), out=None)
     assert a["fingerprint"] == b["fingerprint"]
+
+
+# ------------------------------------------------- split assistant turns (the real defect)
+def test_merge_consecutive_assistant_joins_prose_and_its_tool_call():
+    """Agent logs record one assistant turn as prose + a separate tool_calls message.
+    Rendered verbatim each fragment gets its own <|im_end|>, which is what taught the
+    model that a short preamble is followed by the STOP token."""
+    from quant_tuner.qat.corpus import merge_consecutive_assistant
+    msgs = [
+        {"role": "user", "content": "fix it"},
+        {"role": "assistant", "content": "Let me check the current state:"},
+        {"role": "assistant", "tool_calls": [{"id": "c1", "function": {"name": "bash"}}]},
+        {"role": "tool", "content": "ok", "tool_call_id": "c1"},
+    ]
+    out, n = merge_consecutive_assistant(msgs)
+    assert n == 1
+    assert [m["role"] for m in out] == ["user", "assistant", "tool"]
+    a = out[1]
+    assert a["content"] == "Let me check the current state:"   # no trailing separator
+    assert len(a["tool_calls"]) == 1
+
+
+def test_merge_joins_two_prose_fragments_as_paragraphs():
+    from quant_tuner.qat.corpus import merge_consecutive_assistant
+    out, n = merge_consecutive_assistant([
+        {"role": "assistant", "content": "First."},
+        {"role": "assistant", "content": "Second."},
+    ])
+    assert n == 1
+    assert out[0]["content"] == "First.\n\nSecond."
+
+
+def test_merge_concatenates_tool_calls_from_both():
+    from quant_tuner.qat.corpus import merge_consecutive_assistant
+    out, _ = merge_consecutive_assistant([
+        {"role": "assistant", "content": "a", "tool_calls": [{"id": "1"}]},
+        {"role": "assistant", "tool_calls": [{"id": "2"}]},
+    ])
+    assert [c["id"] for c in out[0]["tool_calls"]] == ["1", "2"]
+
+
+def test_merge_never_touches_user_or_tool_messages():
+    """Tool results arrive as user-role messages under this template, so merging
+    consecutive user messages would fuse a real user turn with a tool response."""
+    from quant_tuner.qat.corpus import merge_consecutive_assistant
+    msgs = [{"role": "user", "content": "a"}, {"role": "user", "content": "b"},
+            {"role": "tool", "content": "x"}, {"role": "tool", "content": "y"}]
+    out, n = merge_consecutive_assistant(msgs)
+    assert n == 0
+    assert len(out) == 4
+
+
+def test_merge_does_not_mutate_the_input():
+    from quant_tuner.qat.corpus import merge_consecutive_assistant
+    msgs = [{"role": "assistant", "content": "a"}, {"role": "assistant", "content": "b"}]
+    merge_consecutive_assistant(msgs)
+    assert msgs[0]["content"] == "a", "caller's messages must be untouched"
+
+
+def test_merge_preserves_reasoning_from_both_fragments():
+    from quant_tuner.qat.corpus import merge_consecutive_assistant
+    out, _ = merge_consecutive_assistant([
+        {"role": "assistant", "content": "a", "reasoning_content": "think one"},
+        {"role": "assistant", "content": "b", "reasoning_content": "think two"},
+    ])
+    assert out[0]["reasoning_content"] == "think one\n\nthink two"
+
+
+def test_inline_control_tokens_are_detected():
+    """From our own sessions debugging chat templates: the assistant wrote
+    rendered.find('<|im_end|>') in a code block, and special-token parsing makes that a
+    real stop token inside supervised prose."""
+    from quant_tuner.qat.corpus import has_inline_control_tokens
+    assert has_inline_control_tokens(
+        [{"role": "assistant", "content": "idx = rendered.find('<|im_end|>')"}])
+    assert has_inline_control_tokens(
+        [{"role": "assistant", "reasoning_content": "the <|im_start|> marker"}])
+    assert not has_inline_control_tokens(
+        [{"role": "assistant", "content": "a normal message about tools"}])
+    assert not has_inline_control_tokens([{"role": "user", "content": None}])
