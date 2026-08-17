@@ -191,9 +191,9 @@ def test_stop_probe_measure_restores_training_mode():
             self.lin = torch.nn.Linear(4, 7)
 
         def forward(self, ids):
-            class O:
+            class Out:
                 pass
-            o = O()
+            o = Out()
             o.logits = torch.zeros(1, ids.shape[1], 7)
             return o
 
@@ -207,7 +207,6 @@ def test_stop_probe_measure_restores_training_mode():
 def test_stopprobe_log_line_parses_without_the_gloss_overwriting_values():
     """The printed line repeats two probes inside a bracketed gloss with reference
     values; parsing must take the real ones."""
-    import re
     parse = _load("parse_qat_log")
     line = ("[qat] step 25 STOPPROBE start=0.0000 mid_sentence=0.0000 "
             "sentence_period=0.0017 sentence_newline=0.0000 after_tool_call=0.9999  "
