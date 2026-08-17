@@ -64,7 +64,10 @@ def longest_repeat_run(cmds: list[str]) -> tuple[int, str | None]:
 def degenerate_text(s: str, min_len: int = 24) -> bool:
     """A short substring repeated to fill the buffer — the classic decode collapse."""
     s = s.strip()
-    if len(s) < min_len * 3:
+    # min_len, not a multiple of it: the regex below already requires 24+ characters of
+    # actual repetition, and a stricter length gate here made "abab..."-style collapse
+    # invisible in anything short of a paragraph.
+    if len(s) < min_len:
         return False
     for n in (1, 2, 3, 4, 8, 16):
         unit = s[:n]
