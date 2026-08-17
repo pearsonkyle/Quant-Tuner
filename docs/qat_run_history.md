@@ -17,14 +17,16 @@ where a HIGH value is correct.
 | tag | status | provenance | legs | legs_diverged | resumed_from |
 |---|---|---|---|---|---|
 | vanilla (shipped) | untrained | control | — | — | — |
+| curriculum-r1-ultrachat | running 40/610 | recorded | 1 | — | — |
 | sft32k | complete | backfilled | 3 | 2 | 350 |
-| sft32k_sw1 | running 110/613 | backfilled | 2 | — | — |
+| sft32k_sw1 | complete | backfilled | 2 | — | — |
 
 ## Config
 
 | tag | corpus | window | lr | stop_weight | epochs | optim | matmul_precision |
 |---|---|---|---|---|---|---|---|
 | vanilla (shipped) | — | — | — | — | — | — | — |
+| curriculum-r1-ultrachat | corpus_ultrachat_32768.pt | 32768 | 5.0e-04 | 1 | 1 | adafactor | high |
 | sft32k | sft_corpus_universal_32768.pt | 32768 | 5.0e-04 | 6 | 1 | adafactor | highest |
 | sft32k_sw1 | sft_corpus_universal_32768.pt | 32768 | 5.0e-04 | 1 | 1 | adafactor | highest |
 
@@ -33,32 +35,36 @@ where a HIGH value is correct.
 | tag | loss_first | loss_last | loss_peak | val_best | val_last | flip_pct_max | s_per_step | mem_peak_gib |
 |---|---|---|---|---|---|---|---|---|
 | vanilla (shipped) | — | — | — | — | — | — | — | — |
+| curriculum-r1-ultrachat | 1.077 | 1.128 | 1.224 | 1.189 | 1.189 | — | 47.7 | 70.6 |
 | sft32k | 0.6836 | 1.029 | 1.346 | 0.6853 | 0.6853 | 1.801 | 66.4 | 70.6 |
-| sft32k_sw1 | 0.7004 | 1.035 | 9.979 | 0.815 | 0.9111 | 0.5432 | 65.9 | 70.6 |
+| sft32k_sw1 | 0.7004 | 1.063 | 9.979 | 0.6907 | 0.6907 | 4.222 | 66.4 | 70.6 |
 
 ## Termination
 
 | tag | stop_p_sentence | stop_p_after_tool |
 |---|---|---|
 | vanilla (shipped) | 0.009193 | 1 |
+| curriculum-r1-ultrachat | — | — |
 | sft32k | 0.9743 | 0.9529 |
-| sft32k_sw1 | — | — |
+| sft32k_sw1 | 0.9531 | 0.8143 |
 
 ## Tool-call
 
 | tag | tool_sel_acc | param_acc | schema_valid |
 |---|---|---|---|
 | vanilla (shipped) | 0.1071 | 0 | 0.6071 |
+| curriculum-r1-ultrachat | — | — | — |
 | sft32k | 0.2258 | 0.05376 | 0.5161 |
-| sft32k_sw1 | — | — | — |
+| sft32k_sw1 | 0.3514 | 0.152 | 0.6757 |
 
 ## SWE-mimic
 
 | tag | swe_resolved | swe_patch | swe_steps | swe_out_tokens | swe_exit |
 |---|---|---|---|---|---|
 | vanilla (shipped) | 0 | 0 | 19 | 1781 | completed |
+| curriculum-r1-ultrachat | — | — | — | — | — |
 | sft32k | 0 | 0 | 0 | 1 | completed |
-| sft32k_sw1 | — | — | — | — | — |
+| sft32k_sw1 | 0 | 0 | 60 | 4038 | error:MaxTurnsExceeded |
 
 ## Training legs
 
@@ -72,5 +78,5 @@ being overwritten by the attempt that worked.
 | sft32k | `train.diverged-run2.log` | diverged | 205–370 | 0.5244 → 4.672 | 4.672 | 200 |
 | sft32k | `train.log` | complete | 355–610 | 0.7676 → 1.029 | 1.346 | 350 |
 | sft32k_sw1 | `train.log.dead-step1` | died | 1–1 | 0.7004 → 0.7004 | 0.7004 | — |
-| sft32k_sw1 | `train.log` | running | 1–110 | 0.7004 → 1.035 | 9.979 | — |
+| sft32k_sw1 | `train.log` | complete | 1–610 | 0.7004 → 1.063 | 9.979 | — |
 

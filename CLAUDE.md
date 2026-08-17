@@ -504,7 +504,30 @@ our long agentic sessions.
 For **natively-ternary** models (`prism-ml/Ternary-Bonsai-8B`), post-hoc calibration is a
 structural no-op — the "F16" is a lossless container of `w = s·c`, `c ∈ {−1,0,+1}`, so there is
 no quantization error for imatrix/AWQ/GPTQ to recover. The only lever is **more training with
-the ternarization in the loop** (BitNet/TWN STE). Full guide: `docs/ternary_qat.md`.
+the ternarization in the loop** (BitNet/TWN STE). Full guide: `docs/ternary_qat.md`;
+**end-to-end runbook: `docs/ternary_qat_reproduce.md`** (every command from raw logs to a
+benchmarked GGUF, with the check that must pass at each step).
+- **TERMINATION IS THE FAILURE MODE OF THIS PIPELINE.** Every trained run so far broke the
+  model's stop decision: `P(<|im_end|> | completed sentence)` goes from the shipped model's
+  0.009 to ~0.95, and the agent then either stops mid-task or loops. Two causes were ruled
+  out by measurement — the loss weighting (`--stop-weight` 6.0 and 1.0 both land at ~0.95, a
+  6x change moving the diagnostic by 0.02) and, on its own, the corpus (which teaches at most
+  0.055 in the probe's own situation). What the corpus DID carry was two ingestion defects,
+  now fixed in `qat/corpus.py` and unique to our logs (0.0% in ultrachat and distillation):
+  agent logs split one assistant turn into a prose message plus a tool-call message
+  (`merge_consecutive_assistant`), and carried 2,155 assistant messages with no content and
+  no tool calls, each rendering as a turn whose ONLY supervised token is the stop token
+  (`drop_empty_assistant`). Read `docs/ternary_qat_curriculum.md` before building a corpus.
+- **Measure termination DURING training** (`qat/stop_probe.py`, `--probe-every 25`, 0.7 s).
+  Masked-CE cannot see this: sft32k's validation went FLAT for 225 steps while its
+  `sentence_period` went to 0.97. The probe prompts live in that module and
+  `scripts/probe_stop_prob.py` imports them, so the torch and GGUF paths stay comparable.
+  The report's "Termination policy over training" panel plots the series.
+- **The probe and the agent trajectory are each blind in one direction** — the probe scores
+  one token at a fixed position and cannot see a multi-turn loop; the trajectory cannot tell
+  early stopping from incapacity. The shipped model proves the gap: textbook-healthy probe,
+  looping trajectory. `scripts/analyze_swe_anomalies.py` names the mode (mute / loop /
+  flailing / worked-unresolved) because `resolved=0` collapses all four.
 - `qat/ternary.py` — per-group TWN straight-through estimator; reproduces the shipped weights
   **exactly** at step 0 (the fine-tune must start from the real model, not a re-derived one).
 - `qat/corpus.py` — masking/packing shared by the log corpus, the trajectory corpus and the
@@ -858,6 +881,18 @@ The OmniCoder reproduction is here; the CLI handles ad-hoc runs.
   `--exclude <holdout.jsonl>` builds a training pool **disjoint** from what we
   grade on — that invariant is what makes the QAT generalization number mean
   anything. `download_swebench_dataset.py` fetches the full split once.
+- **Ternary-QAT corpus + telemetry tooling** (added after the termination collapse):
+  `inspect_corpus_window.py` prints a packed window as the model sees it with supervised
+  targets bracketed, and `--audit` checks the structure (control tokens single ids, roles,
+  0 supervised tokens outside assistant turns — carry-over from the previous window is
+  expected and reported separately). `analyze_stop_context.py` measures what a corpus
+  teaches about where to stop, conditioned on position in the turn. `verify_corpus_fix.sh`
+  A/Bs two 60-step runs that differ only in the corpus. `qat_registry.py` joins every run's
+  config and measurements into `docs/qat_run_history.md`, modelling a run as a SEQUENCE of
+  legs (one per `train*.log`) so a resumed leg's mid-run loss is never read as the run's
+  start. `choose_stop_weight.py` reads the probe and the trajectory together and refuses to
+  pick a side when they disagree. `prune_export_intermediates.sh` reclaims the ~50 GB each
+  export leaves behind for a 2.1 GB deliverable.
 - **Ternary-QAT chain** (see `docs/ternary_qat.md` for the end-to-end guide):
   `run_ornith_distill_gen.sh` (harvest verified solver trajectories) →
   `build_ornith_distill_corpus.py` (resolved-only, student tokenizer, masked) →
