@@ -198,6 +198,28 @@ def merge_consecutive_assistant(msgs: list[dict]) -> tuple[list[dict], int]:
     return out, merged
 
 
+def drop_empty_assistant(msgs: list[dict]) -> tuple[list[dict], int]:
+    """Remove assistant messages with no content and no tool calls.
+
+    An empty assistant message renders as ``<|im_start|>assistant\\n<|im_end|>`` — a
+    supervised span whose ONLY trained token is the stop token. It is the purest possible
+    lesson in "emit <|im_end|> immediately", and the agent logs carry 2,155 of them
+    (2,065 in logs-agents alone) from turns where the harness recorded a response that
+    held only tool-use blocks, or nothing at all.
+
+    That is what the `start` probe measures, and it moved 0.00002 -> 0.12194 in the run
+    trained on this corpus.
+
+    Run AFTER :func:`merge_consecutive_assistant`, which absorbs all but a handful of
+    these into the neighbouring turn; this catches the ones with no assistant neighbour.
+    """
+    out = [m for m in msgs
+           if not (m.get("role") == "assistant"
+                   and not (m.get("content") or "").strip()
+                   and not (m.get("tool_calls") or []))]
+    return out, len(msgs) - len(out)
+
+
 def has_inline_control_tokens(msgs: list[dict]) -> bool:
     """True if any message CONTENT quotes a chat control token.
 
@@ -574,6 +596,10 @@ def _sft_conversation_ids(conv: dict, tok, max_tool_tokens: int) -> tuple[list[i
     # BEFORE truncation and before rendering: merging changes which messages exist, so
     # doing it after would truncate and mask a message layout the template never sees.
     msgs, n_merged = merge_consecutive_assistant(msgs)
+    # After merging: an assistant message with neither content nor tool calls renders
+    # as a turn whose only supervised token is <|im_end|>. Merging absorbs all but a
+    # handful; this removes the rest.
+    msgs, n_empty = drop_empty_assistant(msgs)
     msgs, n_tr, saved = truncate_tool_messages(msgs, tok, max_tool_tokens)
     tools = conv.get("tools") or None
     if tools is None:
@@ -585,6 +611,7 @@ def _sft_conversation_ids(conv: dict, tok, max_tool_tokens: int) -> tuple[list[i
     ids, lbl = masked_ids_for_session(msgs, tok, tools=tools, text=text)
     audit = {
         "assistant_msgs_merged": n_merged,
+        "empty_assistant_dropped": n_empty,
         "tool_msgs_truncated": n_tr,
         "tool_tokens_dropped": saved,
         "src_tool_calls": sum(len(m.get("tool_calls") or []) for m in msgs),
@@ -675,6 +702,7 @@ def build_sft_corpus(*, sft_path: Path, data_split: str | None = "train",
                 au["tool_tokens_dropped"] / max(1, kept + au["tool_tokens_dropped"]), 4),
             "tool_msgs_truncated": au["tool_msgs_truncated"],
             "assistant_msgs_merged": au.get("assistant_msgs_merged", 0),
+            "empty_assistant_dropped": au.get("empty_assistant_dropped", 0),
             "conversations_dropped_control_tokens": au.get("dropped_control", 0),
             "tool_calls_rendered": au["rendered_tool_calls"],
             "tool_calls_in_source": au["src_tool_calls"],
@@ -690,9 +718,12 @@ def build_sft_corpus(*, sft_path: Path, data_split: str | None = "train",
               f"tool-output truncation dropped {au['tool_tokens_dropped']:,} tok "
               f"({100 * per_source[src]['tool_truncation_share']:.0f}% of this source's "
               f"conversation content)", flush=True)
-        if au.get("assistant_msgs_merged") or au.get("dropped_control"):
+        if (au.get("assistant_msgs_merged") or au.get("dropped_control")
+                or au.get("empty_assistant_dropped")):
             print(f"[sft]   {'':<16} merged {au.get('assistant_msgs_merged', 0):,} split "
                   f"assistant messages into their turn · dropped "
+                  f"{au.get('empty_assistant_dropped', 0):,} empty assistant turn(s) "
+                  f"(pure stop-token targets) · dropped "
                   f"{au.get('dropped_control', 0)} conversation(s) quoting a control token",
                   flush=True)
         windows += src_windows

@@ -85,10 +85,17 @@ def audit(path: Path, tok, max_windows: int | None) -> int:
     sup_spans = 0
     leaked = 0
 
+    carryover = 0
     for w in range(ids_all.shape[0]):
         ids = ids_all[w].tolist()
         lbl = lbl_all[w].tolist()
-        i, role, turn_open = 0, None, False
+        # A window starts mid-conversation: everything before its first <|im_start|> is
+        # the tail of a turn that began in the PREVIOUS window. Counting those as
+        # role-less supervised tokens reported a 4,078-token "leak" on a corpus with none,
+        # and a false alarm here is worse than no check — it trains you to ignore it.
+        first = next((k for k, t in enumerate(ids) if t == im_start), len(ids))
+        carryover += sum(1 for k in range(first) if lbl[k] != IGNORE)
+        i, role, turn_open = first, None, False
         span_open = False
         while i < len(ids):
             if ids[i] == im_start:
@@ -131,8 +138,11 @@ def audit(path: Path, tok, max_windows: int | None) -> int:
     print(f"spans closing on <|im_end|> {sup_includes_stop:,} "
           f"({100*sup_includes_stop/max(1,sup_spans):.1f}% of spans)")
     print(f"supervised tokens in NON-assistant turns  {leaked:,}"
-          f"{'   <-- LEAK' if leaked else '   (none, correct)'}")
-    print(f"stray <|im_end|> with no open turn        {unclosed:,}")
+          f"{'   <-- REAL LEAK' if leaked else '   (none, correct)'}")
+    print(f"carry-over from the previous window       {carryover:,}"
+          f"   (expected: packed windows start mid-turn)")
+    print(f"stray <|im_end|> with no open turn        {unclosed:,}"
+          f"   (up to one per window is the same carry-over)")
     return 0
 
 

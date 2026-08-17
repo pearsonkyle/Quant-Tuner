@@ -230,3 +230,46 @@ def test_inline_control_tokens_are_detected():
     assert not has_inline_control_tokens(
         [{"role": "assistant", "content": "a normal message about tools"}])
     assert not has_inline_control_tokens([{"role": "user", "content": None}])
+
+
+def test_empty_assistant_turns_are_dropped():
+    """An assistant message with no content and no tool calls renders as
+    '<|im_start|>assistant\\n<|im_end|>' — a supervised span whose ONLY trained token is
+    the stop token. The agent logs carry 2,155 of them."""
+    from quant_tuner.qat.corpus import drop_empty_assistant
+    msgs = [
+        {"role": "user", "content": "hi"},
+        {"role": "assistant"},                                  # no keys at all
+        {"role": "assistant", "content": "   "},                # whitespace only
+        {"role": "assistant", "content": "", "tool_calls": []},  # both empty
+        {"role": "assistant", "content": "real"},
+        {"role": "assistant", "content": "", "tool_calls": [{"id": "1"}]},  # calls = real
+    ]
+    out, n = drop_empty_assistant(msgs)
+    assert n == 3
+    assert [m.get("content") for m in out] == ["hi", "real", ""]
+
+
+def test_empty_assistant_drop_leaves_other_roles_alone():
+    from quant_tuner.qat.corpus import drop_empty_assistant
+    msgs = [{"role": "user", "content": ""}, {"role": "tool", "content": ""}]
+    out, n = drop_empty_assistant(msgs)
+    assert n == 0 and len(out) == 2
+
+
+def test_merge_then_drop_removes_the_pure_stop_turns():
+    """The two fixes compose: merging absorbs an empty assistant message into its
+    neighbour, and the drop catches the ones with no assistant neighbour."""
+    from quant_tuner.qat.corpus import drop_empty_assistant, merge_consecutive_assistant
+    msgs = [
+        {"role": "user", "content": "go"},
+        {"role": "assistant"},                                   # empty, has a neighbour
+        {"role": "assistant", "content": "Let me check:"},
+        {"role": "tool", "content": "out"},
+        {"role": "assistant"},                                   # empty, NO neighbour
+    ]
+    merged, nm = merge_consecutive_assistant(msgs)
+    dropped, nd = drop_empty_assistant(merged)
+    assert nm == 1 and nd == 1
+    assert [m["role"] for m in dropped] == ["user", "assistant", "tool"]
+    assert dropped[1]["content"] == "Let me check:"
