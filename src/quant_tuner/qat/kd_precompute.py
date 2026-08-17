@@ -167,6 +167,32 @@ def tokenizer_compatibility(student_tok, teacher_tok) -> tuple[int, str]:
 
 
 # ------------------------------------------------------------------------------- precompute
+def force_into_support(
+    ids_k: torch.Tensor, vals: torch.Tensor, logp_full: torch.Tensor,
+    include_ids: list[int],
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Guarantee ``include_ids`` appear in every stored support row.
+
+    The tail bucket in ``kd_loss_from_topk`` caps the student's TOTAL out-of-support
+    mass, but says nothing about which token carries it. Forcing the stop token into
+    the support makes the KL an exact per-position constraint on P(stop) — the j-th
+    forced id replaces the (last-j)-th slot (the lowest-prob entries) in rows where it
+    is absent, at its TRUE teacher logprob, and the tail is recomputed. Rows that
+    already contain the id are untouched. Support rows are no longer sorted by prob
+    afterwards; nothing downstream relies on that.
+    """
+    if len(include_ids) > ids_k.shape[-1]:
+        raise ValueError(f"{len(include_ids)} forced ids > top-{ids_k.shape[-1]} support")
+    for j, fid in enumerate(include_ids):
+        absent = ~(ids_k == fid).any(-1)
+        if absent.any():
+            slot = ids_k.shape[-1] - 1 - j
+            ids_k[absent, slot] = fid
+            vals[absent, slot] = logp_full[absent, fid]
+    tail = torch.log1p(-torch.exp(vals).sum(-1).clamp(max=1 - 1e-6))
+    return ids_k, vals, tail
+
+
 def _teacher_logits(teacher, ids: torch.Tensor, keep_idx: torch.Tensor) -> torch.Tensor:
     """[K, V] teacher logits at ``keep_idx``, using logits_to_keep when supported."""
     try:
@@ -190,8 +216,14 @@ def precompute_topk(
     device: str | None = None,
     dtype: torch.dtype | None = None,
     student_chat_template: Path | None = None,
+    include_ids: list[int] | None = None,
 ) -> dict:
-    """Run the teacher over ``corpus`` and store top-K logprobs at labeled positions."""
+    """Run the teacher over ``corpus`` and store top-K logprobs at labeled positions.
+
+    ``include_ids`` forces those token ids into every stored support row (see
+    :func:`force_into_support`) — pass the stop id so the KL constrains P(stop)
+    per-position instead of only through the tail bucket.
+    """
     backend = resolve_backend(device or "auto")
     dev = backend.name
     tdtype = dtype or backend.teacher_dtype
@@ -241,8 +273,12 @@ def precompute_topk(
             lg = _teacher_logits(model, ids, keep_dev)[:, :kd_vocab]
             logp_full = torch.log_softmax(lg, dim=-1)
             vals, ids_k = torch.topk(logp_full, topk, dim=-1)
-            # exact tail mass so training can renormalize without bias
-            tail = torch.log1p(-torch.exp(vals).sum(-1).clamp(max=1 - 1e-6))
+            if include_ids:
+                ids_k, vals, tail = force_into_support(ids_k, vals, logp_full,
+                                                       include_ids)
+            else:
+                # exact tail mass so training can renormalize without bias
+                tail = torch.log1p(-torch.exp(vals).sum(-1).clamp(max=1 - 1e-6))
         wins.append(torch.full((keep.numel(),), w, dtype=torch.int32))
         poss.append(keep.to(torch.int32))
         idxs.append(ids_k.to(torch.int32).cpu())
@@ -263,6 +299,7 @@ def precompute_topk(
         "teacher": str(teacher), "teacher_vocab": t_vocab, "student_vocab": s_vocab,
         "corpus": str(corpus), "corpus_fingerprint": corpus_fp,
         "n_windows": n_win, "n_positions": n_pos_total,
+        "include_ids": list(include_ids or []),
     }
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)

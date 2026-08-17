@@ -41,6 +41,8 @@ from pathlib import Path
 import torch
 
 from quant_tuner.data import split
+from quant_tuner.qat.dialect import ChatDialect
+from quant_tuner.qat.dialect import detect as detect_dialect
 
 REPO = Path(__file__).resolve().parents[3]
 MODEL = REPO / "out" / "exp-057" / "model"
@@ -49,7 +51,8 @@ LOGTRAIN = REPO / "datasets" / "agent-logs" / "data" / "logs-cli.jsonl.gz"
 WIKI = REPO / "out" / "exp-001" / "wiki" / "wiki.test.raw"
 
 # assistant span in Qwen render: from "<|im_start|>assistant\n" to the next "<|im_end|>"
-_ASST_RE = re.compile(r"<\|im_start\|>assistant\n(.*?)<\|im_end\|>", re.DOTALL)
+#: Historical alias. The span rule itself now lives in :mod:`quant_tuner.qat.dialect`
+#: (per family); this is kept only because the audit scripts print it.
 IM_END = "<|im_end|>"
 
 # The single bash tool the openai-agents SWE backend registers (kept in sync with
@@ -220,7 +223,8 @@ def drop_empty_assistant(msgs: list[dict]) -> tuple[list[dict], int]:
     return out, len(msgs) - len(out)
 
 
-def has_inline_control_tokens(msgs: list[dict]) -> bool:
+def has_inline_control_tokens(msgs: list[dict],
+                              dialect: ChatDialect | None = None) -> bool:
     """True if any message CONTENT quotes a chat control token.
 
     These come from our own past sessions debugging chat templates: the assistant wrote
@@ -230,28 +234,34 @@ def has_inline_control_tokens(msgs: list[dict]) -> bool:
     conversation is dropped rather than repaired — rewriting the token would corrupt the
     code the message is about.
     """
+    tokens = dialect.control_tokens if dialect is not None else CONTROL_TOKEN_STRINGS
     for m in msgs:
         blob = (m.get("content") or "") + (m.get("reasoning_content") or "")
-        if any(t in blob for t in CONTROL_TOKEN_STRINGS):
+        if any(t in blob for t in tokens):
             return True
     return False
 
 
 def masked_ids_for_session(
-    msgs: list[dict], tok, tools: list | None = None, text: str | None = None
+    msgs: list[dict], tok, tools: list | None = None, text: str | None = None,
+    dialect: ChatDialect | None = None,
 ) -> tuple[list[int], list[int]]:
     """Return (ids, labels) with labels = ids on assistant tokens, -100 elsewhere.
 
-    The labeled span runs from the first content character after the
-    ``<|im_start|>assistant\\n`` header through the END of the terminating
-    ``<|im_end|>`` (``m.end(0)``): the terminator is a trained target — it is the
-    stop/EOS decision — while the header stays context (at inference it is part
-    of the generation prompt, never generated). The token after ``<|im_end|>``
-    (the turn-separating newline) stays -100.
+    The labeled span runs from the first token after the assistant/model turn HEADER
+    through the terminating stop token **inclusive**: the terminator is a trained
+    target — it is the stop/EOS decision, and dropping it is what caused the iter-2/3
+    looping — while the header stays context (at inference it is part of the generation
+    prompt, never generated). The token after it (the turn-separating newline) stays -100.
 
-    Tool schemas render in a system turn (# Tools block), so the assistant-span
-    mask naturally excludes them — schemas are context, only the assistant's
-    tool_calls/text (+ terminator) are trained."""
+    Tool schemas render in a system turn, so the mask naturally excludes them — schemas
+    are context; only the assistant's tool_calls/text (+ terminator) are trained. On
+    gemma-4, whose template embeds tool RESULTS inside the model turn, those are excluded
+    too; see :mod:`quant_tuner.qat.dialect` for why that rule is on ids and not a regex.
+
+    ``dialect`` defaults to whichever one ``tok``'s vocabulary supports."""
+    if dialect is None:
+        dialect = detect_dialect(tok)
     if tools is None:
         tools = reconstruct_tools(msgs)
     if text is None:  # callers that already rendered pass it in to avoid a second render
@@ -259,18 +269,7 @@ def masked_ids_for_session(
                                        add_generation_prompt=False)
     enc = tok(text, add_special_tokens=False, return_offsets_mapping=True)
     ids, offs = enc["input_ids"], enc["offset_mapping"]
-    # char spans: assistant *content* plus the terminating <|im_end|> (m.end(0))
-    spans = [(m.start(1), m.end(0)) for m in _ASST_RE.finditer(text)]
-    labels = [-100] * len(ids)
-    si = 0
-    for j, (a, b) in enumerate(offs):
-        if a == b:  # special/zero-width
-            continue
-        while si < len(spans) and spans[si][1] <= a:
-            si += 1
-        if si < len(spans) and a >= spans[si][0] and b <= spans[si][1]:
-            labels[j] = ids[j]
-    return ids, labels
+    return ids, dialect.labels(ids, text, offs, tok)
 
 
 def pack(stream_ids: list[int], stream_lbl: list[int], window: int,
@@ -299,15 +298,34 @@ def corpus_fingerprint(ids_t: torch.Tensor, lbl_t: torch.Tensor) -> str:
     return h.hexdigest()[:16]
 
 
-def load_tokenizer(model_dir: Path = MODEL, chat_template: Path = CHAT_TEMPLATE):
+def load_tokenizer(model_dir: Path | str = MODEL,
+                   chat_template: Path | None = CHAT_TEMPLATE):
+    """Tokenizer for the corpus render. ``model_dir`` may be a local dir or a repo id.
+
+    ``chat_template`` overrides whatever the tokenizer ships. That override is REQUIRED
+    for the unpacked Bonsai model, whose tokenizer carries no template at all (the render
+    would silently fall back to a thinking-enabled Qwen3 default); it must be left None
+    for a model like gemma-4 that ships its own canonical one, since substituting a
+    template changes the supervised spans.
+    """
     from transformers import AutoTokenizer
-    tok = AutoTokenizer.from_pretrained(model_dir)
-    tok.chat_template = Path(chat_template).read_text()
+    tok = AutoTokenizer.from_pretrained(str(model_dir))
+    if chat_template is not None:
+        p = Path(chat_template)
+        if not p.exists():
+            raise FileNotFoundError(
+                f"chat template {p} not found; pass chat_template=None to use the "
+                f"tokenizer's own")
+        tok.chat_template = p.read_text()
+    elif not getattr(tok, "chat_template", None):
+        raise ValueError(
+            f"{model_dir} ships no chat_template and none was given — the render would "
+            f"fall back to a library default and mask the wrong spans")
     return tok
 
 
 def _finalize(windows: list[dict], window: int, tok, *, extra: dict, out: Path | None,
-              tool_windows: int) -> dict:
+              tool_windows: int, dialect: ChatDialect | None = None) -> dict:
     """Shuffle, tensorize, run the density + stop-token audit, save, return the blob."""
     rng = random.Random(42)
     rng.shuffle(windows)
@@ -318,21 +336,28 @@ def _finalize(windows: list[dict], window: int, tok, *, extra: dict, out: Path |
     deciles = torch.quantile(dens, torch.linspace(0, 1, 11))
     print("[corpus] window trainable-density deciles: "
           + " ".join(f"{d:.2f}" for d in deciles.tolist()), flush=True)
-    im_end_id = tok.convert_tokens_to_ids(IM_END)
+    if dialect is None:
+        dialect = detect_dialect(tok)
+    stop_piece = dialect.stop_piece
+    im_end_id = tok.convert_tokens_to_ids(stop_piece)
     n_im_end = (0 if im_end_id is None
                 else int(((lbl_t == im_end_id) & (lbl_t != -100)).sum()))
-    print(f"[corpus] labeled {IM_END} targets: {n_im_end}", flush=True)
+    print(f"[corpus] dialect={dialect.name} labeled {stop_piece} targets: {n_im_end}",
+          flush=True)
     if tool_windows and im_end_id is not None:
         assert n_im_end > 0, (
-            f"no labeled {IM_END} targets — the stop-token masking bug is back "
-            "(spans must extend through m.end(0))")
+            f"no labeled {stop_piece} targets — the stop-token masking bug is back "
+            "(the supervised span must extend through the terminator inclusive)")
 
     fp = corpus_fingerprint(ids_t, lbl_t)
     blob = {"ids": ids_t, "labels": lbl_t, "window": window,
             # the id, not just the count: `--stop-weight` needs to build a per-vocab CE
             # weight vector, and reading it from the blob keeps that independent of which
-            # tokenizer the trainer happens to load
-            "im_end_id": im_end_id, "im_end_targets": n_im_end, "fingerprint": fp, **extra}
+            # tokenizer the trainer happens to load. `im_end_id` is the historical key and
+            # is kept so old blobs and the trainer keep working; `stop_id` is the same
+            # value under a name that isn't Qwen-specific.
+            "im_end_id": im_end_id, "stop_id": im_end_id, "dialect": dialect.name,
+            "im_end_targets": n_im_end, "fingerprint": fp, **extra}
     if out is not None:
         out = Path(out)
         out.parent.mkdir(parents=True, exist_ok=True)

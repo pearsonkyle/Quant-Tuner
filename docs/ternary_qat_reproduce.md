@@ -340,3 +340,28 @@ property of the teacher's entropy on this corpus that nothing later can detect.
 * **Full coverage.** A partial table (e.g. one built with `--max-windows` for a smoke test)
   would let uncovered windows train on plain CE while the rest train on CE+KL — the
   objective changing from window to window. Refused at startup.
+
+### The KL's blind spot, and the two fixes (in escalation order)
+
+The first A/B (renormalized-over-support KL) landed *between* the CE-only arms: it slowed
+the diagnostic's drift ~35% and did not stop it. Mechanism, measured: `<|im_end|>` is in
+the teacher's top-64 at only **1.8%** of positions, and a support-renormalized KL is
+mathematically blind to student mass outside the support — the collapse was invisible to
+it at 98.2% of positions.
+
+1. **Tail bucket (default, no re-precompute).** `kd_loss_from_topk` now takes the KL over
+   K+1 buckets — the stored top-K at true probabilities plus a tail bucket (student side
+   `1 − Σ support`). Caps the student's total out-of-support mass at the teacher's
+   (~0.006 mean). Automatic at T=1; T≠1 falls back to the old renormalized form.
+2. **Force the stop id into the support** (`scripts/kd_precompute.py --include-ids
+   151645`): every stored row then carries the teacher's true P(stop), making the KL an
+   exact per-position constraint on exactly the quantity that collapses. Costs one
+   re-precompute; fold it into any 32B table build, which is built once and reused.
+
+### Stop the run when the probe says stop
+
+`--probe-abort 0.09` (10x the vanilla 0.0092) aborts with exit 3 and a saved checkpoint
+the moment the diagnostic crosses the threshold. Every observed collapse was visible by
+~step 50 and monotone afterwards; this converts an 11-hour post-mortem into a 40-minute
+one. Leave it OFF for short A/B arms (their whole point is recording the trajectory) and
+ON for full runs.

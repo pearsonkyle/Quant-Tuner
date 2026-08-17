@@ -99,6 +99,36 @@ def test_coverage_reports_mass_outside_the_topk():
     assert KDTable(p).coverage() == pytest.approx(0.5, abs=0.01)
 
 
+# --------------------------------------------------------------- forced support ids
+def test_force_into_support_inserts_absent_id_at_true_logprob():
+    from quant_tuner.qat.kd_precompute import force_into_support
+    torch.manual_seed(5)
+    vocab, K, topk = 40, 6, 5
+    logp_full = torch.log_softmax(torch.randn(K, vocab), dim=-1)
+    vals, ids_k = torch.topk(logp_full, topk, dim=-1)
+    fid = int(logp_full.mean(0).argmin())          # a low-prob id, absent from most rows
+    before = (ids_k == fid).any(-1).clone()
+    ids_k, vals, tail = force_into_support(ids_k, vals, logp_full, [fid])
+    assert (ids_k == fid).any(-1).all()
+    # inserted at the teacher's TRUE logprob, and the tail matches the new support
+    for r in range(K):
+        j = (ids_k[r] == fid).nonzero()[0, 0]
+        torch.testing.assert_close(vals[r, j], logp_full[r, fid])
+        torch.testing.assert_close(
+            tail[r], torch.log1p(-vals[r].exp().sum().clamp(max=1 - 1e-6)))
+    # rows that already had the id keep their full original support
+    for r in before.nonzero(as_tuple=True)[0]:
+        assert set(ids_k[r].tolist()) == set(torch.topk(logp_full[r], topk).indices.tolist())
+
+
+def test_force_into_support_refuses_more_ids_than_slots():
+    from quant_tuner.qat.kd_precompute import force_into_support
+    logp_full = torch.log_softmax(torch.randn(2, 10), dim=-1)
+    vals, ids_k = torch.topk(logp_full, 2, dim=-1)
+    with pytest.raises(ValueError, match="forced ids"):
+        force_into_support(ids_k, vals, logp_full, [0, 1, 2])
+
+
 # ------------------------------------------------------------------------ the loss
 def test_identical_student_scores_zero():
     """Both sides must be renormalized over the stored top-K. Normalizing only the teacher

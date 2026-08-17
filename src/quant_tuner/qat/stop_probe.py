@@ -23,6 +23,9 @@ from dataclasses import dataclass
 
 import torch
 
+from quant_tuner.qat.dialect import ChatDialect
+from quant_tuner.qat.dialect import detect as detect_dialect
+
 STOP_PIECE = "<|im_end|>"
 
 SYSTEM = "You are a helpful coding assistant with access to tools."
@@ -69,33 +72,70 @@ DIAGNOSTIC = "sentence_period"
 CONTROL = "after_tool_call"
 
 
+@dataclass(frozen=True)
+class ProbeSpec:
+    """Per-family probe text and the shipped model's readings.
+
+    The probe is only interpretable against a baseline: "sentence_period = 0.95" means
+    nothing until you know the shipped model reads 0.009 there. Those references are
+    per-model measurements, not constants — `scripts/measure_stop_baseline.py` produces
+    them, and a family with none yet prints the raw numbers rather than a false comparison.
+    """
+
+    tool_call: str
+    #: (diagnostic, control) readings for the untrained model, or None if not yet measured.
+    vanilla: tuple[float, float] | None = None
+
+
+#: Qwen/Bonsai values are the ones the curriculum doc is written against — do not edit
+#: them; a different number here silently rewrites every past run's interpretation.
+PROBE_SPECS: dict[str, ProbeSpec] = {
+    "qwen": ProbeSpec(tool_call=TOOL_CALL, vanilla=(0.0092, 0.99995)),
+    # gemma-4 renders a call as <|tool_call>call:NAME{arg:<|"|>v<|"|>}<tool_call|>, and
+    # its stop token is <turn|>. Note the CONTROL does not mean the same thing here: after
+    # <tool_call|> gemma's template hands over to the harness (it emits an opening
+    # <|tool_response> as the generation prompt), so the model is not expected to stop
+    # there the way Qwen is. Read the control as "unchanged from vanilla", not "high".
+    "gemma4": ProbeSpec(
+        tool_call='<|tool_call>call:bash{command:<|"|>ls -la<|"|>}<tool_call|>',
+        vanilla=None,
+    ),
+}
+
+
 @dataclass
 class StopProbe:
     """Prebuilt token ids for each probe point — built once, reused every call."""
 
     stop_id: int
     prompts: list[tuple[str, torch.Tensor]]
+    dialect: str = "qwen"
 
     @classmethod
-    def build(cls, tok) -> StopProbe:
-        stop_id = tok.convert_tokens_to_ids(STOP_PIECE)
+    def build(cls, tok, dialect: ChatDialect | None = None) -> StopProbe:
+        if dialect is None:
+            dialect = detect_dialect(tok)
+        spec = PROBE_SPECS[dialect.name]
+        stop_piece = dialect.stop_piece
+        stop_id = tok.convert_tokens_to_ids(stop_piece)
         if stop_id is None or stop_id < 0:
-            raise ValueError(f"{STOP_PIECE} is not in this tokenizer's vocabulary")
-        # add_generation_prompt=True gives the "<|im_start|>assistant\n" header, which is
-        # what makes `start` mean "the model has produced nothing yet".
+            raise ValueError(f"{stop_piece} is not in this tokenizer's vocabulary")
+        # add_generation_prompt=True gives the assistant/model turn header, which is what
+        # makes `start` mean "the model has produced nothing yet".
         prefix = tok.apply_chat_template(
             [{"role": "system", "content": SYSTEM},
              {"role": "user", "content": USER}],
             tools=TOOLS, tokenize=False, add_generation_prompt=True,
         )
+        points = [(n, s.replace(TOOL_CALL, spec.tool_call)) for n, s in PROBE_POINTS]
         prompts = []
-        for name, suffix in PROBE_POINTS:
+        for name, suffix in points:
             # Special tokens in `suffix` (the tool-call markers) must encode to their real
             # single ids, which is transformers' default for in-text special tokens.
             ids = tok(prefix + suffix, add_special_tokens=False,
                       return_tensors="pt").input_ids
             prompts.append((name, ids))
-        return cls(stop_id=stop_id, prompts=prompts)
+        return cls(stop_id=stop_id, prompts=prompts, dialect=dialect.name)
 
     @torch.no_grad()
     def measure(self, model, device) -> dict[str, float]:
@@ -117,10 +157,18 @@ class StopProbe:
         return out
 
 
-def format_line(probs: dict[str, float]) -> str:
+def format_line(probs: dict[str, float], dialect: str = "qwen") -> str:
     """One compact log line; the diagnostic and control are named so a reader of the raw
-    log does not need to remember which of the five points matters."""
+    log does not need to remember which of the five points matters.
+
+    The "vs vanilla" comparison is printed only for a family whose baseline has been
+    measured — quoting Bonsai's 0.0092 next to a gemma reading would be worse than
+    printing nothing."""
     parts = " ".join(f"{k}={v:.4f}" for k, v in probs.items())
-    return (f"{parts}  [diagnostic {DIAGNOSTIC}={probs.get(DIAGNOSTIC, float('nan')):.4f}"
-            f" vs vanilla 0.0092; control {CONTROL}="
-            f"{probs.get(CONTROL, float('nan')):.4f} vs vanilla 0.99995]")
+    d, c = probs.get(DIAGNOSTIC, float("nan")), probs.get(CONTROL, float("nan"))
+    vanilla = PROBE_SPECS.get(dialect, PROBE_SPECS["qwen"]).vanilla
+    if vanilla is None:
+        return (f"{parts}  [diagnostic {DIAGNOSTIC}={d:.4f}; control {CONTROL}={c:.4f}; "
+                f"no measured {dialect} baseline — run scripts/measure_stop_baseline.py]")
+    return (f"{parts}  [diagnostic {DIAGNOSTIC}={d:.4f} vs vanilla {vanilla[0]}; "
+            f"control {CONTROL}={c:.4f} vs vanilla {vanilla[1]}]")

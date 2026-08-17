@@ -53,6 +53,7 @@ from quant_tuner.qat.corpus import corpus_fingerprint
 from quant_tuner.qat.kd_precompute import kd_loss_from_topk
 from quant_tuner.qat.kd_table import KDTable
 from quant_tuner.qat.master_opt import MasterOptimizer
+from quant_tuner.qat.stop_probe import DIAGNOSTIC as PROBE_DIAGNOSTIC
 from quant_tuner.qat.stop_probe import StopProbe
 from quant_tuner.qat.stop_probe import format_line as stop_probe_fmt
 from quant_tuner.qat.ternary import TernaryLinear, ternarize_group
@@ -90,6 +91,10 @@ class QATConfig:
     # Termination telemetry cadence. 0 disables. Defaults to the validation cadence
     # so the two series line up on the same steps in the report.
     probe_every: int = 25
+    #: abort the run (exit 3, checkpoint saved) when the probe's diagnostic exceeds this.
+    #: 0 disables. A collapsing run is visible by ~step 50 and monotone from there; this
+    #: converts an 11-hour post-mortem into a 40-minute one.
+    probe_abort: float = 0.0
     val_windows: int = 16
     train_norms: bool = False
     resume: Path | None = None
@@ -975,9 +980,11 @@ def train_qat(cfg: QATConfig) -> int:
 
     ce_weights = None
     if cfg.stop_weight != 1.0:
-        im_end_id = blob.get("im_end_id")
+        # `stop_id` is the dialect-neutral key; `im_end_id` is the Qwen-era name kept so
+        # corpora built before qat/dialect.py existed still train.
+        im_end_id = blob.get("stop_id", blob.get("im_end_id"))
         if im_end_id is None:
-            sys.exit("[qat] --stop-weight needs 'im_end_id' in the corpus blob; rebuild it")
+            sys.exit("[qat] --stop-weight needs 'stop_id' in the corpus blob; rebuild it")
         ce_weights = torch.ones(model.config.vocab_size, device=dev, dtype=torch.float32)
         ce_weights[int(im_end_id)] = cfg.stop_weight
         print(f"[qat] stop-token weight {cfg.stop_weight}x on id {im_end_id} "
@@ -1119,14 +1126,30 @@ def train_qat(cfg: QATConfig) -> int:
                 # scores well there — sft32k's val went flat for 225 steps while its
                 # P(stop | sentence end) went to 0.97. Five short forwards, no gradients.
                 t_pr = time.time()
+                probs = None
                 try:
                     probs = stop_probe.measure(model, dev)
                     emit("stopprobe", step=step, seconds=time.time() - t_pr, **probs)
-                    print(f"[qat] step {step} STOPPROBE {stop_probe_fmt(probs)}",
+                    print(f"[qat] step {step} STOPPROBE "
+                          f"{stop_probe_fmt(probs, stop_probe.dialect)}",
                           flush=True)
                 except Exception as exc:            # never let telemetry kill a long run
                     print(f"[qat] step {step} STOPPROBE failed: {exc}", flush=True)
                 backend.empty_cache()
+                if (probs is not None and cfg.probe_abort
+                        and probs.get(PROBE_DIAGNOSTIC, 0.0) > cfg.probe_abort):
+                    # Every collapse so far was visible by ~step 50 and monotone from
+                    # there; a full run spends 8+ hours past that point learning nothing
+                    # we will ship. Save what exists and stop while the checkpoint is
+                    # still analyzable.
+                    print(f"[qat] step {step} PROBE-ABORT: {PROBE_DIAGNOSTIC}="
+                          f"{probs[PROBE_DIAGNOSTIC]:.4f} > --probe-abort "
+                          f"{cfg.probe_abort} — termination is collapsing; saving and "
+                          f"stopping.", flush=True)
+                    save_ckpt(step)
+                    if metrics_fh is not None:
+                        metrics_fh.close()
+                    sys.exit(3)
             if cfg.ckpt_every and step % cfg.ckpt_every == 0:
                 save_ckpt(step)
     # drop any partial accum group before the final save
@@ -1178,6 +1201,10 @@ def _build_parser() -> argparse.ArgumentParser:
                     help="measure P(<|im_end|>) at fixed positions every N steps "
                          "(0 disables). Masked-CE cannot see a collapsed stop "
                          "decision; this can.")
+    ap.add_argument("--probe-abort", type=float, default=0.0,
+                    help="abort (exit 3, checkpoint saved) when the probe diagnostic "
+                         "exceeds this (0 disables). E.g. 0.09 = 10x the vanilla "
+                         "0.0092 — every observed collapse blew far past that.")
     ap.add_argument("--val-windows", type=int, default=16)
     ap.add_argument("--train-norms", action="store_true",
                     help="also train RMSNorm/q_norm/k_norm weights in the trainable layers")
@@ -1260,7 +1287,7 @@ def main(argv: list[str] | None = None) -> int:
         kd_table=args.kd_table,
         kd_alpha=args.kd_alpha, kd_temp=args.kd_temp, val_corpus=args.val_corpus,
         val_every=args.val_every, val_windows=args.val_windows,
-        probe_every=args.probe_every,
+        probe_every=args.probe_every, probe_abort=args.probe_abort,
         train_norms=args.train_norms, resume=args.resume,
         flip_sample=args.flip_sample, ckpt_every=args.ckpt_every,
         ckpt_keep=args.ckpt_keep, warmup_frac=args.warmup_frac,
