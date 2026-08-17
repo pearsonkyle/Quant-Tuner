@@ -46,9 +46,13 @@ fi
 STALL="${STALL:-1500}"
 POLL="${POLL:-120}"
 HEARTBEAT_STEPS="${HEARTBEAT_STEPS:-50}"
-# The fp32 reference run peaked at gnorm 1.88; bf16's divergence hit 129. 50 sits clear of
-# any healthy excursion (including the expected post-warmup one) and well under a runaway.
-GNORM_MAX="${GNORM_MAX:-50.0}"
+# Calibrated against the sft32k control's OWN metrics.jsonl, not the pre-flight figure: that
+# healthy run — same corpus, same lr, completed and exported fine — hit gnorm 17.19 at step
+# 35, 68.18 at 40 and 90.96 at 55 during the ordinary post-warmup reorganization. A limit of
+# 50 (the pre-flight's "max 1.88" x margin) fires on a normal run. Note this leaves no clean
+# fixed separation from bf16's 129 divergence, so do NOT read a single spike as failure —
+# NaN/Inf is the unambiguous signal, and this bound only catches a genuine runaway.
+GNORM_MAX="${GNORM_MAX:-200.0}"
 
 echo "[watchdog] $RUN pid=$PID stall=${STALL}s heartbeat=${HEARTBEAT_STEPS} steps" >&2
 
