@@ -158,3 +158,64 @@ def test_a_run_with_no_legs_is_not_a_crash(tmp_path):
     run = tmp_path / "trained_empty"
     run.mkdir()
     assert reg.read_legs(run) == []
+
+
+# ------------------------------------------------------------ in-training stop probe
+def test_stop_probe_prompts_are_shared_with_the_gguf_probe():
+    """Two copies of the probe text would silently stop being comparable the first time
+    one was edited, and comparability across the torch and GGUF paths is the point."""
+    from quant_tuner.qat import stop_probe as sp
+    gguf = _load("probe_stop_prob")
+    assert gguf.PROBE_POINTS == sp.PROBE_POINTS
+    assert gguf.SENTENCE == sp.SENTENCE
+    assert gguf.STOP_PIECE == sp.STOP_PIECE
+
+
+def test_stop_probe_names_the_diagnostic_and_the_control():
+    from quant_tuner.qat import stop_probe as sp
+    names = [n for n, _ in sp.PROBE_POINTS]
+    assert sp.DIAGNOSTIC in names and sp.CONTROL in names
+    assert sp.DIAGNOSTIC != sp.CONTROL
+
+
+def test_stop_probe_measure_restores_training_mode():
+    """Called mid-training, leaving the model in eval() would silently disable dropout
+    for the rest of the run."""
+    import torch
+
+    from quant_tuner.qat import stop_probe as sp
+
+    class Dummy(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.lin = torch.nn.Linear(4, 7)
+
+        def forward(self, ids):
+            class O:
+                pass
+            o = O()
+            o.logits = torch.zeros(1, ids.shape[1], 7)
+            return o
+
+    m = Dummy()
+    m.train()
+    probe = sp.StopProbe(stop_id=3, prompts=[("start", torch.zeros(1, 5, dtype=torch.long))])
+    probe.measure(m, "cpu")
+    assert m.training, "measure() must restore train mode"
+
+
+def test_stopprobe_log_line_parses_without_the_gloss_overwriting_values():
+    """The printed line repeats two probes inside a bracketed gloss with reference
+    values; parsing must take the real ones."""
+    import re
+    parse = _load("parse_qat_log")
+    line = ("[qat] step 25 STOPPROBE start=0.0000 mid_sentence=0.0000 "
+            "sentence_period=0.0017 sentence_newline=0.0000 after_tool_call=0.9999  "
+            "[diagnostic sentence_period=0.9999 vs vanilla 0.0092; "
+            "control after_tool_call=0.0001 vs vanilla 0.99995]")
+    m = parse.STOPPROBE_RE.match(line)
+    assert m
+    body = m.group("body").split("[")[0]
+    row = {kv.group("k"): float(kv.group("v")) for kv in parse.KV_RE.finditer(body)}
+    assert row["sentence_period"] == 0.0017      # not the gloss's 0.9999
+    assert row["after_tool_call"] == 0.9999      # not the gloss's 0.0001

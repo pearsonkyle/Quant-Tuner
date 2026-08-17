@@ -205,6 +205,64 @@ def fig_loss_lr(steps, vals, W, H, PAD):
     return p1.svg() + p2.svg() + legend([("train", LOSS), ("val", VAL)])
 
 
+# Okabe-Ito, distinguishable in both common colour-vision deficiencies. The diagnostic and
+# the control get the two strongest hues because they are the two lines a reader must
+# separate at a glance; the other three are context.
+PROBE_COLORS = {
+    "sentence_period": "#d55e00",   # THE diagnostic — high is broken
+    "after_tool_call": "#009e73",   # the control — high is CORRECT
+    "sentence_newline": "#cc79a7",
+    "start": "#0072b2",
+    "mid_sentence": "#56b4e9",
+}
+# Measured on the shipped weights through this same torch path.
+VANILLA_REF = {"sentence_period": 0.0017, "after_tool_call": 0.99996}
+
+
+def fig_stop_probe(probes, W, H, PAD):
+    """P(<|im_end|>) at fixed positions, over training.
+
+    The termination collapse this pipeline keeps hitting is invisible to masked-CE — a
+    model scoring well on the corpus's own continuations can still put 0.95 on the stop
+    token after a single sentence, and sft32k's validation went FLAT for 225 steps while
+    exactly that happened. So this is plotted on its own axis, log-scaled because the
+    healthy and broken regimes are three orders of magnitude apart and a linear axis would
+    render every healthy value as the same flat line on zero.
+
+    Read `sentence_period` (should stay LOW, ~0.002) against `after_tool_call` (should stay
+    HIGH, ~1.0). Losing either is a failure; losing both is the loss of position-dependence.
+    """
+    keys = [k for k in PROBE_COLORS if any(r.get(k) is not None for r in probes)]
+    xs = [r["step"] for r in probes]
+    xlim = (min(xs), max(xs)) if len(xs) > 1 else (min(xs), min(xs) + 1)
+    lo = min([v for r in probes for k in keys
+              if (v := r.get(k)) not in (None, "")] + [1e-4])
+    p1 = Panel(W, H, PAD, xlim, (max(lo * 0.5, 1e-6), 1.6), logy=True,
+               xlabel="training step", ylabel="P(<|im_end|>)  (log)",
+               xticks=nice_ticks(*xlim), yfmt="{:g}")
+    # Reference bands first, so the data draws over them.
+    for name, ref in VANILLA_REF.items():
+        if name in keys:
+            p1.parts.append(
+                f'<line x1="{PAD}" y1="{p1.py(ref):.1f}" x2="{W - PAD}" '
+                f'y2="{p1.py(ref):.1f}" stroke="{PROBE_COLORS[name]}" stroke-width="1" '
+                f'stroke-dasharray="4 4" opacity="0.45"/>')
+            p1.parts.append(
+                f'<text x="{W - PAD - 4}" y="{p1.py(ref) - 4:.1f}" font-size="9" '
+                f'text-anchor="end" fill="{PROBE_COLORS[name]}" opacity="0.8">'
+                f'vanilla {name} {ref:g}</text>')
+    for k in keys:
+        pts = [(r["step"], max(r[k], 1e-6)) for r in probes
+               if r.get(k) not in (None, "")]
+        if not pts:
+            continue
+        wide = k in VANILLA_REF
+        p1.line(pts, PROBE_COLORS[k], 2.2 if wide else 1.4, 0.95 if wide else 0.75, k)
+        p1.dots(pts, PROBE_COLORS[k], 3 if wide else 2,
+                lambda x, y, _k=k: f"step {x:g}: P({_k}) = {y:.5f}")
+    return p1.svg() + legend([(k, PROBE_COLORS[k]) for k in keys])
+
+
 def fig_velocity(flips, W, H, PAD):
     """Per-checkpoint change in cumulative flip % — is the run still learning?"""
     rows = [r for r in flips if r.get("flip_pct_delta") not in (None, "")]
@@ -463,6 +521,8 @@ def main() -> int:
     steps = read(t / "steps.csv", {"step": int, "loss": float, "lr": float,
                                    "mem_gib": float, "s_per_step": float})
     vals = read(t / "val.csv", {"step": int, "val_masked_ce": float})
+    probes = read(t / "stopprobe.csv",
+                  {"step": int, **{k: float for k in PROBE_COLORS}})
     flips = read(t / "flips.csv", {"step": int, "flip_pct": float, "zero_to_nonzero": int,
                                    "nonzero_to_zero": int, "scale_drift_pct": float,
                                    "flip_pct_delta": float, "densify_ratio": float})
@@ -498,6 +558,16 @@ def main() -> int:
          "Is the schedule healthy? Stacked panels, shared x — not a dual axis.",
          fig_loss_lr(steps, vals, W, H, PAD)),
     ]
+    if probes:
+        figs += [
+            ("Termination policy over training",
+             "P(&lt;|im_end|&gt;) at five fixed positions, measured on the live model. "
+             "<b>sentence_period</b> is the diagnostic (must stay LOW) and "
+             "<b>after_tool_call</b> the control (must stay HIGH). Masked-CE cannot see "
+             "this: sft32k's validation was flat for 225 steps while its "
+             "sentence_period went to 0.97.",
+             fig_stop_probe(probes, W, H, PAD)),
+        ]
     if flips:
         figs += [
             ("Flip velocity",

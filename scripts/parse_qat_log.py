@@ -35,6 +35,11 @@ STEP_RE = re.compile(
 )
 # "[qat] step 120 VAL masked-CE 1.1017" (newer runs append "(4 windows in 59s)")
 VAL_RE = re.compile(r"^\[qat\] step (\d+) VAL masked-CE ([\d.]+)")
+# The in-training termination probe. Masked-CE cannot see a collapsed stop decision
+# (sft32k's val went flat for 225 steps while P(stop|sentence end) went to 0.97), so
+# this series is parsed separately and plotted on its own axis.
+STOPPROBE_RE = re.compile(r"^\[qat\] step (?P<step>\d+) STOPPROBE (?P<body>.*)$")
+KV_RE = re.compile(r"(?P<k>[a-z_]+)=(?P<v>[\d.eE+-]+)")
 # Also two generations. The newer one adds a third counter inside the parens and a density
 # segment before scale-drift, so the tail is matched loosely on purpose:
 #   old: "  ...q_proj: flips 1.8593% (0->±:131663 ±->0:179612) scale-drift 2.29%"
@@ -51,6 +56,7 @@ CKPT_RE = re.compile(r"^\[qat\] checkpoint @ step (\d+)")
 def parse(text: str) -> dict[str, list[dict]]:
     steps: list[dict] = []
     vals: list[dict] = []
+    probes: list[dict] = []
     flips: list[dict] = []
     pending: list[dict] = []  # flip rows seen since the last checkpoint line
     last_step = 0
@@ -70,6 +76,14 @@ def parse(text: str) -> dict[str, list[dict]]:
             })
         elif m := VAL_RE.match(line):
             vals.append({"step": int(m.group(1)), "val_masked_ce": float(m.group(2))})
+        elif m := STOPPROBE_RE.match(line):
+            # Only the "k=v" pairs before the bracketed gloss; the gloss repeats two of
+            # them with reference values and would overwrite the real ones.
+            body = m.group("body").split("[")[0]
+            row = {"step": int(m.group("step"))}
+            for kv in KV_RE.finditer(body):
+                row[kv.group("k")] = float(kv.group("v"))
+            probes.append(row)
         elif m := FLIP_RE.match(line):
             z2nz, nz2z = int(m.group("z2nz")), int(m.group("nz2z"))
             pending.append({
@@ -98,7 +112,7 @@ def parse(text: str) -> dict[str, list[dict]]:
     # landed yet; attribute it to the last step seen rather than dropping it
     for row in pending:
         flips.append({"step": last_step, **row})
-    return {"steps": steps, "val": vals, "flips": flips}
+    return {"steps": steps, "val": vals, "flips": flips, "probes": probes}
 
 
 def add_flip_velocity(flips: list[dict]) -> None:
@@ -173,6 +187,7 @@ def main() -> int:
     args.out.mkdir(parents=True, exist_ok=True)
     write_csv(args.out / "steps.csv", data["steps"])
     write_csv(args.out / "val.csv", data["val"])
+    write_csv(args.out / "stopprobe.csv", data["probes"])
     write_csv(args.out / "flips.csv", data["flips"])
     summary = summarize(data)
     (args.out / "summary.json").write_text(json.dumps(summary, indent=2))

@@ -51,6 +51,8 @@ from quant_tuner.qat.attention import (
 )
 from quant_tuner.qat.corpus import corpus_fingerprint
 from quant_tuner.qat.master_opt import MasterOptimizer
+from quant_tuner.qat.stop_probe import StopProbe
+from quant_tuner.qat.stop_probe import format_line as stop_probe_fmt
 from quant_tuner.qat.ternary import TernaryLinear, ternarize_group
 
 REPO = Path(__file__).resolve().parents[3]
@@ -79,6 +81,9 @@ class QATConfig:
     kd_temp: float = 1.0
     val_corpus: Path | None = None
     val_every: int = 20
+    # Termination telemetry cadence. 0 disables. Defaults to the validation cadence
+    # so the two series line up on the same steps in the report.
+    probe_every: int = 25
     val_windows: int = 16
     train_norms: bool = False
     resume: Path | None = None
@@ -735,6 +740,22 @@ def train_qat(cfg: QATConfig) -> int:
     snaps = snapshot_codes(model, cfg.flip_sample, latents=latents_for_flips)
     print(f"[qat] flip telemetry on {len(snaps)} linears"
           f"{' (reading fp32 masters)' if latents_for_flips else ''}", flush=True)
+
+    # Termination telemetry. Built from the model's own tokenizer so the probe prompt is
+    # rendered by the same chat template the corpus was packed with — a probe built from a
+    # different template measures a prompt the model never sees.
+    stop_probe = None
+    if cfg.probe_every:
+        try:
+            from transformers import AutoTokenizer
+            _tok = AutoTokenizer.from_pretrained(str(cfg.model_dir))
+            stop_probe = StopProbe.build(_tok)
+            print(f"[qat] stop-probe every {cfg.probe_every} steps "
+                  f"({len(stop_probe.prompts)} points, stop id {stop_probe.stop_id})",
+                  flush=True)
+        except Exception as exc:
+            print(f"[qat] stop-probe unavailable ({exc}) — continuing without it",
+                  flush=True)
     flip_stats: dict = {}
 
     # Machine-readable telemetry. The stdout log is human-facing and has to be re-parsed
@@ -963,6 +984,21 @@ def train_qat(cfg: QATConfig) -> int:
                 # and `--val-windows` is the knob that pays for itself.
                 print(f"[qat] step {step} VAL masked-CE {vl:.4f} "
                       f"({cfg.val_windows} windows in {val_s:.0f}s)", flush=True)
+            if stop_probe is not None and cfg.probe_every and step % cfg.probe_every == 0:
+                # Termination telemetry. The masked-CE validation cannot see this: it
+                # scores the model on the corpus's own continuations, and a model that has
+                # collapsed the stop decision into "sentence end -> <|im_end|>" still
+                # scores well there — sft32k's val went flat for 225 steps while its
+                # P(stop | sentence end) went to 0.97. Five short forwards, no gradients.
+                t_pr = time.time()
+                try:
+                    probs = stop_probe.measure(model, dev)
+                    emit("stopprobe", step=step, seconds=time.time() - t_pr, **probs)
+                    print(f"[qat] step {step} STOPPROBE {stop_probe_fmt(probs)}",
+                          flush=True)
+                except Exception as exc:            # never let telemetry kill a long run
+                    print(f"[qat] step {step} STOPPROBE failed: {exc}", flush=True)
+                backend.empty_cache()
             if cfg.ckpt_every and step % cfg.ckpt_every == 0:
                 save_ckpt(step)
     # drop any partial accum group before the final save
@@ -1005,6 +1041,10 @@ def _build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--val-corpus", type=Path, default=None,
                     help="masked corpus built with --split test; masked-CE validation")
     ap.add_argument("--val-every", type=int, default=20)
+    ap.add_argument("--probe-every", type=int, default=25,
+                    help="measure P(<|im_end|>) at fixed positions every N steps "
+                         "(0 disables). Masked-CE cannot see a collapsed stop "
+                         "decision; this can.")
     ap.add_argument("--val-windows", type=int, default=16)
     ap.add_argument("--train-norms", action="store_true",
                     help="also train RMSNorm/q_norm/k_norm weights in the trainable layers")
@@ -1086,6 +1126,7 @@ def main(argv: list[str] | None = None) -> int:
         compute_dtype=args.compute_dtype, kd_teacher=args.kd_teacher,
         kd_alpha=args.kd_alpha, kd_temp=args.kd_temp, val_corpus=args.val_corpus,
         val_every=args.val_every, val_windows=args.val_windows,
+        probe_every=args.probe_every,
         train_norms=args.train_norms, resume=args.resume,
         flip_sample=args.flip_sample, ckpt_every=args.ckpt_every,
         ckpt_keep=args.ckpt_keep, warmup_frac=args.warmup_frac,
