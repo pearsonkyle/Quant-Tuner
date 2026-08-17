@@ -448,6 +448,8 @@ def main() -> int:
     ap.add_argument("--no-arch", action="store_true", help="skip the architecture section")
     ap.add_argument("--swe-workspace", type=Path,
                     help="run_swebench_eval workspace — adds the agentic outcome table")
+    ap.add_argument("--stop-prob-csv", type=Path,
+                    help="probe_stop_prob.py CSV — adds the termination-policy table")
     ap.add_argument("--notes", type=Path,
                     help="a text file of findings/next-steps; '## ' starts a heading, "
                          "'- ' a bullet, blank lines separate paragraphs")
@@ -487,34 +489,54 @@ def main() -> int:
     kpis = headline(steps, vals, flips, traj, hrs, tps)
 
     cen = cen_rows
+    # Flip telemetry is only printed at checkpoints, so a report generated in the first
+    # interval of a run has none. That is the normal state of a live run, not an error —
+    # emit the curves that do exist and say why the rest are missing, rather than dying on
+    # max() of an empty sequence.
     figs = [
         ("Loss &amp; LR",
          "Is the schedule healthy? Stacked panels, shared x — not a dual axis.",
          fig_loss_lr(steps, vals, W, H, PAD)),
-        ("Flip velocity",
-         "Still learning? Codes are the only thing that survives export, so this is the "
-         "convergence signal — loss falls on scale drift alone. Past the peak = annealing.",
-         fig_velocity(flips, W, H, PAD)),
-        ("Capacity: Δ zero-fraction",
-         "Below the line = dead weights switched on. This is the same event as a flip, "
-         "counted as capacity rather than churn.",
-         fig_zero_fraction(traj, W, H, PAD)),
-        ("Mechanism: recruit vs prune",
-         "On the dashed diagonal a tensor substitutes weights at constant density; below "
-         "it, it recruits. Square axes — the 45° reading only holds at equal aspect.",
-         fig_recruit_prune(flips, W, H, PAD)),
-        ("Depth profile",
-         "One sampled tensor per layer. A big spread means a cheaper partial-layer run may "
-         "buy the same thing.",
-         fig_depth(flips, W, H, PAD)),
-        ("Efficiency",
-         "Codes changed per GPU-hour and per 1M tokens. The stop signal: when this "
-         "flattens, more hours stop changing the shipped model.",
-         fig_efficiency(flips, steps, W, H, PAD, tps)),
+    ]
+    if flips:
+        figs += [
+            ("Flip velocity",
+             "Still learning? Codes are the only thing that survives export, so this is the "
+             "convergence signal — loss falls on scale drift alone. Past the peak = annealing.",
+             fig_velocity(flips, W, H, PAD)),
+        ]
+        # Δ zero-fraction is the one panel that needs per-tensor density, which lives in
+        # the census rather than the log.
+        if traj:
+            figs += [
+                ("Capacity: Δ zero-fraction",
+                 "Below the line = dead weights switched on. This is the same event as a "
+                 "flip, counted as capacity rather than churn.",
+                 fig_zero_fraction(traj, W, H, PAD)),
+            ]
+        figs += [
+            ("Mechanism: recruit vs prune",
+             "On the dashed diagonal a tensor substitutes weights at constant density; below "
+             "it, it recruits. Square axes — the 45° reading only holds at equal aspect.",
+             fig_recruit_prune(flips, W, H, PAD)),
+            ("Depth profile",
+             "One sampled tensor per layer. A big spread means a cheaper partial-layer run "
+             "may buy the same thing.",
+             fig_depth(flips, W, H, PAD)),
+            ("Efficiency",
+             "Codes changed per GPU-hour and per 1M tokens. The stop signal: when this "
+             "flattens, more hours stop changing the shipped model.",
+             fig_efficiency(flips, steps, W, H, PAD, tps)),
+        ]
+    figs += [
         ("Throughput &amp; memory",
          "Rising s/step at flat resident memory = allocator fragmentation heading for swap.",
          fig_throughput(steps, W, H, PAD)),
     ]
+    pending = "" if flips else (
+        '<p class="meta">Code-flip figures appear from the first checkpoint onward — this '
+        "run has not reached one yet, so only the schedule and throughput curves are "
+        "shown. Their absence says nothing about whether codes are moving.</p>")
     body = "".join(f"<section><h2>{i + 1}. {name}</h2><p>{desc}</p>{svg}</section>"
                    for i, (name, desc, svg) in enumerate(figs))
 
@@ -529,6 +551,23 @@ def main() -> int:
                 f'own <code>config.json</code>.</p>'
                 f'<div class="cols"><div>{spec}</div>'
                 f'<div class="archwrap">{arch_card(args.arch_repo)}</div></div></section>')
+
+    stopsec = ""
+    if args.stop_prob_csv:
+        t_ = stop_prob_section(args.stop_prob_csv)
+        if t_:
+            stopsec = (
+                f"<section><h2>Termination policy — P(&lt;|im_end|&gt;)</h2>"
+                f"<p>The endpoint the loss curve cannot show. Probability of the stop token "
+                f"at fixed points in one agentic turn, greedy, read straight off "
+                f"<code>/completion</code> logprobs. Rank is in parentheses.</p>"
+                f"<p>During an agentic turn the correct continuation is a tool call, so a "
+                f"healthy model keeps P(stop) low everywhere except after a complete "
+                f"<code>&lt;/tool_call&gt;</code> block — the one point where stopping is "
+                f"right, and the only column where a high value is good. "
+                f"<b>sentence_period</b> is the diagnostic: a model that has learned to stop "
+                f"too early turns every sentence boundary into an absorbing state.</p>"
+                f"{t_}</section>")
 
     swe = ""
     if args.swe_workspace:
@@ -613,8 +652,10 @@ def main() -> int:
 <p class="meta">A natively-ternary model stores <code>w = s·c</code>, <code>c ∈ {{−1,0,+1}}</code>.
 Loss can fall on scale drift alone, so every panel below is anchored on <b>code flips</b> —
 the only change that survives export to a 2-bit GGUF.</p>
+{pending}
 {body}
 {tables}
+{stopsec}
 {swe}
 {notes}
 """)
@@ -701,6 +742,60 @@ def arch_spec(cfg: dict) -> str:
             'other dimension is identical.</p>') if delta else ""
     return ("<table>" + "".join(f"<tr><td>{k}</td><td>{v}</td></tr>" for k, v in rows)
             + "</table>" + note)
+
+
+def stop_prob_section(path: Path) -> str:
+    """P(<|im_end|>) at fixed probe points, one column per model.
+
+    The endpoint no loss curve can report. A ternary QAT run can leave grammar intact and
+    still move the *stopping policy*: the sft32k run (--stop-weight 6.0) writes one correct
+    sentence and then emits the stop token instead of the tool call, which shows up here as
+    P(stop) going to ~1.0 at `sentence_period` while `mid_sentence` stays near zero.
+
+    Written by scripts/probe_stop_prob.py. Rows are probe points, columns are models in the
+    order they were measured, so the reference sits beside the run under test.
+    """
+    if not path.exists():
+        return ""
+    rows = [r for r in csv.DictReader(path.open()) if r.get("probe")]
+    if not rows:
+        return ""
+
+    labels = list(dict.fromkeys(r["label"] for r in rows))
+    probes = list(dict.fromkeys(r["probe"] for r in rows))
+    by = {(r["label"], r["probe"]): r for r in rows}
+
+    out = ["<tr><th>probe point</th>" + "".join(f"<th>{lab}</th>" for lab in labels) + "</tr>"]
+    for p in probes:
+        cells = []
+        for lab in labels:
+            r = by.get((lab, p))
+            if r is None:
+                cells.append(f'<td style="color:{MUTED}">—</td>')
+                continue
+            raw = (r.get("stop_prob") or "").strip()
+            if not raw:
+                # Outside the top-N window: the tail bound is the honest report.
+                try:
+                    bound = f"&lt;{float(r['tail_bound']):.0e}"
+                except (KeyError, ValueError):
+                    bound = "&lt;tail"
+                cells.append(f'<td style="color:{MUTED}">{bound} '
+                             f'<span>(r&gt;{r.get("n_returned", "?")})</span></td>')
+                continue
+            v = float(raw)
+            # after_tool_call is the one point where stopping is CORRECT, so a high value
+            # there is the healthy reading and must not be flagged as a regression.
+            broken = v > 0.5 and p != "after_tool_call"
+            col = "#d55e00" if broken else INK
+            # The healthy values run to 1e-7; fixed decimals would print them all as
+            # 0.00000 and lose the three orders that separate "never stops here" from
+            # "occasionally stops here".
+            shown = f"{v:.5f}" if v >= 1e-4 else f"{v:.1e}"
+            cells.append(f'<td style="color:{col}">{shown}'
+                         f'<span style="color:{MUTED}"> (r{r.get("stop_rank", "?")})</span></td>')
+        out.append(f"<tr><td>{p}</td>{''.join(cells)}</tr>")
+    return "<table>" + "".join(out) + "</table>"
 
 
 def swe_section(ws: Path) -> str:
