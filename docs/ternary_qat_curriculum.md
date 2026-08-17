@@ -495,3 +495,60 @@ be read simultaneously — flips at each checkpoint, `sentence_period` every 25 
 * **flips > 0, termination stable** → the window exists; take it.
 * **flips ≈ 0, termination still drifts** → the drift is not code-flip-driven at all, which
   would point at scale drift and reframe the problem. No previous run could tell this apart.
+
+## Is the LR the lever? No — there is no window
+
+`LR=2.5e-4 bash scripts/verify_optimizer.sh adafactor 60`, same corpus, adafactor with
+`beta1=None` exactly as the baseline. Both halves measured together for the first time.
+
+**Termination holds — it is the only arm that never moved:**
+
+| step | lr 5e-4 | **lr 2.5e-4** | adamw8bit |
+|---|---|---|---|
+| 10 | 0.0043 | 0.0029 | 0.0043 |
+| 20 | 0.0053 | 0.0028 | 0.0089 |
+| 30 | 0.0095 | 0.0030 | 0.0318 |
+| 40 | 0.0092 | 0.0031 | 0.0192 |
+| 50 | **0.0102** | **0.0033** | **0.0326** |
+
+`after_tool_call` sat at **0.99990 at every single step** on the 2.5e-4 arm.
+
+**But it does not learn.** Code flips at the final checkpoint, same 59 steps:
+
+| tensor | lr 5e-4 | lr 2.5e-4 |
+|---|---|---|
+| `0.q_proj` | 0.0194% | **0.0024%** |
+| `5.k_proj` | 0.0011% | 0.0000% (1 weight) |
+| `15.o_proj` | 0.0029% | 0.0000% (2 weights) |
+| `20.o_proj` | 0.0053% | 0.0000% (5 weights) |
+| `35.down_proj` | 0.0039% | 0.0000% (4 weights) |
+| `10.v_proj`, `25.gate_proj`, `30.up_proj` | non-zero | **0.0000% (zero weights)** |
+
+Seven of eight tracked tensors flipped literally nothing, while scale drift ran 0.33-0.58%
+and the loss fell to 0.7623. That is the documented trap verbatim: *the run only drifts
+fp16 scales, the loss falls, and the exported model is unchanged.*
+
+**Do not extrapolate the 8x flip ratio forward.** Flipping is a THRESHOLD phenomenon, not a
+linear one: below some lr the latents equilibrate before ever crossing, which is why the
+reference study measured ~0% flips at 3e-4 over a FULL run. 2.5e-4 would not train over
+613 steps either.
+
+### Four candidates, four eliminated
+
+| candidate | verdict |
+|---|---|
+| `--stop-weight` | ruled out — a 6x change moved the diagnostic by 0.02 |
+| corpus defect | REAL, worth 3-6x, but insufficient (clean ultrachat drifts to 0.0265) |
+| optimizer / momentum | ruled out — momentum is 3.2x worse on the diagnostic AND the control |
+| learning rate | **no window** — 5e-4 learns and breaks termination, 2.5e-4 preserves it and learns nothing |
+
+The trade looks structural to plain masked-CE on this model: it only learns by flipping
+codes, and flipping codes at any useful rate destroys the stop decision. Every lever tried
+so far moves along that trade rather than off it.
+
+**That is the argument for KD** (Method B, already scaffolded in `qat/kd_precompute.py`).
+Hard CE supplies one target per position and says nothing about the SHAPE of the
+distribution, so the model is free to collapse P(stop) anywhere the argmax survives. A KL
+term against a teacher with correct termination constrains exactly the quantity that
+drifts, while leaving the argmax free to move where the data demands — i.e. it attacks the
+mechanism instead of trading against it.
