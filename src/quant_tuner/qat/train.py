@@ -50,6 +50,8 @@ from quant_tuner.qat.attention import (
     use_prefix,
 )
 from quant_tuner.qat.corpus import corpus_fingerprint
+from quant_tuner.qat.kd_precompute import kd_loss_from_topk
+from quant_tuner.qat.kd_table import KDTable
 from quant_tuner.qat.master_opt import MasterOptimizer
 from quant_tuner.qat.stop_probe import StopProbe
 from quant_tuner.qat.stop_probe import format_line as stop_probe_fmt
@@ -77,6 +79,10 @@ class QATConfig:
     dtype: str = "fp32"
     compute_dtype: str = "fp32"
     kd_teacher: Path | None = None
+    #: precomputed top-K teacher table (kd_precompute). Offline KD: no teacher
+    #: in memory, so it composes with an all-36 student where --kd-teacher
+    #: (which loads a dense teacher alongside) does not.
+    kd_table: Path | None = None
     kd_alpha: float = 0.5
     kd_temp: float = 1.0
     val_corpus: Path | None = None
@@ -279,7 +285,8 @@ def prefix_window(model, ids: torch.Tensor, n_prefix: int):
 
 def masked_forward(model, ids: torch.Tensor, lbl: torch.Tensor, *,
                    need_logits: bool = True, logit_chunk: int = LOGIT_CHUNK,
-                   n_prefix: int = 0, weights: torch.Tensor | None = None):
+                   n_prefix: int = 0, weights: torch.Tensor | None = None,
+                   kd=None, kd_temp: float = 1.0):
     """Masked-CE forward: lm_head only at labeled positions.
 
     Selects positions t with lbl[t+1] != -100 (HF shift semantics), runs the
@@ -292,6 +299,12 @@ def masked_forward(model, ids: torch.Tensor, lbl: torch.Tensor, *,
     gradient. Targets falling inside the prefix are dropped from the loss — they have no
     graph — so the reported CE is over the tail's targets only and is NOT comparable with
     a full-window CE on the same data.
+
+    ``kd`` is an optional :class:`~quant_tuner.qat.kd_table.KDWindow` of precomputed
+    teacher top-K logprobs for THIS window, already aligned to ``keep_idx``. When given the
+    return is ``(ce, logits, keep_idx, kl)`` — one element longer — and the KD term is
+    computed inside the SAME logit chunks as CE, because a separate pass would materialize
+    the ``[K, V]`` logits a second time (5.8 GiB at 29% density on a 32768 window).
 
     ``weights`` is an optional per-vocab-id CE weight vector, used to upweight the
     terminating `<|im_end|>` target: it is 0.57% of labels but carries the entire stop
@@ -327,14 +340,48 @@ def masked_forward(model, ids: torch.Tensor, lbl: torch.Tensor, *,
     if K == 0:
         raise ValueError("no labeled target carries a gradient (prefix covers the window)")
 
-    if need_logits or logit_chunk >= K:
+    if need_logits or (logit_chunk >= K and kd is None):
         logits = model.lm_head(h).float()                    # [1, K, V]
         ce = F.cross_entropy(logits[0], targets, weight=weights)
+        if kd is not None:
+            kl = kd_loss_from_topk(logits[0], kd.idx, kd.logp, kd.tail, temp=kd_temp)
+            return ce, (logits if need_logits else None), keep_idx, kl
         return ce, (logits if need_logits else None), keep_idx
 
     def block_sum(hb, tb):
         return F.cross_entropy(model.lm_head(hb).float(), tb, weight=weights,
                                reduction="sum")
+
+    def block_sum_kd(hb, tb, kidx, klogp, ktail):
+        """CE sum AND KD sum for one chunk, from ONE lm_head call.
+
+        KD has to run inside the same chunk as CE: computing it separately would
+        materialize [K, V] logits a second time, which is the 5.8 GiB spike (at 29%
+        density on a 32768 window) that the chunking exists to avoid. Both are summed,
+        not averaged, so the caller can divide by the true totals — a mean of per-chunk
+        means is wrong whenever K is not a multiple of the chunk.
+        """
+        lg = model.lm_head(hb).float()
+        ce_s = F.cross_entropy(lg, tb, weight=weights, reduction="sum")
+        kl_s = kd_loss_from_topk(lg, kidx, klogp, ktail, temp=kd_temp) * hb.shape[0]
+        return ce_s, kl_s
+
+    if kd is not None:
+        total = h.new_zeros((), dtype=torch.float32)
+        kl_total = h.new_zeros((), dtype=torch.float32)
+        denom = (weights[targets].sum() if weights is not None
+                 else torch.as_tensor(float(K), device=h.device))
+        for i in range(0, K, logit_chunk):
+            hb, tb = h[0, i:i + logit_chunk], targets[i:i + logit_chunk]
+            kb = kd.slice(i, i + logit_chunk)
+            if torch.is_grad_enabled() and hb.requires_grad:
+                ce_s, kl_s = torch.utils.checkpoint.checkpoint(
+                    block_sum_kd, hb, tb, kb.idx, kb.logp, kb.tail, use_reentrant=False)
+            else:
+                ce_s, kl_s = block_sum_kd(hb, tb, kb.idx, kb.logp, kb.tail)
+            total = total + ce_s
+            kl_total = kl_total + kl_s
+        return total / denom, None, keep_idx, kl_total / float(K)
 
     total = h.new_zeros((), dtype=torch.float32)
     # With a `weight` vector the denominator is sum(w[target]), not K — otherwise
@@ -769,6 +816,17 @@ def train_qat(cfg: QATConfig) -> int:
     # Termination telemetry. Built from the model's own tokenizer so the probe prompt is
     # rendered by the same chat template the corpus was packed with — a probe built from a
     # different template measures a prompt the model never sees.
+    kd_table = None
+    if cfg.kd_table:
+        kd_table = KDTable.load(cfg.kd_table, corpus_fingerprint=fp)
+        print(f"[qat] KD {kd_table}", flush=True)
+        print(f"[qat] KD alpha={cfg.kd_alpha} T={cfg.kd_temp}; loss = "
+              f"{1 - cfg.kd_alpha:g}*CE + {cfg.kd_alpha:g}*T^2*KL", flush=True)
+        if kd_table.coverage() < 0.8:
+            print(f"[qat] WARNING top-{kd_table.topk} captures only "
+                  f"{kd_table.coverage():.1%} of the teacher's mass — the KL is a weaker "
+                  f"constraint than it looks; consider a larger --topk", flush=True)
+
     stop_probe = None
     if cfg.probe_every:
         try:
@@ -911,6 +969,7 @@ def train_qat(cfg: QATConfig) -> int:
     tokens_seen = 0
     n_tail_empty = 0
     src_loss: dict[str, list[float]] = {}
+    kl_acc: list[float] = []          # KD KL over the current accum group
     opt.zero_grad()
     while step < total_steps and not stop["f"]:
         w = order[mi % n_win].item()
@@ -929,14 +988,31 @@ def train_qat(cfg: QATConfig) -> int:
         # The prefix block spans forward AND backward: checkpoint recompute happens inside
         # .backward(), and a recompute that cannot see the prefix raises CheckpointError.
         with prefix_window(model, ids, n_prefix):
-            ce, s_logits, keep_idx = masked_forward(model, ids, lbl,
-                                                    need_logits=teacher is not None,
-                                                    n_prefix=n_prefix, weights=ce_weights)
-            if teacher is not None:
-                kl = kd_kl(teacher, ids, keep_idx, s_logits, cfg.kd_temp)
+            kd_win = None
+            if kd_table is not None:
+                # Aligned to this window's keep_idx, and verified against it — a table
+                # built from a different pack would resolve without erroring and distil
+                # every position against another token's distribution.
+                kd_win = kd_table.for_window(w, (lbl[:, 1:][0] != -100)
+                                             .nonzero(as_tuple=True)[0]).to(dev)
+            # NOT `out` — that is the run directory in this scope, and shadowing it
+            # made save_ckpt do `tuple / str` four tests later.
+            fwd = masked_forward(model, ids, lbl,
+                                 need_logits=teacher is not None,
+                                 n_prefix=n_prefix, weights=ce_weights,
+                                 kd=kd_win, kd_temp=cfg.kd_temp)
+            if kd_win is not None:
+                ce, s_logits, keep_idx, kl = fwd
                 loss = (1 - cfg.kd_alpha) * ce + cfg.kd_alpha * (cfg.kd_temp ** 2) * kl
+                kl_v = float(kl.detach())
             else:
-                loss = ce
+                ce, s_logits, keep_idx = fwd
+                kl_v = None
+                if teacher is not None:
+                    kl = kd_kl(teacher, ids, keep_idx, s_logits, cfg.kd_temp)
+                    loss = (1 - cfg.kd_alpha) * ce + cfg.kd_alpha * (cfg.kd_temp ** 2) * kl
+                else:
+                    loss = ce
             lv = float(loss.detach())
             if not math.isfinite(lv):
                 # skip BEFORE backward: the accumulated group stays valid, n_acc unchanged
@@ -948,6 +1024,8 @@ def train_qat(cfg: QATConfig) -> int:
         if win_src is not None:
             sname = src_names[int(win_src[w])] if src_names else str(int(win_src[w]))
             src_loss.setdefault(sname, []).append(lv)
+        if kl_v is not None:
+            kl_acc.append(kl_v)
         if loss_first is None:
             loss_first = lv
         recent.append(lv)
@@ -973,6 +1051,7 @@ def train_qat(cfg: QATConfig) -> int:
                 mem, mem_peak = backend.allocated_gib(), backend.peak_gib()
                 avg = sum(recent) / len(recent)
                 emit("step", step=step, total_steps=total_steps, loss=avg,
+                     kd_kl=(sum(kl_acc) / len(kl_acc)) if kl_acc else None,
                      lr=opt.param_groups[0]["lr"], grad_norm=grad_norm,
                      grad_median=guard.last_median, n_skipped=guard.n_skipped, mem_gib=mem,
                      mem_peak_gib=mem_peak, device=backend.name,
@@ -980,8 +1059,10 @@ def train_qat(cfg: QATConfig) -> int:
                      tokens_seen=tokens_seen, elapsed_s=time.time() - t0,
                      s_per_step=(time.time() - t0) / max(1, step - step0),
                      loss_by_source={k: sum(v) / len(v) for k, v in src_loss.items()})
+                kl_str = f" kl={sum(kl_acc)/len(kl_acc):.4f}" if kl_acc else ""
                 src_loss.clear()
-                print(f"[qat] step {step}/{total_steps} loss={avg:.4f} "
+                kl_acc.clear()
+                print(f"[qat] step {step}/{total_steps} loss={avg:.4f}{kl_str} "
                       f"lr={opt.param_groups[0]['lr']:.2e} "
                       # pre-clip; a divergence shows up here BEFORE the loss reacts
                       f"gnorm={grad_norm:.2f} "
@@ -1062,6 +1143,9 @@ def _build_parser() -> argparse.ArgumentParser:
                     help="bf16: fp32-master trick — masters own the latents, fwd/bwd run in bf16")
     ap.add_argument("--kd-teacher", type=Path, default=None,
                     help="HF path of a same-vocab dense teacher (e.g. a SWE-tuned Qwen3-8B); enables KD")
+    ap.add_argument("--kd-table", type=Path,
+                    help="precomputed top-K teacher table from scripts/kd_precompute.py. "
+                         "Offline KD — no teacher in memory, unlike --kd-teacher.")
     ap.add_argument("--kd-alpha", type=float, default=0.5,
                     help="loss = (1-a)*CE + a*T^2*KL(teacher||student)")
     ap.add_argument("--kd-temp", type=float, default=1.0)
@@ -1151,6 +1235,7 @@ def main(argv: list[str] | None = None) -> int:
         grad_accum=args.grad_accum, lr=args.lr, optim=args.optim,
         weight_decay=args.weight_decay, beta1=args.beta1, dtype=args.dtype,
         compute_dtype=args.compute_dtype, kd_teacher=args.kd_teacher,
+        kd_table=args.kd_table,
         kd_alpha=args.kd_alpha, kd_temp=args.kd_temp, val_corpus=args.val_corpus,
         val_every=args.val_every, val_windows=args.val_windows,
         probe_every=args.probe_every,
