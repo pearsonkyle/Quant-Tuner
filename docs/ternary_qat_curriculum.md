@@ -7,11 +7,14 @@ set the hyper-parameters) and `docs/qat_32k_handoff.md` §10 (the CUDA port).
 
 ## The three rounds
 
-| round | corpus | what it teaches | rows | tool calls | reasoning |
-|---|---|---|---|---|---|
-| 1 | `HuggingFaceH4/ultrachat_200k` | broad conversational grounding | 207,865 | 0 | 0 |
-| 2 | `r0b0tlab/qwen3.8-max-…-distillation` | tools, agents, reasoning | 17,216 | 27,672 | 34,942 |
-| 3 | our universal SFT | CLI logs + trajectories that resolve real issues | ~3,000 | — | — |
+| round | corpus | what it teaches | tokens | windows @32768 |
+|---|---|---|---|---|
+| 1 | `HuggingFaceH4/ultrachat_200k` | broad conversational grounding | 20.0M | 610 |
+| 2 | `r0b0tlab/qwen3.8-max-…-distillation` | tools, agents, reasoning-in-context | 20.2M | 604 |
+| 3 | our universal SFT | CLI logs + trajectories that resolve real issues | ~20M | 613 |
+
+All three rounds are sized to ~20M tokens / ~610 windows, which is exactly the `sft32k`
+run's shape — so each round is ~11 h and the curriculum is ~33 h.
 
 Each round **continues from the previous round's latents**, so this is one long fine-tune
 over a changing distribution, not three independent runs. The ordering is
@@ -21,10 +24,12 @@ is graded on. Catastrophic forgetting runs the other way, and that is the point.
 Build and run:
 
 ```bash
-python scripts/build_external_sft.py ultrachat --out out/corpora/round1-ultrachat
-python scripts/build_external_sft.py distill   --out out/corpora/round2-distill
+python scripts/build_external_sft.py ultrachat   --out out/corpora/round1-ultrachat
+python scripts/build_external_sft.py distill-mix --out out/corpora/round2-distill
 bash scripts/run_curriculum_qat.sh curriculum 5e-4 1.0
 ```
+
+Use `distill-mix`, not `distill`. See "the configs are overlapping views" below.
 
 Round 3's corpus is the existing `scripts/build_universal_corpus.py` output; nothing new
 is needed for it.
@@ -34,8 +39,8 @@ is needed for it.
 ultrachat is ~300M tokens. At a 32768 window that is ~5,500 steps — **~96 h on its own**,
 against the ~11 h the whole `sft32k` run took. Rounds are therefore capped by token budget
 (`BUDGET_R1=ultrachat=20000000`), sized so each round is a comparable slice of wall-clock
-and the full curriculum lands near ~33 h. Rounds 2 and 3 are already ~14M and ~20M tokens
-and are taken whole.
+and the full curriculum lands near ~33 h. Round 2 is capped at build time instead — its
+domain budgets already sum to ~20M — and round 3 is ~20M as built.
 
 Budgets are per-source `SOURCE=TOKENS` pairs — there is no global cap, because
 `build_sft_qat_corpus.py` budgets each source separately so one source cannot crowd out
@@ -66,7 +71,7 @@ Still open, and this curriculum does **not** answer them:
 * whether the stop weight needs to be >1.0 — that is what `sft32k_sw1` measures, and its
   answer should set `STOP_WEIGHT` here before round 1 starts.
 
-## The four dataset traps
+## The dataset traps
 
 Encoded in `data/external_sft.py` and unit-tested in `tests/unit/test_external_sft.py`.
 Each one produces a corpus that builds, trains and exports without error while teaching the
@@ -91,46 +96,120 @@ the real split, so `convert_distill_rows` takes it as an argument: `UPSTREAM_SPL
 sends their `validation` → our `test` (the trainer's val corpus) and their `test` → our
 `holdout`.
 
-**4. Reasoning is inline `<think>` in content, never `reasoning_content`** — despite that
+**4. The configs are overlapping views, not disjoint slices** — see the table below.
+A mix assembled by combining configs double-counts heavily.
+
+**5. Two schemas in one repo.** Per-config files carry `messages`/`tools` as lists;
+`canonical` carries `messages_json`/`tools_json` as strings. Reading one drops the other
+silently.
+
+**6. Reasoning is inline `<think>` in content, never `reasoning_content`** — despite that
 field existing on every message. `data.reasoning` normalizes both forms, so this works, but
 *counting* it needs the non-empty check: the Qwen3 template emits a bare `<think></think>`
 on the final assistant turn when no reasoning is supplied, which reported **200 reasoning
 blocks on ultrachat, a corpus with exactly zero**.
 
-## `sft_science` and eval contamination
-
-`sft_science` is 10,189 rows, and 9,426 of them come straight from public benchmark sets:
-SciQ (3,541), CommonsenseQA (2,528), QASC (1,533), ARC-Easy (871), OpenBookQA (527),
-ARC-Challenge (426). Only `k3_science_logic_data` (763) is synthetic.
-
-Training on this contaminates any multiple-choice eval — MMLU-Pro overlaps the same
-material directly, and `scripts/run_mmlu_pro_reps.py` is part of this repo's leaderboard.
-`--drop-benchmarks` removes them, leaving 763 rows. Two defensible positions:
-
-* include it and **stop quoting MMLU-Pro for this model**, or
-* `--drop-benchmarks` and keep the eval meaningful.
-
-It is also the round-2 source least aligned with the goal: single-turn multiple-choice
-answering is not the agentic distribution we are trying to reach, and it is 2/3 of round 2
-by row count. `sft_tools` is where the value is — 100% tool coverage, median 11 turns,
-27,672 tool calls.
-
 ## Measured compatibility
 
-Round 2 through the real builder (`--window 8064 --max-tool-tokens 3072 --min-density
-0.05`):
+Both rounds through the real builder at the training window
+(`--window 32768 --max-tool-tokens 12288 --min-density 0.05`):
 
 ```
-distill-science  10189 convs   4,714,391 tok  63% masked -> 584 windows
-distill-tools     5337 convs   9,671,000 tok  51% masked -> 1199 windows
-TOTAL 14,385,391 tokens (55% assistant-masked) -> 1783 windows of 8064
-tool-calls 35661/24987 · reasoning 39579/40935 kept (96.7%)
-labeled <|im_end|> targets: 34613
-window trainable-density deciles: 0.35 0.43 0.45 0.48 0.51 0.55 0.59 0.62 0.63 0.65 0.94
+round 1  ultrachat  16,857/166,341 convs  20,000,736 tok  77% masked -> 610 windows
+         tool-calls 0 · reasoning 0 · labeled <|im_end|> 53,301
+         density deciles 0.64 0.72 0.74 0.75 0.76 0.77 0.78 0.79 0.80 0.82 0.87
+
+round 2  distill    10,867/10,867  convs  20,209,609 tok  49% masked -> 604 windows
+         tool-calls 38,753 · reasoning 26,315/29,511 kept (89%) · labeled <|im_end|> 33,288
+         density deciles 0.08 0.32 0.41 0.47 0.49 0.52 0.55 0.58 0.60 0.65 0.74
 ```
 
-Two things to note. Reasoning survives at 96.7% because these are agentic trajectories —
-the template keeps reasoning only on assistant turns *after the last user turn*, which is
-nearly the whole conversation when there is one task turn followed by many tool turns.
-And the density deciles are far above the log corpus's, so `--min-density 0.05` drops
-nothing here.
+Reasoning survives at 89% because these are agentic trajectories — the template keeps
+reasoning only on assistant turns *after the last user turn*, which is nearly the whole
+conversation when there is one task turn followed by many tool turns. Round 1's much higher
+density (0.77 vs 0.49) is the absence of tool outputs: nothing in an ultrachat window is
+masked except the user turns.
+
+## How much is there, and what we take
+
+Measured with the student's tokenizer over each source's train split:
+
+| source | available | taken | share |
+|---|---|---|---|
+| ultrachat `train_sft` | 166,341 convs / **202.6M tok** | 16,857 convs / 20.0M | 9.9% |
+| distillation (canonical, deduped, benchmark-free) | 56,773 convs / **56.9M tok** | 10,867 convs / 20.2M | 36% |
+
+So ultrachat is ~3.6x the distillation set by tokens, and the distillation set is the
+scarcer resource — we take a third of it against a tenth of ultrachat. The agentic part is
+scarcer still: **10.6M tokens is ALL of it**, so round 2 takes 100% of both agentic domains
+and fills the remaining ~9.6M around them.
+
+### The round-2 domain mix (52% agentic)
+
+```
+agent_tool                     5,445/5,445    10,058,226 tok   (agentic, taken whole)
+executed_tool_recovery           395/395         520,692 tok   (agentic, taken whole)
+grounded_long_context            447/1,140     3,999,405 tok
+code                           3,263/13,566    3,999,942 tok
+executable_code                  513/513         591,542 tok
+stateful_dialogue                471/471         805,103 tok
+verified_analysis_code_review    130/130         102,884 tok
+iterative_instruction            203/203         131,815 tok
+TOTAL                         10,867           20,209,609 tok  (52% agentic)
+```
+
+`reasoning`, `math` and `instruction` are deliberately absent — see contamination below.
+Reasoning is still taught: the agentic trajectories are ~40% `<think>` by message, so the
+round teaches reasoning *in the agentic context* rather than as multiple-choice.
+
+### The configs are overlapping views, not disjoint slices
+
+This is the trap that makes a hand-assembled config mix wrong. Measured id-set overlaps:
+
+| | overlap |
+|---|---|
+| `sft_agent` vs `sft_tools` | **identical** (5,337/5,337) |
+| `sft_glm_agent` ⊂ `sft_tools` | 4,791/4,791 (100%) |
+| `sft_tools` ⊂ `sft_reasoning` | 5,300/5,337 (99.3%) |
+| `sft_reasoning_specialist` ⊂ `sft_reasoning` | 44,151/44,151 (100%) |
+| `sft_code` ∩ `sft_reasoning` | 11,138 (83.6% of `sft_code`) |
+| `sft_math` ∩ `sft_reasoning` | 12,672 (93.6% of `sft_math`) |
+| `sft_long_context` ∩ `sft_reasoning` | 996 (86.5%) |
+
+`canonical`, `openai_messages`, `sft` and `sft_final` are all the same 98,455-row full set,
+which itself holds only 56,773 distinct ids. So `build_external_sft.py distill-mix` builds
+from the **deduped canonical set and selects by `domain`**, which is the only way to get a
+mix whose weights mean what they say.
+
+### Two schemas in one repo
+
+The per-config files carry `messages`/`tools` as real lists; `canonical` and the other
+full-set views carry `messages_json`/`tools_json` as **strings**. Reading only one drops
+every row of the other silently — the conversation comes back empty and fails the
+length check, so a 56,773-row build reports zero without raising. Unit-tested.
+
+## Contamination: worse than just `sft_science`
+
+The whole `reasoning` domain (10,366 rows) is public benchmark material and nothing else:
+SciQ 3,905, CommonsenseQA 2,792, QASC 1,667, ARC-Easy 962, OpenBookQA 572,
+ARC-Challenge 468. And the `code` domain carries **HumanEval (126) and MBPP (180)** — the
+two standard code benchmarks — mixed in with synthetic Evol-Code and CodeAlpaca.
+
+`distill-mix` drops all eight sources by default (`BENCHMARK_SOURCES`); `--keep-benchmarks`
+opts back in. Keeping them means MMLU-Pro, HumanEval and MBPP stop being quotable for this
+model, and this repo's leaderboard runs MMLU-Pro.
+
+## The stop-signal ratio, per round
+
+Relevant to `--stop-weight`, since that is what `sft32k_sw1` is measuring:
+
+| round | trainable tokens | labeled `<|im_end|>` | 1 stop per |
+|---|---|---|---|
+| 1 ultrachat | 15.4M (77% density) | 53,301 | 289 tokens |
+| 2 distill | 9.9M (49% density) | 33,288 | 297 tokens |
+| sft8k reference | 5.7M | 32,448 | 176 tokens |
+
+Both new rounds are ~1.7x SPARSER in stop signal than the corpus whose stop sparsity was
+diagnosed as the cause of sft8k-full's 97% loop rate. If `sft32k_sw1` shows the 32K window
+alone did not fix termination, that is the number to act on — and it argues for carrying
+the chosen stop weight into every round, not just round 3.

@@ -145,12 +145,17 @@ def summarize(records: list[dict]) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("round", choices=["ultrachat", "distill"])
+    ap.add_argument("round", choices=["ultrachat", "distill", "distill-mix"])
     ap.add_argument("--out", type=Path, required=True, help="output directory")
     ap.add_argument("--cache", type=Path, default=Path("out/external/hf-sft"))
     ap.add_argument("--configs", nargs="*", default=["sft_tools", "sft_science"],
                     help=f"distill configs; available {sorted(DISTILL_CONFIGS)}")
     ap.add_argument("--limit", type=int, help="cap rows (smoke tests)")
+    ap.add_argument("--total-tokens", type=int,
+                    help="distill-mix: scale the domain budgets to this total (default 20M)")
+    ap.add_argument("--keep-benchmarks", action="store_true",
+                    help="distill-mix: KEEP rows from public benchmark sets (ARC/SciQ/"
+                         "HumanEval/MBPP). Off by default — they contaminate evals.")
     ap.add_argument("--drop-benchmarks", action="store_true",
                     help="drop rows sourced from public benchmark sets (ARC/SciQ/...) — "
                          "use whenever the run is later graded on multiple-choice evals")
@@ -159,7 +164,57 @@ def main() -> int:
     tok = load_tokenizer()
     records: list[dict] = []
 
-    if args.round == "ultrachat":
+    if args.round == "distill-mix":
+        # The configs are OVERLAPPING VIEWS, not disjoint slices (sft_reasoning contains
+        # 99.3% of sft_tools, 83.6% of sft_code, all of sft_reasoning_specialist), so a mix
+        # assembled by combining configs double-counts badly. Build from the deduped full
+        # set and select by DOMAIN instead.
+        raw: list[dict] = []
+        for usplit in UPSTREAM_SPLITS:
+            rows = fetch_config(ext.DISTILL_REPO, "canonical", usplit, args.cache)
+            if not rows:
+                continue
+            rows = ext.dedup_rows(rows)
+            raw += list(ext.convert_distill_rows(
+                rows, source="distill", split=usplit,
+                drop_benchmarks=not args.keep_benchmarks))
+            print(f"[external-sft] canonical/{usplit}: {len(rows):,} deduped rows")
+
+        cache: dict[str, int] = {}
+        def token_of(rec, _c=cache):
+            key = rec["id"]
+            if key not in _c:
+                text = tok.apply_chat_template(rec["messages"], tools=rec["tools"],
+                                               tokenize=False)
+                _c[key] = len(tok.encode(text, add_special_tokens=False))
+            return _c[key]
+
+        train = [r for r in raw if r["split"] == "train"]
+        held = [r for r in raw if r["split"] != "train"]
+        budgets = dict(ext.ROUND2_DOMAIN_BUDGETS)
+        if args.total_tokens:
+            scale = args.total_tokens / 20_000_000
+            budgets = {k: (int(v * scale) if v else None) for k, v in budgets.items()}
+        kept, audit = ext.select_by_domain(train, budgets, token_of=token_of)
+        print("\n[external-sft] domain mix:")
+        agentic = 0
+        for dom, a in audit.items():
+            mark = " (agentic)" if dom in ext.AGENTIC_DOMAINS else ""
+            if dom in ext.AGENTIC_DOMAINS:
+                agentic += a["tokens"]
+            print(f"  {dom:<32}{a['taken']:>7,}/{a['available']:<7,} rows "
+                  f"{a['tokens']:>12,} tok{mark}")
+        total = sum(a["tokens"] for a in audit.values())
+        print(f"  {'TOTAL':<32}{len(kept):>7,}{'':<8} {total:>12,} tok "
+              f"({agentic/max(total,1):.0%} agentic)")
+        # Keep the held-out rows for the same domains so a later eval is possible.
+        keep_doms = set(budgets)
+        held = [r for r in held if (r.get("meta") or {}).get("domain") in keep_doms]
+        records = kept + held
+        for src, exp in (("distill", True),):
+            print("  verify:", verify([r for r in records if r["tools"]][:200] or records,
+                                      tok, label=src, expect_tools=exp))
+    elif args.round == "ultrachat":
         rows = fetch_ultrachat(ext.ULTRACHAT_SPLIT, args.cache, args.limit)
         print(f"[external-sft] ultrachat {ext.ULTRACHAT_SPLIT}: {len(rows):,} rows")
         recs = list(ext.convert_ultrachat_rows(rows))

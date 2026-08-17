@@ -78,9 +78,15 @@ build_corpus() {   # name sft_path budget-pairs
             --min-density "$MIN_DENSITY" "${bargs[@]}" --out "$out"
     fi
     if [ ! -f "$val" ]; then
+        # Budget the val corpus too. The trainer reads only --val-windows (4) of it, so an
+        # unbudgeted test split builds a tensor LARGER than the training corpus and loads
+        # it all into memory for nothing: ultrachat's test split packed to 754 windows
+        # against its own 610 training windows.
+        local vargs=()
+        for pair in $budget; do vargs+=(--budget "${pair%%=*}=2000000"); done
         $PY scripts/build_sft_qat_corpus.py --sft "$sft" --split test \
             --window "$WINDOW" --max-tool-tokens "$MAX_TOOL_TOKENS" \
-            --min-density "$MIN_DENSITY" --out "$val"
+            --min-density "$MIN_DENSITY" "${vargs[@]}" --out "$val"
     fi
     echo "$out|$val"
 }

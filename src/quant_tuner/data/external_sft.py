@@ -56,11 +56,41 @@ ULTRACHAT_SPLIT = "train_sft"
 #: Configs that are byte-identical to another. Keyed alias -> canonical.
 DISTILL_ALIASES = {"sft_agent": "sft_tools"}
 
-#: ``sft_science`` sources that are public benchmark sets. Training on these contaminates
-#: the corresponding evals — MMLU-Pro overlaps ARC/OpenBookQA/SciQ material directly.
-SCIENCE_BENCHMARK_SOURCES = frozenset({
+#: Upstream sources that are public BENCHMARK sets. Training on these contaminates the
+#: corresponding eval. Measured over the deduped canonical set: the whole ``reasoning``
+#: domain (10,366 rows) is these six science/QA sets and nothing else, and the ``code``
+#: domain carries HumanEval and MBPP — the two standard code benchmarks — mixed in with
+#: synthetic Evol-Code and CodeAlpaca.
+BENCHMARK_SOURCES = frozenset({
     "SciQ", "CommonsenseQA", "QASC", "ARC-Easy", "ARC-Challenge", "OpenBookQA",
+    "HumanEval", "MBPP",
 })
+#: Back-compat alias; the set outgrew the "science" name once HumanEval/MBPP were found.
+SCIENCE_BENCHMARK_SOURCES = BENCHMARK_SOURCES
+
+#: Domains whose rows carry real tool schemas and tool calls — the agentic core. Measured
+#: 100% tool coverage on both.
+AGENTIC_DOMAINS = frozenset({"agent_tool", "executed_tool_recovery"})
+
+#: The round-2 mix, as ``domain -> token budget`` (None = take the domain whole).
+#: Weighted to tools/agents: the two agentic domains are ~10.6M tokens and ALL of the
+#: agentic content that exists in this repo, so they are taken whole and everything else
+#: fills to ~20M around them.
+#:
+#: ``reasoning``, ``math`` and ``instruction`` are deliberately absent. ``reasoning`` is
+#: 100% benchmark material (see BENCHMARK_SOURCES); math and instruction are off-target for
+#: an agentic coding model. Reasoning is still taught here — the agentic trajectories are
+#: ~40% ``<think>`` by message — just in the agentic context rather than as multiple-choice.
+ROUND2_DOMAIN_BUDGETS: dict[str, int | None] = {
+    "agent_tool": None,
+    "executed_tool_recovery": None,
+    "grounded_long_context": 4_000_000,
+    "code": 4_000_000,
+    "executable_code": None,
+    "stateful_dialogue": None,
+    "verified_analysis_code_review": None,
+    "iterative_instruction": None,
+}
 
 #: Deterministic split fractions, matching the log corpora's 80/10/10.
 SPLIT_FRACTIONS = (("train", 0.80), ("test", 0.10), ("holdout", 0.10))
@@ -162,15 +192,24 @@ def convert_distill_rows(rows: list[dict], *, source: str, split: str = "train",
     mapped = UPSTREAM_SPLIT_MAP.get(split, split)
     for r in rows:
         upstream = r.get("source") or ""
-        if drop_benchmarks and upstream in SCIENCE_BENCHMARK_SOURCES:
+        if drop_benchmarks and upstream in BENCHMARK_SOURCES:
             continue
+        # Two schemas in the same repo: the per-config files carry `messages`/`tools` as
+        # real lists, while `canonical` (and the other full-set views) carry
+        # `messages_json`/`tools_json` as STRINGS. Reading only one of them drops every row
+        # of the other silently — the conversation comes back empty and fails the length
+        # check, so a 56,773-row build reports zero without erroring.
         msgs = r.get("messages")
+        if msgs is None:
+            msgs = r.get("messages_json")
         if isinstance(msgs, str):
-            msgs = json.loads(msgs)
+            msgs = json.loads(msgs) if msgs.strip() else []
         msgs = [_clean_message(m) for m in (msgs or [])]
         if len(msgs) < 2:
             continue
         raw_tools = r.get("tools")
+        if raw_tools is None:
+            raw_tools = r.get("tools_json")
         if isinstance(raw_tools, str):
             raw_tools = json.loads(raw_tools) if raw_tools.strip() else []
         tools = [normalize_tool(t) for t in (raw_tools or [])] or None
@@ -198,3 +237,60 @@ def convert_ultrachat_rows(rows: list[dict], *, source: str = "ultrachat") -> It
             meta={"upstream_source": ULTRACHAT_REPO},
             split=assign_split(rid, salt=source),
         )
+
+
+def dedup_rows(rows: list[dict]) -> list[dict]:
+    """Drop repeated ``id``s, keeping first occurrence.
+
+    The full-set views are not deduplicated upstream: ``canonical`` ships 98,455 rows for
+    56,773 distinct ids. Packing the duplicates trains the same conversation ~1.7x.
+    """
+    seen: set[str] = set()
+    out: list[dict] = []
+    for r in rows:
+        rid = r.get("id")
+        if rid in seen:
+            continue
+        seen.add(rid)
+        out.append(r)
+    return out
+
+
+def select_by_domain(records: list[dict], budgets: dict[str, int | None], *,
+                     token_of, seed: int = 42) -> tuple[list[dict], dict]:
+    """Take rows per ``domain`` until each domain's token budget is spent.
+
+    Budgets are in TOKENS, not rows, because tokens-per-conversation varies ~20x across
+    these domains (348 for strict_instruction, 8,034 for grounded_long_context) — a row
+    quota would silently make the mix mean something different from what it says.
+
+    ``token_of(record) -> int`` is injected so the caller owns the tokenizer.
+    """
+    import collections as _c
+    import random as _r
+
+    by_dom: dict[str, list[dict]] = _c.defaultdict(list)
+    for rec in records:
+        by_dom[(rec.get("meta") or {}).get("domain")].append(rec)
+
+    kept: list[dict] = []
+    audit: dict = {}
+    for dom, budget in budgets.items():
+        pool = by_dom.get(dom, [])
+        if not pool:
+            audit[dom] = {"available": 0, "taken": 0, "tokens": 0}
+            continue
+        pool = list(pool)
+        _r.Random(seed).shuffle(pool)
+        spent = 0
+        taken = 0
+        for rec in pool:
+            n = token_of(rec)
+            if budget is not None and spent + n > budget:
+                continue
+            kept.append(rec)
+            spent += n
+            taken += 1
+        audit[dom] = {"available": len(pool), "taken": taken, "tokens": spent,
+                      "budget": budget}
+    return kept, audit
