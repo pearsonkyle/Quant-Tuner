@@ -20,8 +20,18 @@ PY=.venv/bin/python
 GGUF="out/exp-057/Ternary-Bonsai-8B-${TAG}-Q2_0.gguf"
 STOP_CSV="out/exp-058/eval/stop_prob.csv"
 
+# trained_latents.pt is a HARDLINK to the newest periodic checkpoint, so it exists from the
+# first --ckpt-every boundary onward. Testing it lets a crashed run export a PARTIAL model
+# under the completed run's tag, and its P(im_end) numbers then get read as the ablation's
+# answer. The trainer's final line is the only marker that means the run actually finished.
+grep -q '^\[qat\] done at step ' "${RUN}/train.log" 2>/dev/null || {
+    echo "[postflight] no '[qat] done at step' marker in ${RUN}/train.log — the run did not"
+    echo "             finish. Refusing to export a partial model under tag '${TAG}'."
+    echo "             (Override deliberately with FORCE=1 if you know what you are doing.)"
+    [ "${FORCE:-0}" = "1" ] || exit 1
+    echo "[postflight] FORCE=1 — proceeding on an UNFINISHED run"; }
 [ -f "${RUN}/trained_latents.pt" ] || {
-    echo "[postflight] no trained_latents.pt in ${RUN} — the run did not finish"; exit 1; }
+    echo "[postflight] no trained_latents.pt in ${RUN}"; exit 1; }
 
 echo "[postflight] 1/4 export -> Q2_0 (ftype 41 is fork-only)"
 if [ ! -f "$GGUF" ]; then
