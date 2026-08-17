@@ -552,3 +552,46 @@ distribution, so the model is free to collapse P(stop) anywhere the argmax survi
 term against a teacher with correct termination constrains exactly the quantity that
 drifts, while leaving the argmax free to move where the data demands — i.e. it attacks the
 mechanism instead of trading against it.
+
+## KD round one: the renormalized KL had a measured blind spot
+
+The first KD A/B (60 steps, `SWE-Lego/SWE-Lego-Qwen3-8B` top-64, α=0.5, T=1, lr 5e-4 —
+`out/exp-058/verify-opt-kd8b-a0.5`) landed *between* the two CE-only arms: diagnostic
+0.0029 → 0.0065 by step 40, roughly 35% below CE-only at the same lr but clearly rising,
+where lr 2.5e-4 stays flat at ~0.0030. KD slowed the drift; it did not pin it.
+
+The mechanism was in the loss, and it is measurable, not speculative.
+`kd_loss_from_topk` renormalized BOTH distributions over the teacher's stored top-K.
+Inflating a logit *outside* that support shifts every support logprob by the same
+logsumexp constant, which renormalization cancels **exactly** — the KL is mathematically
+blind to any student mass placed outside the teacher's top-K. And on our corpus:
+
+- `<|im_end|>` is in the teacher's top-64 at only **1.8%** of supervised positions
+  (400k-position sample of the 5.80M-row table);
+- so at **98.2%** of positions, the collapsing P(stop) was invisible to the KL — the one
+  quantity KD was brought in to constrain, at almost every position where it drifts;
+- the teacher's mean tail mass is 0.0062, i.e. the teacher itself keeps stop (and
+  everything else outside its top-64) at well under a percent.
+
+The fix costs nothing and needs no re-precompute: the KL is now taken over **K+1
+buckets** — the stored top-K at their TRUE probabilities plus one tail bucket (teacher
+side already stored per position; student side `1 − Σ support`, exact from the same
+logits). A student pushing P(stop) toward 0.95 against a teacher tail of ~0.006 now pays
+~0.95·log(0.95/0.006) ≈ 4.8 nats of KL at that position, where before it paid zero.
+Identical-student-scores-0 still holds exactly. Pinned by
+`test_tail_bucket_sees_out_of_support_mass`, which asserts the drifted student is
+penalized by the new form AND scored ~0 by the old one.
+
+Two escalations if the tail bucket is not enough, in order:
+1. **Force the stop id into the stored support at precompute** (union top-K ∪
+   {151645}), converting the aggregate tail cap into an exact per-position constraint on
+   P(stop) specifically. Requires a re-precompute (~30 min for the 8B, hours for the
+   32B) — worth folding into the 32B table build regardless, since that table is built
+   once and reused.
+2. **Raise α** (0.5 → 0.75). Only meaningful after the blind spot is closed; before it,
+   a higher α just amplified a term that could not see the failure.
+
+Also fixed while auditing: `--trained-tail` + `--kd-table` silently misaligned every KD
+row (the table is validated against the FULL keep set, then `masked_forward` drops
+prefix targets without dropping their teacher rows). No affected runs — `trained_tail=0`
+everywhere so far — and the row count is now asserted at the point of use.

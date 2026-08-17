@@ -562,9 +562,17 @@ benchmarked GGUF, with the check that must pass at each step).
   configs with float ints are sanitized; `logits_to_keep` with a full-gather fallback) so a
   larger-vocab teacher needs no format change. `tokenizer_compatibility()` compares id→token
   **strings**, not `vocab_size` — a padded embedding matrix is fine, a different tokenizer is
-  refused (per-token KD across tokenizers is silently wrong). `kd_loss_from_topk` must
-  renormalize **both** sides over the stored top-K; normalizing only the teacher leaves a
-  constant offset (an identical student scored 0.89 instead of 0 — pinned by a unit test).
+  refused (per-token KD across tokenizers is silently wrong). `kd_loss_from_topk` takes the
+  KL over **K+1 buckets** at T=1: the stored top-K at TRUE probabilities plus a tail bucket
+  (teacher side stored at precompute, student side `1 − Σ support`). Renormalizing both
+  sides over the support — the earlier form — is **blind to student mass placed outside
+  the teacher's top-K** (renormalization cancels an out-of-support logit exactly), and
+  `<|im_end|>` is outside the teacher's top-64 at 98.2% of our positions, so the
+  termination collapse was invisible to it precisely where it mattered. Both properties
+  are pinned by unit tests (identical student → 0; out-of-support inflation → penalized).
+  At T≠1 the tail bucket is skipped (a tempered tail is not derivable from the stored
+  T=1 tail) and it falls back to support renormalization — normalizing only the teacher
+  there would leave a constant offset (an identical student scored 0.89 instead of 0).
 - **Two training methods, one pipeline**: Method A = masked CE on verified trajectories;
   **Method B = CE + KL against a precomputed top-K table, now wired end-to-end** via
   `--kd-table` (`qat/kd_table.py`). Offline, so KD costs NO GPU memory — the table sits on

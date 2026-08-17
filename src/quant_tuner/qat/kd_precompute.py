@@ -277,20 +277,39 @@ def kd_loss_from_topk(
     student_logits: torch.Tensor, idx: torch.Tensor, logp: torch.Tensor,
     tail: torch.Tensor | None = None, temp: float = 1.0,
 ) -> torch.Tensor:
-    """KL(teacher || student) restricted to the stored top-K support.
+    """KL(teacher || student) over the stored top-K support plus a tail bucket.
 
-    ``student_logits`` [K_pos, V]; ``idx``/``logp`` [K_pos, K]. BOTH distributions are
-    renormalized over the same K-token support — renormalizing only the teacher would leave a
-    constant offset (the student's missing tail mass), so the loss would not reach 0 even for
-    an identical student. The stored ``tail`` records the teacher mass discarded by the
-    truncation, so callers can audit how much of the distribution the top-K covers.
+    ``student_logits`` [K_pos, V]; ``idx``/``logp`` [K_pos, K]; ``tail`` [K_pos] is the
+    teacher's log-mass outside its top-K.
+
+    With ``tail`` given (and ``temp == 1``) the KL is taken over K+1 buckets: the K stored
+    tokens at their TRUE probabilities plus one bucket for everything else (teacher side
+    stored at precompute, student side ``1 - Σ support``). This term is the whole point:
+    renormalizing both sides over the top-K — the previous form — makes the loss blind to
+    any student mass placed OUTSIDE the teacher's support (inflating an out-of-support
+    logit deflates every support prob proportionally, and renormalization cancels it
+    exactly). Measured on our corpus, ``<|im_end|>`` is outside the teacher's top-64 at
+    98.2% of supervised positions, so the termination collapse — P(stop) rising exactly
+    where the teacher keeps it in the tail — was invisible to the renormalized KL. The
+    tail bucket caps the student's total out-of-support mass at the teacher's (~0.006
+    mean), which pins P(stop) as a side effect. An identical student still scores 0.
+
+    With ``temp != 1`` the tail bucket is skipped (a T-tempered tail is not derivable from
+    the stored T=1 tail) and both sides fall back to top-K renormalization.
 
     Returns a scalar averaged over positions.
     """
     s_logp = torch.log_softmax(student_logits / temp, dim=-1)
     s_at = s_logp.gather(-1, idx.long())
+    t_logp = logp.float() / temp
+    if tail is not None and temp == 1.0:
+        t_sup = t_logp.exp()
+        t_tail = tail.float().exp().clamp_min(1e-8)
+        s_tail = (1.0 - s_at.exp().sum(-1)).clamp_min(1e-8)
+        kl = ((t_sup * (t_logp - s_at)).sum(-1)
+              + t_tail * (t_tail.log() - s_tail.log()))
+        return kl.mean()
     s_at = s_at - torch.logsumexp(s_at, dim=-1, keepdim=True)       # renormalize over top-K
-    t_logp = (logp.float() / temp)
     t_logp = t_logp - torch.logsumexp(t_logp, dim=-1, keepdim=True)  # renormalize over top-K
     t_p = t_logp.exp()
     return (t_p * (t_logp - s_at)).sum(-1).mean()

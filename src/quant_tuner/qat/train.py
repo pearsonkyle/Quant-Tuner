@@ -330,8 +330,15 @@ def masked_forward(model, ids: torch.Tensor, lbl: torch.Tensor, *,
                              position_ids=pos).last_hidden_state      # [1, S-n_prefix, H]
         # keep_idx indexes the SHIFTED targets, i.e. hidden position t predicts tgt[t];
         # only t >= n_prefix has a graph. Re-base onto the tail's own coordinates.
+        n_drop = int((keep_idx < n_prefix).sum())
         keep_idx = keep_idx[keep_idx >= n_prefix]
         h = hidden[:, keep_idx - n_prefix, :]
+        if kd is not None and n_drop:
+            # The KD window was validated against the FULL keep_idx (rows in position
+            # order); targets inside the prefix carry no gradient and were just dropped,
+            # so drop their teacher rows too or every chunk pairs a student position
+            # with an earlier token's distribution.
+            kd = kd.slice(n_drop, len(kd))
     else:
         hidden = model.model(input_ids=ids).last_hidden_state         # [1, S, H]
         h = hidden[:, keep_idx, :]                                    # [1, K, H]
@@ -339,6 +346,10 @@ def masked_forward(model, ids: torch.Tensor, lbl: torch.Tensor, *,
     K = keep_idx.numel()
     if K == 0:
         raise ValueError("no labeled target carries a gradient (prefix covers the window)")
+    if kd is not None and len(kd) != K:
+        raise ValueError(
+            f"KD window has {len(kd)} rows for {K} gradient-carrying targets — the "
+            f"teacher rows would be paired with the wrong positions.")
 
     if need_logits or (logit_chunk >= K and kd is None):
         logits = model.lm_head(h).float()                    # [1, K, V]

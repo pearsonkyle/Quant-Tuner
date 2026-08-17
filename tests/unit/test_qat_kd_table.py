@@ -114,6 +114,27 @@ def test_identical_student_scores_zero():
     assert abs(float(kl)) < 1e-3
 
 
+def test_tail_bucket_sees_out_of_support_mass():
+    """The regression the renormalized form missed: a student that moves mass onto a token
+    OUTSIDE the teacher's top-K — the termination collapse, since <|im_end|> is outside the
+    teacher's top-64 at 98.2% of our positions — must be penalized. Renormalizing both
+    sides over the support cancels an out-of-support logit exactly (it shifts every support
+    logprob by the same logsumexp constant), so the old form scores this student 0."""
+    torch.manual_seed(4)
+    vocab, K, topk = 40, 6, 5
+    t_logits = torch.randn(K, vocab)
+    lp = torch.log_softmax(t_logits, dim=-1)
+    val, idx = torch.topk(lp, topk, dim=-1)
+    tail = torch.log1p(-val.exp().sum(-1).clamp(max=1 - 1e-6))
+    bad = t_logits.clone()
+    bad[torch.arange(K), lp.argmin(-1)] += 8.0   # inflate a token never in the top-5
+    idx32, val16 = idx.to(torch.int32), val.to(torch.float16)
+    with_tail = kd_loss_from_topk(bad, idx32, val16, tail)
+    blind = kd_loss_from_topk(bad, idx32, val16, None)
+    assert float(with_tail) > 0.5, f"tail bucket must see the drift, got {float(with_tail)}"
+    assert abs(float(blind)) < 1e-4, "support-renormalized KL is blind to it by construction"
+
+
 def test_chunked_kd_matches_unchunked():
     """The trainer computes KD inside the CE logit chunks; a mean of per-chunk means would
     be wrong whenever K is not a multiple of the chunk, so the chunked path sums and
@@ -221,6 +242,38 @@ def test_masked_forward_without_kd_keeps_the_three_tuple():
     lbl = ids.clone()
     lbl[:, :8] = -100
     assert len(masked_forward(m, ids, lbl, need_logits=False, logit_chunk=5)) == 3
+
+
+def test_kd_row_count_mismatch_raises_in_masked_forward():
+    """Length is asserted at the point of use: any future path that filters keep_idx
+    without filtering the KD rows must fail loudly, not silently misalign chunks."""
+    from quant_tuner.qat.train import masked_forward
+    m = _tiny()
+    ids = torch.randint(0, 128, (1, 40))
+    lbl = ids.clone()
+    lbl[:, :12] = -100
+    kd, _ = _kd_window_for(m, ids, lbl)
+    with pytest.raises(ValueError, match="wrong positions"):
+        masked_forward(m, ids, lbl, need_logits=False, logit_chunk=7, kd=kd.slice(0, 5))
+
+
+def test_kd_rows_follow_prefix_filtering():
+    """With n_prefix > 0 masked_forward drops targets inside the prefix; the KD window was
+    validated against the FULL keep set, so its leading rows must be dropped in lockstep
+    (before this fix they weren't, and every chunk paired a student position with an
+    earlier token's teacher distribution)."""
+    from quant_tuner.qat.train import masked_forward
+    m = _tiny()
+    ids = torch.randint(0, 128, (1, 40))
+    lbl = ids.clone()
+    lbl[:, :12] = -100                       # 27 supervised targets after the shift
+    kd, keep = _kd_window_for(m, ids, lbl)   # rows for ALL 27, position order
+    n_prefix = 20
+    n_tail = int((keep >= n_prefix).sum())
+    assert 0 < n_tail < len(kd)              # the prefix must actually drop some rows
+    out = masked_forward(m, ids, lbl, need_logits=False, logit_chunk=7,
+                         n_prefix=n_prefix, kd=kd)
+    assert len(out) == 4 and torch.isfinite(out[3])
 
 
 def test_kd_gradients_flow_to_the_student():
