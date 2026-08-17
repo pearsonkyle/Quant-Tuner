@@ -21,6 +21,19 @@ Watch it with `python scripts/qat_progress_report.py out/exp-058/trained_sft32k_
 or `bash scripts/watch_qat_run_cuda.sh out/exp-058/trained_sft32k_sw1 600 48`. **Read the
 report, don't poll the process.** Read `gnorm` and the code flips, not the loss.
 
+> **The first launch of this run died at step 1** (03:45:31 UTC), before the doc below was
+> committed. `run_sft32k_qat_cuda.sh` backgrounds the trainer with `nohup … &`, which
+> survives SIGHUP but *not* the process-group kill that ends a session — the trainer was
+> still in the launching session's process group. Relaunched under `setsid` (PPID 1, its own
+> SID) at 03:52; it is now past step 1, which is itself the evidence the death was external
+> rather than a step-2 failure. **Launch long runs with `setsid`**, and check `ps -o sid= -p
+> <pid>` differs from your shell's before walking away.
+>
+> Two things that look like faults and are not: the trainer logs **every 4 steps**, so four
+> minutes of silence at 63 s/step is normal; and `metrics.jsonl` is opened `"a"`, so a
+> relaunch into the same directory leaves the dead run's rows in front of the new ones
+> (cleared here — the originals are `*.dead-step1`).
+
 ## The one question this run answers
 
 The previous run (`sft32k`, identical except `--stop-weight 6.0`) **broke the model's ability
@@ -74,10 +87,37 @@ LLAMA_CPP_DIR=vendor/llama.cpp-prism PYTHONPATH=src .venv/bin/python \
   --tag sft32k_sw1
 ```
 
-**2. Re-measure P(im_end)** — the primary endpoint. The probe script and method are in this
-repo's history; it posts a raw templated prompt to `/completion` with `n_predict=1,
-n_probs=60, temperature=0` and reads `completion_probabilities[0].top_logprobs` for id
-**151645**. Expect vanilla-like numbers if the window alone is enough.
+**2. Re-measure P(im_end)** — the primary endpoint. The probe script was **not** in this
+repo's history (nothing under any plausible name); it was rebuilt from the method
+description and is now committed as `scripts/probe_stop_prob.py`. It runs on **CPU by
+default** (`--ngl 0`), so it can be used beside a training job:
+
+```bash
+LLAMA_CPP_DIR=vendor/llama.cpp-prism .venv/bin/python scripts/probe_stop_prob.py \
+  --model out/exp-057/Ternary-Bonsai-8B-sft32k_sw1-Q2_0.gguf --label sft32k_sw1 \
+  --out out/exp-058/eval/stop_prob.csv
+```
+
+Because the original prompts are gone, the rebuilt probe is **not byte-identical** to the
+one behind the table above — so both controls were re-measured with it and the numbers below
+are the ones to compare against. They are already in `out/exp-058/eval/stop_prob.csv`:
+
+| probe point | vanilla | sft32k (6.0) |
+|---|---|---|
+| start | 0.0000152 (rank 25) | 0.122 (rank 4) |
+| mid_sentence | <6.2e-06 (rank >60) | 0.0000242 (rank 36) |
+| **sentence_period** | **0.0092 (rank 8)** | **0.974 (rank 1)** |
+| sentence_newline | 0.0000020 (rank 38) | 0.896 (rank 1) |
+| after_tool_call | 0.99995 (rank 1) | 0.953 (rank 1) |
+
+Four of five reproduce the original table closely, which is what validates the
+reconstruction. **`after_tool_call` does not, and is not a regression**: this version probes
+after a *complete, closed* `</tool_call>` block, where stopping is correct — vanilla's
+0.99995 is the healthy answer, and the original 0.00002 must have been read mid-structure.
+Read it as a control that the model still knows where stopping *is* right.
+
+`sentence_period` is the headline: it separates the two controls by 106x. Expect a
+vanilla-like value there if the window alone is enough.
 
 **3. Tool-call eval** (no Docker needed):
 
