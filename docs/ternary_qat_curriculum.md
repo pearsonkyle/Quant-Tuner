@@ -405,3 +405,41 @@ makes the merge trustworthy on the corpus where it does fire.
 longer symlinks sw1's corpus, so **curriculum-r3 vs sft32k_sw1 is no longer a clean A/B** —
 it differs in both training history and corpus. That is deliberate: preserving the A/B
 would mean deliberately re-teaching the defect. The per-round probes separate the causes.
+
+## Did the corpus fix work? A/B verification (`verify_corpus_fix.sh`)
+
+Two 59-step runs from the same shipped weights, identical hyper-parameters, corpus the
+only difference. Endpoint is the in-training stop probe.
+
+| step | OLD `sentence_period` | NEW `sentence_period` | ratio | OLD `after_tool` | NEW `after_tool` |
+|---|---|---|---|---|---|
+| shipped | 0.0017 | 0.0017 | — | 0.99996 | 0.99996 |
+| 10 | 0.01250 | 0.00430 | 2.9x | 0.9998 | 0.9998 |
+| 20 | 0.01670 | 0.00530 | 3.2x | 0.9946 | 0.9997 |
+| 30 | 0.03240 | 0.00950 | 3.4x | 0.9995 | 0.9995 |
+| 40 | 0.06260 | 0.00920 | 6.8x | 0.9993 | 0.9998 |
+| 50 | **0.06660** | **0.01020** | **6.5x** | 0.9993 | 0.9995 |
+
+**Read this as a PARTIAL pass, against the criterion set before the data existed.** The
+script's own pre-registered test was "the fix works if NEW stays near 0.002 while OLD
+climbs". NEW reached 0.0102 — 6x the shipped model's 0.0017 — so it did not stay near
+0.002, and moving that goalpost after the fact would make the test worthless.
+
+What the data does support:
+
+* The OLD corpus rose **39x above baseline in 50 steps and was still accelerating**
+  (+93% over steps 30-40). It is on the trajectory that ended at 0.95.
+* The NEW corpus rose **6x and flattened**: 0.0095 → 0.0092 → 0.0102 across the last 30
+  steps is a plateau, not a climb.
+* `after_tool_call`, the control where stopping is CORRECT, held ≥ 0.9993 on both arms —
+  so neither short run reproduced the *second* half of the failure (sw1 ended at 0.81),
+  and this test is only sensitive to the early-stopping half.
+
+Two readings remain open and 59 steps cannot separate them: the residual is an early-
+training transient that stays bounded near 0.01, or it resumes climbing later. Do not
+claim the first without a longer run. What is settled is the comparison: the pre-fix
+corpus was at 0.0666 and accelerating where the fixed corpus is at 0.0102 and flat.
+
+**Operational consequence:** run every round with `--probe-every 25`. If the residual does
+resume climbing it now surfaces within 25 steps rather than 11 hours, and the per-round
+probes attribute it to a corpus.
