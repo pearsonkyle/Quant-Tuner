@@ -443,3 +443,55 @@ corpus was at 0.0666 and accelerating where the fixed corpus is at 0.0102 and fl
 **Operational consequence:** run every round with `--probe-every 25`. If the residual does
 resume climbing it now surfaces within 25 steps rather than 11 hours, and the per-round
 probes attribute it to a corpus.
+
+## Is the OPTIMIZER the cause? No — and the direction is informative
+
+Adafactor here runs `scale_parameter=False, relative_step=False` with `beta1=None`, i.e.
+"Adam with a rank-1 second moment and NO MOMENTUM". A ternary latent only changes anything
+when it crosses the ternarization threshold, and crossing needs pressure accumulated over
+many steps — so no-momentum training was a plausible reason fine, context-dependent
+structure would fail to form while a coarse always-on signal formed anyway.
+
+Tested with `scripts/verify_optimizer.sh adamw8bit 60`: same corpus, same lr, 8-bit state
+so real per-parameter moments + momentum fit (84.1 GiB peak measured, against
+Adafactor's 70.6; full-precision AdamW would need ~126 GiB and Adafactor+beta1 ~98 GiB,
+both OOM on a 95 GiB card).
+
+| step | adafactor (no momentum) | adamw8bit (β1=0.9) | adafactor `after_tool_call` | adamw8bit |
+|---|---|---|---|---|
+| 10 | 0.0043 | 0.0043 | 0.9998 | 0.9999 |
+| 20 | 0.0053 | 0.0089 | 0.9997 | 0.9980 |
+| 30 | 0.0095 | 0.0318 | 0.9995 | 0.9980 |
+| 40 | 0.0092 | 0.0192 | 0.9998 | 0.9987 |
+| 50 | **0.0102** | **0.0326** | **0.9995** | **0.9985** |
+
+**Momentum makes it worse on both measures** — 3.2x on the diagnostic, and 3x the
+deviation from 1.0 on the control. Adafactor's factored state was not losing anything that
+mattered; its lack of momentum was accidentally protective. Keep `--optim adafactor`.
+
+The direction is the useful part. Momentum accumulates signals that are CONSISTENT across
+batches. Had the stop decision needed fine per-weight discrimination, momentum would have
+helped it; instead momentum amplified the drift. So what is being learned is a coarse
+signal present in nearly every batch, not a subtle one the optimizer failed to resolve.
+
+### Where the diagnosis stands
+
+| candidate | verdict |
+|---|---|
+| `--stop-weight` | ruled out — a 6x change moved the diagnostic by 0.02 |
+| corpus defect | REAL, worth 3-6x on our data, but not sufficient (clean ultrachat drifts to 0.0265 by step 25) |
+| optimizer state / momentum | ruled out — momentum is 3.2x worse |
+
+What all three share is **lr 5e-4 against a ternary weight space**, and that is not a free
+knob: below ~3e-4 the codes do not flip at all (the run drifts fp16 scales, the loss falls
+from 2.26 to ~1.0, and the exported GGUF is the shipped model unchanged). So the choice is
+between two failure modes, not between "works" and "works better".
+
+The 2.5e-4 arm is now a sharper experiment than it was, because flips and termination can
+be read simultaneously — flips at each checkpoint, `sentence_period` every 25 steps:
+
+* **flips ≈ 0, termination stable** → the floor is confirmed, 5e-4 is forced, and the fix
+  has to come from data mix / KD rather than lr.
+* **flips > 0, termination stable** → the window exists; take it.
+* **flips ≈ 0, termination still drifts** → the drift is not code-flip-driven at all, which
+  would point at scale drift and reframe the problem. No previous run could tell this apart.
