@@ -659,3 +659,33 @@ Escalation now running: **alpha 0.75** (KL:CE 3:1), everything else identical
 (`out/exp-058/kd8b-full-a0.75`). If it aborts too: stop-aware KL weighting (the table
 stores every position's teacher P(stop) — weight the KL harder where it is extreme),
 then peak lr 4e-4.
+
+## Alpha is not the lever — and the collapse has a second face
+
+The alpha-0.75 run (`kd8b-full-a0.75`) was stopped by hand at step ~150. Its two series,
+against alpha-0.5 at the same steps:
+
+| step | diag a0.5 | diag a0.75 | ctrl a0.5 | ctrl a0.75 |
+|---|---|---|---|---|
+| 75  | 0.0109 | 0.0111 | 0.9934 | 0.9931 |
+| 100 | 0.0435 | 0.0206 | 0.9500 | 0.9737 |
+| 125 | 0.0973 (abort) | 0.0842 | 0.8952 | 0.9688 |
+| 150 | — | 0.0435 | — | **0.8876** |
+
+Three findings:
+1. **Alpha delays, does not change, the collapse** (~25 steps for +0.25 alpha). Mechanism:
+   the KL's restoring force on the stop logit is `P_s − P_t` — proportional to the drift
+   itself, ~0.01 while the student drifts through 1e-2 against a ~1e-6 teacher. Tripling
+   a vanishing force still vanishes. Same signature as the stop-weight null result.
+2. **The collapse has a second face the diagnostic-only abort cannot see.** At step 150
+   the diagnostic RETREATED below threshold (0.0842 → 0.0435) while the control fell
+   monotonically 0.9998 → 0.8876 — the sft32k loop failure. `--probe-abort-control`
+   (0.95) now guards that direction; both guards ride every run.
+3. The oscillating diagnostic + monotone control decay = the model is losing
+   position-DEPENDENCE of the stop decision, not just moving one number.
+
+Now running: `--stop-anchor 0.2` (margin 1 nat) at alpha 0.5 — a per-position hinge on
+|log P_s(stop) − log P_t(stop)| whose gradient is O(1) in log space at any drift
+magnitude, computed from the forced-stop table inside the existing logit chunks. It
+pushes DOWN at sentence boundaries and UP after tool calls with the same constant force,
+i.e. it targets both faces at once. `out/exp-058/kd8b-full-anchor`.
