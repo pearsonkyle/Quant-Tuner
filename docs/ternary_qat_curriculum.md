@@ -765,3 +765,29 @@ Verdict: the anchor solved the early-stop face completely and improved learning;
 remaining defect is a CONTEXT-DEPENDENT weak tail on the stopping side that grows with
 time at peak lr. Ladder: anchor4 (same config, peak lr 4e-4, running) -> anchor
 prompts (train the failing context family directly) -> gemma pivot.
+
+## The dense control: ternary's lr is past the continuous stability boundary
+
+Question posed: is the ~step-150 control collapse a property of ternary discreteness,
+the objective, or the implementation? The dense control (identical objective — KD +
+one-sided anchor, per-side margins — with every projection trained as an ordinary fp32
+Linear) answered in TEN STEPS at the ternary lr 5e-4: outright divergence (loss 2.16 ->
+8.62, KL -> 7.27, gnorm -> 47). Not a subtle stop-face drift — the whole optimization
+explodes, as plain dense SFT at 25x its normal lr should.
+
+Reading: ternary training NEEDS 5e-4 to cross thresholds, and 5e-4 is far beyond the
+stability boundary of the underlying continuous dynamics. The quantizer acts as a
+low-pass filter — the function only moves at threshold crossings — which is why ternary
+runs are stable for hundreds of steps at an lr that destroys the dense model in ten.
+The recurring ~150-step control collapse is best read as the filtered echo of that same
+instability, leaking through in threshold-crossing waves and surfacing first in the
+least parameter-supported behavior (short-context stopping). This also disposes of the
+kernel/driver hypothesis: the same failure at 5e-4 dense, with no ternary code in the
+loop at all.
+
+Running next: dense control v2 at lr 2e-5 (a stable dense lr) — does the OBJECTIVE
+harm the stopping face at all when dynamics are stable? Then the decision, with the
+new levers this diagnosis suggests for ternary: tighter grad clipping (the control
+waves co-occur with gnorm spikes 2.5-4.8; clip is currently 1.0), the steering loss
+(--steer-weight) giving the fragile class every-step support, and grad-accum > 1 to
+average the too-hot per-step direction.
