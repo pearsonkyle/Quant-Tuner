@@ -247,3 +247,40 @@ def test_latent_lr_mults_track_group_scale():
     # a 10x tensor clamps rather than running away
     named.append(("huge.weight", torch.nn.Parameter(base.clone() * 15.0)))
     assert latent_lr_mults(named)["huge.weight"] <= 2.0
+
+
+def test_probe_abort_patience():
+    """Hysteresis on both abort guards: a reading back inside the band resets the
+    counter (anchor3's abort fired at the trough of an oscillation that had already
+    recovered once), while N consecutive violations still abort."""
+    from quant_tuner.qat.train import probe_abort_check
+
+    def check(probs, strikes):
+        return probe_abort_check(probs, "diag", "ctrl", abort_hi=0.09,
+                                 abort_ctrl_lo=0.95, patience=2, strikes=strikes)
+
+    s = {"diag": 0, "ctrl": 0}
+    # single trough -> warn-only; recovery resets
+    assert check({"diag": 0.0, "ctrl": 0.93}, s) is None and s["ctrl"] == 1
+    assert check({"diag": 0.0, "ctrl": 0.99}, s) is None and s["ctrl"] == 0
+    # two consecutive -> control abort
+    assert check({"diag": 0.0, "ctrl": 0.94}, s) is None
+    assert check({"diag": 0.0, "ctrl": 0.90}, s) == "control"
+    # diagnostic side, monotone collapse aborts one probe late
+    s = {"diag": 0, "ctrl": 0}
+    assert check({"diag": 0.10, "ctrl": 1.0}, s) is None
+    assert check({"diag": 0.15, "ctrl": 1.0}, s) == "diagnostic"
+    # disabled guards never fire, patience 1 = old single-reading behavior
+    s = {"diag": 0, "ctrl": 0}
+    assert probe_abort_check({"diag": 0.5, "ctrl": 0.5}, "diag", "ctrl",
+                             abort_hi=0.0, abort_ctrl_lo=0.0,
+                             patience=2, strikes=s) is None
+    s = {"diag": 0, "ctrl": 0}
+    assert probe_abort_check({"diag": 0.0, "ctrl": 0.90}, "diag", "ctrl",
+                             abort_hi=0.09, abort_ctrl_lo=0.95,
+                             patience=1, strikes=s) == "control"
+    # None probs (probe failure) neither fires nor mutates
+    s = {"diag": 1, "ctrl": 1}
+    assert probe_abort_check(None, "diag", "ctrl", abort_hi=0.09,
+                             abort_ctrl_lo=0.95, patience=2, strikes=s) is None
+    assert s == {"diag": 1, "ctrl": 1}

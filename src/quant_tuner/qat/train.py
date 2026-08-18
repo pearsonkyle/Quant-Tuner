@@ -99,6 +99,9 @@ class QATConfig:
     #: threshold at step 150 while after_tool_call fell 0.9998 -> 0.8876 — the sft32k
     #: loop failure, unguarded.
     probe_abort_control: float = 0.0
+    #: consecutive violating probes required before either abort fires. 2 tolerates the
+    #: trough of a bounded oscillation; a real collapse aborts one probe later.
+    probe_abort_patience: int = 2
     val_corpus: Path | None = None
     val_every: int = 20
     # Termination telemetry cadence. 0 disables. Defaults to the validation cadence
@@ -295,6 +298,35 @@ def latent_lr_mults(
     ref = sorted(scales.values())[len(scales) // 2]
     return {n: (min(max(scales[n] / ref, clamp[0]), clamp[1]) if n in scales else 1.0)
             for n, _ in named_params}
+
+
+def probe_abort_check(probs, diag_key, ctrl_key, *, abort_hi, abort_ctrl_lo,
+                      patience, strikes) -> str | None:
+    """Update strike counters; return "diagnostic"/"control" once patience is exhausted.
+
+    Oscillation-tolerant on purpose: a reading back inside the band RESETS its counter.
+    anchor3's abort fired at the trough of an oscillation that had already recovered
+    once (0.9903 -> 0.9693 -> 0.9886 -> 0.9288) — a single-reading guard cannot tell a
+    bounded oscillation's trough from the start of a collapse, and killing at the
+    trough also hands the export the worst possible checkpoint. Patience N costs one
+    probe interval (~19 min at probe-every 25) on a true monotone collapse — every
+    observed collapse would still have aborted, one probe later.
+    """
+    if probs is None:
+        return None
+    if abort_hi and probs.get(diag_key, 0.0) > abort_hi:
+        strikes["diag"] += 1
+    else:
+        strikes["diag"] = 0
+    if abort_ctrl_lo and probs.get(ctrl_key, 1.0) < abort_ctrl_lo:
+        strikes["ctrl"] += 1
+    else:
+        strikes["ctrl"] = 0
+    if strikes["diag"] >= patience:
+        return "diagnostic"
+    if strikes["ctrl"] >= patience:
+        return "control"
+    return None
 
 
 def lr_at(step, total, base, warmup_frac=0.05):
@@ -1084,6 +1116,7 @@ def train_qat(cfg: QATConfig) -> int:
             print(f"[qat] stop-probe unavailable ({exc}) — continuing without it",
                   flush=True)
     flip_stats: dict = {}
+    abort_strikes = {"diag": 0, "ctrl": 0}
 
     # Machine-readable telemetry. The stdout log is human-facing and has to be re-parsed
     # (scripts/parse_qat_log.py) to plot anything; this is the same numbers, already
@@ -1373,31 +1406,36 @@ def train_qat(cfg: QATConfig) -> int:
                 # the opposite of Qwen's), so read its name off the probe, not a constant.
                 diag = stop_probe.diagnostic
                 ctrl = stop_probe.control
-                if (probs is not None and cfg.probe_abort_control
-                        and probs.get(ctrl, 1.0) < cfg.probe_abort_control):
-                    # The OTHER failure direction: losing the ability to stop where
-                    # stopping is right — the sft32k loop failure. The a0.75 run showed
-                    # the diagnostic can retreat under its threshold while this one
-                    # collapses monotonically (0.9998 -> 0.8876 by step 150), unguarded.
+                fired = probe_abort_check(
+                    probs, diag, ctrl, abort_hi=cfg.probe_abort,
+                    abort_ctrl_lo=cfg.probe_abort_control,
+                    patience=max(1, cfg.probe_abort_patience), strikes=abort_strikes)
+                for side, n in abort_strikes.items():
+                    if fired is None and n > 0:
+                        key, val = (diag, probs.get(diag)) if side == "diag"                             else (ctrl, probs.get(ctrl))
+                        print(f"[qat] step {step} PROBE-WARN: {key}={val:.4f} outside "
+                              f"the abort band (strike {n}/"
+                              f"{max(1, cfg.probe_abort_patience)}) — a second "
+                              f"consecutive violation aborts.", flush=True)
+                if fired == "control":
+                    # Losing the ability to stop where stopping is right — the sft32k
+                    # loop failure (a0.75: control 0.9998 -> 0.8876 while the
+                    # diagnostic sat under its threshold).
                     print(f"[qat] step {step} PROBE-ABORT: {ctrl}="
                           f"{probs[ctrl]:.4f} < --probe-abort-control "
-                          f"{cfg.probe_abort_control} — the model is losing the ability "
-                          f"to STOP where stopping is right (the loop failure); saving "
+                          f"{cfg.probe_abort_control} for {abort_strikes['ctrl']} "
+                          f"consecutive probes — the model is losing the ability to "
+                          f"STOP where stopping is right (the loop failure); saving "
                           f"and stopping.", flush=True)
-                    save_ckpt(step)
-                    if metrics_fh is not None:
-                        metrics_fh.close()
-                    sys.exit(3)
-                if (probs is not None and cfg.probe_abort
-                        and probs.get(diag, 0.0) > cfg.probe_abort):
-                    # Every collapse so far was visible by ~step 50 and monotone from
-                    # there; a full run spends 8+ hours past that point learning nothing
-                    # we will ship. Save what exists and stop while the checkpoint is
-                    # still analyzable.
+                elif fired == "diagnostic":
+                    # Stopping too early — visible by ~step 50 and monotone in every
+                    # observed collapse; a full run spends 8+ hours past this point
+                    # learning nothing we will ship.
                     print(f"[qat] step {step} PROBE-ABORT: {diag}="
-                          f"{probs[diag]:.4f} > --probe-abort "
-                          f"{cfg.probe_abort} — termination is collapsing; saving and "
-                          f"stopping.", flush=True)
+                          f"{probs[diag]:.4f} > --probe-abort {cfg.probe_abort} for "
+                          f"{abort_strikes['diag']} consecutive probes — termination "
+                          f"is collapsing; saving and stopping.", flush=True)
+                if fired is not None:
                     save_ckpt(step)
                     if metrics_fh is not None:
                         metrics_fh.close()
@@ -1467,6 +1505,11 @@ def _build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--stop-anchor-margin-hi", type=float, default=0.1,
                     help="free band in nats at stop-positions (teacher P(stop) > 0.5). "
                          "Tighter on purpose: one nat below 0.99999 is P(stop)=0.37.")
+    ap.add_argument("--probe-abort-patience", type=int, default=2,
+                    help="consecutive violating probes required before either abort "
+                         "fires. 2 tolerates the trough of a bounded oscillation "
+                         "(anchor3 died at one); a real collapse aborts one probe "
+                         "later (~19 min).")
     ap.add_argument("--probe-abort-control", type=float, default=0.0,
                     help="abort (exit 3, checkpoint saved) when the probe CONTROL "
                          "drops below this (0 disables). The other failure direction: "
@@ -1577,6 +1620,7 @@ def main(argv: list[str] | None = None) -> int:
         val_every=args.val_every, val_windows=args.val_windows,
         probe_every=args.probe_every, probe_abort=args.probe_abort,
         probe_abort_control=args.probe_abort_control,
+        probe_abort_patience=args.probe_abort_patience,
         lr_scale=args.lr_scale,
         train_norms=args.train_norms, resume=args.resume,
         flip_sample=args.flip_sample, ckpt_every=args.ckpt_every,
