@@ -230,3 +230,10 @@ def test_parse_reads_the_kd_step_line():
     assert [r["step"] for r in rows] == [10, 15]
     assert rows[0]["kd_kl"] == 0.5535 and rows[0]["loss"] == 0.8744
     assert rows[1]["kd_kl"] is None          # non-KD line still parses, kl empty
+
+
+def test_parse_reads_the_stop_anchor_step_line():
+    rows = parse(
+        "[qat] step 10/613 loss=0.8744 kl=0.5535 an=0.0121 lr=1.67e-04 gnorm=1.42 "
+        "mem=31.6/70.6GiB 45.9s/step\n")["steps"]
+    assert rows[0]["kd_kl"] == 0.5535 and rows[0]["stop_anchor"] == 0.0121

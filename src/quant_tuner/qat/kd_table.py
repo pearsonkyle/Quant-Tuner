@@ -116,3 +116,21 @@ class KDTable:
         return (f"KDTable(teacher={self.teacher!r}, topk={self.topk}, "
                 f"positions={self.n_positions:,}, windows={self.n_windows}, "
                 f"coverage={self.coverage():.3f})")
+
+
+def stop_logp_of(win: KDWindow, stop_id: int) -> torch.Tensor:
+    """Per-position teacher log P(stop) from a window's support rows — [K_pos] fp32.
+
+    Requires a table built with ``--include-ids <stop_id>`` (the forced-stop table):
+    only there is the stop token guaranteed a support slot in EVERY row. On a plain
+    top-K table ~98% of rows lack it, and there is no per-position teacher P(stop) to
+    anchor to — refuse loudly rather than anchoring the found 2%.
+    """
+    hit = win.idx == stop_id
+    per_row = hit.sum(-1)
+    if not bool((per_row == 1).all()):
+        missing = int((per_row == 0).sum())
+        raise ValueError(
+            f"{missing} of {len(win)} support rows lack the stop id {stop_id} — the "
+            f"stop anchor needs a table built with --include-ids {stop_id}.")
+    return win.logp.float()[hit]

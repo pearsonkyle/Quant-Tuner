@@ -242,10 +242,10 @@ def test_masked_forward_kd_chunked_equals_unchunked():
     lbl[:, :12] = -100                       # 27 supervised targets after the shift
     kd, _ = _kd_window_for(m, ids, lbl)
 
-    ce_w, _, _, kl_w = masked_forward(m, ids, lbl, need_logits=False,
-                                      logit_chunk=10_000, kd=kd)
-    ce_c, _, _, kl_c = masked_forward(m, ids, lbl, need_logits=False,
-                                      logit_chunk=7, kd=kd)   # 27 % 7 != 0 on purpose
+    ce_w, _, _, kl_w, _ = masked_forward(m, ids, lbl, need_logits=False,
+                                         logit_chunk=10_000, kd=kd)
+    ce_c, _, _, kl_c, _ = masked_forward(m, ids, lbl, need_logits=False,
+                                         logit_chunk=7, kd=kd)   # 27 % 7 != 0 on purpose
     torch.testing.assert_close(ce_c, ce_w, rtol=1e-5, atol=1e-6)
     torch.testing.assert_close(kl_c, kl_w, rtol=1e-4, atol=1e-6)
 
@@ -259,7 +259,7 @@ def test_masked_forward_kd_against_itself_is_near_zero():
     lbl = ids.clone()
     lbl[:, :12] = -100
     kd, _ = _kd_window_for(m, ids, lbl)
-    _, _, _, kl = masked_forward(m, ids, lbl, need_logits=False, logit_chunk=7, kd=kd)
+    _, _, _, kl, _ = masked_forward(m, ids, lbl, need_logits=False, logit_chunk=7, kd=kd)
     kl_v = float(kl.detach())
     assert kl_v < 1e-3, f"KL against itself should vanish, got {kl_v}"
 
@@ -303,7 +303,7 @@ def test_kd_rows_follow_prefix_filtering():
     assert 0 < n_tail < len(kd)              # the prefix must actually drop some rows
     out = masked_forward(m, ids, lbl, need_logits=False, logit_chunk=7,
                          n_prefix=n_prefix, kd=kd)
-    assert len(out) == 4 and torch.isfinite(out[3])
+    assert len(out) == 5 and torch.isfinite(out[3])
 
 
 def test_kd_gradients_flow_to_the_student():
@@ -316,7 +316,79 @@ def test_kd_gradients_flow_to_the_student():
     # perturb so the KL is non-zero and has a gradient
     with torch.no_grad():
         m.lm_head.weight.mul_(1.4)
-    _, _, _, kl = masked_forward(m, ids, lbl, need_logits=False, logit_chunk=6, kd=kd)
+    _, _, _, kl, _ = masked_forward(m, ids, lbl, need_logits=False, logit_chunk=6, kd=kd)
     kl.backward()
     g = m.lm_head.weight.grad
     assert g is not None and torch.isfinite(g).all() and g.abs().sum() > 0
+
+
+# ----------------------------------------------------------------- the stop anchor
+def test_stop_logp_of_extracts_and_refuses_plain_tables():
+    from quant_tuner.qat.kd_table import stop_logp_of
+    p = _payload(n_win=1, per_win=4, topk=5, vocab=50)
+    t = KDTable(p)
+    w = t.for_window(0, torch.tensor([0, 2, 4, 6]))
+    sid = int(w.idx[0, 2])                       # present in row 0, not guaranteed in all
+    if bool((w.idx == sid).any(-1).all()):       # rare; force absence in one row
+        w.idx[1] = torch.arange(5, dtype=torch.int32) + 40
+    with pytest.raises(ValueError, match="lack the stop id"):
+        stop_logp_of(w, sid)
+    # forced table: put sid in every row's last slot
+    w.idx[:, -1] = sid
+    w.idx[:, :-1][w.idx[:, :-1] == sid] = 39     # keep exactly one hit per row
+    got = stop_logp_of(w, sid)
+    torch.testing.assert_close(got, w.logp.float()[w.idx == sid])
+
+
+def test_stop_anchor_zero_within_margin_and_active_beyond():
+    """Teacher == student ⇒ gap 0 ⇒ anchor 0. Shift the teacher's stop logp by 0.5
+    (inside the 1-nat margin) ⇒ still 0. Shift by 3 ⇒ ~2 per position."""
+    from quant_tuner.qat.train import masked_forward
+    m = _tiny()
+    ids = torch.randint(0, 128, (1, 40))
+    lbl = ids.clone()
+    lbl[:, :12] = -100
+    kd, keep = _kd_window_for(m, ids, lbl, topk=8)
+    sid = 5
+    kd.idx[:, -1] = sid                           # force the "stop" id into support
+    with torch.no_grad():
+        h = m.model(input_ids=ids).last_hidden_state[:, keep, :]
+        s_stop = torch.log_softmax(m.lm_head(h)[0].float(), -1)[:, sid]
+    for shift, expect in ((0.0, 0.0), (0.5, 0.0), (3.0, 2.0)):
+        _, _, _, _, an = masked_forward(
+            m, ids, lbl, need_logits=False, logit_chunk=7, kd=kd,
+            stop_anchor=(sid, s_stop + shift, 1.0))
+        assert an is not None
+        assert float(an) == pytest.approx(expect, abs=0.05), (shift, float(an))
+
+
+def test_stop_anchor_chunked_matches_unchunked_and_flows_gradient():
+    from quant_tuner.qat.train import masked_forward
+    m = _tiny()
+    ids = torch.randint(0, 128, (1, 40))
+    lbl = ids.clone()
+    lbl[:, :12] = -100
+    kd, keep = _kd_window_for(m, ids, lbl, topk=8)
+    sid = 9
+    kd.idx[:, -1] = sid
+    t_stop = torch.full((int((lbl[:, 1:][0] != -100).sum()),), -8.0)
+    _, _, _, _, a_c = masked_forward(m, ids, lbl, need_logits=False, logit_chunk=7,
+                                     kd=kd, stop_anchor=(sid, t_stop, 1.0))
+    _, _, _, _, a_w = masked_forward(m, ids, lbl, need_logits=False, logit_chunk=10_000,
+                                     kd=kd, stop_anchor=(sid, t_stop, 1.0))
+    torch.testing.assert_close(a_c, a_w, rtol=1e-4, atol=1e-6)
+    a_c.backward()
+    g = m.lm_head.weight.grad
+    assert g is not None and torch.isfinite(g).all() and g.abs().sum() > 0
+
+
+def test_stop_anchor_row_count_mismatch_raises():
+    from quant_tuner.qat.train import masked_forward
+    m = _tiny()
+    ids = torch.randint(0, 128, (1, 40))
+    lbl = ids.clone()
+    lbl[:, :12] = -100
+    kd, _ = _kd_window_for(m, ids, lbl)
+    with pytest.raises(ValueError, match="anchor has"):
+        masked_forward(m, ids, lbl, need_logits=False, logit_chunk=7, kd=kd,
+                       stop_anchor=(3, torch.zeros(5), 1.0))
