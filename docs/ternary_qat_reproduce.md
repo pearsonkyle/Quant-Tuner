@@ -376,3 +376,27 @@ record is extracted: train.log + metrics.jsonl in place, telemetry parsed
 (`parse_qat_log.py`), the final census taken if the report wants a distribution-shift
 column, and the exported GGUF kept if one was benchmarked. Then `rm` every
 `trained_latents*.pt` in the run dir. Measured 2026-08-18: four dead runs held 207 GB.
+
+## 10. The anchor ladder — reproducing the full-schedule runs
+
+Every full-schedule KD run is one invocation of `scripts/run_kd_anchor_qat.sh` (dual
+probe guards on, so a collapsing config self-terminates in ~2 h with a checkpoint):
+
+```bash
+TAG=a05      BETA=0 ALPHA=0.5              bash scripts/run_kd_anchor_qat.sh  # abort @125
+TAG=a075     BETA=0 ALPHA=0.75             bash scripts/run_kd_anchor_qat.sh  # stop  @150
+# (the symmetric-L1 and single-margin variants are code states, not flags: commits
+#  c8d407d and aa74309 — margins landed in 4933a1d)
+TAG=anchor3                                bash scripts/run_kd_anchor_qat.sh  # abort @175
+TAG=anchor4 LR=4e-4                        bash scripts/run_kd_anchor_qat.sh
+```
+
+Then the evaluation chain for any tagged checkpoint:
+
+```bash
+bash scripts/run_kd_export_bench.sh anchor3
+```
+
+which runs export -> GGUF stop probe -> `measure_indist_stop.py` (real corpus stop
+positions; this is what exposed the bimodal weak tail the probe medians hide) -> the
+Docker-free SWE mimic, and prunes the ~50 GB of export intermediates.
