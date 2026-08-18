@@ -217,3 +217,16 @@ def test_arch_card_survives_no_network(monkeypatch):
     monkeypatch.setattr("urllib.request.urlopen", boom)
     out = qat_report.arch_card("prism-ml/Whatever")
     assert "<img" in out  # degrades to the live embed rather than raising
+
+
+def test_parse_reads_the_kd_step_line():
+    """KD runs insert `kl=` between loss and lr; the pre-KD regex silently parsed ZERO
+    steps from such a log (bit the kd8b-full report on 2026-08-18)."""
+    rows = parse(
+        "[qat] step 10/613 loss=0.8744 kl=0.5535 lr=1.67e-04 gnorm=1.42 "
+        "mem=31.6/70.6GiB 45.9s/step\n"
+        "[qat] step 15/613 loss=0.8306 lr=4.53e-04 gnorm=1.00 mem=31.6GiB 46.2s/step\n"
+    )["steps"]
+    assert [r["step"] for r in rows] == [10, 15]
+    assert rows[0]["kd_kl"] == 0.5535 and rows[0]["loss"] == 0.8744
+    assert rows[1]["kd_kl"] is None          # non-KD line still parses, kl empty

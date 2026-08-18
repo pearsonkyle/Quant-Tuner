@@ -26,10 +26,12 @@ from pathlib import Path
 # because the trainer gained a field:
 #   MPS:  "[qat] step 155/522 loss=1.2212 lr=4.30e-04 mem=30.8GiB 372.0s/step"
 #   CUDA: "[qat] step 5/613 loss=1.0837 lr=6.67e-05 gnorm=1.51 mem=31.6/70.6GiB 62.7s/step"
-# gnorm and the /peak half of mem are optional; without them the columns come out empty
-# rather than the row failing to parse at all.
+#   KD:   "[qat] step 10/613 loss=0.8744 kl=0.5535 lr=1.67e-04 gnorm=1.42 ..."
+# kl, gnorm and the /peak half of mem are optional; without them the columns come out
+# empty rather than the row failing to parse at all.
 STEP_RE = re.compile(
     r"^\[qat\] step (?P<step>\d+)/(?P<total>\d+) loss=(?P<loss>[\d.]+) "
+    r"(?:kl=(?P<kl>[\d.eE+-]+) )?"
     r"lr=(?P<lr>[\d.eE+-]+) (?:gnorm=(?P<gnorm>[\d.eE+-]+) )?"
     r"mem=(?P<mem>[\d.]+)(?:/(?P<peak>[\d.]+))?GiB (?P<sps>[\d.]+)s/step"
 )
@@ -68,6 +70,7 @@ def parse(text: str) -> dict[str, list[dict]]:
                 "step": last_step,
                 "total_steps": int(m.group("total")),
                 "loss": float(m.group("loss")),
+                "kd_kl": float(m.group("kl")) if m.group("kl") else None,
                 "lr": float(m.group("lr")),
                 "grad_norm": float(m.group("gnorm")) if m.group("gnorm") else None,
                 "mem_gib": float(m.group("mem")),
