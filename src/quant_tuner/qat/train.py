@@ -89,8 +89,11 @@ class QATConfig:
     #: The KL's restoring force on the stop logit is P_s−P_t — proportional to the drift,
     #: so α-insensitive at small P; this hinge is O(1) in log space at any magnitude.
     stop_anchor: float = 0.0
-    #: free band (nats) around the teacher's log P(stop) before the hinge engages.
+    #: free band (nats) below/above the teacher's log P(stop) at CONTINUE-positions.
     stop_anchor_margin: float = 1.0
+    #: free band (nats) at STOP-positions — much tighter, because a nat below
+    #: P(stop)=0.99999 is P(stop)=0.37. 0.1 nat allows sag to ~0.905.
+    stop_anchor_margin_hi: float = 0.1
     #: abort when the probe's CONTROL falls below this (0 disables). The diagnostic-only
     #: abort missed the a0.75 run's real failure: sentence_period retreated under the
     #: threshold at step 150 while after_tool_call fell 0.9998 -> 0.8876 — the sft32k
@@ -510,9 +513,15 @@ def masked_forward(model, ids: torch.Tensor, lbl: torch.Tensor, *,
         teacher stops — and exerts zero force once the student is on the safe side, so
         the 176:1 imbalance has nothing to push with.
         """
-        sid, _, margin = stop_anchor
+        sid, _, margin_lo, margin_hi = stop_anchor
         s_stop = lg[:, sid] - torch.logsumexp(lg, dim=-1)
-        direction = torch.where(t_stop > LOG_HALF, -1.0, 1.0)
+        is_stop_pos = t_stop > LOG_HALF
+        direction = torch.where(is_stop_pos, -1.0, 1.0)
+        # A nat of slack means different things on the two sides: at continue-positions
+        # it is 1e-6 -> 2.7e-6 (harmless); at stop-positions it is P(stop) 0.99999 ->
+        # 0.37 — the control can collapse to uselessness without the hinge ever
+        # engaging (measured: an=0.009 while the probe control fell 1.0000 -> 0.9753).
+        margin = torch.where(is_stop_pos, margin_hi, margin_lo)
         return (direction * (s_stop - t_stop) - margin).clamp_min(0.0).sum()
 
     if need_logits or (logit_chunk >= K and kd is None):
@@ -1057,7 +1066,8 @@ def train_qat(cfg: QATConfig) -> int:
         stop_logp_of(kd_table.for_window(
             0, kd_table._pos[kd_table._lo[0]:kd_table._hi[0]]), stop_anchor_id)
         print(f"[qat] stop anchor beta={cfg.stop_anchor} margin="
-              f"{cfg.stop_anchor_margin} nats on token {stop_anchor_id} — O(1) log-space "
+              f"{cfg.stop_anchor_margin}/{cfg.stop_anchor_margin_hi} nats "
+              f"(continue/stop positions) on token {stop_anchor_id} — O(1) log-space "
               f"restoring force (the KL's is P_s−P_t, vanishing exactly when needed)",
               flush=True)
 
@@ -1236,7 +1246,7 @@ def train_qat(cfg: QATConfig) -> int:
             anchor_arg = None
             if kd_win is not None and cfg.stop_anchor > 0:
                 anchor_arg = (stop_anchor_id, stop_logp_of(kd_win, stop_anchor_id),
-                              cfg.stop_anchor_margin)
+                              cfg.stop_anchor_margin, cfg.stop_anchor_margin_hi)
             # NOT `out` — that is the run directory in this scope, and shadowing it
             # made save_ckpt do `tuple / str` four tests later.
             fwd = masked_forward(model, ids, lbl,
@@ -1453,7 +1463,10 @@ def _build_parser() -> argparse.ArgumentParser:
                          "O(1) restoring force in log space where the KL's vanishes with "
                          "the drift. Needs a forced-stop --kd-table (--include-ids).")
     ap.add_argument("--stop-anchor-margin", type=float, default=1.0,
-                    help="free band in nats around the teacher's log P(stop)")
+                    help="free band in nats at continue-positions")
+    ap.add_argument("--stop-anchor-margin-hi", type=float, default=0.1,
+                    help="free band in nats at stop-positions (teacher P(stop) > 0.5). "
+                         "Tighter on purpose: one nat below 0.99999 is P(stop)=0.37.")
     ap.add_argument("--probe-abort-control", type=float, default=0.0,
                     help="abort (exit 3, checkpoint saved) when the probe CONTROL "
                          "drops below this (0 disables). The other failure direction: "
@@ -1559,6 +1572,7 @@ def main(argv: list[str] | None = None) -> int:
         kd_table=args.kd_table,
         kd_alpha=args.kd_alpha, kd_temp=args.kd_temp,
         stop_anchor=args.stop_anchor, stop_anchor_margin=args.stop_anchor_margin,
+        stop_anchor_margin_hi=args.stop_anchor_margin_hi,
         val_corpus=args.val_corpus,
         val_every=args.val_every, val_windows=args.val_windows,
         probe_every=args.probe_every, probe_abort=args.probe_abort,

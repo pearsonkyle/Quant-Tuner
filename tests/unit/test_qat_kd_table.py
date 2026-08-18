@@ -368,13 +368,13 @@ def test_stop_anchor_is_one_sided_per_position_type():
     for t_stop, expect in cases:
         _, _, _, _, an = masked_forward(
             m, ids, lbl, need_logits=False, logit_chunk=7, kd=kd,
-            stop_anchor=(sid, t_stop, 1.0))
+            stop_anchor=(sid, t_stop, 1.0, 0.1))
         assert float(an) == pytest.approx(expect, abs=0.05), float(an)
     # stop-positions (teacher P(stop) > 0.5): only stopping LESS is penalized.
     t_hi = torch.full_like(s_stop, -0.05)         # teacher ~0.95 -> stop-position
     _, _, _, _, an = masked_forward(m, ids, lbl, need_logits=False, logit_chunk=7,
-                                    kd=kd, stop_anchor=(sid, t_hi, 1.0))
-    gap = float((-(s_stop - t_hi) - 1.0).clamp_min(0).mean())   # student far below
+                                    kd=kd, stop_anchor=(sid, t_hi, 1.0, 0.1))
+    gap = float((-(s_stop - t_hi) - 0.1).clamp_min(0).mean())   # student far below
     assert float(an) == pytest.approx(gap, abs=0.05)
 
 
@@ -389,9 +389,9 @@ def test_stop_anchor_chunked_matches_unchunked_and_flows_gradient():
     kd.idx[:, -1] = sid
     t_stop = torch.full((int((lbl[:, 1:][0] != -100).sum()),), -8.0)
     _, _, _, _, a_c = masked_forward(m, ids, lbl, need_logits=False, logit_chunk=7,
-                                     kd=kd, stop_anchor=(sid, t_stop, 1.0))
+                                     kd=kd, stop_anchor=(sid, t_stop, 1.0, 0.1))
     _, _, _, _, a_w = masked_forward(m, ids, lbl, need_logits=False, logit_chunk=10_000,
-                                     kd=kd, stop_anchor=(sid, t_stop, 1.0))
+                                     kd=kd, stop_anchor=(sid, t_stop, 1.0, 0.1))
     torch.testing.assert_close(a_c, a_w, rtol=1e-4, atol=1e-6)
     a_c.backward()
     g = m.lm_head.weight.grad
@@ -407,4 +407,4 @@ def test_stop_anchor_row_count_mismatch_raises():
     kd, _ = _kd_window_for(m, ids, lbl)
     with pytest.raises(ValueError, match="anchor has"):
         masked_forward(m, ids, lbl, need_logits=False, logit_chunk=7, kd=kd,
-                       stop_anchor=(3, torch.zeros(5), 1.0))
+                       stop_anchor=(3, torch.zeros(5), 1.0, 0.1))
