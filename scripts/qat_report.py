@@ -205,6 +205,39 @@ def fig_loss_lr(steps, vals, W, H, PAD):
     return p1.svg() + p2.svg() + legend([("train", LOSS), ("val", VAL)])
 
 
+def fig_kd_kl(steps, alpha, W, H, PAD):
+    """KL(teacher‖student) over training — the teacher-tracking signal KD adds.
+
+    Falling KL = the student's distribution is moving toward the teacher's. This is the
+    quantity CE cannot express: CE sees one target per position, the KL the whole shape,
+    and the shape is what pins the termination policy. With ``alpha`` given, the CE
+    component is derived from the logged total — CE = (loss − α·KL)/(1 − α), exact at
+    T=1 — so both terms read on one axis without a second log pass.
+    """
+    rows = [r for r in steps if r.get("kd_kl") is not None]
+    xs = [r["step"] for r in rows]
+    xlim = (min(xs), max(xs)) if len(xs) > 1 else (min(xs), min(xs) + 1)
+    kl = [(r["step"], r["kd_kl"]) for r in rows]
+    ce = []
+    if alpha is not None and 0.0 < alpha < 1.0:
+        ce = [(r["step"], (r["loss"] - alpha * r["kd_kl"]) / (1.0 - alpha))
+              for r in rows]
+    ymax = max([v for _, v in kl] + [v for _, v in ce] + [0.1]) * 1.15
+    p = Panel(W, H, PAD, xlim, (0, ymax), xlabel="training step", ylabel="nats",
+              xticks=nice_ticks(*xlim), yfmt="{:.2f}")
+    p.line(kl, "#0072b2", 2.2, 1.0, "KL(teacher‖student)")
+    p.dots([kl[-1]], "#0072b2", 3,
+           lambda x, y: f"step {x:g}: KL {y:.4f}")
+    if ce:
+        p.line(ce, "#e69f00", 1.6, 0.85, "CE (derived)")
+    p.note(kl[-1][0], min(kl[-1][1] * 0.85, ymax * 0.9),
+           f"KL {kl[0][1]:.3f} → {kl[-1][1]:.3f}", "end", INK)
+    items = [("KL(teacher‖student)", "#0072b2")]
+    if ce:
+        items.append(("CE (derived)", "#e69f00"))
+    return p.svg() + legend(items)
+
+
 # Okabe-Ito, distinguishable in both common colour-vision deficiencies. The diagnostic and
 # the control get the two strongest hues because they are the two lines a reader must
 # separate at a glance; the other three are context.
@@ -513,13 +546,16 @@ def main() -> int:
                          "'- ' a bullet, blank lines separate paragraphs")
     ap.add_argument("--window", type=int, default=8064)
     ap.add_argument("--grad-accum", type=int, default=4)
+    ap.add_argument("--kd-alpha", type=float, default=None,
+                    help="the run's KD mixing weight; lets the KD panel derive the CE "
+                         "component from the logged total (exact at T=1)")
     ap.add_argument("--title", default="QAT training dynamics")
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
 
     t = args.telemetry
-    steps = read(t / "steps.csv", {"step": int, "loss": float, "lr": float,
-                                   "mem_gib": float, "s_per_step": float})
+    steps = read(t / "steps.csv", {"step": int, "loss": float, "kd_kl": float,
+                                   "lr": float, "mem_gib": float, "s_per_step": float})
     vals = read(t / "val.csv", {"step": int, "val_masked_ce": float})
     probes = read(t / "stopprobe.csv",
                   {"step": int, **{k: float for k in PROBE_COLORS}})
@@ -558,6 +594,14 @@ def main() -> int:
          "Is the schedule healthy? Stacked panels, shared x — not a dual axis.",
          fig_loss_lr(steps, vals, W, H, PAD)),
     ]
+    if any(r.get("kd_kl") is not None for r in steps):
+        figs += [
+            ("Distillation: KL to the teacher",
+             "The teacher-tracking signal offline KD adds. Falling KL = the student's "
+             "distribution moving toward the teacher's — the SHAPE constraint that pins "
+             "the termination policy, which one-target-per-position CE cannot express.",
+             fig_kd_kl(steps, args.kd_alpha, W, H, PAD)),
+        ]
     if probes:
         figs += [
             ("Termination policy over training",
@@ -928,6 +972,10 @@ def headline(steps, vals, flips, traj, hrs, tps) -> str:
     cells: list[tuple[str, str]] = []
     last = steps[-1]
     cells.append((f"{last['loss']:.3f}", "train loss"))
+    klrows = [r for r in steps if r.get("kd_kl") is not None]
+    if klrows:
+        cells.append((f"{klrows[-1]['kd_kl']:.3f}",
+                      f"KL to teacher (start {klrows[0]['kd_kl']:.3f})"))
     if vals:
         best = min(vals, key=lambda v: v["val_masked_ce"])
         cells.append((f"{vals[-1]['val_masked_ce']:.3f}",

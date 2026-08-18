@@ -32,6 +32,16 @@ refresh() {
     if [ -f "$TEL/census_latest.csv" ] && [ -f "$TEL/census_latest.step" ]; then
         extra=(--latest "$TEL/census_latest.csv" --latest-step "$(cat "$TEL/census_latest.step")")
     fi
+    local mc ka
+    mc=$($PY -c "import json;print(json.load(open('$RUN/run_config.json'))['model_dir'])" \
+        2>/dev/null || true)
+    [ -n "${mc:-}" ] && [ -f "$mc/config.json" ] && extra+=(--model-config "$mc/config.json")
+    # KD runs: pass alpha so the KL panel can derive the CE component (exact at T=1)
+    ka=$($PY -c "import json;c=json.load(open('$RUN/run_config.json'));\
+print(c['kd_alpha'] if c.get('kd_table') else '')" 2>/dev/null || true)
+    [ -n "${ka:-}" ] && extra+=(--kd-alpha "$ka")
+    # Run-specific findings live beside the run, not in this script
+    [ -f "$RUN/notes.md" ] && extra+=(--notes "$RUN/notes.md")
     $PY scripts/qat_report.py --telemetry "$TEL" --census "$CENSUS" \
         --window "$w" --grad-accum "$ga" --title "$TITLE" \
         "${extra[@]}" --out "$RUN/report.html" >/dev/null \
