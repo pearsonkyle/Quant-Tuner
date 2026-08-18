@@ -634,3 +634,28 @@ Full run launched with: forced-stop table + tail-bucket KL (alpha 0.5, T 1.0) +
 Output: `out/exp-058/kd8b-full/`. The open question a 59-step arm cannot answer — does it
 still LEARN at full depth (4.22% flips over 613 steps on the CE-only reference) — is what
 the full run measures, followed by Q2_0 export, the GGUF probe, and SWE-rebench.
+
+## The sustained-lr regime: what the smoke ladder could not see
+
+The alpha-0.5 full run aborted at step 125 (diagnostic 0.0973, the pre-set threshold).
+Two structural findings:
+
+1. **A 59-step arm validates a config under a DECAYING lr, not the full run's.** The
+   arms complete their whole cosine inside 59 steps — most of their life is below
+   3e-4 — while the full 613-step schedule holds ~5e-4 for hundreds of steps. Under
+   sustained peak lr the alpha-0.5 KL only *slowed* the collapse: diagnostic tripling
+   per 25 steps (0.0020 → 0.0973), control 0.9998 → 0.8952. Both failure directions at
+   once, i.e. position-dependence itself eroding.
+2. **The probe-abort guard replaces the smoke protocol for full-schedule questions.**
+   No short arm can reproduce sustained peak lr; the abort makes the full run its own
+   gate — failure costs ~2 h and a saved checkpoint, survival is the finished artifact.
+
+The trade is now measured on one run: at abort, learning was ON the CE-only reference's
+pace (mean tracked flips ~0.084% at step 100; lr-scale redistribution holding — v_proj
+0.049%, gate 0.105%) while termination drifted unbounded. KD at alpha 0.5 changes the
+collapse's *rate*, not its boundedness, once lr stays at peak.
+
+Escalation now running: **alpha 0.75** (KL:CE 3:1), everything else identical
+(`out/exp-058/kd8b-full-a0.75`). If it aborts too: stop-aware KL weighting (the table
+stores every position's teacher P(stop) — weight the KL harder where it is extreme),
+then peak lr 4e-4.
