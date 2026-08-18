@@ -53,6 +53,7 @@ from quant_tuner.qat.corpus import corpus_fingerprint
 from quant_tuner.qat.kd_precompute import kd_loss_from_topk
 from quant_tuner.qat.kd_table import KDTable, stop_logp_of
 from quant_tuner.qat.master_opt import MasterOptimizer
+from quant_tuner.qat.steer import SteerBatch, steering_loss
 from quant_tuner.qat.stop_probe import StopProbe
 from quant_tuner.qat.stop_probe import format_line as stop_probe_fmt
 from quant_tuner.qat.ternary import TernaryLinear, ternarize_group
@@ -102,6 +103,13 @@ class QATConfig:
     #: consecutive violating probes required before either abort fires. 2 tolerates the
     #: trough of a bounded oscillation; a real collapse aborts one probe later.
     probe_abort_patience: int = 2
+    #: weight of the termination-steering loss (0 = off): an auxiliary batch of short
+    #: probe-FAMILY contexts forwarded every step — CE toward stop after tool calls,
+    #: one-sided hinge on log P(stop) at sentence positions. The probe itself stays
+    #: held out. See qat/steer.py.
+    steer_weight: float = 0.0
+    steer_n: int = 8
+    steer_seed: int = 11
     val_corpus: Path | None = None
     val_every: int = 20
     # Termination telemetry cadence. 0 disables. Defaults to the validation cadence
@@ -1115,6 +1123,17 @@ def train_qat(cfg: QATConfig) -> int:
         except Exception as exc:
             print(f"[qat] stop-probe unavailable ({exc}) — continuing without it",
                   flush=True)
+    steer_batch = None
+    if cfg.steer_weight > 0:
+        from transformers import AutoTokenizer as _AT
+        _stok = _AT.from_pretrained(str(cfg.model_dir))
+        steer_batch = SteerBatch.build(_stok, n=cfg.steer_n,
+                                       seed=cfg.steer_seed).to(dev)
+        print(f"[qat] steering: {cfg.steer_n} probe-family contexts every step, "
+              f"weight {cfg.steer_weight} (CE->stop on control rows, hinge above "
+              f"{steer_batch.cap_logp:.2f} logp on diagnostic rows; probe held out)",
+              flush=True)
+
     flip_stats: dict = {}
     abort_strikes = {"diag": 0, "ctrl": 0}
 
@@ -1251,6 +1270,7 @@ def train_qat(cfg: QATConfig) -> int:
     src_loss: dict[str, list[float]] = {}
     kl_acc: list[float] = []          # KD KL over the current accum group
     an_acc: list[float] = []          # stop-anchor penalty over the current accum group
+    st_acc: list[float] = []          # steering loss over the current accum group
     opt.zero_grad()
     while step < total_steps and not stop["f"]:
         w = order[mi % n_win].item()
@@ -1302,6 +1322,10 @@ def train_qat(cfg: QATConfig) -> int:
                     loss = (1 - cfg.kd_alpha) * ce + cfg.kd_alpha * (cfg.kd_temp ** 2) * kl
                 else:
                     loss = ce
+            if steer_batch is not None:
+                st_loss, _st_m = steering_loss(model, steer_batch)
+                loss = loss + cfg.steer_weight * st_loss
+                st_acc.append(float(st_loss.detach()))
             lv = float(loss.detach())
             if not math.isfinite(lv):
                 # skip BEFORE backward: the accumulated group stays valid, n_acc unchanged
@@ -1344,6 +1368,7 @@ def train_qat(cfg: QATConfig) -> int:
                 emit("step", step=step, total_steps=total_steps, loss=avg,
                      kd_kl=(sum(kl_acc) / len(kl_acc)) if kl_acc else None,
                      stop_anchor=(sum(an_acc) / len(an_acc)) if an_acc else None,
+                     steer=(sum(st_acc) / len(st_acc)) if st_acc else None,
                      lr=cur_lr, grad_norm=grad_norm,
                      grad_median=guard.last_median, n_skipped=guard.n_skipped, mem_gib=mem,
                      mem_peak_gib=mem_peak, device=backend.name,
@@ -1354,9 +1379,12 @@ def train_qat(cfg: QATConfig) -> int:
                 kl_str = f" kl={sum(kl_acc)/len(kl_acc):.4f}" if kl_acc else ""
                 if an_acc:
                     kl_str += f" an={sum(an_acc)/len(an_acc):.4f}"
+                if st_acc:
+                    kl_str += f" st={sum(st_acc)/len(st_acc):.4f}"
                 src_loss.clear()
                 kl_acc.clear()
                 an_acc.clear()
+                st_acc.clear()
                 print(f"[qat] step {step}/{total_steps} loss={avg:.4f}{kl_str} "
                       f"lr={cur_lr:.2e} "
                       # pre-clip; a divergence shows up here BEFORE the loss reacts
@@ -1505,6 +1533,13 @@ def _build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--stop-anchor-margin-hi", type=float, default=0.1,
                     help="free band in nats at stop-positions (teacher P(stop) > 0.5). "
                          "Tighter on purpose: one nat below 0.99999 is P(stop)=0.37.")
+    ap.add_argument("--steer-weight", type=float, default=0.0,
+                    help="termination-steering loss weight (0 = off): an auxiliary "
+                         "batch of short probe-FAMILY contexts every step — CE toward "
+                         "stop after tool calls, one-sided hinge at sentence "
+                         "positions. The probe itself stays held out.")
+    ap.add_argument("--steer-n", type=int, default=8)
+    ap.add_argument("--steer-seed", type=int, default=11)
     ap.add_argument("--probe-abort-patience", type=int, default=2,
                     help="consecutive violating probes required before either abort "
                          "fires. 2 tolerates the trough of a bounded oscillation "
@@ -1621,6 +1656,8 @@ def main(argv: list[str] | None = None) -> int:
         probe_every=args.probe_every, probe_abort=args.probe_abort,
         probe_abort_control=args.probe_abort_control,
         probe_abort_patience=args.probe_abort_patience,
+        steer_weight=args.steer_weight, steer_n=args.steer_n,
+        steer_seed=args.steer_seed,
         lr_scale=args.lr_scale,
         train_norms=args.train_norms, resume=args.resume,
         flip_sample=args.flip_sample, ckpt_every=args.ckpt_every,
