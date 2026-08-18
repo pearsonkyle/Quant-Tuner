@@ -8,6 +8,10 @@ for the round-trip generation, while the card was busy with the Qwen KD chain. C
 Scripts: `scripts/gemma4_ternary_damage.py` (weight-space), `scripts/gemma4_layer_damage.py`
 (output-space), `scripts/measure_stop_baseline.py` (termination baseline). All CPU-only.
 
+**Runbook: `docs/gemma4_ternary_reproduce.md`** — every command, in order, with the check
+that must pass at each step. The measurement outputs behind every table below are tracked
+under `docs/gemma4_ternary/` (the `out/` tree is gitignored, so those files are the record).
+
 ---
 
 ## Summary — the three findings that should shape the plan
