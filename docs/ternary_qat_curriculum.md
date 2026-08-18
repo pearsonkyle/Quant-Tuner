@@ -739,3 +739,29 @@ If anchor3 holds on-corpus but the PROBE control still collapses, the drift is
 genuinely off-distribution and the next tool is anchor prompts: mix a small batch of
 synthetic stop-discipline contexts (the probe family, varied) into training as extra
 supervised stop-positions.
+
+## Anchor iteration 3 + the first benchmark: the failure narrowed to a weak TAIL
+
+`kd8b-full-anchor3` (per-side margins 1.0/0.1): diagnostic 0.0000 at every probe,
+learning best-yet (0.142% mean flips at step 100), val stable — control OSCILLATING
+with growing amplitude (0.99 -> 0.97 -> 0.99 -> 0.93), guard abort at step 175.
+
+The in-distribution measurement (scripts/measure_indist_stop.py — P(stop) at REAL
+im_end targets in held-out windows, ternarized forward) resolved the probe-vs-reality
+question: the model did NOT uniformly lose stopping. At after-tool-call stop positions
+(n=273) the MEDIAN is unchanged (0.9912 vs vanilla 0.9932) while the p10 collapsed
+(0.9801 -> 0.0787) — a bimodal weak tail covering ~10-15% of positions. Prose-end
+stops moved TOWARD the labels (0.08 -> 0.58 mean).
+
+Exported (step-175) to Q2_0 and benchmarked (Docker-free mimic, dask__dask-11393):
+- GGUF probe: diagnostic < 8e-5 at all no-stop points, control 0.9203 (rank 1).
+- Agent: LOOPED — same find command 9x in a row, died at 20 steps
+  (error:InternalServerError). 8% non-yield per call compounds to loop entry over an
+  episode. Milder than sft32k_sw1 (60-step hard loop) but the same mode.
+- No generation of this model has ever patched this instance (vanilla included) —
+  the benchmark metric here is behavioral integrity, and the weak tail fails it.
+
+Verdict: the anchor solved the early-stop face completely and improved learning; the
+remaining defect is a CONTEXT-DEPENDENT weak tail on the stopping side that grows with
+time at peak lr. Ladder: anchor4 (same config, peak lr 4e-4, running) -> anchor
+prompts (train the failing context family directly) -> gemma pivot.
