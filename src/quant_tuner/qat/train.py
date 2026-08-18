@@ -405,6 +405,10 @@ def prefix_window(model, ids: torch.Tensor, n_prefix: int):
         clear_prefix()
 
 
+LOG_HALF = -0.6931471805599453   # log(0.5): teacher-side split between
+                                 # continue-positions and stop-positions
+
+
 def masked_forward(model, ids: torch.Tensor, lbl: torch.Tensor, *,
                    need_logits: bool = True, logit_chunk: int = LOGIT_CHUNK,
                    n_prefix: int = 0, weights: torch.Tensor | None = None,
@@ -495,10 +499,21 @@ def masked_forward(model, ids: torch.Tensor, lbl: torch.Tensor, *,
                 f"targets — would pair positions wrongly.")
 
     def anchor_pen(lg, t_stop):
-        """Hinge on the stop token's log-prob gap to the teacher; summed over rows."""
+        """One-sided hinge on the stop token's log-prob gap to the teacher; summed.
+
+        One-sided PER POSITION TYPE, not L1: continue-positions (teacher P(stop) < 0.5)
+        outnumber stop-positions 176:1 in this corpus, so a symmetric |gap| hinge exerts
+        a massive net-DOWNWARD trunk-level pressure on P(stop) — measured: it crushed
+        the diagnostic to 0.0000 while collapsing the control 0.9987 -> 0.6974 by step
+        175. Here each position only penalizes drift in its harmful direction — stopping
+        MORE than the teacher where the teacher continues, stopping LESS where the
+        teacher stops — and exerts zero force once the student is on the safe side, so
+        the 176:1 imbalance has nothing to push with.
+        """
         sid, _, margin = stop_anchor
         s_stop = lg[:, sid] - torch.logsumexp(lg, dim=-1)
-        return ((s_stop - t_stop).abs() - margin).clamp_min(0.0).sum()
+        direction = torch.where(t_stop > LOG_HALF, -1.0, 1.0)
+        return (direction * (s_stop - t_stop) - margin).clamp_min(0.0).sum()
 
     if need_logits or (logit_chunk >= K and kd is None):
         logits = model.lm_head(h).float()                    # [1, K, V]

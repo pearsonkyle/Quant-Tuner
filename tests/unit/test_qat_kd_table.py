@@ -340,9 +340,12 @@ def test_stop_logp_of_extracts_and_refuses_plain_tables():
     torch.testing.assert_close(got, w.logp.float()[w.idx == sid])
 
 
-def test_stop_anchor_zero_within_margin_and_active_beyond():
-    """Teacher == student ⇒ gap 0 ⇒ anchor 0. Shift the teacher's stop logp by 0.5
-    (inside the 1-nat margin) ⇒ still 0. Shift by 3 ⇒ ~2 per position."""
+def test_stop_anchor_is_one_sided_per_position_type():
+    """Continue-positions outnumber stop-positions 176:1, so a symmetric hinge exerts a
+    net-DOWNWARD trunk pressure on P(stop) — measured: diagnostic pinned at 0.0000 while
+    the control collapsed 0.9987 -> 0.6974. One-sided: at continue-positions (teacher
+    P(stop) < 0.5) only stopping MORE than the teacher is penalized; at stop-positions
+    only stopping LESS. Zero force on the safe side of each."""
     from quant_tuner.qat.train import masked_forward
     m = _tiny()
     ids = torch.randint(0, 128, (1, 40))
@@ -354,12 +357,25 @@ def test_stop_anchor_zero_within_margin_and_active_beyond():
     with torch.no_grad():
         h = m.model(input_ids=ids).last_hidden_state[:, keep, :]
         s_stop = torch.log_softmax(m.lm_head(h)[0].float(), -1)[:, sid]
-    for shift, expect in ((0.0, 0.0), (0.5, 0.0), (3.0, 2.0)):
+    # tiny random model: s_stop is well below log(0.5), so these are continue-positions
+    assert bool((s_stop < -0.694).all())
+    cases = (
+        (s_stop.clone(), 0.0),        # aligned -> 0
+        (s_stop - 0.5, 0.0),          # student 0.5 nat ABOVE teacher, inside margin -> 0
+        (s_stop - 3.0, 2.0),          # student 3 nats ABOVE teacher (stops too much) -> 2
+        (s_stop + 3.0, 0.0),          # student BELOW teacher: safe side, NO down-drag
+    )
+    for t_stop, expect in cases:
         _, _, _, _, an = masked_forward(
             m, ids, lbl, need_logits=False, logit_chunk=7, kd=kd,
-            stop_anchor=(sid, s_stop + shift, 1.0))
-        assert an is not None
-        assert float(an) == pytest.approx(expect, abs=0.05), (shift, float(an))
+            stop_anchor=(sid, t_stop, 1.0))
+        assert float(an) == pytest.approx(expect, abs=0.05), float(an)
+    # stop-positions (teacher P(stop) > 0.5): only stopping LESS is penalized.
+    t_hi = torch.full_like(s_stop, -0.05)         # teacher ~0.95 -> stop-position
+    _, _, _, _, an = masked_forward(m, ids, lbl, need_logits=False, logit_chunk=7,
+                                    kd=kd, stop_anchor=(sid, t_hi, 1.0))
+    gap = float((-(s_stop - t_hi) - 1.0).clamp_min(0).mean())   # student far below
+    assert float(an) == pytest.approx(gap, abs=0.05)
 
 
 def test_stop_anchor_chunked_matches_unchunked_and_flows_gradient():
