@@ -91,6 +91,11 @@ class QATConfig:
     stop_anchor: float = 0.0
     #: free band (nats) around the teacher's log P(stop) before the hinge engages.
     stop_anchor_margin: float = 1.0
+    #: abort when the probe's CONTROL falls below this (0 disables). The diagnostic-only
+    #: abort missed the a0.75 run's real failure: sentence_period retreated under the
+    #: threshold at step 150 while after_tool_call fell 0.9998 -> 0.8876 — the sft32k
+    #: loop failure, unguarded.
+    probe_abort_control: float = 0.0
     val_corpus: Path | None = None
     val_every: int = 20
     # Termination telemetry cadence. 0 disables. Defaults to the validation cadence
@@ -1406,6 +1411,12 @@ def _build_parser() -> argparse.ArgumentParser:
                          "the drift. Needs a forced-stop --kd-table (--include-ids).")
     ap.add_argument("--stop-anchor-margin", type=float, default=1.0,
                     help="free band in nats around the teacher's log P(stop)")
+    ap.add_argument("--probe-abort-control", type=float, default=0.0,
+                    help="abort (exit 3, checkpoint saved) when the probe CONTROL "
+                         "drops below this (0 disables). The other failure direction: "
+                         "losing the ability to stop after a tool call = the loop "
+                         "failure. Healthy runs sit >= 0.995; collapses pass 0.95 "
+                         "decisively.")
     ap.add_argument("--val-corpus", type=Path, default=None,
                     help="masked corpus built with --split test; masked-CE validation")
     ap.add_argument("--val-every", type=int, default=20)
@@ -1508,6 +1519,7 @@ def main(argv: list[str] | None = None) -> int:
         val_corpus=args.val_corpus,
         val_every=args.val_every, val_windows=args.val_windows,
         probe_every=args.probe_every, probe_abort=args.probe_abort,
+        probe_abort_control=args.probe_abort_control,
         lr_scale=args.lr_scale,
         train_norms=args.train_norms, resume=args.resume,
         flip_sample=args.flip_sample, ckpt_every=args.ckpt_every,
