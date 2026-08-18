@@ -689,3 +689,30 @@ Now running: `--stop-anchor 0.2` (margin 1 nat) at alpha 0.5 — a per-position 
 magnitude, computed from the forced-stop table inside the existing logit chunks. It
 pushes DOWN at sentence boundaries and UP after tool calls with the same constant force,
 i.e. it targets both faces at once. `out/exp-058/kd8b-full-anchor`.
+
+## The anchor works — and its first version worked too hard in one direction
+
+`kd8b-full-anchor` (symmetric L1 hinge, beta 0.2, margin 1 nat): the diagnostic was
+PINNED at 0.0000-0.0002 through step 175 — through the entire zone that killed both
+alpha runs — while learning ran ABOVE reference (mean tracked flips 0.099% at step 100
+vs 0.084% for a0.5; the anchor's stop-policy work visibly concentrated in
+35.down_proj at 0.334%). The O(1) log-space restoring force does what the KL's
+vanishing P_s−P_t force cannot. At init the student sits ~7 nats from the teacher's
+stop policy on-corpus (an=6.4) — a gap the KL literally could not see.
+
+Then the control collapsed alone: 0.9987 → 0.9356 → 0.6974, with every no-stop probe
+point still at 0.000x. Diagnosis: the symmetric hinge exerts O(1) force at EVERY
+position in BOTH directions, and continue-positions outnumber stop-positions 176:1 —
+the same ratio that broke stop-weight — so the aggregate trunk-level pressure on
+P(stop) is massively net-downward. The anchor crushed early-stopping perfectly and
+dragged the ability to stop down with it.
+
+Fix (running as `kd8b-full-anchor2`): ONE-SIDED per position type — at
+continue-positions only stopping MORE than the teacher is penalized, at stop-positions
+only stopping LESS, zero force on the safe side — so the 176:1 imbalance has nothing
+to push with.
+
+Also caught here: commit 380984a *claimed* the control-abort guard while its
+str.replace silently no-op'd (the target block had been refactored; str.replace does
+not error). run_config recorded the threshold, ruff and --help passed, and nothing
+enforced it. Guards must be verified by grep of the LOGIC, not the flag.
