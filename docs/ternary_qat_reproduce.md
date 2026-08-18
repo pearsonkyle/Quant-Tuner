@@ -365,3 +365,14 @@ the moment the diagnostic crosses the threshold. Every observed collapse was vis
 ~step 50 and monotone afterwards; this converts an 11-hour post-mortem into a 40-minute
 one. Leave it OFF for short A/B arms (their whole point is recording the trajectory) and
 ON for full runs.
+
+### Prune a dead run's checkpoints — after extracting, always
+
+A run's latents are only needed to RESUME it or RE-EXPORT it; for a run that failed
+(collapse, abort, divergence) neither applies, and each one holds ~52 GB (two 26 GB
+checkpoints — note `trained_latents.pt` is a HARDLINK to the newest step file, so `du`
+under-reports and deleting one name may free nothing). Before deleting, confirm the
+record is extracted: train.log + metrics.jsonl in place, telemetry parsed
+(`parse_qat_log.py`), the final census taken if the report wants a distribution-shift
+column, and the exported GGUF kept if one was benchmarked. Then `rm` every
+`trained_latents*.pt` in the run dir. Measured 2026-08-18: four dead runs held 207 GB.
