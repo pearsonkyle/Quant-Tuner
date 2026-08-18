@@ -252,7 +252,7 @@ PROBE_COLORS = {
 VANILLA_REF = {"sentence_period": 0.0017, "after_tool_call": 0.99996}
 
 
-def fig_stop_probe(probes, W, H, PAD):
+def fig_stop_probe(probes, W, H, PAD, teacher=None):
     """P(<|im_end|>) at fixed positions, over training.
 
     The termination collapse this pipeline keeps hitting is invisible to masked-CE — a
@@ -273,17 +273,26 @@ def fig_stop_probe(probes, W, H, PAD):
     p1 = Panel(W, H, PAD, xlim, (max(lo * 0.5, 1e-6), 1.6), logy=True,
                xlabel="training step", ylabel="P(<|im_end|>)  (log)",
                xticks=nice_ticks(*xlim), yfmt="{:g}")
-    # Reference bands first, so the data draws over them.
-    for name, ref in VANILLA_REF.items():
-        if name in keys:
+    # Reference bands first, so the data draws over them. For a KD run the teacher's
+    # own probe values (dotted) are the asymptote the KL pulls toward — the vanilla
+    # lines (dashed) are where the student STARTED, not where it should end.
+    refsets = [("vanilla", VANILLA_REF, "4 4", "start")]
+    if teacher:
+        refsets.append(("teacher", teacher, "1 3", "end"))
+    for label, refs, dash, anchor in refsets:
+        for name, ref in refs.items():
+            if name not in keys:
+                continue
+            y = p1.py(max(ref, 1e-6))
+            xa = PAD + 4 if anchor == "start" else W - PAD - 4
             p1.parts.append(
-                f'<line x1="{PAD}" y1="{p1.py(ref):.1f}" x2="{W - PAD}" '
-                f'y2="{p1.py(ref):.1f}" stroke="{PROBE_COLORS[name]}" stroke-width="1" '
-                f'stroke-dasharray="4 4" opacity="0.45"/>')
+                f'<line x1="{PAD}" y1="{y:.1f}" x2="{W - PAD}" '
+                f'y2="{y:.1f}" stroke="{PROBE_COLORS[name]}" stroke-width="1" '
+                f'stroke-dasharray="{dash}" opacity="0.45"/>')
             p1.parts.append(
-                f'<text x="{W - PAD - 4}" y="{p1.py(ref) - 4:.1f}" font-size="9" '
-                f'text-anchor="end" fill="{PROBE_COLORS[name]}" opacity="0.8">'
-                f'vanilla {name} {ref:g}</text>')
+                f'<text x="{xa}" y="{y - 4:.1f}" font-size="9" '
+                f'text-anchor="{anchor}" fill="{PROBE_COLORS[name]}" opacity="0.8">'
+                f'{label} {name} {"<1e-6" if ref < 1e-6 else f"{ref:g}"}</text>')
     for k in keys:
         pts = [(r["step"], max(r[k], 1e-6)) for r in probes
                if r.get(k) not in (None, "")]
@@ -549,6 +558,11 @@ def main() -> int:
     ap.add_argument("--kd-alpha", type=float, default=None,
                     help="the run's KD mixing weight; lets the KD panel derive the CE "
                          "component from the logged total (exact at T=1)")
+    ap.add_argument("--teacher-probe", action="append", default=[],
+                    metavar="NAME=PROB",
+                    help="teacher's own stop-probe reading (repeatable, e.g. "
+                         "after_tool_call=0.99999) — drawn as dotted asymptote lines "
+                         "on the termination panel")
     ap.add_argument("--title", default="QAT training dynamics")
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
@@ -610,7 +624,9 @@ def main() -> int:
              "<b>after_tool_call</b> the control (must stay HIGH). Masked-CE cannot see "
              "this: sft32k's validation was flat for 225 steps while its "
              "sentence_period went to 0.97.",
-             fig_stop_probe(probes, W, H, PAD)),
+             fig_stop_probe(probes, W, H, PAD,
+                            teacher={k: float(v) for k, v in
+                                     (s.split("=", 1) for s in args.teacher_probe)})),
         ]
     if flips:
         figs += [

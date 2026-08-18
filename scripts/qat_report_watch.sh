@@ -42,6 +42,12 @@ print(c['kd_alpha'] if c.get('kd_table') else '')" 2>/dev/null || true)
     [ -n "${ka:-}" ] && extra+=(--kd-alpha "$ka")
     # Run-specific findings live beside the run, not in this script
     [ -f "$RUN/notes.md" ] && extra+=(--notes "$RUN/notes.md")
+    # Teacher's own probe values (KD runs): dotted asymptote lines on the probe panel
+    if [ -f "$RUN/teacher_probe.json" ]; then
+        while IFS= read -r kv; do extra+=(--teacher-probe "$kv"); done < <(
+            $PY -c "import json;[print(f'{k}={v}') for k,v in \
+json.load(open('$RUN/teacher_probe.json')).items()]" 2>/dev/null)
+    fi
     $PY scripts/qat_report.py --telemetry "$TEL" --census "$CENSUS" \
         --window "$w" --grad-accum "$ga" --title "$TITLE" \
         "${extra[@]}" --out "$RUN/report.html" >/dev/null \
