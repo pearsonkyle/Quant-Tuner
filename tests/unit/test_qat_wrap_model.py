@@ -110,3 +110,42 @@ def test_dense_layers_keep_their_exact_weights() -> None:
     before = decoder_layers(m)[0].mlp.gate_proj.weight.detach().clone()
     wrap_model(m, n_train=2, ternary_spec="4-5")
     assert torch.equal(decoder_layers(m)[0].mlp.gate_proj.weight, before)
+
+
+class _TowerBlock(torch.nn.Module):
+    """Mimics gemma-4's vision/audio encoder blocks: their own ``layers.N`` index AND
+    submodules literally named ``linear``, which is what made the old name-based
+    requires_grad rule claim them."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.self_attn = nn.Module()
+        self.self_attn.q_proj = nn.Module()
+        self.self_attn.q_proj.linear = nn.Linear(256, 256, bias=False)
+
+
+def _multimodal(n: int = 6) -> nn.Module:
+    m = _model(nested=True, n=n)
+    m.model.vision_tower = nn.Module()
+    m.model.vision_tower.encoder = nn.Module()
+    m.model.vision_tower.encoder.layers = nn.ModuleList([_TowerBlock() for _ in range(n)])
+    return m
+
+
+def test_towers_are_never_marked_trainable() -> None:
+    """The bug this pins cost 167.8 M params of gemma-4's vision+audio towers being
+    handed to the optimizer. Nothing failed loudly — a text-only forward never gives
+    them a gradient — so they simply consumed optimizer state and took weight decay."""
+    m = _multimodal()
+    wrap_model(m, n_train=2)
+    trainable = [n for n, p in m.named_parameters() if p.requires_grad]
+    assert trainable, "sanity: something should train"
+    assert not [n for n in trainable if "vision_tower" in n], trainable
+
+
+def test_towers_are_not_ternarized_either() -> None:
+    m = _multimodal()
+    wrap_model(m, n_train=6)
+    tower = m.model.vision_tower.encoder.layers[0].self_attn.q_proj
+    assert isinstance(tower.linear, nn.Linear)
+    assert not isinstance(tower.linear, TernaryLinear)

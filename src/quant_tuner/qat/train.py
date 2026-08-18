@@ -205,6 +205,15 @@ def wrap_model(model, n_train: int, layer_spec: str | None = None,
     #: tensors adapt to their ternarized neighbours is most of why a partial schedule beats
     #: all-at-once.
     dense_trainable: set[int] = set()
+    #: Parameter ids of the ternary LATENTS in trainable layers, collected as they are
+    #: wrapped. Identity, not name: the old name match (".linear.weight" plus a layer index
+    #: parsed from "layers.") also hits a multimodal model's TOWERS, whose encoders have
+    #: their own layers.N and submodules literally called `linear`. On gemma-4-E4B that
+    #: marked 85 tensors / 167.8 M params of vision+audio tower trainable — they never
+    #: receive a gradient from a text forward, so nothing failed loudly; they just consumed
+    #: optimizer state and were exposed to weight decay. Bonsai has no towers, which is why
+    #: this survived until a multimodal model was tried.
+    latent_trainable: set[int] = set()
 
     def swap(mod, trainable, ternary=True, prefix=""):
         nonlocal n_dense
@@ -231,6 +240,8 @@ def wrap_model(model, n_train: int, layer_spec: str | None = None,
                         continue
                     print(f"[qat]   frozen linear off-grid -> wrapping: {name}", flush=True)
                 setattr(mod, name, TernaryLinear(child, trainable=trainable))
+                if trainable:
+                    latent_trainable.add(id(child.weight))
                 c += 1
             else:
                 c += swap(child, trainable, ternary, f"{full}.")
@@ -238,11 +249,12 @@ def wrap_model(model, n_train: int, layer_spec: str | None = None,
 
     nw = sum(swap(layer, i in trainable_idx, i in ternary_idx)
              for i, layer in enumerate(layers))
-    for name, p in model.named_parameters():
-        li = int(name.split("layers.")[1].split(".")[0]) if "layers." in name else -1
-        is_latent = ".linear.weight" in name and li in trainable_idx
-        is_norm = train_norms and li in trainable_idx and "norm" in name
-        p.requires_grad_(is_latent or is_norm or id(p) in dense_trainable)
+    trainable_ids = latent_trainable | dense_trainable
+    if train_norms:
+        for i in sorted(trainable_idx):
+            trainable_ids |= {id(q) for n_, q in layers[i].named_parameters() if "norm" in n_}
+    for p in model.parameters():
+        p.requires_grad_(id(p) in trainable_ids)
     nt = sum(p.numel() for p in model.parameters() if p.requires_grad)
     dense_note = (f"; {n_dense} linears left DENSE "
                   f"({len(dense_trainable)} of them trainable)" if n_dense else "")
