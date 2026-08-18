@@ -716,3 +716,26 @@ Also caught here: commit 380984a *claimed* the control-abort guard while its
 str.replace silently no-op'd (the target block had been refactored; str.replace does
 not error). run_config recorded the threshold, ruff and --help passed, and nothing
 enforced it. Guards must be verified by grep of the LOGIC, not the flag.
+
+## Anchor iteration 2: the margin means opposite things on the two sides
+
+`kd8b-full-anchor2` (one-sided hinge, single 1-nat margin): diagnostic 0.0000 at every
+probe, learning the best yet (mean tracked flips 0.126% at step 100), anchor nearly
+silent (an ≤ 0.03 from step 30 on) — and the control STILL collapsed
+(1.0000 → 0.9930 → 0.9753 → 0.8431; control guard fired at 150, correctly this time).
+
+The hole: `an` stayed ~0.01 through the whole collapse, i.e. the student never left
+the anchor's legal band ON-CORPUS. A 1-nat margin at continue-positions is 1e-6 →
+2.7e-6 (harmless); at stop-positions it is P(stop) 0.99999 → 0.37 — the control can
+fall to uselessness entirely inside it. Iteration 3 (`kd8b-full-anchor3`, running):
+`--stop-anchor-margin-hi 0.1` — stop-positions held to ≥ ~0.905·teacher, engaged 25x
+earlier along the sag.
+
+Open question from this run: val spiked 0.8234 → 1.4672 between steps 100 and 150
+while train loss stayed 0.62-0.74 — a broad held-out regression not attributable to
+stop positions (0.57% of labels). Watch anchor3's val at 150.
+
+If anchor3 holds on-corpus but the PROBE control still collapses, the drift is
+genuinely off-distribution and the next tool is anchor prompts: mix a small batch of
+synthetic stop-discipline contexts (the probe family, varied) into training as extra
+supervised stop-positions.
