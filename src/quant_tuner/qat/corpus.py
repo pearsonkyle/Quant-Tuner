@@ -34,7 +34,6 @@ import gzip
 import hashlib
 import json
 import random
-import re
 import sys
 from pathlib import Path
 
@@ -603,10 +602,9 @@ def read_sft_jsonl(path: Path) -> list[dict]:
         return [json.loads(line) for line in f if line.strip()]
 
 
-_THINK_RE = re.compile(r"<think>\n(.*?)\n</think>", re.DOTALL)
-
-
-def _sft_conversation_ids(conv: dict, tok, max_tool_tokens: int) -> tuple[list[int], list[int], dict]:
+def _sft_conversation_ids(conv: dict, tok, max_tool_tokens: int,
+                          dialect: ChatDialect | None = None,
+                          ) -> tuple[list[int], list[int], dict]:
     """One SFT row -> (ids, labels, audit), rendered with the STUDENT's chat template.
 
     ``audit`` records what preprocessing COST, per conversation: tool-output tokens
@@ -616,6 +614,8 @@ def _sft_conversation_ids(conv: dict, tok, max_tool_tokens: int) -> tuple[list[i
     whole conversation for an agentic trajectory (one task turn, then dozens of
     assistant/tool turns) but only the tail segment of a multi-turn chat log.
     """
+    if dialect is None:
+        dialect = detect_dialect(tok)
     msgs = [dict(m) for m in conv["messages"]]
     # BEFORE truncation and before rendering: merging changes which messages exist, so
     # doing it after would truncate and mask a message layout the template never sees.
@@ -632,19 +632,22 @@ def _sft_conversation_ids(conv: dict, tok, max_tool_tokens: int) -> tuple[list[i
         tools = reconstruct_tools(msgs) or None
     text = tok.apply_chat_template(msgs, tools=tools, tokenize=False,
                                    add_generation_prompt=False)
-    ids, lbl = masked_ids_for_session(msgs, tok, tools=tools, text=text)
+    ids, lbl = masked_ids_for_session(msgs, tok, tools=tools, text=text, dialect=dialect)
+    # Counted with THIS family's markers. The Qwen strings on a gemma render report
+    # 57/26,389 tool calls surviving a corpus where 25,772 are present and supervised.
+    n_calls, n_reasoning = dialect.count_rendered(text)
     audit = {
         "assistant_msgs_merged": n_merged,
         "empty_assistant_dropped": n_empty,
         "tool_msgs_truncated": n_tr,
         "tool_tokens_dropped": saved,
         "src_tool_calls": sum(len(m.get("tool_calls") or []) for m in msgs),
-        "rendered_tool_calls": text.count("<tool_call>"),
+        "rendered_tool_calls": n_calls,
         # reasoning arrives either as a field (agent logs) or inline in content (CLI logs)
         "src_reasoning": sum(1 for m in msgs
                              if (m.get("reasoning_content") or "").strip()
                              or "</think>" in (m.get("content") or "")),
-        "rendered_reasoning": sum(1 for m in _THINK_RE.finditer(text) if m.group(1).strip()),
+        "rendered_reasoning": n_reasoning,
     }
     return ids, lbl, audit
 
@@ -708,7 +711,7 @@ def build_sft_corpus(*, sft_path: Path, data_split: str | None = "train",
             if has_inline_control_tokens(conv.get("messages") or [], dl):
                 au.update({"dropped_control": 1})
                 continue
-            ids, lbl, a = _sft_conversation_ids(conv, tok, max_tool_tokens)
+            ids, lbl, a = _sft_conversation_ids(conv, tok, max_tool_tokens, dl)
             au.update(a)
             ids_stream += ids
             lbl_stream += lbl

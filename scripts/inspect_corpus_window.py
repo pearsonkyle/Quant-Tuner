@@ -198,7 +198,25 @@ def audit_gemma4(path: Path, tok, max_windows: int | None) -> int:
         # trains you to ignore the check.
         first = next((k for k, t in enumerate(ids) if t == t_open), len(ids))
         carryover += sum(1 for k in range(first) if lbl[k] != IGNORE)
-        role, turn_open, resp_open, span_open = None, False, False, False
+
+        # ...but the tool-response check MUST still cover that region, and on gemma that
+        # is not a detail: one model turn holds an entire tool exchange, so a 32k window
+        # routinely opens thousands of tokens deep inside one. Measured on the first
+        # gemma corpus, 52% of all supervised tokens were carry-over — checking only from
+        # `first` would have audited less than half of it. Scan from 0, inferring the
+        # opening state: if the first tool-response marker seen is a CLOSING one, the
+        # window began inside a response.
+        nxt = next((t for t in ids if t in (tr_open, tr_close)), None)
+        resp = nxt == tr_close
+        for i in range(first):
+            if ids[i] == tr_open:
+                resp = True
+            if resp and lbl[i] != IGNORE:
+                in_response += 1
+            if ids[i] == tr_close:
+                resp = False
+
+        role, turn_open, resp_open, span_open = None, False, resp, False
         for i in range(first, len(ids)):
             t = ids[i]
             if t == t_open:

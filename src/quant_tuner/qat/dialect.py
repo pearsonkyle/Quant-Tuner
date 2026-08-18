@@ -59,6 +59,20 @@ class ChatDialect:
     #: Control tokens that must never appear inside message CONTENT — a log that quotes
     #: one gets a REAL control token in the middle of supervised prose.
     control_tokens: tuple[str, ...]
+    #: Marker counted once per tool call that reached the RENDER. Family-specific, and
+    #: getting it wrong is not a small error: counting Qwen's "<tool_call>" on a gemma
+    #: corpus reported 57 of 26,389 calls surviving on a corpus where 25,772 of them were
+    #: present and supervised. An audit that cries wolf is worse than no audit.
+    render_tool_call: str = "<tool_call>"
+    #: Regex whose group(1) is a rendered reasoning body. Same hazard: gemma renders
+    #: reasoning as <|channel>thought ... <channel|>, so a "<think>" count reads 0.
+    reasoning_pattern: str = r"<think>\n(.*?)\n</think>"
+
+    def count_rendered(self, text: str) -> tuple[int, int]:
+        """(tool calls, non-empty reasoning blocks) that survived into ``text``."""
+        rx = re.compile(self.reasoning_pattern, re.DOTALL)
+        return (text.count(self.render_tool_call),
+                sum(1 for m in rx.finditer(text) if m.group(1).strip()))
 
     def labels(self, ids: list[int], text: str, offsets, tok) -> list[int]:
         raise NotImplementedError
@@ -72,6 +86,8 @@ class QwenChatDialect(ChatDialect):
     name: str = "qwen"
     stop_piece: str = "<|im_end|>"
     control_tokens: tuple[str, ...] = ("<|im_start|>", "<|im_end|>")
+    render_tool_call: str = "<tool_call>"
+    reasoning_pattern: str = r"<think>\n(.*?)\n</think>"
 
     def labels(self, ids: list[int], text: str, offsets, tok) -> list[int]:
         # char spans: assistant *content* plus the terminating <|im_end|> (m.end(0))
@@ -97,6 +113,8 @@ class Gemma4ChatDialect(ChatDialect):
     control_tokens: tuple[str, ...] = ("<|turn>", "<turn|>", "<|tool_call>",
                                        "<tool_call|>", "<|tool_response>",
                                        "<tool_response|>", "<|channel>", "<channel|>")
+    render_tool_call: str = "<|tool_call>"
+    reasoning_pattern: str = r"<\|channel>thought\n(.*?)<channel\|>"
     turn_open: int = 105
     turn_close: int = 106
     role_model: int = 4368

@@ -1,11 +1,12 @@
 # Ternary `gemma-4-E4B-it` — desk feasibility
 
-Status: **desk phase, GPU-free.** Everything below was measured on CPU on 2026-08-17
-against the checkpoints themselves, while the card was busy with the Qwen KD chain.
-Companion to `scripts/TERNARY_GEMMA4_E4B_RESEARCH_PROMPT.md`, which set the questions.
+Status: **desk phase complete; no training run yet.** Everything below was measured on
+2026-08-17/18 against the checkpoints themselves, on CPU apart from a ~5 GB slice of the GPU
+for the round-trip generation, while the card was busy with the Qwen KD chain. Companion to
+`scripts/TERNARY_GEMMA4_E4B_RESEARCH_PROMPT.md`, which set the questions.
 
 Scripts: `scripts/gemma4_ternary_damage.py` (weight-space), `scripts/gemma4_layer_damage.py`
-(output-space). Both run on CPU with no corpus preprocessing and no GPU.
+(output-space), `scripts/measure_stop_baseline.py` (termination baseline). All CPU-only.
 
 ---
 
@@ -27,11 +28,19 @@ Scripts: `scripts/gemma4_ternary_damage.py` (weight-space), `scripts/gemma4_laye
 3. **Weight-space damage carries no scheduling signal; output-space damage carries a lot.**
    Every tensor scores ~0.43 relative Frobenius error — the Gaussian value — so the
    "ternarize what moves least first" ordering is unreadable from weights. Measured in
-   *output* space the spread is **27×**, and it inverts the weight-space ranking:
-   `mlp.down_proj` looks middling on weights and is catastrophic on outputs.
+   *output* space the spread is **139×**, and it inverts the weight-space ranking:
+   `mlp.down_proj` looks middling on weights and is by far the worst on outputs.
+
+4. **Damage compounds exponentially, and that — not the ordering — is the design
+   constraint.** Ternarizing layers 6 at a time along the best ordering multiplies KLD by
+   ~2 at every step (0.105 → 0.269 → 0.610 → 1.222 → 2.171 → 5.288 → **10.666**), ending at
+   4.7% top-1 agreement with the dense model. The individual layer KLDs sum to 2.830, so
+   the whole is **3.77× superadditive**. A progressive schedule therefore has to *train
+   between stages*; re-ordering alone just changes where on the exponential you start. The
+   good news is the top of that curve: **6 layers is nearly free** and 12 is cheap.
 
 The serving question, which the research prompt flagged as possibly fatal, is **not** a
-blocker: see [Serving path](#serving-path).
+blocker — the round-trip has been run end to end: see [Serving path](#serving-path).
 
 ---
 
@@ -142,28 +151,28 @@ Gaussian prediction too. So:
 
 ## Output-space damage: this is where the schedule comes from
 
-Ternarize one tensor kind across all 42 layers, change nothing else, re-run the same
-tokens, and measure `KLD(dense ‖ ternarized)` on held-out conversations from our own SFT
-corpus. Smoke run (512 tokens, `split=test`); the full 3×2048 run is in
+Ternarize one group of tensors, change nothing else, re-run the same tokens, and measure
+`KLD(dense ‖ ternarized)`. Eval is 3 × 2048 tokens, one window from each of three distinct
+held-out conversations of our own SFT corpus (`split=test`). Full data in
 `out/gemma4-ternary/layer_damage.json`.
 
-| tensor kind | KLD | top-1 agree | PPL |
+| tensor kind (all 42 layers) | KLD | top-1 agree | PPL |
 |---|---:|---:|---:|
-| `per_layer_model_projection` | **0.035** | 0.957 | 19.20 |
-| `self_attn.k_proj` | 0.206 | 0.846 | 17.90 |
-| `per_layer_input_gate` | 0.330 | 0.834 | 19.12 |
-| `self_attn.q_proj` | 0.352 | 0.795 | 19.50 |
-| `self_attn.o_proj` | 0.581 | 0.740 | 20.19 |
-| `self_attn.v_proj` | 0.603 | 0.719 | 18.91 |
-| `mlp.gate_proj` | 0.706 | 0.689 | 17.69 |
-| `mlp.up_proj` | 0.887 | 0.680 | 22.51 |
-| `per_layer_projection` | 0.922 | 0.699 | 20.64 |
-| **`mlp.down_proj`** | **2.393** | **0.484** | **148.75** |
+| `per_layer_model_projection` | **0.0086** | 0.977 | 4.22 |
+| `self_attn.k_proj` | 0.0867 | 0.900 | 4.28 |
+| `per_layer_input_gate` | 0.0890 | 0.910 | 4.27 |
+| `self_attn.q_proj` | 0.1470 | 0.863 | 4.49 |
+| `self_attn.o_proj` | 0.2665 | 0.832 | 4.89 |
+| `mlp.up_proj` | 0.3444 | 0.803 | 4.90 |
+| `self_attn.v_proj` | 0.3495 | 0.793 | 5.11 |
+| `mlp.gate_proj` | 0.3703 | 0.787 | 4.83 |
+| `per_layer_projection` | 0.4264 | 0.778 | 5.09 |
+| **`mlp.down_proj`** | **1.1990** | **0.658** | **12.91** |
 
 Two things to take from this.
 
-**`mlp.down_proj` alone breaks the model.** It is the only kind whose perplexity leaves the
-~17–22 band, and it takes it to 148.75 while halving top-1 agreement. This is the same
+**`mlp.down_proj` alone breaks the model.** At 1.199 it is **3.4× the next-worst kind**, and
+the only one whose perplexity leaves the 4.2–5.1 band — it takes it to 12.91. This is the same
 tensor llama.cpp's k-quant mixes bump a tier at low bit-width (`ffn_down` in
 `_quant_mix.target_type_for_member`) — independent corroboration rather than a coincidence.
 
@@ -172,6 +181,68 @@ tensor llama.cpp's k-quant mixes bump a tier at low bit-width (`ffn_down` in
 output KLD. Any schedule ordered by weight movement would have ternarized `down_proj`
 early, and would have looked fine right up until the model stopped working. **Order the
 schedule on output-space damage, measured, not on weight movement.**
+
+---
+
+## Depth: the KV-donor layers are the fragile ones
+
+Same measurement, one whole decoder layer at a time:
+
+| | least damaging | | most damaging | |
+|---|---|---:|---|---:|
+| 1 | `layer.03` | 0.0087 | `layer.22` | **0.6255** |
+| 2 | `layer.01` | 0.0102 | `layer.23` | **0.2705** |
+| 3 | `layer.00` | 0.0125 | `layer.17` | 0.1376 |
+| 4 | `layer.02` | 0.0137 | `layer.21` | 0.1245 |
+
+**Layers 22 and 23 are 30–70× more damaging than layers 0–3**, and there is a mechanism:
+they are the *last KV-donor layers*. Layers 24–41 have no `k_proj`/`v_proj` of their own and
+consume the KV produced upstream, so error injected at 22–23 propagates into all 18 layers
+below it. Layer 24 immediately falls back to 0.065. The `full_attention` layers (11, 17, 23)
+also rank high, consistent with the same story — they are the ones whose KV is not
+window-limited.
+
+This is the depth order a schedule should follow, and it is not the one intuition suggests
+(neither "shallow first" nor "deep first" — it is "away from the KV-sharing boundary first").
+
+---
+
+## The compounding is the real answer: damage doubles every 6 layers
+
+Walking the least-damaging-first ordering, ternarizing 6 more layers at each step, with **no
+training at any point**:
+
+| layers ternary | KLD | top-1 agree | PPL | vs previous |
+|---:|---:|---:|---:|---:|
+| 6 | 0.105 | 0.899 | 4.10 | — |
+| 12 | 0.269 | 0.836 | 4.71 | 2.57× |
+| 18 | 0.610 | 0.755 | 6.18 | 2.27× |
+| 24 | 1.222 | 0.651 | 10.67 | 2.00× |
+| 30 | 2.171 | 0.517 | 25.42 | 1.78× |
+| 36 | 5.288 | 0.208 | 541.77 | 2.44× |
+| **42** | **10.666** | **0.047** | **102,989** | 2.02× |
+
+Two numbers matter here.
+
+**Damage is 3.77× superadditive.** The individual layer KLDs sum to 2.830; ternarizing all 42
+at once costs 10.666. Errors do not just accumulate, they interact.
+
+**The growth is close to exactly exponential in the layer COUNT** — every 6-layer step
+multiplies KLD by ~2 (2.57, 2.27, 2.00, 1.78, 2.44, 2.02), i.e. `KLD ≈ 0.105 · 2^((n−6)/6)`
+across two and a half orders of magnitude. That regularity is the most useful thing the
+profile produced, and it has a direct design consequence:
+
+> **A progressive schedule cannot just re-order the same one-shot damage — it has to train
+> between stages.** If you ternarize monotonically without recovery, you are riding an
+> exponential, and the ordering only buys you which end of it you start at.
+
+The encouraging half is the top of the table: **6 layers is nearly free** (PPL 4.10, against
+4.06–4.09 for any single layer alone) and 12 is cheap (4.71). So ~6 layers per stage, each
+followed by enough training to pull KLD back down before the next stage, is the schedule the
+data actually supports — not "all 42 with a good ordering".
+
+The bottom of the table is why the untrained round-trip GGUF emits token soup: at 42/42 the
+model retains 4.7% top-1 agreement with itself.
 
 ---
 
