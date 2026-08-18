@@ -595,3 +595,42 @@ Also fixed while auditing: `--trained-tail` + `--kd-table` silently misaligned e
 row (the table is validated against the FULL keep set, then `masked_forward` drops
 prefix targets without dropping their teacher rows). No affected runs — `trained_tail=0`
 everywhere so far — and the row count is now asserted at the point of use.
+
+## KD round two: the smoke ladder that produced the full-run config
+
+Six 59-step arms on the identical corpus/schedule (plus the teacher's own reading, which
+defines the asymptote — measured on CPU with the student's chat template, i.e. exactly the
+rendering KD feeds the teacher):
+
+| arm | diagnostic @50 | control @50 | verdict |
+|---|---|---|---|
+| teacher (SWE-Lego-8B) | 0.0000 | 0.99999 | the target: textbook termination |
+| CE only lr 5e-4 | 0.0102 rising | 0.9995 | learns, drifts |
+| CE only lr 2.5e-4 | 0.0033 flat | 0.9999 | preserves, cannot learn |
+| KD renormalized | 0.0073 rising | 0.9977 | blind spot: slowed, not stopped |
+| KD tail-bucket | 0.0044 oscillating | **0.9867 falling** | diagnostic fixed, control traded |
+| KD forced-stop | 0.0058 flat | 0.9991 flat | both held |
+| KD tail-bucket + lr-scale | 0.0047 flat | 0.9995 flat | flattest of all; flips redistribute |
+| **KD forced-stop + lr-scale** | **0.0048 flat** | **0.9995 flat** | **launch config** |
+
+Findings that came out of the ladder, in causal order:
+
+1. **The teacher's stopping policy is stricter than the student's** (0.0000 vs 0.0092 at
+   the diagnostic), so KD arms converging BELOW vanilla is convergence, not anomaly.
+2. **The tail bucket's control slide is support-composition-specific.** The tb arm's
+   after_tool_call fell 0.9997 -> 0.9867 (accelerating); the fs arm — same loss, stop id
+   forced into every support row — held 0.9990-0.9999 throughout. No separate tail-weight
+   knob was needed.
+3. **Scale-aware lr redistributes flips exactly as the scale analysis predicted** (tb vs
+   tbls, same table and loss): v_proj 1 -> 23 flips, up_proj x14, gate x7, while q/down
+   slow to match their 0.5x multipliers. Loss unchanged (0.680 vs 0.684). And it
+   *stabilized* the probe — the tensors driving the drift were the small-scale ones the
+   rule slows down.
+4. **Every KD arm's KL fell ~0.63 -> 0.35** and flips matched CE-only arms — the
+   constraint costs nothing measurable in learning at this horizon.
+
+Full run launched with: forced-stop table + tail-bucket KL (alpha 0.5, T 1.0) +
+`--lr-scale group-scale` + `--probe-abort 0.09`, 613 steps (1.0355 epochs), lr 5e-4.
+Output: `out/exp-058/kd8b-full/`. The open question a 59-step arm cannot answer — does it
+still LEARN at full depth (4.22% flips over 613 steps on the CE-only reference) — is what
+the full run measures, followed by Q2_0 export, the GGUF probe, and SWE-rebench.

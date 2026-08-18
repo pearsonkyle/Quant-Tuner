@@ -17,7 +17,7 @@ where a HIGH value is correct.
 | tag | status | provenance | legs | legs_diverged | resumed_from |
 |---|---|---|---|---|---|
 | vanilla (shipped) | untrained | control | — | — | — |
-| curriculum-r1-ultrachat | running 40/610 | recorded | 1 | — | — |
+| curriculum-r1-ultrachat | running 25/610 | recorded | 1 | — | — |
 | sft32k | complete | backfilled | 3 | 2 | 350 |
 | sft32k_sw1 | complete | backfilled | 2 | — | — |
 
@@ -35,7 +35,7 @@ where a HIGH value is correct.
 | tag | loss_first | loss_last | loss_peak | val_best | val_last | flip_pct_max | s_per_step | mem_peak_gib |
 |---|---|---|---|---|---|---|---|---|
 | vanilla (shipped) | — | — | — | — | — | — | — | — |
-| curriculum-r1-ultrachat | 1.077 | 1.128 | 1.224 | 1.189 | 1.189 | — | 47.7 | 70.6 |
+| curriculum-r1-ultrachat | 1.077 | 1.083 | 1.224 | 1.272 | 1.272 | — | 46.6 | 70.6 |
 | sft32k | 0.6836 | 1.029 | 1.346 | 0.6853 | 0.6853 | 1.801 | 66.4 | 70.6 |
 | sft32k_sw1 | 0.7004 | 1.063 | 9.979 | 0.6907 | 0.6907 | 4.222 | 66.4 | 70.6 |
 
