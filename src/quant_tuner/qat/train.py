@@ -1347,6 +1347,22 @@ def train_qat(cfg: QATConfig) -> int:
                 # The diagnostic point is per chat family (gemma-4's control point means
                 # the opposite of Qwen's), so read its name off the probe, not a constant.
                 diag = stop_probe.diagnostic
+                ctrl = stop_probe.control
+                if (probs is not None and cfg.probe_abort_control
+                        and probs.get(ctrl, 1.0) < cfg.probe_abort_control):
+                    # The OTHER failure direction: losing the ability to stop where
+                    # stopping is right — the sft32k loop failure. The a0.75 run showed
+                    # the diagnostic can retreat under its threshold while this one
+                    # collapses monotonically (0.9998 -> 0.8876 by step 150), unguarded.
+                    print(f"[qat] step {step} PROBE-ABORT: {ctrl}="
+                          f"{probs[ctrl]:.4f} < --probe-abort-control "
+                          f"{cfg.probe_abort_control} — the model is losing the ability "
+                          f"to STOP where stopping is right (the loop failure); saving "
+                          f"and stopping.", flush=True)
+                    save_ckpt(step)
+                    if metrics_fh is not None:
+                        metrics_fh.close()
+                    sys.exit(3)
                 if (probs is not None and cfg.probe_abort
                         and probs.get(diag, 0.0) > cfg.probe_abort):
                     # Every collapse so far was visible by ~step 50 and monotone from
