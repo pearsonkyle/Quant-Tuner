@@ -237,3 +237,12 @@ def test_parse_reads_the_stop_anchor_step_line():
         "[qat] step 10/613 loss=0.8744 kl=0.5535 an=0.0121 lr=1.67e-04 gnorm=1.42 "
         "mem=31.6/70.6GiB 45.9s/step\n")["steps"]
     assert rows[0]["kd_kl"] == 0.5535 and rows[0]["stop_anchor"] == 0.0121
+
+
+def test_parse_reads_the_steer_step_line():
+    """Third occurrence of the same failure class: every new step-line field between
+    loss= and lr= silently zeroes n_steps_logged. an= bit kd8b-full; st= bit anchor6."""
+    rows = parse(
+        "[qat] step 10/613 loss=0.87 kl=0.55 an=0.01 st=0.12 lr=1.67e-04 gnorm=1.4 "
+        "mem=31.6/70.6GiB 45.9s/step\n")["steps"]
+    assert rows and rows[0]["steer"] == 0.12 and rows[0]["kd_kl"] == 0.55
