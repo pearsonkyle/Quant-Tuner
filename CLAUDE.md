@@ -685,6 +685,18 @@ benchmarked GGUF, with the check that must pass at each step).
   11.5k, longest 256k). No window has a cliff — even 32k holds only 36% of tokens in
   whole conversations. Nothing is lost at a smaller window (sessions pack contiguously);
   what a longer one buys is conditioning a trajectory's tail on its start.
+- **The working recipe (2026-08-19, first full-schedule completion):** `TAG=x LR=5e-4
+  STEER=0.1 CLIP=0.25 bash scripts/run_kd_anchor_qat.sh` — KD (forced-stop table,
+  tail-bucket KL) + one-sided stop anchor (per-side margins 1.0/0.1) + termination
+  steering (`--steer-weight`, probe-family contexts as every-step gradient; the probe
+  itself is held out) + `--clip-norm 0.25` + dual probe-abort guards with patience 2.
+  Diagnosed by the dense control: the lr ternary needs to flip codes diverges a dense
+  model in 10 steps — the quantizer low-pass filters those dynamics, and the recipe
+  damps what leaks through. **Serve exports with** `--repeat-penalty 1.3
+  --repeat-last-n 2048 --presence-penalty 0.8` (llama-server CLI defaults reach /v1
+  requests): verbatim command repetition is the post-termination frontier, mitigated at
+  serving time and trainable via `--steer-rep-weight` (qat/steer.py). Eval chain:
+  `scripts/run_kd_export_bench.sh TAG`. Full arc: docs/ternary_qat_curriculum.md.
 - **Read the code-flip telemetry, not the loss.** A ternary model only learns by flipping codes;
   lr 3e-4 flips ~0% (scale drift only) while the loss still falls. 5e-4 for ~2.2 epochs is the
   measured sweet spot; 8 epochs memorizes.
