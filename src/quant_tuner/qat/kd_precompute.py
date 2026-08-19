@@ -50,6 +50,7 @@ import torch
 from quant_tuner.qat._device import resolve_backend
 
 DEFAULT_TOPK = 64
+POS_CHUNK = 4096  # positions per fp32 softmax chunk (~2.5 GiB transient at 151k vocab)
 
 
 # --------------------------------------------------------------------------- config helpers
@@ -194,15 +195,47 @@ def force_into_support(
 
 
 def _teacher_logits(teacher, ids: torch.Tensor, keep_idx: torch.Tensor) -> torch.Tensor:
-    """[K, V] teacher logits at ``keep_idx``, using logits_to_keep when supported."""
+    """[K, V] teacher logits at ``keep_idx``, using logits_to_keep when supported.
+
+    Returned in the model's own dtype — the fp32 upcast happens per position chunk in
+    ``precompute_topk``. A 32B teacher's [20k, 151k] logits are 11.5 GiB in fp32; two
+    whole-tensor fp32 copies (upcast + log_softmax) OOM'd a 95 GiB card that holds the
+    bf16 weights (65 GiB) with room for exactly one of them.
+    """
     try:
         out = teacher(input_ids=ids, logits_to_keep=keep_idx)
         lg = out.logits
         if lg.shape[1] == keep_idx.numel():          # honored the index tensor
-            return lg[0].float()
-        return lg[0].index_select(0, keep_idx).float()  # returned full seq anyway
+            return lg[0]
+        return lg[0].index_select(0, keep_idx)       # returned full seq anyway
     except TypeError:                                 # architecture lacks the kwarg
-        return teacher(input_ids=ids).logits[0].index_select(0, keep_idx).float()
+        return teacher(input_ids=ids).logits[0].index_select(0, keep_idx)
+
+
+def _topk_rows(
+    lg: torch.Tensor, topk: int, include_ids: list[int] | None,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Top-K support rows (logp, ids, tail) from [K, V] logits in any dtype.
+
+    The fp32 softmax/top-K runs in POS_CHUNK-position chunks: peak transient is one
+    [POS_CHUNK, V] fp32 pair instead of two whole-[K, V] copies. Chunking is exact —
+    log_softmax, topk and force_into_support are all rowwise.
+    """
+    v_l, i_l, t_l = [], [], []
+    for i in range(0, lg.shape[0], POS_CHUNK):
+        logp_full = torch.log_softmax(lg[i:i + POS_CHUNK].float(), dim=-1)
+        vals_c, ids_c = torch.topk(logp_full, topk, dim=-1)
+        if include_ids:
+            ids_c, vals_c, tail_c = force_into_support(ids_c, vals_c, logp_full,
+                                                       include_ids)
+        else:
+            # exact tail mass so training can renormalize without bias
+            tail_c = torch.log1p(-torch.exp(vals_c).sum(-1).clamp(max=1 - 1e-6))
+        v_l.append(vals_c)
+        i_l.append(ids_c)
+        t_l.append(tail_c)
+        del logp_full
+    return torch.cat(v_l), torch.cat(i_l), torch.cat(t_l)
 
 
 def precompute_topk(
@@ -271,14 +304,7 @@ def precompute_topk(
         keep_dev = keep.to(dev)
         with torch.no_grad():
             lg = _teacher_logits(model, ids, keep_dev)[:, :kd_vocab]
-            logp_full = torch.log_softmax(lg, dim=-1)
-            vals, ids_k = torch.topk(logp_full, topk, dim=-1)
-            if include_ids:
-                ids_k, vals, tail = force_into_support(ids_k, vals, logp_full,
-                                                       include_ids)
-            else:
-                # exact tail mass so training can renormalize without bias
-                tail = torch.log1p(-torch.exp(vals).sum(-1).clamp(max=1 - 1e-6))
+            vals, ids_k, tail = _topk_rows(lg, topk, include_ids)
         wins.append(torch.full((keep.numel(),), w, dtype=torch.int32))
         poss.append(keep.to(torch.int32))
         idxs.append(ids_k.to(torch.int32).cpu())
@@ -289,7 +315,7 @@ def precompute_topk(
             el = time.time() - t0
             print(f"[kd] window {w+1}/{n_win}  positions={n_pos_total}  "
                   f"{el:.0f}s ({el/(w+1):.1f}s/window)", flush=True)
-        del lg, logp_full
+        del lg
         backend.empty_cache()
 
     payload = {

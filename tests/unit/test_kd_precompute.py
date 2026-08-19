@@ -132,3 +132,23 @@ def test_kd_loss_handles_fp16_storage_roundtrip():
     vals, idx = torch.topk(t_logp, K, dim=-1)
     loss = kd_loss_from_topk(torch.randn(P, V), idx.to(torch.int32), vals.to(torch.float16))
     assert torch.isfinite(loss) and float(loss) > 0
+
+
+def test_topk_rows_chunked_matches_whole(monkeypatch):
+    """POS_CHUNK is a memory knob, not a numerics knob: any chunk size must produce
+    exactly the table a single whole-tensor pass produces (32B OOM fix, 2026-08-19)."""
+    from quant_tuner.qat import kd_precompute as kp
+
+    torch.manual_seed(0)
+    lg = torch.randn(37, 50, dtype=torch.bfloat16)  # odd row count, bf16 like the teacher
+    stop_id = 7
+    for include in (None, [stop_id]):
+        monkeypatch.setattr(kp, "POS_CHUNK", 10_000)
+        v0, i0, t0 = kp._topk_rows(lg.clone(), 8, include)
+        monkeypatch.setattr(kp, "POS_CHUNK", 5)
+        v1, i1, t1 = kp._topk_rows(lg.clone(), 8, include)
+        assert torch.equal(i0, i1)
+        assert torch.equal(v0, v1)
+        assert torch.equal(t0, t1)
+        if include:
+            assert (i1 == stop_id).any(-1).all(), "forced id missing from a support row"
