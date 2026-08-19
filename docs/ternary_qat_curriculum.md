@@ -791,3 +791,25 @@ new levers this diagnosis suggests for ternary: tighter grad clipping (the contr
 waves co-occur with gnorm spikes 2.5-4.8; clip is currently 1.0), the steering loss
 (--steer-weight) giving the fragile class every-step support, and grad-accum > 1 to
 average the too-hot per-step direction.
+
+## Dense control v2 (lr 2e-5): the decomposition
+
+274 steps, stable dynamics, guards off, probe every 10. The control face's full story:
+slow erosion from 0.9999 to a ~0.97 plateau, two excursions (0.885 @160, 0.936 @180)
+that RECOVER and dampen, then stability 0.966-0.977 through the end. Diagnostic 0.0000
+throughout; val monotone to 0.744 (project best); loss 2.30 -> 0.57.
+
+The decomposition of the ternary failure, now measured:
+1. **A slow objective-driven leak** (present in dense): the KD+anchor objective erodes
+   the short-context control face ~0.03 over 274 stable steps, plateauing ~0.97.
+2. **Waves** (present in dense at 3-5x smaller amplitude, recovering): a property of
+   the training process (objective x fixed data order), NOT of ternarization. Window
+   stats at the wave steps are unremarkable (no poisoned block).
+3. **Ternary amplification** (the killer): at the lr ternary needs (5e-4 — which
+   diverges a dense model in 10 steps, loss 15), the quantizer low-pass filters the
+   too-hot dynamics; the waves leak through at threshold-crossing bursts, deepen
+   instead of recovering, and take the control face to 0.55-0.75.
+
+Synthesis run (anchor6): anchor5's config + --steer-weight 0.1 (every-step gradient
+support for the fragile context class, against #1) + --clip-norm 0.25 (damping what
+leaks through the filter, against #3) + patience-2 guards.
