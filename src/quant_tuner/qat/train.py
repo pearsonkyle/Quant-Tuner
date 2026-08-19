@@ -1137,8 +1137,12 @@ def train_qat(cfg: QATConfig) -> int:
     if cfg.steer_weight > 0:
         from transformers import AutoTokenizer as _AT
         _stok = _AT.from_pretrained(str(cfg.model_dir))
-        steer_batch = SteerBatch.build(_stok, n=cfg.steer_n,
-                                       seed=cfg.steer_seed).to(dev)
+        # stop_id from the dialect, not SteerBatch's Qwen default — a gemma run would
+        # otherwise steer toward id 151645 silently (same id under Qwen, so no-op there).
+        _sid = (stop_probe.stop_id if stop_probe is not None
+                else StopProbe.build(_stok).stop_id)
+        steer_batch = SteerBatch.build(_stok, n=cfg.steer_n, seed=cfg.steer_seed,
+                                       stop_id=_sid).to(dev)
         print(f"[qat] steering: {cfg.steer_n} probe-family contexts every step, "
               f"weight {cfg.steer_weight} (CE->stop on control rows, hinge above "
               f"{steer_batch.cap_logp:.2f} logp on diagnostic rows; probe held out)",

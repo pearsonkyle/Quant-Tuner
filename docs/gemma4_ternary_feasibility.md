@@ -429,6 +429,79 @@ trusted on the probe alone.
 
 ---
 
+## The Bonsai anchor ladder settled the loss stack (2026-08-19)
+
+Between this document's desk phase and now, the Bonsai side of the pipeline completed its
+first full-schedule run that survived with termination intact (`anchor6`, 613 steps, probe
+diagnostic 0.0000 / control 1.0000 at all 24 readings, val loss equal to the dense
+endpoint), and the ladder that got there answered the question this project was always
+going to hit next: **what stabilizes ternary training when CE alone does not.** A gemma
+stage should start from that stack, not rediscover it.
+
+The pieces, and why each exists (full arc: `docs/ternary_qat_curriculum.md`):
+
+| term | flag | what it is for |
+|---|---|---|
+| tail-bucket KD KL | `--kd-table … --kd-alpha 0.5` | the *stabilizer*: an every-position pull toward a dense teacher; renormalized KL is blind to out-of-support mass, the K+1-bucket form is not |
+| forced-stop support | `--include-ids <stop id>` at precompute | makes the KL an exact per-position constraint on P(stop) — the stop token is outside the teacher's top-64 almost everywhere |
+| one-sided stop anchor | `--stop-anchor 0.2` + per-side margins | direction-aware hinge on the stop logit; the *symmetric* form collapsed the control under Bonsai's 176:1 continue:stop imbalance |
+| termination steering | `--steer-weight 0.1` | probe-family contexts as an every-step gradient, with the probe prompts themselves held out (the Goodhart guard) |
+| repetition steering | `--steer-rep-weight` | one-sided hinge on P(verbatim previous command); trains away the loop failure the mimic exposed |
+| grad clip | `--clip-norm 0.25` | damps the objective×data-order oscillation waves; measured, not folklore |
+| per-tensor lr | `--lr-scale group-scale` | lr ∝ median TWN group scale — Adafactor's normalized step starves small-scale tensors |
+| dual probe abort | `--probe-abort … --probe-abort-control … --probe-abort-patience 2` | both failure directions, with hysteresis so one oscillation trough does not kill a recoverable run |
+
+**The finding that matters most here is about CE, and it is worse for gemma.** The dense
+control experiment decomposed the Bonsai collapse into (a) a slow objective-driven leak,
+(b) oscillation waves from the objective × the fixed data order, and (c) ternary
+amplification: the lr a ternary model needs to flip codes at all (5e-4) **diverges the
+same model run dense in 10 steps**. On Bonsai the quantizer low-pass filters those
+dynamics and the stack above damps what leaks through. A from-scratch gemma stage inverts
+the geometry: freshly-ternarized layers sit at ~0.43 relative error from their dense
+selves and need *large* early motion, while the still-dense layers are exactly the
+divergently-hot regime the control exposed — and `--dense-kind down_proj` puts dense
+tensors inside every trainable layer. Expect the oscillations to be worse than Bonsai's,
+run the KD KL from step 1 (it is the only term that pulls *every* position back toward a
+healthy distribution), and treat a stage's untouched layers as the built-in dense control
+when reading the telemetry.
+
+What transfers as **mechanism** vs. what must be **re-measured**:
+
+* Transfers: every row of the table above; the report/watcher/telemetry chain
+  (`scripts/run_kd_anchor_qat.sh` is now fully parametric — `TABLE`, `OUT`,
+  `TEACHER_PROBE`, `REP`, plus the stage flags appended); code-flip telemetry as the
+  primary signal; `kd_precompute` (architecture-agnostic, and its fp32 softmax is now
+  chunked over positions — the whole-tensor path OOM'd a 95 GiB card on a 32B teacher, so
+  a 31B gemma teacher with a 262k-vocab softmax needs the chunked path, already default).
+* Re-measured: **every number.** lr and clip were tuned where step-0 quantization error is
+  zero. Anchor margins (1.0/0.1 nats) and abort thresholds (0.09/0.95) encode Bonsai's
+  baseline; gemma's own baseline (§stop probe) is diagnostic 0.00274 / control 0.070, so
+  the abort pair must be scaled from those (e.g. diagnostic abort at ~10× baseline ≈ 0.03;
+  a control floor has only ~25× of headroom here, not 10⁴ — gate on a trajectory, not the
+  probe alone). The steering batches are the one piece that is NOT yet
+  ported: the stop id now flows from the dialect automatically (train.py passes the
+  probe's), but `SteerBatch`/`RepBatch` bodies hardcode Qwen's `<tool_call>` /
+  `<|im_start|>` markers — and, worse than markers, `SteerBatch`'s control class teaches
+  "stop after emitting a tool call", which is *correct Qwen and inverted gemma* (the same
+  after_tool_call trap as the probe, §stop probe): gemma's stop-is-right position is
+  `answer_after_tool`. Port the context classes per `PROBE_SPECS`, don't just swap
+  markers; until then run gemma stages with `--steer-weight 0` and lean on the anchor +
+  KD, which are dialect-clean.
+* And one is **harsher**: the built train corpus has 6,300 labeled `<turn|>` targets in
+  ~6.5 M supervised tokens — **one stop decision per ~1,030 "keep going"**, 5.9× more
+  imbalanced than the 176:1 that broke the symmetric anchor on Bonsai. The one-sided form
+  is not optional here.
+
+Two provenance notes for anyone reading the tracked artifacts: the corpora are built and
+fingerprinted (train `0c70d992882d29a7` / val `16177b9a361cbdd7`), but
+`docs/gemma4_ternary/corpus_build_train.log` predates the bfc30c2 audit fix — its
+"tool-calls 57/26,389 kept" lines are the *counter bug* that commit fixed (Qwen markers
+counted on a gemma render; 25,772 calls are present and supervised), not a corpus defect.
+The val log postdates the fix and shows the true 100% survival. And `stop_baseline.json`
+is now tracked there, so the probe is interpretable from step 1.
+
+---
+
 ## What is built
 
 The pipeline is wired for gemma-4 up to the point where it needs a GPU.
@@ -469,13 +542,19 @@ The pipeline is wired for gemma-4 up to the point where it needs a GPU.
    all" — if damage compounds superlinearly, no ordering saves it.
 4. **60-step A/B on the damage-ordered schedule vs. all-at-once**, stop probe on from step 1,
    watching code flips and termination together. This is the first step that needs the GPU.
+   Run both arms with the full anchor-ladder loss stack (previous section) from step 1 —
+   Bonsai's ladder already paid for the evidence that CE-only arms waste the GPU time.
 
 ### Open design questions, stated rather than resolved
 
 * **Which 31B to distil from.** Both `gemma-4-31B-it` and its QAT variant pass
   `tokenizer_compatibility()` on all 262,144 ids. Precompute is forward-only and the teacher
-  never enters the training loop, so both are cheap to try — but the KD table scales with the
-  1.7× vocab, and the ~2.2 GB Qwen table at top-64 becomes ~3.7 GB here. Re-derive, do not assume.
+  never enters the training loop, so both are cheap to try. (An earlier draft claimed the
+  table scales with the 1.7× vocab — it does not: the table stores top-K ids+logprobs per
+  *position*, so size tracks supervised positions, and this corpus's ~6.5 M supervised
+  tokens land within ~10% of the Qwen table's 2.2 GB at top-64. What the bigger vocab does
+  cost is the per-window [K, 262k] fp32 softmax at precompute time — covered, see the
+  loss-stack section.)
 * **Does `down_proj` stay Q4_0?** The damage table says it is worth 0.33 GB to keep it there.
   Whether QAT can recover it is precisely what step 4 should test — with `down_proj` as the
   last thing the schedule turns on, if at all.

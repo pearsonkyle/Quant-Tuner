@@ -184,6 +184,14 @@ Fingerprints to match: train `0c70d992882d29a7` (651 windows, 21.3 M tokens, 28.
 supervised, 6,300 labeled `<turn|>`), val `16177b9a361cbdd7` (86 windows). Build logs are
 tracked as `docs/gemma4_ternary/corpus_build_{train,val}.log`.
 
+> **Known-stale lines in the tracked train log.** It was produced before bfc30c2 fixed the
+> per-source audit counters (`count_rendered()` was matching Qwen's markers on a gemma
+> render), so its "tool-calls 57/10,014 kept · reasoning 0/343 kept" lines are the counter
+> bug, not the corpus — 25,772 of 26,389 calls are present and every one supervised. A
+> rebuild at current HEAD reproduces the *fingerprint* but prints corrected audit lines
+> (the val log, built 34 s after the fix landed, shows the true shape: 3,190/3,190 kept).
+> Only an audit-line diff **plus a fingerprint diff** is a finding.
+
 **Then audit it.** This is the step that catches a silently wrong mask:
 
 ```bash
@@ -240,15 +248,52 @@ per layer, not 8.
 
 ## 7. The first training stage (needs the GPU)
 
-The damage profile says ~6 layers per stage, least-damaging first, `down_proj` kept dense:
+The damage profile says ~6 layers per stage, least-damaging first, `down_proj` kept dense
+— and the loss is the full Bonsai anchor-ladder stack, not bare CE (see the feasibility
+doc's loss-stack section: CE alone at a flip-capable lr diverges even a dense model, and a
+from-scratch stage has dense tensors inside every trainable layer).
 
 ```bash
+# 7a. Forced-stop KD table from a dense gemma teacher (forward-only; the fp32 softmax is
+#     position-chunked since the 32B OOM fix, so the 262k vocab fits). Stop id is 106.
+$PY scripts/kd_precompute.py --teacher google/gemma-4-31B-it \
+    --corpus out/gemma4-ternary/corpus_sft_gemma4_32768.pt \
+    --out out/gemma4-ternary/kd/gemma31b_topk64_fs106.pt --topk 64 --dtype bf16 \
+    --student-model google/gemma-4-E4B-it-qat-q4_0-unquantized \
+    --include-ids 106
+# Read `coverage` at startup; below 0.8 the KL is far weaker than it looks.
+
+# 7b. The teacher's own probe values — the report's dotted asymptotes.
+$PY scripts/teacher_stop_probe.py --teacher google/gemma-4-31B-it \
+    --student-model google/gemma-4-E4B-it-qat-q4_0-unquantized \
+    --out out/gemma4-ternary/kd/teacher_probe_31b.json
+
+# 7c. Stage 1. Anchor margins and abort thresholds are SCALED FROM GEMMA'S BASELINE
+#     (stop_baseline.json: diagnostic 0.00274, control 0.070), not copied from Bonsai;
+#     lr/clip are Bonsai's only as the first guess — re-measure with a 60-step A/B.
 $PY -m quant_tuner.qat.train \
     --corpus out/gemma4-ternary/corpus_sft_gemma4_32768.pt \
     --val-corpus out/gemma4-ternary/corpus_sft_gemma4_val_32768.pt \
     --layers 0,1,2,3,7,8 --ternary-layers 0,1,2,3,7,8 --dense-kind down_proj \
-    --probe-every 25 ...
+    --kd-table out/gemma4-ternary/kd/gemma31b_topk64_fs106.pt --kd-alpha 0.5 --kd-temp 1.0 \
+    --stop-anchor 0.2 --stop-anchor-margin 1.0 --stop-anchor-margin-hi 0.1 \
+    --steer-weight 0 --clip-norm 0.25 --lr-scale group-scale \
+    --lr 5e-4 --optim adafactor --dtype fp32 --compute-dtype fp32 \
+    --val-every 50 --probe-every 25 \
+    --probe-abort 0.03 --probe-abort-control 0.01 --probe-abort-patience 2 \
+    --out out/gemma4-ternary/stage1
+# Report watcher, same as Bonsai: bash scripts/qat_report_watch.sh out/gemma4-ternary/stage1
 ```
+
+The control-side abort deserves a caveat: gemma's control baseline is 0.070 with ~25× of
+headroom over the diagnostic (Qwen had ~10⁴), so `--probe-abort-control` here is a
+last-ditch floor, not a health band — a stage that moves the control should be checked
+against a generated trajectory before the probe is believed in either direction.
+`--steer-weight` stays **0** until the steering batches are ported: their control class
+teaches "stop after a tool call", which is correct Qwen and *inverted* gemma (gemma's
+stop-is-right position is `answer_after_tool` — the same trap the probe section documents),
+and their bodies hardcode Qwen markers. The anchor and the KD KL are dialect-clean and
+carry the termination defense meanwhile.
 
 Stage order from `layer_damage.json["layer_order"]` — stage 2 is `05,06,36,37,38,39`; the
 last six (`10,11,17,21,22,23`) are the full-attention and late KV-donor layers and may be
