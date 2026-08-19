@@ -28,6 +28,8 @@ MARGIN_HI="${MARGIN_HI:-0.1}"
 EPOCHS="${EPOCHS:-1.0355}"          # 613 steps over the 592-window corpus
 ABORT="${ABORT:-0.09}"
 ABORT_CTRL="${ABORT_CTRL:-0.95}"
+STEER="${STEER:-0}"
+CLIP="${CLIP:-1.0}"
 CORPUS="${CORPUS:-out/exp-058/fixed/corpus_ourssft_32768.pt}"
 VAL="${VAL:-out/exp-058/fixed/corpus_ourssft_val_32768.pt}"
 TABLE="${TABLE:-out/exp-058/kd/ourssft_8b_topk64_fs151645.pt}"   # forced-stop table
@@ -39,12 +41,13 @@ free_gb=$(df --output=avail -BG "$(pwd)" | tail -1 | tr -dc 0-9)
 mkdir -p "$OUT"
 cp out/exp-058/kd8b-full/teacher_probe.json "$OUT/" 2>/dev/null || true
 
-echo "[$TAG] lr=$LR alpha=$ALPHA anchor beta=$BETA margins=$MARGIN/$MARGIN_HI -> $OUT"
+echo "[$TAG] lr=$LR alpha=$ALPHA anchor beta=$BETA margins=$MARGIN/$MARGIN_HI steer=$STEER clip=$CLIP -> $OUT"
 PYTHONPATH=src .venv/bin/python -m quant_tuner.qat.train \
     --corpus "$CORPUS" --val-corpus "$VAL" \
     --kd-table "$TABLE" --kd-alpha "$ALPHA" --kd-temp 1.0 \
     --stop-anchor "$BETA" --stop-anchor-margin "$MARGIN" \
     --stop-anchor-margin-hi "$MARGIN_HI" \
+    --steer-weight "$STEER" --clip-norm "$CLIP" \
     --lr-scale group-scale \
     --train-layers 36 --optim adafactor --dtype fp32 \
     --compute-dtype fp32 --matmul-precision high \

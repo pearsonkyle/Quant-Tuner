@@ -110,6 +110,10 @@ class QATConfig:
     steer_weight: float = 0.0
     steer_n: int = 8
     steer_seed: int = 11
+    #: max grad norm. 1.0 was hardcoded since the CUDA port; the dense control showed
+    #: the control-face waves ride gnorm spikes (2.5-4.8 in ternary at troughs), so
+    #: this is the amplitude-damping lever.
+    clip_norm: float = 1.0
     val_corpus: Path | None = None
     val_every: int = 20
     # Termination telemetry cadence. 0 disables. Defaults to the validation cadence
@@ -1224,9 +1228,9 @@ def train_qat(cfg: QATConfig) -> int:
             if guard.check(gn):
                 opt.zero_grad()
                 return gn, True
-            opt.step_staged(1.0)
+            opt.step_staged(cfg.clip_norm)
         else:
-            gn = float(torch.nn.utils.clip_grad_norm_(trainable, 1.0,
+            gn = float(torch.nn.utils.clip_grad_norm_(trainable, cfg.clip_norm,
                                                       foreach=backend.foreach))
             if guard.check(gn):
                 opt.zero_grad()
@@ -1540,6 +1544,10 @@ def _build_parser() -> argparse.ArgumentParser:
                          "positions. The probe itself stays held out.")
     ap.add_argument("--steer-n", type=int, default=8)
     ap.add_argument("--steer-seed", type=int, default=11)
+    ap.add_argument("--clip-norm", type=float, default=1.0,
+                    help="max grad norm (was hardcoded 1.0). The control-face waves "
+                         "ride gnorm spikes; ~0.25 damps what leaks through the "
+                         "ternary quantization filter.")
     ap.add_argument("--probe-abort-patience", type=int, default=2,
                     help="consecutive violating probes required before either abort "
                          "fires. 2 tolerates the trough of a bounded oscillation "
@@ -1657,7 +1665,7 @@ def main(argv: list[str] | None = None) -> int:
         probe_abort_control=args.probe_abort_control,
         probe_abort_patience=args.probe_abort_patience,
         steer_weight=args.steer_weight, steer_n=args.steer_n,
-        steer_seed=args.steer_seed,
+        steer_seed=args.steer_seed, clip_norm=args.clip_norm,
         lr_scale=args.lr_scale,
         train_norms=args.train_norms, resume=args.resume,
         flip_sample=args.flip_sample, ckpt_every=args.ckpt_every,
