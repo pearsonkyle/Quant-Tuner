@@ -813,3 +813,34 @@ The decomposition of the ternary failure, now measured:
 Synthesis run (anchor6): anchor5's config + --steer-weight 0.1 (every-step gradient
 support for the fragile context class, against #1) + --clip-norm 0.25 (damping what
 leaks through the filter, against #3) + patience-2 guards.
+
+## anchor6: the first complete artifact — and the frontier moves
+
+The synthesis config (KD forced-stop table + one-sided per-side-margin anchor +
+--steer-weight 0.1 + --clip-norm 0.25 + lr-scale + lr 5e-4 + patience guards) ran the
+FULL 613 steps with a perfect probe record: all 24 probes at exactly 0.0000 diagnostic /
+1.0000 control. Final flips 1.07-2.37% across every tracked tensor (v_proj alive at
+1.07%); val 0.745 = the dense control's endpoint; guards never fired.
+
+The three-tier evaluation of the Q2_0 export:
+- GGUF probe: diagnostic < 5e-5 everywhere; control 0.9999975 (above vanilla's own).
+- In-distribution (273 real stop positions): median 0.9950 (> vanilla 0.9932), mean
+  0.9414, p10 0.8197 — the anchor3 weak tail improved 10x (0.079 -> 0.820), not fully
+  closed (vanilla 0.980).
+- Agent episode: 60 clean turns, zero tool errors — and the identical command repeated
+  49x. NOT a termination failure: the model stopped correctly after every call, then
+  chose the same action again. The frontier is now REPETITION (state-tracking), a
+  different pathology that vanilla shares in gentler form.
+
+**Serving-side mitigation works today**: llama-server `--repeat-penalty 1.3
+--repeat-last-n 2048 --presence-penalty 0.8` (CLI defaults apply because the agents SDK
+sends only temperature/top_p) turned the same model's episode into 10 clean steps,
+self-terminated, zero loops — anomaly class **"worked, unresolved"**, the first trained
+ternary model ever to earn it. No 2-bit variant (vanilla included) has ever resolved
+this instance; capability at 2 bits is the remaining gap, not behavior.
+
+**Training-side counterpart implemented** (`--steer-rep-weight`, qat/steer.py
+RepBatch/repetition_loss): contexts of (command -> unhelpful result -> assistant
+header) with the VERBATIM previous command teacher-forced; a one-sided hinge penalizes
+its mean per-token log-prob above `--steer-rep-cap` (default 0.5) — only
+near-deterministic copying is suppressed; re-running a command stays available.

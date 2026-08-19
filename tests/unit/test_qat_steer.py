@@ -99,3 +99,36 @@ def test_hinge_is_silent_below_cap_and_active_above():
     _, met = steering_loss(m, b)
     expect = float((s_cont - b.cap_logp).mean())
     assert abs(met["steer_cont_pen"] - expect) < 1e-4
+
+
+def test_rep_batch_spans_cover_the_repeated_command():
+    from quant_tuner.qat.steer import RepBatch
+    b = RepBatch.build(_StubTok(), n=6, seed=23)
+    assert b.ids.shape[0] == 6
+    for i in range(6):
+        lo, hi = int(b.span[i, 0]), int(b.span[i, 1])
+        assert 0 < lo < hi <= b.ids.shape[1]
+        assert bool((b.attn[i, lo:hi] == 1).all())     # span is real tokens, not pad
+
+
+def test_repetition_loss_is_one_sided_and_flows_gradient():
+    """Below the per-token cap the hinge is silent; a near-deterministic copier is
+    penalized and the gradient reaches the model."""
+    import math
+
+    from quant_tuner.qat.steer import RepBatch, repetition_loss
+    m = _tiny()
+    torch.manual_seed(2)
+    ids = torch.randint(3, 128, (4, 30))
+    attn = torch.ones_like(ids)
+    span = torch.tensor([[20, 28]] * 4)
+    b = RepBatch(ids, attn, span, math.log(0.5))
+    pen, met = repetition_loss(m, b)
+    # a random tiny model is nowhere near 0.5 per-token on arbitrary continuations
+    assert met["rep_p_mean"] < 0.5 and float(pen) == 0.0
+    b2 = RepBatch(ids, attn, span, math.log(1e-6))     # cap below everything -> active
+    pen2, _ = repetition_loss(m, b2)
+    assert float(pen2) > 0
+    pen2.backward()
+    g = m.lm_head.weight.grad
+    assert g is not None and torch.isfinite(g).all() and g.abs().sum() > 0

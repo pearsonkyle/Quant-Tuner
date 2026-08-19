@@ -246,3 +246,10 @@ def test_parse_reads_the_steer_step_line():
         "[qat] step 10/613 loss=0.87 kl=0.55 an=0.01 st=0.12 lr=1.67e-04 gnorm=1.4 "
         "mem=31.6/70.6GiB 45.9s/step\n")["steps"]
     assert rows and rows[0]["steer"] == 0.12 and rows[0]["kd_kl"] == 0.55
+
+
+def test_parse_reads_the_rep_steer_step_line():
+    rows = parse(
+        "[qat] step 10/613 loss=0.87 kl=0.55 an=0.01 st=0.12 rp=0.03 lr=1.67e-04 "
+        "gnorm=1.4 mem=31.6/70.6GiB 45.9s/step\n")["steps"]
+    assert rows and rows[0]["steer_rep"] == 0.03 and rows[0]["steer"] == 0.12

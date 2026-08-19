@@ -400,3 +400,25 @@ bash scripts/run_kd_export_bench.sh anchor3
 which runs export -> GGUF stop probe -> `measure_indist_stop.py` (real corpus stop
 positions; this is what exposed the bimodal weak tail the probe medians hide) -> the
 Docker-free SWE mimic, and prunes the ~50 GB of export intermediates.
+
+## 11. The working recipe (anchor6) and its serving parameters
+
+```bash
+TAG=anchor6 LR=5e-4 STEER=0.1 CLIP=0.25 bash scripts/run_kd_anchor_qat.sh
+bash scripts/run_kd_export_bench.sh anchor6
+```
+
+Loss = 0.5·CE + 0.5·(tail-bucket KL, forced-stop table) + 0.2·(one-sided anchor,
+margins 1.0/0.1) + 0.1·(termination steering) with clip-norm 0.25, group-scale lr, and
+patience-2 dual probe guards. First full-schedule completion; perfect probe record.
+
+**Serve the export with repetition penalties** — behavioral integrity at 2 bits needs
+them (llama-server CLI defaults reach OpenAI-compat requests that omit the fields):
+
+```
+--repeat-penalty 1.3 --repeat-last-n 2048 --presence-penalty 0.8
+```
+
+Measured: same GGUF, same episode — without penalties 60 turns / one command 49x /
+MaxTurns; with them 10 clean turns, self-terminated, "worked, unresolved".
+`--steer-rep-weight 0.1` is the training-time counterpart for the next run.

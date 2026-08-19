@@ -146,3 +146,89 @@ def steering_loss(model, batch: SteerBatch) -> tuple[torch.Tensor, dict[str, flo
                   "steer_cont_pen": float(pen.detach()),
                   "steer_p_stop_ctrl": float(s[stop_rows].detach().exp().mean())
                   if bool(stop_rows.any()) else float("nan")}
+
+
+REP_RESULTS = [
+    "src/\ntests/\nsetup.py\nREADME.md",
+    "(no output)",
+    "grep: no matches found",
+    "total 8\ndrwxr-xr-x src\ndrwxr-xr-x tests",
+    "============ no tests ran in 0.12s ============",
+]
+
+
+@dataclass
+class RepBatch:
+    """Contexts ending after (command -> result -> assistant header), with the VERBATIM
+    previous command appended as a teacher-forced continuation to score."""
+
+    ids: torch.Tensor        # [m, L] left-padded: context + repeated-command tokens
+    attn: torch.Tensor       # [m, L]
+    span: torch.Tensor       # [m, 2] start/end (in L coords) of the repeated tokens
+    cap_logp: float          # per-token cap; only near-verbatim copying penalized
+
+    def to(self, device) -> RepBatch:
+        return RepBatch(self.ids.to(device), self.attn.to(device),
+                        self.span.to(device), self.cap_logp)
+
+    @classmethod
+    def build(cls, tok, *, n: int = 6, seed: int = 23,
+              cap_p: float = 0.5) -> RepBatch:
+        rng = random.Random(seed)
+        ctxs, reps = [], []
+        for _ in range(n):
+            sysm = rng.choice([x for x in SYSTEMS if x != PROBE_SYSTEM])
+            task = rng.choice(TASKS).format(mod=rng.choice(MODS))
+            lead = rng.choice(LEADS)
+            cmd = rng.choice(COMMANDS).format(mod=rng.choice(MODS))
+            call = ('<tool_call>\n{"name": "bash", "arguments": '
+                    f'{{"command": "{cmd}"}}\n</tool_call>')
+            prefix = tok.apply_chat_template(
+                [{"role": "system", "content": sysm},
+                 {"role": "user", "content": task}],
+                tools=TOOLS, tokenize=False, add_generation_prompt=True)
+            result = rng.choice(REP_RESULTS)
+            ctx = (prefix + lead + "\n" + call + "<|im_end|>\n"
+                   + "<|im_start|>user\n<tool_response>\n" + result
+                   + "\n</tool_response><|im_end|>\n<|im_start|>assistant\n")
+            ctxs.append(ctx)
+            reps.append(call)                    # the VERBATIM previous command
+        for t in ctxs:
+            assert PROBE_SENTENCE not in t and PROBE_USER not in t
+        enc_c = [tok(t, add_special_tokens=False).input_ids for t in ctxs]
+        enc_r = [tok(t, add_special_tokens=False).input_ids for t in reps]
+        L = max(len(c) + len(r) for c, r in zip(enc_c, enc_r, strict=True))
+        pad = tok.pad_token_id or 0
+        ids = torch.full((n, L), pad, dtype=torch.long)
+        attn = torch.zeros((n, L), dtype=torch.long)
+        span = torch.zeros((n, 2), dtype=torch.long)
+        for i, (c, r) in enumerate(zip(enc_c, enc_r, strict=True)):
+            row = c + r
+            off = L - len(row)                   # left-pad
+            ids[i, off:] = torch.tensor(row)
+            attn[i, off:] = 1
+            span[i, 0] = off + len(c)
+            span[i, 1] = off + len(row)
+        return cls(ids, attn, span, math.log(cap_p))
+
+
+def repetition_loss(model, batch: RepBatch) -> tuple[torch.Tensor, dict[str, float]]:
+    """One-sided hinge on the mean per-token log-prob of re-issuing the previous command.
+
+    Teacher-forced: position t's logits score token t+1, so the span's tokens are
+    predicted by positions span-1 .. span_end-2. Only rows whose mean exceeds the cap
+    contribute — the model may still re-run commands, it just cannot be near-certain
+    about doing so verbatim right after seeing the result.
+    """
+    out = model(input_ids=batch.ids, attention_mask=batch.attn)
+    logp = torch.log_softmax(out.logits.float(), dim=-1)
+    means = []
+    for i in range(batch.ids.shape[0]):
+        lo, hi = int(batch.span[i, 0]), int(batch.span[i, 1])
+        tgt = batch.ids[i, lo:hi]
+        lp = logp[i, lo - 1:hi - 1].gather(-1, tgt.unsqueeze(-1)).squeeze(-1)
+        means.append(lp.mean())
+    m = torch.stack(means)
+    pen = (m - batch.cap_logp).clamp_min(0.0).mean()
+    return pen, {"rep_pen": float(pen.detach()),
+                 "rep_p_mean": float(m.detach().exp().mean())}
