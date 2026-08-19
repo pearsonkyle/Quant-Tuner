@@ -29,25 +29,29 @@ EPOCHS="${EPOCHS:-1.0355}"          # 613 steps over the 592-window corpus
 ABORT="${ABORT:-0.09}"
 ABORT_CTRL="${ABORT_CTRL:-0.95}"
 STEER="${STEER:-0}"
+REP="${REP:-0}"                     # repetition steering (qat/steer.py RepBatch); 0.05 = gentle
+REP_CAP="${REP_CAP:-0.5}"           # hinge cap on mean per-token P(verbatim repeat)
 CLIP="${CLIP:-1.0}"
 CORPUS="${CORPUS:-out/exp-058/fixed/corpus_ourssft_32768.pt}"
 VAL="${VAL:-out/exp-058/fixed/corpus_ourssft_val_32768.pt}"
 TABLE="${TABLE:-out/exp-058/kd/ourssft_8b_topk64_fs151645.pt}"   # forced-stop table
-OUT="out/exp-058/kd8b-full-${TAG}"
+OUT="${OUT:-out/exp-058/kd8b-full-${TAG}}"
+TEACHER_PROBE="${TEACHER_PROBE:-out/exp-058/kd8b-full/teacher_probe.json}"  # asymptotes for the report
 
 while pgrep -f "quant_tuner[.]qat[.]train" > /dev/null; do sleep 30; done
 free_gb=$(df --output=avail -BG "$(pwd)" | tail -1 | tr -dc 0-9)
 [ "$free_gb" -lt 60 ] && { echo "[$TAG] only ${free_gb}G free — need ~60G"; exit 1; }
 mkdir -p "$OUT"
-cp out/exp-058/kd8b-full/teacher_probe.json "$OUT/" 2>/dev/null || true
+cp "$TEACHER_PROBE" "$OUT/teacher_probe.json" 2>/dev/null || true
 
-echo "[$TAG] lr=$LR alpha=$ALPHA anchor beta=$BETA margins=$MARGIN/$MARGIN_HI steer=$STEER clip=$CLIP -> $OUT"
+echo "[$TAG] lr=$LR alpha=$ALPHA anchor beta=$BETA margins=$MARGIN/$MARGIN_HI steer=$STEER rep=$REP clip=$CLIP table=$(basename "$TABLE") -> $OUT"
 PYTHONPATH=src .venv/bin/python -m quant_tuner.qat.train \
     --corpus "$CORPUS" --val-corpus "$VAL" \
     --kd-table "$TABLE" --kd-alpha "$ALPHA" --kd-temp 1.0 \
     --stop-anchor "$BETA" --stop-anchor-margin "$MARGIN" \
     --stop-anchor-margin-hi "$MARGIN_HI" \
-    --steer-weight "$STEER" --clip-norm "$CLIP" \
+    --steer-weight "$STEER" --steer-rep-weight "$REP" --steer-rep-cap "$REP_CAP" \
+    --clip-norm "$CLIP" \
     --lr-scale group-scale \
     --train-layers 36 --optim adafactor --dtype fp32 \
     --compute-dtype fp32 --matmul-precision high \
