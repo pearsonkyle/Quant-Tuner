@@ -23,17 +23,21 @@ from quant_tuner.qat.steer import RepBatch  # noqa: E402
 
 
 def span_logp(model, batch: RepBatch, device: str) -> torch.Tensor:
-    """[m] mean per-token logp of the teacher-forced repeated command."""
+    """[m] mean per-token logp of the teacher-forced repeated command.
+
+    Trunk first, lm_head only at span positions — full [m, L, vocab] logits are
+    13+ GiB fp32 at k=25 depth and OOM silently inside a piped run (same class as
+    the repetition_losses fix)."""
     with torch.no_grad():
-        logits = model(input_ids=batch.ids.to(device),
-                       attention_mask=batch.attn.to(device)).logits.float()
-    logp = torch.log_softmax(logits, dim=-1)
-    out = []
-    for i in range(batch.ids.shape[0]):
-        lo, hi = int(batch.span[i, 0]), int(batch.span[i, 1])
-        tgt = batch.ids[i, lo:hi].to(device)
-        lp = logp[i, lo - 1:hi - 1].gather(-1, tgt.unsqueeze(-1)).squeeze(-1)
-        out.append(lp.mean())
+        hidden = model.model(input_ids=batch.ids.to(device),
+                             attention_mask=batch.attn.to(device)).last_hidden_state
+        out = []
+        for i in range(batch.ids.shape[0]):
+            lo, hi = int(batch.span[i, 0]), int(batch.span[i, 1])
+            lg = model.lm_head(hidden[i, lo - 1:hi - 1]).float()
+            tgt = batch.ids[i, lo:hi].to(device)
+            lp = torch.log_softmax(lg, dim=-1).gather(-1, tgt.unsqueeze(-1)).squeeze(-1)
+            out.append(lp.mean())
     return torch.stack(out).cpu()
 
 
