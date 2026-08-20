@@ -298,16 +298,21 @@ def repetition_losses(
     KL (when ``kd`` given): tail-bucket KL(teacher || student) at the same span
     positions, via :func:`quant_tuner.qat.kd_precompute.kd_loss_from_topk`.
     """
-    out = model(input_ids=batch.ids, attention_mask=batch.attn)
-    logits = out.logits.float()
-    logp = torch.log_softmax(logits, dim=-1)
+    # Trunk first, lm_head ONLY at span positions: a full model() call materializes
+    # [n, L, vocab] logits — 9.2 GiB fp32 at n=10 real-material contexts (L~1500,
+    # 151k vocab), which OOM'd anchor9 beside the training window. Span positions
+    # are ~50/row, so the vocab dim only ever exists on [~550, vocab].
+    hidden = model.model(input_ids=batch.ids,
+                         attention_mask=batch.attn).last_hidden_state
     means, pos_rows = [], []
     for i in range(batch.ids.shape[0]):
         lo, hi = int(batch.span[i, 0]), int(batch.span[i, 1])
+        row_logits = model.lm_head(hidden[i, lo - 1:hi - 1]).float()
         tgt = batch.ids[i, lo:hi]
-        lp = logp[i, lo - 1:hi - 1].gather(-1, tgt.unsqueeze(-1)).squeeze(-1)
+        lp = torch.log_softmax(row_logits, dim=-1).gather(
+            -1, tgt.unsqueeze(-1)).squeeze(-1)
         means.append(lp.mean())
-        pos_rows.append(logits[i, lo - 1:hi - 1])
+        pos_rows.append(row_logits)
     m = torch.stack(means)
     pen = (m - batch.cap_logp).clamp_min(0.0).mean()
     stats = {"rep_pen": float(pen.detach()),
