@@ -238,6 +238,68 @@ def fig_kd_kl(steps, alpha, W, H, PAD):
     return p.svg() + legend(items)
 
 
+def fig_steering(steps, W, H, PAD):
+    """Behavioral steering losses per step — the terms that police looping/termination.
+
+    <b>rp</b> (repetition hinge) is one-sided: positive only while some rep context sits
+    ABOVE the cap on P(verbatim command repeat), so the healthy shape is: nonzero early
+    (or whenever KD re-grows the copying tendency), then driven to zero and staying
+    there. A run whose rp is zero from step 1 has a hinge defined where the pathology
+    is not (anchor7's silent no-op). rk is the rep teacher-KL when enabled; st is the
+    termination steer (CE->stop + hinge), usually near zero on a healthy run.
+    """
+    rows = [r for r in steps if r.get("steer_rep") is not None]
+    xs = [r["step"] for r in rows]
+    xlim = (min(xs), max(xs)) if len(xs) > 1 else (min(xs), min(xs) + 1)
+    series = [("steer_rep", "#d55e00", "rp — repetition hinge", 2.2),
+              ("rep_kl", "#0072b2", "rk — rep teacher-KL", 1.8),
+              ("steer", "#009e73", "st — termination steer", 1.4)]
+    present = [(k, c, lbl, w_) for k, c, lbl, w_ in series
+               if any(r.get(k) is not None for r in rows)]
+    ymax = max([r[k] for k, *_ in present for r in rows if r.get(k) is not None]
+               + [0.02]) * 1.2
+    p = Panel(W, H, PAD, xlim, (0, ymax), xlabel="training step", ylabel="loss term",
+              xticks=nice_ticks(*xlim), yfmt="{:.3f}")
+    for k, c, lbl, w_ in present:
+        pts = [(r["step"], r[k]) for r in rows if r.get(k) is not None]
+        p.line(pts, c, w_, 0.95, lbl)
+        p.dots([pts[-1]], c, 3, lambda x, y, lbl=lbl: f"step {x:g}: {lbl} {y:.4f}")
+    return p.svg() + legend([(lbl, c) for _, c, lbl, _ in present])
+
+
+REP_MEASURE_COLORS = ["#000000", "#d55e00", "#0072b2", "#009e73", "#cc79a7", "#e69f00"]
+
+
+def fig_rep_measure(data, W, H, PAD):
+    """P(verbatim repeat) vs k identical rounds, per checkpoint (measure_repeat_prob).
+
+    The closed-loop pathology in one picture: on REAL-material contexts the trained
+    models escalate toward near-deterministic copying with k while vanilla stays flat
+    (~0.55). The dashed line is the training hinge cap — the trained model may retry,
+    but may not be MORE certain of the verbatim repeat than the cap. anchor8 proved
+    the same curve measured on synthetic contexts can look perfect while this one is
+    untouched — always read the bank variant.
+    """
+    series = data.get("series", {})
+    ks = sorted({int(k) for vals in series.values() for k in vals})
+    xlim = (min(ks), max(ks))
+    p = Panel(W, H, PAD, xlim, (0, 1.02), xlabel="k identical rounds in context",
+              ylabel="mean P(verbatim repeat)", xticks=ks, yfmt="{:.2f}")
+    cap = data.get("cap_p")
+    if cap:
+        p.line([(ks[0], cap), (ks[-1], cap)], "#999999", 1.2, 0.8, "hinge cap")
+    items = []
+    for i, (name, vals) in enumerate(series.items()):
+        c = REP_MEASURE_COLORS[i % len(REP_MEASURE_COLORS)]
+        pts = sorted((int(k), float(v)) for k, v in vals.items())
+        p.line(pts, c, 2.0 if i else 1.6, 0.95, name)
+        p.dots([pts[-1]], c, 3, lambda x, y, n=name: f"{n} k={x:g}: {y:.3f}")
+        items.append((name, c))
+    if cap:
+        items.append(("hinge cap", "#999999"))
+    return p.svg() + legend(items)
+
+
 # Okabe-Ito, distinguishable in both common colour-vision deficiencies. The diagnostic and
 # the control get the two strongest hues because they are the two lines a reader must
 # separate at a glance; the other three are context.
@@ -569,6 +631,8 @@ def main() -> int:
 
     t = args.telemetry
     steps = read(t / "steps.csv", {"step": int, "loss": float, "kd_kl": float,
+                                   "stop_anchor": float, "steer": float,
+                                   "steer_rep": float, "rep_kl": float,
                                    "lr": float, "mem_gib": float, "s_per_step": float})
     vals = read(t / "val.csv", {"step": int, "val_masked_ce": float})
     probes = read(t / "stopprobe.csv",
@@ -615,6 +679,28 @@ def main() -> int:
              "distribution moving toward the teacher's — the SHAPE constraint that pins "
              "the termination policy, which one-target-per-position CE cannot express.",
              fig_kd_kl(steps, args.kd_alpha, W, H, PAD)),
+        ]
+    if any(r.get("steer_rep") is not None for r in steps):
+        figs += [
+            ("Behavioral steering losses",
+             "The per-step steering terms. <b>rp</b> — the repetition hinge on "
+             "real-material loop contexts (one-sided above the cap): healthy shape is "
+             "active-then-suppressed; flat zero from step 1 means the hinge lives where "
+             "the pathology is not. rk = rep teacher-KL (when enabled), st = "
+             "termination steer.",
+             fig_steering(steps, W, H, PAD)),
+        ]
+    _rm = t.parent / "rep_measure.json"
+    if _rm.exists():
+        import json as _json
+        figs += [
+            ("Repetition escalation: P(repeat) vs k",
+             "Checkpoint-level measurement on REAL-material contexts "
+             "(measure_repeat_prob.py --bank): does the model become more certain of "
+             "the verbatim repeat as identical rounds accumulate? Vanilla is flat "
+             "~0.55; anchor7/8 reached 0.96-0.98 — the 56x-loop regime. The dashed "
+             "cap is what training enforces.",
+             fig_rep_measure(_json.loads(_rm.read_text()), W, H, PAD)),
         ]
     if probes:
         figs += [

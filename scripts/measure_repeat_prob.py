@@ -46,6 +46,9 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=23)
     ap.add_argument("--bank", default=None,
                     help="real-material bank (build_rep_bank.py); default synthetic")
+    ap.add_argument("--json-out", default=None,
+                    help="rep_measure.json to create/update — each measured model is "
+                         "written into .series so the run report can plot the curves")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = ap.parse_args()
 
@@ -70,12 +73,20 @@ def main() -> None:
                for k in range(1, args.k_max + 1)}
 
     def report(tag: str) -> None:
+        curve = {}
         for k, b in batches.items():
             lp = span_logp(model, b, args.device)
             p = lp.exp()
+            curve[str(k)] = round(float(p.mean()), 4)
             print(f"[rep] {tag:24s} k={k}  mean_p={p.mean():.4f}  "
                   f"max_p={p.max():.4f}  rows>0.5: {(p > 0.5).sum().item()}/{len(p)}  "
                   f"rows>0.2: {(p > 0.2).sum().item()}/{len(p)}", flush=True)
+        if args.json_out:
+            import json
+            jp = Path(args.json_out)
+            data = json.loads(jp.read_text()) if jp.exists() else {"series": {}}
+            data.setdefault("series", {})[tag] = curve
+            jp.write_text(json.dumps(data, indent=1))
 
     report("vanilla")
     if args.latents:
