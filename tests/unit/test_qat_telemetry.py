@@ -253,3 +253,14 @@ def test_parse_reads_the_rep_steer_step_line():
         "[qat] step 10/613 loss=0.87 kl=0.55 an=0.01 st=0.12 rp=0.03 lr=1.67e-04 "
         "gnorm=1.4 mem=31.6/70.6GiB 45.9s/step\n")["steps"]
     assert rows and rows[0]["steer_rep"] == 0.03 and rows[0]["steer"] == 0.12
+
+
+def test_step_line_with_rep_kl():
+    """rk= (rep teacher-KL, anchor9) must parse — every new step-line field has broken
+    STEP_RE silently before (kl=, st=, rp=); same commit, same test, every time."""
+    rows = parse(
+        "[qat] step 7/613 loss=0.9312 kl=0.5012 an=0.0100 st=0.0002 rp=0.0031 "
+        "rk=0.4210 lr=4.99e-04 gnorm=1.10 mem=31.7/88.8GiB 49.3s/step\n")["steps"]
+    assert rows and rows[0]["kd_kl"] == 0.5012
+    assert rows[0]["steer_rep"] == 0.0031
+    assert rows[0]["rep_kl"] == 0.4210

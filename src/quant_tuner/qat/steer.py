@@ -25,10 +25,12 @@ family (held-out generalization), and the untouched probe.
 
 from __future__ import annotations
 
+import hashlib
 import math
 import random
 from collections.abc import Sequence
 from dataclasses import dataclass
+from pathlib import Path
 
 import torch
 
@@ -225,23 +227,92 @@ class RepBatch:
         return cls(ids, attn, span, math.log(cap_p))
 
 
-def repetition_loss(model, batch: RepBatch) -> tuple[torch.Tensor, dict[str, float]]:
-    """One-sided hinge on the mean per-token log-prob of re-issuing the previous command.
+def rep_fingerprint(batch: RepBatch) -> str:
+    """Content hash of the contexts a RepKD table was captured on. The trainer refuses a
+    table whose fingerprint differs from its freshly built batch — a KL against logits
+    captured on OTHER contexts would train silently against the wrong states (same
+    failure class as the KD table's corpus-fingerprint guard)."""
+    h = hashlib.sha256()
+    h.update(batch.ids.cpu().numpy().tobytes())
+    h.update(batch.span.cpu().numpy().tobytes())
+    return h.hexdigest()[:16]
 
+
+@dataclass
+class RepKD:
+    """Teacher top-K logprobs at every span position of a RepBatch (captured offline by
+    scripts/capture_rep_teacher.py). The KL turns the repetition hinge from "don't be
+    certain about the verbatim repeat" into "match what the teacher does in this state"
+    — the hinge suppresses one action but supplies no alternative; the teacher's
+    distribution is the principled alternative."""
+
+    idx: torch.Tensor        # [P, K] support token ids (concatenated over rows)
+    logp: torch.Tensor       # [P, K] teacher logprobs at those ids
+    tail: torch.Tensor       # [P] teacher log-mass outside the support
+    row_off: torch.Tensor    # [m+1] row i owns positions row_off[i]:row_off[i+1]
+    fingerprint: str
+    teacher: str
+
+    def to(self, device) -> RepKD:
+        return RepKD(self.idx.to(device), self.logp.to(device), self.tail.to(device),
+                     self.row_off, self.fingerprint, self.teacher)
+
+    @classmethod
+    def load(cls, path: str | Path, batch: RepBatch) -> RepKD:
+        blob = torch.load(path, map_location="cpu", weights_only=False)
+        fp = rep_fingerprint(batch)
+        if blob["fingerprint"] != fp:
+            raise ValueError(
+                f"rep-KD table {path} was captured on different contexts "
+                f"(table {blob['fingerprint']}, batch {fp}) — regenerate with "
+                f"scripts/capture_rep_teacher.py using the run's exact "
+                f"--steer-rep-k/--steer-rep-seed/--steer-rep-cap settings")
+        want = int((batch.span[:, 1] - batch.span[:, 0]).sum())
+        if int(blob["idx"].shape[0]) != want:
+            raise ValueError(f"rep-KD table has {blob['idx'].shape[0]} positions, "
+                             f"batch spans need {want}")
+        return cls(blob["idx"].long(), blob["logp"].float(), blob["tail"].float(),
+                   blob["row_off"].long(), blob["fingerprint"], blob.get("teacher", "?"))
+
+
+def repetition_losses(
+    model, batch: RepBatch, kd: RepKD | None = None,
+) -> tuple[torch.Tensor, torch.Tensor | None, dict[str, float]]:
+    """One forward over the rep contexts -> (hinge, optional teacher-KL, stats).
+
+    Hinge: one-sided on the mean per-token log-prob of re-issuing the previous command.
     Teacher-forced: position t's logits score token t+1, so the span's tokens are
     predicted by positions span-1 .. span_end-2. Only rows whose mean exceeds the cap
     contribute — the model may still re-run commands, it just cannot be near-certain
     about doing so verbatim right after seeing the result.
+
+    KL (when ``kd`` given): tail-bucket KL(teacher || student) at the same span
+    positions, via :func:`quant_tuner.qat.kd_precompute.kd_loss_from_topk`.
     """
     out = model(input_ids=batch.ids, attention_mask=batch.attn)
-    logp = torch.log_softmax(out.logits.float(), dim=-1)
-    means = []
+    logits = out.logits.float()
+    logp = torch.log_softmax(logits, dim=-1)
+    means, pos_rows = [], []
     for i in range(batch.ids.shape[0]):
         lo, hi = int(batch.span[i, 0]), int(batch.span[i, 1])
         tgt = batch.ids[i, lo:hi]
         lp = logp[i, lo - 1:hi - 1].gather(-1, tgt.unsqueeze(-1)).squeeze(-1)
         means.append(lp.mean())
+        pos_rows.append(logits[i, lo - 1:hi - 1])
     m = torch.stack(means)
     pen = (m - batch.cap_logp).clamp_min(0.0).mean()
-    return pen, {"rep_pen": float(pen.detach()),
-                 "rep_p_mean": float(m.detach().exp().mean())}
+    stats = {"rep_pen": float(pen.detach()),
+             "rep_p_mean": float(m.detach().exp().mean())}
+    kl = None
+    if kd is not None:
+        from quant_tuner.qat.kd_precompute import kd_loss_from_topk
+        student = torch.cat(pos_rows, dim=0)          # [P, V], row order = batch order
+        kl = kd_loss_from_topk(student, kd.idx, kd.logp, tail=kd.tail, temp=1.0)
+        stats["rep_kl"] = float(kl.detach())
+    return pen, kl, stats
+
+
+def repetition_loss(model, batch: RepBatch) -> tuple[torch.Tensor, dict[str, float]]:
+    """Hinge-only wrapper (the original interface)."""
+    pen, _, stats = repetition_losses(model, batch)
+    return pen, stats

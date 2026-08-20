@@ -53,7 +53,7 @@ from quant_tuner.qat.corpus import corpus_fingerprint
 from quant_tuner.qat.kd_precompute import kd_loss_from_topk
 from quant_tuner.qat.kd_table import KDTable, stop_logp_of
 from quant_tuner.qat.master_opt import MasterOptimizer
-from quant_tuner.qat.steer import RepBatch, SteerBatch, repetition_loss, steering_loss
+from quant_tuner.qat.steer import RepBatch, SteerBatch, repetition_losses, steering_loss
 from quant_tuner.qat.stop_probe import StopProbe
 from quant_tuner.qat.stop_probe import format_line as stop_probe_fmt
 from quant_tuner.qat.ternary import TernaryLinear, ternarize_group
@@ -117,6 +117,8 @@ class QATConfig:
     steer_rep_weight: float = 0.0
     steer_rep_cap: float = 0.5
     steer_rep_k: str = "1"          # comma-separated identical-round counts, round-robin
+    steer_rep_kd: str | None = None  # RepKD table (capture_rep_teacher.py); adds teacher-KL
+    steer_rep_kd_weight: float = 0.1
     #: max grad norm. 1.0 was hardcoded since the CUDA port; the dense control showed
     #: the control-face waves ride gnorm spikes (2.5-4.8 in ternary at troughs), so
     #: this is the amplitude-damping lever.
@@ -1149,7 +1151,8 @@ def train_qat(cfg: QATConfig) -> int:
               f"{steer_batch.cap_logp:.2f} logp on diagnostic rows; probe held out)",
               flush=True)
     rep_batch = None
-    if cfg.steer_rep_weight > 0:
+    rep_kd = None
+    if cfg.steer_rep_weight > 0 or cfg.steer_rep_kd:
         from transformers import AutoTokenizer as _AT2
         _rtok = _AT2.from_pretrained(str(cfg.model_dir))
         _ks = [int(x) for x in str(cfg.steer_rep_k).split(",") if x.strip()]
@@ -1158,6 +1161,13 @@ def train_qat(cfg: QATConfig) -> int:
               f"step, weight {cfg.steer_rep_weight}, per-token cap "
               f"{cfg.steer_rep_cap}, identical rounds k={_ks} "
               f"on verbatim command re-issue", flush=True)
+        if cfg.steer_rep_kd:
+            from quant_tuner.qat.steer import RepKD
+            rep_kd = RepKD.load(cfg.steer_rep_kd, rep_batch).to(dev)
+            print(f"[qat] rep teacher-KL: {rep_kd.idx.shape[0]} span positions from "
+                  f"{rep_kd.teacher} (weight {cfg.steer_rep_kd_weight}, tail-bucket, "
+                  f"fingerprint {rep_kd.fingerprint}) — the hinge suppresses the "
+                  f"repeat, the KL supplies the alternative", flush=True)
 
     flip_stats: dict = {}
     abort_strikes = {"diag": 0, "ctrl": 0}
@@ -1296,7 +1306,8 @@ def train_qat(cfg: QATConfig) -> int:
     kl_acc: list[float] = []          # KD KL over the current accum group
     an_acc: list[float] = []          # stop-anchor penalty over the current accum group
     st_acc: list[float] = []          # steering loss over the current accum group
-    rp_acc: list[float] = []          # repetition-steering loss over the accum group
+    rp_acc: list[float] = []          # repetition hinge over the current accum group
+    rk_acc: list[float] = []          # rep teacher-KL over the current accum group
     opt.zero_grad()
     while step < total_steps and not stop["f"]:
         w = order[mi % n_win].item()
@@ -1353,9 +1364,12 @@ def train_qat(cfg: QATConfig) -> int:
                 loss = loss + cfg.steer_weight * st_loss
                 st_acc.append(float(st_loss.detach()))
             if rep_batch is not None:
-                rp_loss, _rp_m = repetition_loss(model, rep_batch)
+                rp_loss, rk_loss, _rp_m = repetition_losses(model, rep_batch, rep_kd)
                 loss = loss + cfg.steer_rep_weight * rp_loss
                 rp_acc.append(float(rp_loss.detach()))
+                if rk_loss is not None:
+                    loss = loss + cfg.steer_rep_kd_weight * rk_loss
+                    rk_acc.append(float(rk_loss.detach()))
             lv = float(loss.detach())
             if not math.isfinite(lv):
                 # skip BEFORE backward: the accumulated group stays valid, n_acc unchanged
@@ -1414,11 +1428,14 @@ def train_qat(cfg: QATConfig) -> int:
                     kl_str += f" st={sum(st_acc)/len(st_acc):.4f}"
                 if rp_acc:
                     kl_str += f" rp={sum(rp_acc)/len(rp_acc):.4f}"
+                if rk_acc:
+                    kl_str += f" rk={sum(rk_acc)/len(rk_acc):.4f}"
                 src_loss.clear()
                 kl_acc.clear()
                 an_acc.clear()
                 st_acc.clear()
                 rp_acc.clear()
+                rk_acc.clear()
                 print(f"[qat] step {step}/{total_steps} loss={avg:.4f}{kl_str} "
                       f"lr={cur_lr:.2e} "
                       # pre-clip; a divergence shows up here BEFORE the loss reacts
@@ -1582,6 +1599,12 @@ def _build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--steer-rep-cap", type=float, default=0.5,
                     help="per-token probability cap above which verbatim command "
                          "repetition is penalized")
+    ap.add_argument("--steer-rep-kd", default=None,
+                    help="RepKD table from scripts/capture_rep_teacher.py — adds a "
+                         "tail-bucket teacher-KL at the rep-context span positions "
+                         "(the hinge suppresses the repeat; this supplies the "
+                         "teacher's alternative)")
+    ap.add_argument("--steer-rep-kd-weight", type=float, default=0.1)
     ap.add_argument("--steer-rep-k", default="1",
                     help="comma-separated identical-round counts assigned round-robin "
                          "across the rep contexts (measured: the repeat probability "
@@ -1711,6 +1734,8 @@ def main(argv: list[str] | None = None) -> int:
         steer_rep_weight=args.steer_rep_weight,
         steer_rep_cap=args.steer_rep_cap,
         steer_rep_k=args.steer_rep_k,
+        steer_rep_kd=args.steer_rep_kd,
+        steer_rep_kd_weight=args.steer_rep_kd_weight,
         lr_scale=args.lr_scale,
         train_norms=args.train_norms, resume=args.resume,
         flip_sample=args.flip_sample, ckpt_every=args.ckpt_every,
