@@ -46,6 +46,8 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=23)
     ap.add_argument("--bank", default=None,
                     help="real-material bank (build_rep_bank.py); default synthetic")
+    ap.add_argument("--tag", default=None,
+                    help="series name for --json-out (default: latents parent dir)")
     ap.add_argument("--json-out", default=None,
                     help="rep_measure.json to create/update — each measured model is "
                          "written into .series so the run report can plot the curves")
@@ -101,7 +103,7 @@ def main() -> None:
                     mod.linear.weight.copy_(src.to(args.device))
                     n += 1
         print(f"[rep] loaded {n} latent tensors from {args.latents}", flush=True)
-        report(Path(args.latents).parent.name)
+        report(args.tag or Path(args.latents).parent.name)
 
 
 if __name__ == "__main__":

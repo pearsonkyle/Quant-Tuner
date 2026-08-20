@@ -264,3 +264,18 @@ def test_step_line_with_rep_kl():
     assert rows and rows[0]["kd_kl"] == 0.5012
     assert rows[0]["steer_rep"] == 0.0031
     assert rows[0]["rep_kl"] == 0.4210
+
+
+def test_flip_line_with_delta_field_parses():
+    """From the second checkpoint on, flip lines carry 'Δ+0.8259' between the percent
+    and the parenthesis; a regex without it silently drops every later checkpoint and
+    all flip panels degenerate to the first (fifth instance of the drift class)."""
+    text = (
+        "  model.layers.0.self_attn.q_proj: flips 0.9622% Δ+0.8259 "
+        "(0->±:70921 ±->0:90494 ±->∓:19) density 65.5->65.4% scale-drift 1.75% (+0.25%)\n"
+        "[qat] checkpoint @ step 200: 252 tensors\n")
+    rows = parse(text)["flips"]
+    assert len(rows) == 1
+    assert rows[0]["step"] == 200
+    assert rows[0]["flip_pct"] == 0.9622
+    assert rows[0]["sign_flips"] == 19

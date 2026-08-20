@@ -49,8 +49,11 @@ KV_RE = re.compile(r"(?P<k>[a-z_]+)=(?P<v>[\d.eE+-]+)")
 #   old: "  ...q_proj: flips 1.8593% (0->±:131663 ±->0:179612) scale-drift 2.29%"
 #   new: "  ...q_proj: flips 1.2445% (0->±:102280 ±->0:106511 ±->∓:0) density 64.9->64.9%
 #         scale-drift 0.68% (+0.08%)"
+# The Δ field appears from the SECOND checkpoint on (flip velocity vs the previous
+# checkpoint) — a regex without it drops every later checkpoint and all flip panels
+# silently degenerate to step-100 (fifth instance of the format/parser drift class).
 FLIP_RE = re.compile(
-    r"^\s+(?P<tensor>\S+): flips (?P<pct>[\d.]+)% "
+    r"^\s+(?P<tensor>\S+): flips (?P<pct>[\d.]+)%(?: Δ(?P<dlt>[+-][\d.]+))? "
     r"\(0->\S+:(?P<z2nz>\d+) \S+->0:(?P<nz2z>\d+)(?: \S+->\S+:(?P<sign>\d+))?\)"
     r".*?scale-drift (?P<drift>[\d.]+)%"
 )

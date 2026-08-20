@@ -514,8 +514,14 @@ def fig_zero_fraction(traj, W, H, PAD):
         return "<p>no trajectory data</p>"
     xs = [r["step"] for r in traj]
     d = [(r["zero_frac"] - r["zero_frac_start"]) * 100 for r in traj]
-    p = Panel(W, H, PAD, (min(xs), max(xs)), (min(d + [0.0]) * 1.15, max(d + [0.0]) * 1.15),
-              xlabel="training step", ylabel="Δ zero-fraction (pp)", yfmt="{:+.2f}")
+    # Every trajectory factually starts at Δ=0 at step 0 (zero_frac_start IS the step-0
+    # census), so anchor the lines there — it also keeps the panel well-formed when only
+    # one checkpoint exists yet (a live run's first interval used to collapse the x-axis
+    # and stack every label at the left edge).
+    xlim = (0, max(xs))
+    p = Panel(W, H, PAD, xlim, (min(d + [0.0]) * 1.15, max(d + [0.0]) * 1.15),
+              xlabel="training step", ylabel="Δ zero-fraction (pp)",
+              xticks=nice_ticks(*xlim), yfmt="{:+.2f}")
     p.rule(0.0, "#bbb")
     by: dict[str, list] = {}
     for r in traj:
@@ -523,7 +529,8 @@ def fig_zero_fraction(traj, W, H, PAD):
     ends = []
     for name, rs in by.items():
         rs.sort(key=lambda r: r["step"])
-        pts = [(r["step"], (r["zero_frac"] - r["zero_frac_start"]) * 100) for r in rs]
+        pts = [(0, 0.0)] + [(r["step"], (r["zero_frac"] - r["zero_frac_start"]) * 100)
+                            for r in rs]
         c = KIND_COLOR.get(rs[0]["kind"], MUTED)
         p.line(pts, c, 2, 0.85, name)
         ends.append((p.py(pts[-1][1]),
