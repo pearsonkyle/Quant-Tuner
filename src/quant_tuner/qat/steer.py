@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import math
 import random
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import torch
@@ -173,10 +174,19 @@ class RepBatch:
 
     @classmethod
     def build(cls, tok, *, n: int = 6, seed: int = 23,
-              cap_p: float = 0.5) -> RepBatch:
+              cap_p: float = 0.5, k: int | Sequence[int] = 1) -> RepBatch:
+        """``k`` = how many identical (call -> identical result) rounds precede the
+        decision point (a sequence assigns ks round-robin across the n contexts).
+        k=1 is the original first-repeat context; measured on anchor7
+        (scripts/measure_repeat_prob.py, 2026-08-20): P(repeat) at k=1 sits at ~0.33
+        — under the 0.5 cap, so v1's hinge never fired — and ESCALATES 0.33->0.52
+        over k=1..5 on trained latents while vanilla stays flat at ~0.35. Train at
+        k=2-5 with the cap at vanilla's own level: penalize the escalation, not
+        repetition per se."""
         rng = random.Random(seed)
+        ks = [k] * n if isinstance(k, int) else [ks_ for ks_ in k]
         ctxs, reps = [], []
-        for _ in range(n):
+        for i in range(n):
             sysm = rng.choice([x for x in SYSTEMS if x != PROBE_SYSTEM])
             task = rng.choice(TASKS).format(mod=rng.choice(MODS))
             lead = rng.choice(LEADS)
@@ -187,10 +197,13 @@ class RepBatch:
                 [{"role": "system", "content": sysm},
                  {"role": "user", "content": task}],
                 tools=TOOLS, tokenize=False, add_generation_prompt=True)
-            result = rng.choice(REP_RESULTS)
-            ctx = (prefix + lead + "\n" + call + "<|im_end|>\n"
-                   + "<|im_start|>user\n<tool_response>\n" + result
-                   + "\n</tool_response><|im_end|>\n<|im_start|>assistant\n")
+            result = rng.choice(REP_RESULTS)     # ONE result, identical every round
+            round_ = (call + "<|im_end|>\n"
+                      + "<|im_start|>user\n<tool_response>\n" + result
+                      + "\n</tool_response><|im_end|>\n<|im_start|>assistant\n")
+            ctx = prefix + lead + "\n" + round_
+            for _r in range(ks[i % len(ks)] - 1):  # later rounds: bare re-issue, same result
+                ctx += round_
             ctxs.append(ctx)
             reps.append(call)                    # the VERBATIM previous command
         for t in ctxs:

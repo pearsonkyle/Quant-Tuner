@@ -116,6 +116,7 @@ class QATConfig:
     #: is the training-time counterpart.
     steer_rep_weight: float = 0.0
     steer_rep_cap: float = 0.5
+    steer_rep_k: str = "1"          # comma-separated identical-round counts, round-robin
     #: max grad norm. 1.0 was hardcoded since the CUDA port; the dense control showed
     #: the control-face waves ride gnorm spikes (2.5-4.8 in ternary at troughs), so
     #: this is the amplitude-damping lever.
@@ -1151,10 +1152,12 @@ def train_qat(cfg: QATConfig) -> int:
     if cfg.steer_rep_weight > 0:
         from transformers import AutoTokenizer as _AT2
         _rtok = _AT2.from_pretrained(str(cfg.model_dir))
-        rep_batch = RepBatch.build(_rtok, cap_p=cfg.steer_rep_cap).to(dev)
+        _ks = [int(x) for x in str(cfg.steer_rep_k).split(",") if x.strip()]
+        rep_batch = RepBatch.build(_rtok, cap_p=cfg.steer_rep_cap, k=_ks).to(dev)
         print(f"[qat] repetition steering: {rep_batch.ids.shape[0]} contexts every "
               f"step, weight {cfg.steer_rep_weight}, per-token cap "
-              f"{cfg.steer_rep_cap} on verbatim command re-issue", flush=True)
+              f"{cfg.steer_rep_cap}, identical rounds k={_ks} "
+              f"on verbatim command re-issue", flush=True)
 
     flip_stats: dict = {}
     abort_strikes = {"diag": 0, "ctrl": 0}
@@ -1579,6 +1582,10 @@ def _build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--steer-rep-cap", type=float, default=0.5,
                     help="per-token probability cap above which verbatim command "
                          "repetition is penalized")
+    ap.add_argument("--steer-rep-k", default="1",
+                    help="comma-separated identical-round counts assigned round-robin "
+                         "across the rep contexts (measured: the repeat probability "
+                         "escalates with k on trained latents; train at 2-5)")
     ap.add_argument("--clip-norm", type=float, default=1.0,
                     help="max grad norm (was hardcoded 1.0). The control-face waves "
                          "ride gnorm spikes; ~0.25 damps what leaks through the "
@@ -1703,6 +1710,7 @@ def main(argv: list[str] | None = None) -> int:
         steer_seed=args.steer_seed, clip_norm=args.clip_norm,
         steer_rep_weight=args.steer_rep_weight,
         steer_rep_cap=args.steer_rep_cap,
+        steer_rep_k=args.steer_rep_k,
         lr_scale=args.lr_scale,
         train_norms=args.train_norms, resume=args.resume,
         flip_sample=args.flip_sample, ckpt_every=args.ckpt_every,

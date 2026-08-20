@@ -31,6 +31,7 @@ ABORT_CTRL="${ABORT_CTRL:-0.95}"
 STEER="${STEER:-0}"
 REP="${REP:-0}"                     # repetition steering (qat/steer.py RepBatch); 0.05 = gentle
 REP_CAP="${REP_CAP:-0.5}"           # hinge cap on mean per-token P(verbatim repeat)
+REP_K="${REP_K:-1}"                 # identical rounds in rep contexts (measured: escalation lives at k>=2)
 CLIP="${CLIP:-1.0}"
 CORPUS="${CORPUS:-out/exp-058/fixed/corpus_ourssft_32768.pt}"
 VAL="${VAL:-out/exp-058/fixed/corpus_ourssft_val_32768.pt}"
@@ -51,6 +52,7 @@ PYTHONPATH=src .venv/bin/python -m quant_tuner.qat.train \
     --stop-anchor "$BETA" --stop-anchor-margin "$MARGIN" \
     --stop-anchor-margin-hi "$MARGIN_HI" \
     --steer-weight "$STEER" --steer-rep-weight "$REP" --steer-rep-cap "$REP_CAP" \
+    --steer-rep-k "$REP_K" \
     --clip-norm "$CLIP" \
     --lr-scale group-scale \
     --train-layers 36 --optim adafactor --dtype fp32 \
