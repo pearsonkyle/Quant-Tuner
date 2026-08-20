@@ -339,17 +339,24 @@ def repetition_losses(
     KL (when ``kd`` given): tail-bucket KL(teacher || student) at the same span
     positions, via :func:`quant_tuner.qat.kd_precompute.kd_loss_from_topk`.
     """
-    # Trunk first, lm_head ONLY at span positions: a full model() call materializes
-    # [n, L, vocab] logits — 9.2 GiB fp32 at n=10 real-material contexts (L~1500,
-    # 151k vocab), which OOM'd anchor9 beside the training window. Span positions
-    # are ~50/row, so the vocab dim only ever exists on [~550, vocab].
-    hidden = model.model(input_ids=batch.ids,
-                         attention_mask=batch.attn).last_hidden_state
+    # Two memory rules, both learned the hard way on this loss:
+    #  * lm_head ONLY at span positions — full [n, L, vocab] logits are 9.2 GiB fp32
+    #    at n=10 (L~1500), which OOM'd anchor9 beside the training window.
+    #  * one UNPADDED row per forward — a left-padded batch needs an attention_mask,
+    #    the float mask knocks fp32 SDPA off the fused kernel onto the math path, and
+    #    [4, 32, 6016, 6016] scores are ~37 GiB (OOM'd anchor10 at launch with the
+    #    5956-token harvested contexts). Bare rows take the mask-free causal fast
+    #    path: no score matrix exists at any length.
     means, pos_rows = [], []
     for i in range(batch.ids.shape[0]):
-        lo, hi = int(batch.span[i, 0]), int(batch.span[i, 1])
-        row_logits = model.lm_head(hidden[i, lo - 1:hi - 1]).float()
-        tgt = batch.ids[i, lo:hi]
+        keep = batch.attn[i] == 1
+        off = int((~keep).sum())
+        assert bool(keep[off:].all()), "rows must be LEFT-padded"
+        row_ids = batch.ids[i, off:].unsqueeze(0)
+        lo, hi = int(batch.span[i, 0]) - off, int(batch.span[i, 1]) - off
+        hidden = model.model(input_ids=row_ids).last_hidden_state
+        row_logits = model.lm_head(hidden[0, lo - 1:hi - 1]).float()
+        tgt = batch.ids[i, int(batch.span[i, 0]):int(batch.span[i, 1])]
         lp = torch.log_softmax(row_logits, dim=-1).gather(
             -1, tgt.unsqueeze(-1)).squeeze(-1)
         means.append(lp.mean())

@@ -77,3 +77,6 @@ rc=$?
 echo "[$TAG] finished rc=$rc"
 grep "PROBE-ABORT" "$OUT/train.log" 2>/dev/null
 tail -3 "$OUT/train.log"
+# propagate the TRAINER's rc — the greps above otherwise make a crashed run exit 0,
+# and a chain gated on this script's status happily benches a nonexistent checkpoint
+exit $rc
