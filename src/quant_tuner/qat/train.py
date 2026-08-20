@@ -121,6 +121,9 @@ class QATConfig:
     steer_rep_kd_weight: float = 0.1
     steer_rep_bank: str | None = None  # real-material bank (build_rep_bank.py)
     steer_rep_n: int = 6
+    steer_rep_traj: str | None = None  # harvested episode contexts (build_rep_traj_contexts.py)
+    steer_rep_traj_n: int = 4
+    steer_rep_traj_every: int = 4      # apply every Nth step (full prefixes are long)
     #: max grad norm. 1.0 was hardcoded since the CUDA port; the dense control showed
     #: the control-face waves ride gnorm spikes (2.5-4.8 in ternary at troughs), so
     #: this is the amplitude-damping lever.
@@ -1165,6 +1168,16 @@ def train_qat(cfg: QATConfig) -> int:
         rep_batch = RepBatch.build(_rtok, n=cfg.steer_rep_n,
                                    cap_p=cfg.steer_rep_cap, k=_ks,
                                    bank=_bank).to(dev)
+    rep_traj_batch = None
+    if cfg.steer_rep_traj:
+        from transformers import AutoTokenizer as _AT3
+        rep_traj_batch = RepBatch.from_harvest(
+            _AT3.from_pretrained(str(cfg.model_dir)), cfg.steer_rep_traj,
+            n=cfg.steer_rep_traj_n, cap_p=cfg.steer_rep_cap).to(dev)
+        print(f"[qat] rep traj steering: {rep_traj_batch.ids.shape[0]} harvested "
+              f"episode contexts (L={rep_traj_batch.ids.shape[1]}), every "
+              f"{cfg.steer_rep_traj_every} steps, cap {cfg.steer_rep_cap} — the real "
+              f"loop state needs its full history (truncation collapses it)", flush=True)
         print(f"[qat] repetition steering: {rep_batch.ids.shape[0]} contexts every "
               f"step, weight {cfg.steer_rep_weight}, per-token cap "
               f"{cfg.steer_rep_cap}, identical rounds k={_ks}, "
@@ -1317,6 +1330,7 @@ def train_qat(cfg: QATConfig) -> int:
     st_acc: list[float] = []          # steering loss over the current accum group
     rp_acc: list[float] = []          # repetition hinge over the current accum group
     rk_acc: list[float] = []          # rep teacher-KL over the current accum group
+    rt_acc: list[float] = []          # harvested-episode rep hinge (every Nth step)
     opt.zero_grad()
     while step < total_steps and not stop["f"]:
         w = order[mi % n_win].item()
@@ -1379,6 +1393,10 @@ def train_qat(cfg: QATConfig) -> int:
                 if rk_loss is not None:
                     loss = loss + cfg.steer_rep_kd_weight * rk_loss
                     rk_acc.append(float(rk_loss.detach()))
+            if rep_traj_batch is not None and step % cfg.steer_rep_traj_every == 0:
+                rt_loss, _, _rt_m = repetition_losses(model, rep_traj_batch)
+                loss = loss + cfg.steer_rep_weight * rt_loss
+                rt_acc.append(float(rt_loss.detach()))
             lv = float(loss.detach())
             if not math.isfinite(lv):
                 # skip BEFORE backward: the accumulated group stays valid, n_acc unchanged
@@ -1439,12 +1457,15 @@ def train_qat(cfg: QATConfig) -> int:
                     kl_str += f" rp={sum(rp_acc)/len(rp_acc):.4f}"
                 if rk_acc:
                     kl_str += f" rk={sum(rk_acc)/len(rk_acc):.4f}"
+                if rt_acc:
+                    kl_str += f" rt={sum(rt_acc)/len(rt_acc):.4f}"
                 src_loss.clear()
                 kl_acc.clear()
                 an_acc.clear()
                 st_acc.clear()
                 rp_acc.clear()
                 rk_acc.clear()
+                rt_acc.clear()
                 print(f"[qat] step {step}/{total_steps} loss={avg:.4f}{kl_str} "
                       f"lr={cur_lr:.2e} "
                       # pre-clip; a divergence shows up here BEFORE the loss reacts
@@ -1614,6 +1635,13 @@ def _build_parser() -> argparse.ArgumentParser:
                          "(the hinge suppresses the repeat; this supplies the "
                          "teacher's alternative)")
     ap.add_argument("--steer-rep-kd-weight", type=float, default=0.1)
+    ap.add_argument("--steer-rep-traj", default=None,
+                    help="harvested full-prefix episode contexts "
+                         "(build_rep_traj_contexts.py) — the states where the loop "
+                         "actually lives; constructed contexts at any depth do not "
+                         "transfer to them")
+    ap.add_argument("--steer-rep-traj-n", type=int, default=4)
+    ap.add_argument("--steer-rep-traj-every", type=int, default=4)
     ap.add_argument("--steer-rep-n", type=int, default=6,
                     help="number of rep contexts (few FIXED contexts overfit — "
                          "anchor8 inverted its 6 synthetic states while real states "
@@ -1754,6 +1782,9 @@ def main(argv: list[str] | None = None) -> int:
         steer_rep_kd_weight=args.steer_rep_kd_weight,
         steer_rep_bank=args.steer_rep_bank,
         steer_rep_n=args.steer_rep_n,
+        steer_rep_traj=args.steer_rep_traj,
+        steer_rep_traj_n=args.steer_rep_traj_n,
+        steer_rep_traj_every=args.steer_rep_traj_every,
         lr_scale=args.lr_scale,
         train_norms=args.train_norms, resume=args.resume,
         flip_sample=args.flip_sample, ckpt_every=args.ckpt_every,

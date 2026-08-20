@@ -54,6 +54,10 @@ def main() -> None:
     ap.add_argument("--instance", required=True)
     ap.add_argument("--model-dir", default="out/exp-057/model")
     ap.add_argument("--latents", default=None)
+    ap.add_argument("--max-ctx", type=int, default=None,
+                    help="truncate the episode prefix to its LAST N tokens (keeping the "
+                         "system+task head) — measures whether a shortened real prefix "
+                         "still elicits the loop, which sets the training-context cost")
     ap.add_argument("--probe-at", default="1,2,3,5,10,15,20,25,29",
                     help="streak positions (occurrence count of the looped command)")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
@@ -120,6 +124,10 @@ def main() -> None:
                     "<tool_response>\n" + out + "\n</tool_response><|im_end|>\n"
                     "<|im_start|>assistant\n")
         ids = tok(ctx, add_special_tokens=False, return_tensors="pt").input_ids[0]
+        if args.max_ctx and ids.shape[0] > args.max_ctx:
+            head = tok(prefix, add_special_tokens=False, return_tensors="pt").input_ids[0]
+            tail_len = args.max_ctx - head.shape[0]
+            ids = torch.cat([head, ids[-tail_len:]])
         row = torch.cat([ids, forced_ids]).unsqueeze(0).to(args.device)
         lo = ids.shape[0]
         with torch.no_grad():

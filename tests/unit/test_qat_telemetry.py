@@ -279,3 +279,11 @@ def test_flip_line_with_delta_field_parses():
     assert rows[0]["step"] == 200
     assert rows[0]["flip_pct"] == 0.9622
     assert rows[0]["sign_flips"] == 19
+
+
+def test_step_line_with_rep_traj():
+    """rt= (harvested-episode rep hinge, anchor10) — sixth step-line field, same rule."""
+    rows = parse(
+        "[qat] step 8/613 loss=0.9312 kl=0.5012 an=0.0100 st=0.0002 rp=0.0031 "
+        "rk=0.4210 rt=0.1200 lr=4.99e-04 gnorm=1.10 mem=31.7/88.8GiB 49.3s/step\n")["steps"]
+    assert rows and rows[0]["rep_traj"] == 0.12 and rows[0]["rep_kl"] == 0.4210

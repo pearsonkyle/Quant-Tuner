@@ -36,6 +36,9 @@ REP_KD="${REP_KD:-}"                # RepKD table (capture_rep_teacher.py) -> te
 REP_KD_W="${REP_KD_W:-0.1}"
 REP_BANK="${REP_BANK:-}"              # real-material context bank (build_rep_bank.py)
 REP_N="${REP_N:-6}"
+REP_TRAJ="${REP_TRAJ:-}"            # harvested full-prefix episode contexts (anchor10)
+REP_TRAJ_N="${REP_TRAJ_N:-4}"
+REP_TRAJ_EVERY="${REP_TRAJ_EVERY:-4}"
 CLIP="${CLIP:-1.0}"
 CORPUS="${CORPUS:-out/exp-058/fixed/corpus_ourssft_32768.pt}"
 VAL="${VAL:-out/exp-058/fixed/corpus_ourssft_val_32768.pt}"
@@ -59,6 +62,7 @@ PYTHONPATH=src .venv/bin/python -m quant_tuner.qat.train \
     --steer-rep-k "$REP_K" \
     ${REP_KD:+--steer-rep-kd "$REP_KD" --steer-rep-kd-weight "$REP_KD_W"} \
     ${REP_BANK:+--steer-rep-bank "$REP_BANK"} --steer-rep-n "$REP_N" \
+    ${REP_TRAJ:+--steer-rep-traj "$REP_TRAJ" --steer-rep-traj-n "$REP_TRAJ_N" --steer-rep-traj-every "$REP_TRAJ_EVERY"} \
     --clip-norm "$CLIP" \
     --lr-scale group-scale \
     --train-layers 36 --optim adafactor --dtype fp32 \

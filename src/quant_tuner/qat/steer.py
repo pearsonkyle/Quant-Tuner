@@ -235,6 +235,47 @@ class RepBatch:
             span[i, 1] = off + len(row)
         return cls(ids, attn, span, math.log(cap_p))
 
+    @classmethod
+    def from_harvest(cls, tok, path, *, n: int = 4, seed: int = 31,
+                     cap_p: float = 0.5) -> RepBatch:
+        """Contexts harvested from REAL agent episodes (build_rep_traj_contexts.py).
+
+        These are the states where the loop actually lives: measured on anchor9, the
+        constructed contexts read 0.08-0.15 at any depth while the full-prefix real
+        state reads 0.96+, and truncating the prefix collapses it — so rows keep the
+        whole history and the caller amortizes cost by applying every Nth step."""
+        import json as _json
+        rows = [_json.loads(x) for x in Path(path).read_text().splitlines() if x.strip()]
+        if not rows:
+            raise ValueError(f"empty harvest file {path}")
+        rng = random.Random(seed)
+        rng.shuffle(rows)
+        rows = rows[:n]
+        for r in rows:
+            assert PROBE_SENTENCE not in r["ctx"] and PROBE_USER not in r["ctx"]
+        enc_c = [tok(r["ctx"], add_special_tokens=False).input_ids for r in rows]
+        enc_r = [tok(r["rep"], add_special_tokens=False).input_ids for r in rows]
+        pad = tok.pad_token_id or 0
+        ids, attn, span = _pad_rows(enc_c, enc_r, pad)
+        return cls(ids, attn, span, math.log(cap_p))
+
+
+def _pad_rows(enc_c, enc_r, pad):
+    import torch as _t
+    n = len(enc_c)
+    L = max(len(c) + len(r) for c, r in zip(enc_c, enc_r, strict=True))
+    ids = _t.full((n, L), pad, dtype=_t.long)
+    attn = _t.zeros((n, L), dtype=_t.long)
+    span = _t.zeros((n, 2), dtype=_t.long)
+    for i, (c, r) in enumerate(zip(enc_c, enc_r, strict=True)):
+        row = c + r
+        off = L - len(row)
+        ids[i, off:] = _t.tensor(row)
+        attn[i, off:] = 1
+        span[i, 0] = off + len(c)
+        span[i, 1] = off + len(row)
+    return ids, attn, span
+
 
 def rep_fingerprint(batch: RepBatch) -> str:
     """Content hash of the contexts a RepKD table was captured on. The trainer refuses a

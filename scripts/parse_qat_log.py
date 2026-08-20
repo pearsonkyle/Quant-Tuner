@@ -33,7 +33,7 @@ from pathlib import Path
 STEP_RE = re.compile(
     r"^\[qat\] step (?P<step>\d+)/(?P<total>\d+) loss=(?P<loss>[\d.]+) "
     r"(?:kl=(?P<kl>[\d.eE+-]+) )?(?:an=(?P<an>[\d.eE+-]+) )?"
-    r"(?:st=(?P<st>[\d.eE+-]+) )?(?:rp=(?P<rp>[\d.eE+-]+) )?(?:rk=(?P<rk>[\d.eE+-]+) )?"
+    r"(?:st=(?P<st>[\d.eE+-]+) )?(?:rp=(?P<rp>[\d.eE+-]+) )?(?:rk=(?P<rk>[\d.eE+-]+) )?(?:rt=(?P<rt>[\d.eE+-]+) )?"
     r"lr=(?P<lr>[\d.eE+-]+) (?:gnorm=(?P<gnorm>[\d.eE+-]+) )?"
     r"mem=(?P<mem>[\d.]+)(?:/(?P<peak>[\d.]+))?GiB (?P<sps>[\d.]+)s/step"
 )
@@ -80,6 +80,7 @@ def parse(text: str) -> dict[str, list[dict]]:
                 "steer": float(m.group("st")) if m.group("st") else None,
                 "steer_rep": float(m.group("rp")) if m.group("rp") else None,
                 "rep_kl": float(m.group("rk")) if m.group("rk") else None,
+                "rep_traj": float(m.group("rt")) if m.group("rt") else None,
                 "lr": float(m.group("lr")),
                 "grad_norm": float(m.group("gnorm")) if m.group("gnorm") else None,
                 "mem_gib": float(m.group("mem")),
