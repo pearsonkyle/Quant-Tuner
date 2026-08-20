@@ -33,6 +33,8 @@ def main() -> None:
     ap.add_argument("--n", type=int, default=6)
     ap.add_argument("--seed", type=int, default=23)
     ap.add_argument("--k", default="2,3,4,5", help="identical-round counts, round-robin")
+    ap.add_argument("--bank", default=None,
+                    help="real-material bank (build_rep_bank.py) — must match training")
     ap.add_argument("--topk", type=int, default=64)
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     ap.add_argument("--dtype", default="bf16", choices=["fp16", "bf16", "fp32"])
@@ -41,7 +43,11 @@ def main() -> None:
     from transformers import AutoTokenizer
     tok = AutoTokenizer.from_pretrained(args.student_model)
     ks = [int(x) for x in args.k.split(",") if x.strip()]
-    batch = RepBatch.build(tok, n=args.n, seed=args.seed, k=ks)
+    bank = None
+    if args.bank:
+        import json
+        bank = json.loads(Path(args.bank).read_text())
+    batch = RepBatch.build(tok, n=args.n, seed=args.seed, k=ks, bank=bank)
     fp = rep_fingerprint(batch)
     print(f"[rep-kd] {batch.ids.shape[0]} contexts (k={ks}), fingerprint {fp}", flush=True)
 

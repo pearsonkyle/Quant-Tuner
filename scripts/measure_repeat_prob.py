@@ -44,6 +44,8 @@ def main() -> None:
     ap.add_argument("--k-max", type=int, default=5)
     ap.add_argument("--n", type=int, default=8)
     ap.add_argument("--seed", type=int, default=23)
+    ap.add_argument("--bank", default=None,
+                    help="real-material bank (build_rep_bank.py); default synthetic")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     args = ap.parse_args()
 
@@ -60,7 +62,11 @@ def main() -> None:
     model.eval()
     wrap_model(model, 36)          # ternarized forward = what the export serves
 
-    batches = {k: RepBatch.build(tok, n=args.n, seed=args.seed, k=k)
+    bank = None
+    if args.bank:
+        import json
+        bank = json.loads(Path(args.bank).read_text())
+    batches = {k: RepBatch.build(tok, n=args.n, seed=args.seed, k=k, bank=bank)
                for k in range(1, args.k_max + 1)}
 
     def report(tag: str) -> None:

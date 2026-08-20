@@ -176,7 +176,8 @@ class RepBatch:
 
     @classmethod
     def build(cls, tok, *, n: int = 6, seed: int = 23,
-              cap_p: float = 0.5, k: int | Sequence[int] = 1) -> RepBatch:
+              cap_p: float = 0.5, k: int | Sequence[int] = 1,
+              bank: dict | None = None) -> RepBatch:
         """``k`` = how many identical (call -> identical result) rounds precede the
         decision point (a sequence assigns ks round-robin across the n contexts).
         k=1 is the original first-repeat context; measured on anchor7
@@ -190,16 +191,24 @@ class RepBatch:
         ctxs, reps = [], []
         for i in range(n):
             sysm = rng.choice([x for x in SYSTEMS if x != PROBE_SYSTEM])
-            task = rng.choice(TASKS).format(mod=rng.choice(MODS))
+            if bank is not None:
+                # REAL material (build_rep_bank.py): anchor8 achieved the synthetic
+                # objective (escalation inverted, below vanilla at every k) while the
+                # real episode looped 56x — the synthetic states don't transfer.
+                task = rng.choice(bank["tasks"])
+                call, result = rng.choice(bank["pairs"])
+            else:
+                task = rng.choice(TASKS).format(mod=rng.choice(MODS))
+                cmd = rng.choice(COMMANDS).format(mod=rng.choice(MODS))
+                call = ('<tool_call>\n{"name": "bash", "arguments": '
+                        f'{{"command": "{cmd}"}}\n</tool_call>')
+                result = rng.choice(REP_RESULTS)
             lead = rng.choice(LEADS)
-            cmd = rng.choice(COMMANDS).format(mod=rng.choice(MODS))
-            call = ('<tool_call>\n{"name": "bash", "arguments": '
-                    f'{{"command": "{cmd}"}}\n</tool_call>')
             prefix = tok.apply_chat_template(
                 [{"role": "system", "content": sysm},
                  {"role": "user", "content": task}],
                 tools=TOOLS, tokenize=False, add_generation_prompt=True)
-            result = rng.choice(REP_RESULTS)     # ONE result, identical every round
+            # ONE result, identical every round — the loop trap
             round_ = (call + "<|im_end|>\n"
                       + "<|im_start|>user\n<tool_response>\n" + result
                       + "\n</tool_response><|im_end|>\n<|im_start|>assistant\n")

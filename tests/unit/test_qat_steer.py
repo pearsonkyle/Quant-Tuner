@@ -200,3 +200,19 @@ def test_rep_kd_fingerprint_mismatch_refused(tmp_path):
                 "teacher": "self"}, path)
     with pytest.raises(ValueError, match="different contexts"):
         RepKD.load(path, batch)
+
+
+def test_rep_batch_bank_mode_spans_and_rounds():
+    """Bank mode (real-material contexts) must keep the span/round invariants: the
+    span covers the verbatim repeated call, and k identical rounds precede it."""
+    from quant_tuner.qat.steer import RepBatch
+    bank = {"tasks": ["Fix the flaky integration test in the payments service."],
+            "pairs": [["<tool_call>\n{\"name\": \"bash\", \"arguments\": "
+                       "{\"command\": \"pytest -x -q\"}}\n</tool_call>",
+                       "= 3 failed, 12 passed in 4.21s ="]]}
+    b = RepBatch.build(_StubTok(), n=4, seed=5, k=[2, 3], bank=bank)
+    assert b.ids.shape[0] == 4
+    for i in range(4):
+        lo, hi = int(b.span[i, 0]), int(b.span[i, 1])
+        assert 0 < lo < hi <= b.ids.shape[1]
+        assert bool((b.attn[i, lo:hi] == 1).all())

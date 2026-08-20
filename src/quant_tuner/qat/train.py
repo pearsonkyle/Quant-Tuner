@@ -119,6 +119,8 @@ class QATConfig:
     steer_rep_k: str = "1"          # comma-separated identical-round counts, round-robin
     steer_rep_kd: str | None = None  # RepKD table (capture_rep_teacher.py); adds teacher-KL
     steer_rep_kd_weight: float = 0.1
+    steer_rep_bank: str | None = None  # real-material bank (build_rep_bank.py)
+    steer_rep_n: int = 6
     #: max grad norm. 1.0 was hardcoded since the CUDA port; the dense control showed
     #: the control-face waves ride gnorm spikes (2.5-4.8 in ternary at troughs), so
     #: this is the amplitude-damping lever.
@@ -1156,10 +1158,17 @@ def train_qat(cfg: QATConfig) -> int:
         from transformers import AutoTokenizer as _AT2
         _rtok = _AT2.from_pretrained(str(cfg.model_dir))
         _ks = [int(x) for x in str(cfg.steer_rep_k).split(",") if x.strip()]
-        rep_batch = RepBatch.build(_rtok, cap_p=cfg.steer_rep_cap, k=_ks).to(dev)
+        _bank = None
+        if cfg.steer_rep_bank:
+            import json as _json
+            _bank = _json.loads(Path(cfg.steer_rep_bank).read_text())
+        rep_batch = RepBatch.build(_rtok, n=cfg.steer_rep_n,
+                                   cap_p=cfg.steer_rep_cap, k=_ks,
+                                   bank=_bank).to(dev)
         print(f"[qat] repetition steering: {rep_batch.ids.shape[0]} contexts every "
               f"step, weight {cfg.steer_rep_weight}, per-token cap "
-              f"{cfg.steer_rep_cap}, identical rounds k={_ks} "
+              f"{cfg.steer_rep_cap}, identical rounds k={_ks}, "
+              f"bank={cfg.steer_rep_bank or 'synthetic'} "
               f"on verbatim command re-issue", flush=True)
         if cfg.steer_rep_kd:
             from quant_tuner.qat.steer import RepKD
@@ -1605,6 +1614,13 @@ def _build_parser() -> argparse.ArgumentParser:
                          "(the hinge suppresses the repeat; this supplies the "
                          "teacher's alternative)")
     ap.add_argument("--steer-rep-kd-weight", type=float, default=0.1)
+    ap.add_argument("--steer-rep-n", type=int, default=6,
+                    help="number of rep contexts (few FIXED contexts overfit — "
+                         "anchor8 inverted its 6 synthetic states while real states "
+                         "stayed at 0.96)")
+    ap.add_argument("--steer-rep-bank", default=None,
+                    help="real-material context bank from scripts/build_rep_bank.py "
+                         "(synthetic contexts don't transfer — anchor8)")
     ap.add_argument("--steer-rep-k", default="1",
                     help="comma-separated identical-round counts assigned round-robin "
                          "across the rep contexts (measured: the repeat probability "
@@ -1736,6 +1752,8 @@ def main(argv: list[str] | None = None) -> int:
         steer_rep_k=args.steer_rep_k,
         steer_rep_kd=args.steer_rep_kd,
         steer_rep_kd_weight=args.steer_rep_kd_weight,
+        steer_rep_bank=args.steer_rep_bank,
+        steer_rep_n=args.steer_rep_n,
         lr_scale=args.lr_scale,
         train_norms=args.train_norms, resume=args.resume,
         flip_sample=args.flip_sample, ckpt_every=args.ckpt_every,
