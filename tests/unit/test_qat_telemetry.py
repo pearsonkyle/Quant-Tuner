@@ -287,3 +287,47 @@ def test_step_line_with_rep_traj():
         "[qat] step 8/613 loss=0.9312 kl=0.5012 an=0.0100 st=0.0002 rp=0.0031 "
         "rk=0.4210 rt=0.1200 lr=4.99e-04 gnorm=1.10 mem=31.7/88.8GiB 49.3s/step\n")["steps"]
     assert rows and rows[0]["rep_traj"] == 0.12 and rows[0]["rep_kl"] == 0.4210
+
+
+# --------------------------------------------------------------- report: probe dialect
+
+
+def test_report_probe_style_picks_the_family_from_the_points_present():
+    """Which probe point is the CONTROL is a per-family fact, and on gemma-4 it is an
+    inversion rather than a rename: Qwen's ``after_tool_call`` reads 0.99995 on Qwen and
+    **0.00004** on gemma, because gemma's template hands over to the harness there
+    instead of ending the turn. A report that hard-codes Qwen's name draws gemma's
+    most-broken-looking line as its healthy control."""
+    from scripts.qat_report import probe_style
+
+    qwen = {"start", "mid_sentence", "sentence_period", "sentence_newline",
+            "after_tool_call"}
+    _, _, q = probe_style(qwen)
+    assert (q.diagnostic, q.control) == ("sentence_period", "after_tool_call")
+
+    gemma = qwen | {"after_tool_response", "answer_after_tool"}
+    _, _, g = probe_style(gemma)
+    assert g.control == "answer_after_tool"
+    assert g.control != q.control, "gemma must not inherit Qwen's control point"
+
+
+def test_report_keeps_the_published_qwen_reference_line():
+    """The dashed asymptote on the termination panel has meant 0.0017 in every published
+    Bonsai report. PROBE_SPECS carries 0.0092 for the same point (a different measurement
+    path), so reading the reference from there would silently rewrite the interpretation
+    of runs already written up."""
+    from scripts.qat_report import probe_style
+
+    _, refs, _ = probe_style({"sentence_period", "after_tool_call"})
+    assert refs == {"sentence_period": 0.0017, "after_tool_call": 0.99996}
+
+
+def test_report_draws_a_measured_reference_for_a_new_family():
+    """A family added later has exactly one measurement, so it uses it -- what must never
+    happen is borrowing another family's numbers."""
+    from scripts.qat_report import probe_style
+
+    _, refs, spec = probe_style({"sentence_period", "answer_after_tool"})
+    assert refs == {"sentence_period": spec.vanilla[0],
+                    "answer_after_tool": spec.vanilla[1]}
+    assert refs["answer_after_tool"] < 0.5, "gemma's control is 0.07, not Qwen's ~1.0"

@@ -302,16 +302,59 @@ def fig_rep_measure(data, W, H, PAD):
 
 # Okabe-Ito, distinguishable in both common colour-vision deficiencies. The diagnostic and
 # the control get the two strongest hues because they are the two lines a reader must
-# separate at a glance; the other three are context.
-PROBE_COLORS = {
-    "sentence_period": "#d55e00",   # THE diagnostic — high is broken
-    "after_tool_call": "#009e73",   # the control — high is CORRECT
-    "sentence_newline": "#cc79a7",
-    "start": "#0072b2",
-    "mid_sentence": "#56b4e9",
-}
-# Measured on the shipped weights through this same torch path.
-VANILLA_REF = {"sentence_period": 0.0017, "after_tool_call": 0.99996}
+# separate at a glance; the rest are context.
+#: Per-family reference readings AS THIS PANEL HAS ALWAYS DRAWN THEM. See probe_style.
+_REPORT_VANILLA = {"qwen": {"sentence_period": 0.0017, "after_tool_call": 0.99996}}
+
+_DIAGNOSTIC_HUE = "#d55e00"   # high is broken
+_CONTROL_HUE = "#009e73"      # high is CORRECT
+_CONTEXT_HUES = ["#cc79a7", "#0072b2", "#56b4e9", "#e69f00", "#999999"]
+
+
+def probe_style(keys):
+    """(colors, vanilla_refs, spec) for the family this run's probe points belong to.
+
+    Which point is the diagnostic and which is the control is a per-family fact, and on
+    gemma-4 it is not a relabelling but an inversion: Qwen's control ``after_tool_call``
+    reads 0.99995 on Qwen and **0.00004** on gemma, because gemma's template hands over
+    to the harness there instead of ending the turn. Hard-coding Qwen's names here would
+    draw gemma's most-broken-looking line as its healthy control and quote Qwen's
+    baseline as the asymptote. Detection is by which points are PRESENT, so a run's own
+    log decides — no flag to forget to pass.
+    """
+    from quant_tuner.qat.stop_probe import PROBE_SPECS
+
+    dialect = next((d for d, sp in PROBE_SPECS.items()
+                    if d != "qwen" and sp.control in keys), "qwen")
+    spec = PROBE_SPECS[dialect]
+    colors = {spec.diagnostic: _DIAGNOSTIC_HUE, spec.control: _CONTROL_HUE}
+    hues = iter(_CONTEXT_HUES)
+    for name, _ in spec.points:
+        colors.setdefault(name, next(hues, "#999999"))
+    # Measured on the shipped weights; a family with no measurement draws no reference
+    # line rather than borrowing another family's.
+    #
+    # Qwen's pair is pinned HERE rather than read from PROBE_SPECS on purpose: the two
+    # differ (0.0017 vs 0.0092 for sentence_period) because they were measured through
+    # different paths, and this panel's dashed line has meant 0.0017 in every published
+    # Bonsai report. Silently redrawing it would rewrite the interpretation of runs
+    # already written up. Families added later have one measurement and use it.
+    refs = _REPORT_VANILLA.get(dialect)
+    if refs is None:
+        refs = ({spec.diagnostic: spec.vanilla[0], spec.control: spec.vanilla[1]}
+                if spec.vanilla else {})
+    return colors, refs, spec
+
+
+def _probe_spec_for(probes):
+    """The ProbeSpec matching the points present in these rows."""
+    return probe_style({k for r in probes for k, v in r.items()
+                        if k != "step" and v not in (None, "")})[2]
+
+
+def _control_point(names) -> str:
+    """The point where stopping is CORRECT, for whichever family these names describe."""
+    return probe_style(set(names))[2].control
 
 
 def fig_stop_probe(probes, W, H, PAD, teacher=None):
@@ -324,10 +367,14 @@ def fig_stop_probe(probes, W, H, PAD, teacher=None):
     healthy and broken regimes are three orders of magnitude apart and a linear axis would
     render every healthy value as the same flat line on zero.
 
-    Read `sentence_period` (should stay LOW, ~0.002) against `after_tool_call` (should stay
-    HIGH, ~1.0). Losing either is a failure; losing both is the loss of position-dependence.
+    Read the DIAGNOSTIC (should stay LOW) against the CONTROL (should stay high-ish);
+    both names are per-family, see :func:`probe_style`. Losing either is a failure;
+    losing both is the loss of position-dependence.
     """
-    keys = [k for k in PROBE_COLORS if any(r.get(k) is not None for r in probes)]
+    all_keys = {k for r in probes for k, v in r.items()
+                if k != "step" and v not in (None, "")}
+    colors, vanilla, spec = probe_style(all_keys)
+    keys = [k for k in colors if any(r.get(k) is not None for r in probes)]
     xs = [r["step"] for r in probes]
     xlim = (min(xs), max(xs)) if len(xs) > 1 else (min(xs), min(xs) + 1)
     lo = min([v for r in probes for k in keys
@@ -338,7 +385,7 @@ def fig_stop_probe(probes, W, H, PAD, teacher=None):
     # Reference bands first, so the data draws over them. For a KD run the teacher's
     # own probe values (dotted) are the asymptote the KL pulls toward — the vanilla
     # lines (dashed) are where the student STARTED, not where it should end.
-    refsets = [("vanilla", VANILLA_REF, "4 4", "start")]
+    refsets = [("vanilla", vanilla, "4 4", "start")]
     if teacher:
         refsets.append(("teacher", teacher, "1 3", "end"))
     for label, refs, dash, anchor in refsets:
@@ -349,22 +396,22 @@ def fig_stop_probe(probes, W, H, PAD, teacher=None):
             xa = PAD + 4 if anchor == "start" else W - PAD - 4
             p1.parts.append(
                 f'<line x1="{PAD}" y1="{y:.1f}" x2="{W - PAD}" '
-                f'y2="{y:.1f}" stroke="{PROBE_COLORS[name]}" stroke-width="1" '
+                f'y2="{y:.1f}" stroke="{colors[name]}" stroke-width="1" '
                 f'stroke-dasharray="{dash}" opacity="0.45"/>')
             p1.parts.append(
                 f'<text x="{xa}" y="{y - 4:.1f}" font-size="9" '
-                f'text-anchor="{anchor}" fill="{PROBE_COLORS[name]}" opacity="0.8">'
+                f'text-anchor="{anchor}" fill="{colors[name]}" opacity="0.8">'
                 f'{label} {name} {"<1e-6" if ref < 1e-6 else f"{ref:g}"}</text>')
     for k in keys:
         pts = [(r["step"], max(r[k], 1e-6)) for r in probes
                if r.get(k) not in (None, "")]
         if not pts:
             continue
-        wide = k in VANILLA_REF
-        p1.line(pts, PROBE_COLORS[k], 2.2 if wide else 1.4, 0.95 if wide else 0.75, k)
-        p1.dots(pts, PROBE_COLORS[k], 3 if wide else 2,
+        wide = k in (spec.diagnostic, spec.control)
+        p1.line(pts, colors[k], 2.2 if wide else 1.4, 0.95 if wide else 0.75, k)
+        p1.dots(pts, colors[k], 3 if wide else 2,
                 lambda x, y, _k=k: f"step {x:g}: P({_k}) = {y:.5f}")
-    return p1.svg() + legend([(k, PROBE_COLORS[k]) for k in keys])
+    return p1.svg() + legend([(k, colors[k]) for k in keys])
 
 
 def fig_velocity(flips, W, H, PAD):
@@ -642,8 +689,10 @@ def main() -> int:
                                    "steer_rep": float, "rep_kl": float,
                                    "lr": float, "mem_gib": float, "s_per_step": float})
     vals = read(t / "val.csv", {"step": int, "val_masked_ce": float})
+    from quant_tuner.qat.stop_probe import PROBE_SPECS
     probes = read(t / "stopprobe.csv",
-                  {"step": int, **{k: float for k in PROBE_COLORS}})
+                  {"step": int, **{n: float for sp in PROBE_SPECS.values()
+                                   for n, _ in sp.points}})
     flips = read(t / "flips.csv", {"step": int, "flip_pct": float, "zero_to_nonzero": int,
                                    "nonzero_to_zero": int, "scale_drift_pct": float,
                                    "flip_pct_delta": float, "densify_ratio": float})
@@ -712,11 +761,11 @@ def main() -> int:
     if probes:
         figs += [
             ("Termination policy over training",
-             "P(&lt;|im_end|&gt;) at five fixed positions, measured on the live model. "
-             "<b>sentence_period</b> is the diagnostic (must stay LOW) and "
-             "<b>after_tool_call</b> the control (must stay HIGH). Masked-CE cannot see "
-             "this: sft32k's validation was flat for 225 steps while its "
-             "sentence_period went to 0.97.",
+             f"P(stop) at fixed positions, measured on the live model. "
+             f"<b>{_probe_spec_for(probes).diagnostic}</b> is the diagnostic (must stay "
+             f"LOW) and <b>{_probe_spec_for(probes).control}</b> the control (must stay "
+             f"high). Masked-CE cannot see this: sft32k's validation was flat for 225 "
+             f"steps while its sentence_period went to 0.97.",
              fig_stop_probe(probes, W, H, PAD,
                             teacher={k: float(v) for k, v in
                                      (s.split("=", 1) for s in args.teacher_probe)})),
@@ -994,6 +1043,7 @@ def stop_prob_section(path: Path) -> str:
     probes = list(dict.fromkeys(r["probe"] for r in rows))
     by = {(r["label"], r["probe"]): r for r in rows}
 
+    control = _control_point(probes)
     out = ["<tr><th>probe point</th>" + "".join(f"<th>{lab}</th>" for lab in labels) + "</tr>"]
     for p in probes:
         cells = []
@@ -1013,9 +1063,11 @@ def stop_prob_section(path: Path) -> str:
                              f'<span>(r&gt;{r.get("n_returned", "?")})</span></td>')
                 continue
             v = float(raw)
-            # after_tool_call is the one point where stopping is CORRECT, so a high value
-            # there is the healthy reading and must not be flagged as a regression.
-            broken = v > 0.5 and p != "after_tool_call"
+            # The control is the one point where stopping is CORRECT, so a high value
+            # there is the healthy reading and must not be flagged as a regression. Which
+            # point that IS differs per family -- on gemma-4 `after_tool_call` reads
+            # 0.00004 on the shipped model and is not a control at all.
+            broken = v > 0.5 and p != control
             col = "#d55e00" if broken else INK
             # The healthy values run to 1e-7; fixed decimals would print them all as
             # 0.00000 and lose the three orders that separate "never stops here" from

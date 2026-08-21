@@ -254,8 +254,12 @@ doc's loss-stack section: CE alone at a flip-capable lr diverges even a dense mo
 from-scratch stage has dense tensors inside every trainable layer).
 
 ```bash
-# 7a. Forced-stop KD table from a dense gemma teacher (forward-only; the fp32 softmax is
-#     position-chunked since the 32B OOM fix, so the 262k vocab fits). Stop id is 106.
+# 7a. Forced-stop KD table from a dense gemma teacher (forward-only). Stop id is 106.
+#     ~6.6 h for 651 windows: 36.8 s/window, of which top-K is 0.07 s -- it is entirely
+#     the 31B trunk at a 32k window. There is no faster kernel to reach for on this
+#     architecture: gemma-4's full-attention layers use global_head_dim 512 and
+#     FlashAttention-2 caps at 256, FA3 ships no kernel for this compute capability, and
+#     flex_attention wants 201 KB of shared memory against the card's 101 KB. SDPA it is.
 $PY scripts/kd_precompute.py --teacher google/gemma-4-31B-it \
     --corpus out/gemma4-ternary/corpus_sft_gemma4_32768.pt \
     --out out/gemma4-ternary/kd/gemma31b_topk64_fs106.pt --topk 64 --dtype bf16 \
@@ -272,6 +276,7 @@ $PY scripts/teacher_stop_probe.py --teacher google/gemma-4-31B-it \
 #     (stop_baseline.json: diagnostic 0.00274, control 0.070), not copied from Bonsai;
 #     lr/clip are Bonsai's only as the first guess — re-measure with a 60-step A/B.
 $PY -m quant_tuner.qat.train \
+    --model-dir google/gemma-4-E4B-it-qat-q4_0-unquantized \
     --corpus out/gemma4-ternary/corpus_sft_gemma4_32768.pt \
     --val-corpus out/gemma4-ternary/corpus_sft_gemma4_val_32768.pt \
     --layers 0,1,2,3,7,8 --ternary-layers 0,1,2,3,7,8 --dense-kind down_proj \
@@ -283,6 +288,25 @@ $PY -m quant_tuner.qat.train \
     --probe-abort 0.03 --probe-abort-control 0.01 --probe-abort-patience 2 \
     --out out/gemma4-ternary/stage1
 # Report watcher, same as Bonsai: bash scripts/qat_report_watch.sh out/gemma4-ternary/stage1
+```
+
+**`--model-dir` is not optional.** It defaults to `out/exp-057/model` — the Bonsai
+checkpoint — and every other flag above is dialect-agnostic, so omitting it launches a
+run against the wrong model entirely. It dies on the embedding lookup (the gemma corpus
+carries ids up to 262,143 against Bonsai's 151,669 vocab) rather than training something
+plausible-but-wrong, but only by luck of the vocab sizes.
+
+```bash
+# 7d. Damage, before and after, from the same probe in the same process. This is the
+#     go/no-go number. Run it with no --ckpt first: the untrained baseline under the
+#     stage's OWN configuration is not the matching row of layer_damage.json, because a
+#     stage holds --dense-kind tensors dense and down_proj is the most damaging kind
+#     there is. CPU, ~15 min, runs while the card is busy.
+$PY scripts/gemma4_stage_damage.py --ternary-layers 0,1,2,3,7,8 --dense-kind down_proj \
+    --out out/gemma4-ternary/stage1/stage_damage_untrained.json
+$PY scripts/gemma4_stage_damage.py --ternary-layers 0,1,2,3,7,8 --dense-kind down_proj \
+    --ckpt out/gemma4-ternary/stage1/ckpt-final.pt \
+    --out out/gemma4-ternary/stage1/stage_damage_trained.json
 ```
 
 The control-side abort deserves a caveat: gemma's control baseline is 0.070 with ~25× of
