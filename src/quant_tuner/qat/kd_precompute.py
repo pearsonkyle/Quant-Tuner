@@ -50,7 +50,19 @@ import torch
 from quant_tuner.qat._device import resolve_backend
 
 DEFAULT_TOPK = 64
-POS_CHUNK = 4096  # positions per fp32 softmax chunk (~2.5 GiB transient at 151k vocab)
+
+#: Both chunk sizes are budgeted in BYTES, not positions, because every transient here
+#: scales with the vocabulary and the vocabulary is the thing that changes between
+#: teachers. A fixed position count that was comfortable at Qwen's 151,669 is 1.73x
+#: larger at gemma-4's 262,144, and the failure lands at whichever window happens to be
+#: densest -- not at the first one, which is what a smoke test sees.
+POS_CHUNK_BYTES = 2 * 2**30   #: one [chunk, V] fp32 copy inside the softmax/top-K
+KEEP_CHUNK_BYTES = 10 * 2**30 #: the [K, V] teacher-logit tensor held across the top-K
+
+
+def _chunk_positions(budget_bytes: int, vocab: int, itemsize: int) -> int:
+    """Positions that fit ``budget_bytes`` for one ``[positions, vocab]`` tensor."""
+    return max(256, budget_bytes // max(1, vocab * itemsize))
 
 
 # --------------------------------------------------------------------------- config helpers
@@ -201,15 +213,22 @@ def _teacher_logits(teacher, ids: torch.Tensor, keep_idx: torch.Tensor) -> torch
     ``precompute_topk``. A 32B teacher's [20k, 151k] logits are 11.5 GiB in fp32; two
     whole-tensor fp32 copies (upcast + log_softmax) OOM'd a 95 GiB card that holds the
     bf16 weights (65 GiB) with room for exactly one of them.
+
+    ``use_cache=False`` is not a micro-optimization. Precompute is one forward per
+    window and never generates, so every byte of KV cache is waste — and the waste
+    scales with the teacher's KV width, which is exactly what changes between teachers.
+    Qwen3-32B's 8 KV heads cost 8.6 GiB per 32k window (survivable, so it went
+    unnoticed); gemma-4-31B's 16 KV heads at head_dim 256 cost **32 GiB**, which OOM'd
+    the card inside the trunk before a single logit was computed.
     """
     try:
-        out = teacher(input_ids=ids, logits_to_keep=keep_idx)
+        out = teacher(input_ids=ids, logits_to_keep=keep_idx, use_cache=False)
         lg = out.logits
         if lg.shape[1] == keep_idx.numel():          # honored the index tensor
             return lg[0]
         return lg[0].index_select(0, keep_idx)       # returned full seq anyway
     except TypeError:                                 # architecture lacks the kwarg
-        return teacher(input_ids=ids).logits[0].index_select(0, keep_idx)
+        return teacher(input_ids=ids, use_cache=False).logits[0].index_select(0, keep_idx)
 
 
 def _topk_rows(
@@ -217,13 +236,14 @@ def _topk_rows(
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Top-K support rows (logp, ids, tail) from [K, V] logits in any dtype.
 
-    The fp32 softmax/top-K runs in POS_CHUNK-position chunks: peak transient is one
-    [POS_CHUNK, V] fp32 pair instead of two whole-[K, V] copies. Chunking is exact —
+    The fp32 softmax/top-K runs in byte-budgeted position chunks: peak transient is one
+    [chunk, V] fp32 pair instead of two whole-[K, V] copies. Chunking is exact —
     log_softmax, topk and force_into_support are all rowwise.
     """
     v_l, i_l, t_l = [], [], []
-    for i in range(0, lg.shape[0], POS_CHUNK):
-        logp_full = torch.log_softmax(lg[i:i + POS_CHUNK].float(), dim=-1)
+    pos_chunk = _chunk_positions(POS_CHUNK_BYTES, lg.shape[-1], 4)
+    for i in range(0, lg.shape[0], pos_chunk):
+        logp_full = torch.log_softmax(lg[i:i + pos_chunk].float(), dim=-1)
         vals_c, ids_c = torch.topk(logp_full, topk, dim=-1)
         if include_ids:
             ids_c, vals_c, tail_c = force_into_support(ids_c, vals_c, logp_full,
@@ -302,9 +322,23 @@ def precompute_topk(
             continue
         ids = ids_all[w:w + 1].to(dev)
         keep_dev = keep.to(dev)
+        # The number of labeled positions swings 1.7k-32k per window (density 0.05-1.00),
+        # so [K, V] swings 0.8-15.6 GiB at gemma's vocab. Splitting the head selection
+        # costs one extra trunk forward per extra slice and is exact -- the trunk is
+        # stateless, so which positions the head reads changes nothing about the rest.
+        keep_chunk = _chunk_positions(KEEP_CHUNK_BYTES, kd_vocab, tdtype.itemsize)
+        v_l, i_l, t_l = [], [], []
         with torch.no_grad():
-            lg = _teacher_logits(model, ids, keep_dev)[:, :kd_vocab]
-            vals, ids_k, tail = _topk_rows(lg, topk, include_ids)
+            for c in range(0, keep.numel(), keep_chunk):
+                lg = _teacher_logits(model, ids, keep_dev[c:c + keep_chunk])[:, :kd_vocab]
+                vc, ic, tc = _topk_rows(lg, topk, include_ids)
+                v_l.append(vc)
+                i_l.append(ic)
+                t_l.append(tc)
+                del lg
+                backend.empty_cache()
+        vals, ids_k, tail = torch.cat(v_l), torch.cat(i_l), torch.cat(t_l)
+        n_chunks = len(v_l)
         wins.append(torch.full((keep.numel(),), w, dtype=torch.int32))
         poss.append(keep.to(torch.int32))
         idxs.append(ids_k.to(torch.int32).cpu())
@@ -314,8 +348,8 @@ def precompute_topk(
         if (w + 1) % 5 == 0 or w == n_win - 1:
             el = time.time() - t0
             print(f"[kd] window {w+1}/{n_win}  positions={n_pos_total}  "
-                  f"{el:.0f}s ({el/(w+1):.1f}s/window)", flush=True)
-        del lg
+                  f"head_slices={n_chunks}  {el:.0f}s ({el/(w+1):.1f}s/window)", flush=True)
+        del vals, ids_k, tail, v_l, i_l, t_l
         backend.empty_cache()
 
     payload = {

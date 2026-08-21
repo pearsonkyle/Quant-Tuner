@@ -135,7 +135,7 @@ def test_kd_loss_handles_fp16_storage_roundtrip():
 
 
 def test_topk_rows_chunked_matches_whole(monkeypatch):
-    """POS_CHUNK is a memory knob, not a numerics knob: any chunk size must produce
+    """The chunk size is a memory knob, not a numerics knob: any chunk must produce
     exactly the table a single whole-tensor pass produces (32B OOM fix, 2026-08-19)."""
     from quant_tuner.qat import kd_precompute as kp
 
@@ -143,12 +143,40 @@ def test_topk_rows_chunked_matches_whole(monkeypatch):
     lg = torch.randn(37, 50, dtype=torch.bfloat16)  # odd row count, bf16 like the teacher
     stop_id = 7
     for include in (None, [stop_id]):
-        monkeypatch.setattr(kp, "POS_CHUNK", 10_000)
+        monkeypatch.setattr(kp, "_chunk_positions", lambda *a, **k: 10_000)
         v0, i0, t0 = kp._topk_rows(lg.clone(), 8, include)
-        monkeypatch.setattr(kp, "POS_CHUNK", 5)
+        monkeypatch.setattr(kp, "_chunk_positions", lambda *a, **k: 5)
         v1, i1, t1 = kp._topk_rows(lg.clone(), 8, include)
         assert torch.equal(i0, i1)
         assert torch.equal(v0, v1)
         assert torch.equal(t0, t1)
         if include:
             assert (i1 == stop_id).any(-1).all(), "forced id missing from a support row"
+
+
+def test_chunk_positions_is_budgeted_in_bytes_not_positions():
+    """Every transient in the precompute is [positions, vocab], so a position count
+    tuned on one teacher silently grows with the next teacher's vocabulary. gemma-4's
+    262,144 is 1.73x Qwen's 151,669 -- the same 4096 positions that cost 2.3 GiB there
+    cost 4.0 GiB here, and the OOM lands at whichever window happens to be densest
+    rather than at the first one a smoke test sees."""
+    from quant_tuner.qat.kd_precompute import _chunk_positions
+
+    budget = 2 * 2**30
+    for vocab in (151_669, 262_144):
+        n = _chunk_positions(budget, vocab, 4)
+        assert n * vocab * 4 <= budget, (vocab, n)
+    # the whole point: a bigger vocabulary buys fewer positions per chunk
+    assert _chunk_positions(budget, 262_144, 4) < _chunk_positions(budget, 151_669, 4)
+    # a small vocabulary must not collapse the chunk to something pathological
+    assert _chunk_positions(budget, 8, 4) >= 256
+
+
+def test_keep_chunking_leaves_qwen_windows_whole_and_splits_gemma():
+    """The head-selection split costs an extra trunk forward, so it must not fire on
+    the teacher it was already tuned for. At the 8 GiB budget a 151,669-vocab bf16
+    teacher covers a whole 32k window; a 262,144-vocab one does not."""
+    from quant_tuner.qat.kd_precompute import KEEP_CHUNK_BYTES, _chunk_positions
+
+    assert _chunk_positions(KEEP_CHUNK_BYTES, 151_669, 2) >= 32_768
+    assert _chunk_positions(KEEP_CHUNK_BYTES, 262_144, 2) < 32_768

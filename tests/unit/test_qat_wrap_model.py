@@ -149,3 +149,22 @@ def test_towers_are_not_ternarized_either() -> None:
     tower = m.model.vision_tower.encoder.layers[0].self_attn.q_proj
     assert isinstance(tower.linear, nn.Linear)
     assert not isinstance(tower.linear, TernaryLinear)
+
+
+def test_latent_modules_counts_wrapped_latents_not_names() -> None:
+    """The stage-damage harness must find exactly the latents ``wrap_model`` produced.
+
+    Selecting them with ``name.endswith(".linear.weight")`` finds gemma-4's vision and
+    audio encoders too — their attention projections wrap a submodule literally called
+    ``linear`` — and the harness then demands checkpoint entries for tensors no training
+    run ever touched. Measured on the real E4B: 48 wrapped latents, 280 name matches.
+    """
+    from scripts.gemma4_stage_damage import latent_modules
+
+    m = _multimodal()
+    wrap_model(m, n_train=2, ternary_spec="4-5")
+    found = latent_modules(m)
+    by_name = [n for n, _ in m.named_parameters() if n.endswith(".linear.weight")]
+    assert len(found) == 6, found              # 2 wrapped layers x 3 linears each
+    assert len(by_name) > len(found), "fixture must reproduce the collision"
+    assert not [n for n in found if "vision_tower" in n], found
