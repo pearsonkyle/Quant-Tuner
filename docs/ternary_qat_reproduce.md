@@ -412,13 +412,30 @@ Loss = 0.5·CE + 0.5·(tail-bucket KL, forced-stop table) + 0.2·(one-sided anch
 margins 1.0/0.1) + 0.1·(termination steering) with clip-norm 0.25, group-scale lr, and
 patience-2 dual probe guards. First full-schedule completion; perfect probe record.
 
-**Serve the export with repetition penalties** — behavioral integrity at 2 bits needs
-them (llama-server CLI defaults reach OpenAI-compat requests that omit the fields):
+**Serving (superseded 2026-08-21 by the anchor10 result): temperature 0.7, top_p
+0.95, NO repeat/presence penalties.** The anchor6-era penalties above are kept for
+the historical record only — they under/over-shoot per model (muted anchor7 to zero
+tool calls with presence 0.8; collapsed anchor10 to a 1-step episode). The measured
+2x2 that settled it (bare model, dask episode):
 
-```
---repeat-penalty 1.3 --repeat-last-n 2048 --presence-penalty 0.8
-```
+|                        | T=0.25    | T=0.7                                   |
+|------------------------|-----------|------------------------------------------|
+| anchor9 (P_real ~0.96) | loop 29x  | loop 11x + 31/48 malformed               |
+| anchor10 (P_real ≤0.6) | loop 43x  | CLEAN — streak 1, 0 malformed, self-term |
 
-Measured: same GGUF, same episode — without penalties 60 turns / one command 49x /
-MaxTurns; with them 10 clean turns, self-terminated, "worked, unresolved".
-`--steer-rep-weight 0.1` is the training-time counterpart for the next run.
+Both levers are necessary: the harvested-state hinge (`REP_BANK` + `REP_TRAJ`) caps
+P(verbatim repeat) in real episode states — verified on an episode outside its
+harvest (0.96 → 0.53–0.59 flat) — and T=0.7 keeps low-temperature sharpening from
+collapsing onto the argmax anyway. An uncapped model cannot take the temperature
+(anchor9's 65% malformed at 0.7: it needs low T for command syntax, which is exactly
+the regime that loops). Do not add a rep teacher-KL: the dense teacher itself assigns
+0.79–0.99 to the verbatim repeat under forcing (in-context pattern continuation), so
+distilling those states teaches copying.
+
+The state-dependence ladder that forced this design, in one sweep of
+`scripts/measure_repeat_prob.py` / `scripts/measure_traj_repeat.py` (P(verbatim
+repeat), anchor9 weights): constructed contexts 0.08–0.15 at ANY depth (k≤25);
+reconstructed real episode 0.96 at the FIRST re-issue; the same real prefix truncated
+to 3k tokens 0.06 — the loop state IS the full self-generated history, so training
+contexts must be harvested episode prefixes (`gen_harvest.sh` on training-pool
+instances; the eval instance is refused by the harvester).

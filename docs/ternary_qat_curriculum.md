@@ -844,3 +844,35 @@ RepBatch/repetition_loss): contexts of (command -> unhelpful result -> assistant
 header) with the VERBATIM previous command teacher-forced; a one-sided hinge penalizes
 its mean per-token log-prob above `--steer-rep-cap` (default 0.5) — only
 near-deterministic copying is suppressed; re-running a command stays available.
+
+## anchor7–anchor10: the repetition arc (2026-08-20/21)
+
+Full detail in the runbook §11 and `out/exp-058/kd32b-full-anchor10/notes.md`; the
+compressed findings, in the order they were forced:
+
+- **anchor7** (32B teacher + rep hinge v1 at k=1): termination best-ever (in-dist p10
+  0.8916) but rp= read 0.0000 all run — the hinge was defined where the pathology is
+  not (P≈0.33 at k=1, under the 0.5 cap) — and the mimic looped 59x.
+- **Escalation measurement**: trained models escalate P(repeat) with identical rounds
+  (vanilla flat). anchor8 (hinge at k=2–5, synthetic) inverted its own curve below
+  vanilla and moved real-material states by ~0.02: **synthetic states don't transfer**.
+- **Real-material bank** (`build_rep_bank.py`): trained models read 0.78→0.98 there —
+  the 56x-loop regime exposed. **anchor9** (bank hinge, cap 0.6 = vanilla's level)
+  suppressed it to 0.08 held-out — and still looped 29x.
+- **State-dependence nailed** (`measure_traj_repeat.py`): same anchor9 weights,
+  reconstructed real episode = 0.96 at the FIRST re-issue (the looped command already
+  appeared ~11x non-consecutively earlier — induction primed); truncating the real
+  prefix to 3k tokens collapses it to 0.06. The loop state IS the full history.
+- **The teacher endorses the repeat** (0.79–0.99 under forcing at every k, 0.80 mean
+  even at k=1): rep teacher-KL withdrawn before it trained — it would teach copying.
+- **anchor10** (bank + harvested full-prefix episode contexts, hinge-only): real-state
+  P on an UNSEEN episode 0.96 → 0.53–0.59 flat; best val of the ladder (0.7411);
+  24/24 probes. Still looped bare at T=0.25 — **sharpening rescues the loop from any
+  state where repeat is merely the argmax**.
+- **The 2x2 verdict**: anchor9@0.7 loops (11x) with 31/48 malformed; anchor10@0.25
+  loops (43x); **anchor10@0.7 is clean** — streak 1, 0 malformed, self-terminated.
+  Both levers necessary. Serving: T=0.7, top_p 0.95, no penalties.
+- **Ops**: mid-run benching = CPU sidecar per checkpoint (GPU peak 91.4/95 GiB forbids
+  concurrent GPU eval); three OOM classes fixed in the rep losses (full-vocab logits,
+  whole-tensor fp32 softmax, float-mask math-path SDPA — span-only lm_head + unpadded
+  per-row forwards); runner now propagates the trainer's rc.

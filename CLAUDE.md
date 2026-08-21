@@ -685,18 +685,23 @@ benchmarked GGUF, with the check that must pass at each step).
   11.5k, longest 256k). No window has a cliff — even 32k holds only 36% of tokens in
   whole conversations. Nothing is lost at a smaller window (sessions pack contiguously);
   what a longer one buys is conditioning a trajectory's tail on its start.
-- **The working recipe (2026-08-19, first full-schedule completion):** `TAG=x LR=5e-4
-  STEER=0.1 CLIP=0.25 bash scripts/run_kd_anchor_qat.sh` — KD (forced-stop table,
-  tail-bucket KL) + one-sided stop anchor (per-side margins 1.0/0.1) + termination
-  steering (`--steer-weight`, probe-family contexts as every-step gradient; the probe
-  itself is held out) + `--clip-norm 0.25` + dual probe-abort guards with patience 2.
-  Diagnosed by the dense control: the lr ternary needs to flip codes diverges a dense
-  model in 10 steps — the quantizer low-pass filters those dynamics, and the recipe
-  damps what leaks through. **Serve exports with** `--repeat-penalty 1.3
-  --repeat-last-n 2048 --presence-penalty 0.8` (llama-server CLI defaults reach /v1
-  requests): verbatim command repetition is the post-termination frontier, mitigated at
-  serving time and trainable via `--steer-rep-weight` (qat/steer.py). Eval chain:
-  `scripts/run_kd_export_bench.sh TAG`. Full arc: docs/ternary_qat_curriculum.md.
+- **The working recipe (2026-08-21, anchor10 — repetition arc closed):** `TAG=x LR=5e-4
+  STEER=0.1 CLIP=0.25 REP=0.1 REP_CAP=0.6 REP_K=1,2,3,4,5 REP_N=10
+  REP_BANK=out/exp-058/kd/rep_bank.json REP_TRAJ=out/exp-058/kd/rep_traj_contexts.jsonl
+  bash scripts/run_kd_anchor_qat.sh` — anchor6's stack (32B forced-stop KD table,
+  tail-bucket KL, one-sided anchor 1.0/0.1, termination steering, clip 0.25, patience-2
+  guards) + the bounded repetition hinge on real-material bank contexts AND
+  full-prefix contexts harvested from real agent episodes (`build_rep_bank.py`,
+  `gen_harvest.sh` → `build_rep_traj_contexts.py`). **Serve at temperature 0.7,
+  top_p 0.95 — NO repeat/presence penalties.** Both levers are necessary (measured
+  2x2): the hinge caps P(verbatim repeat) ≤0.6 in real episode states (verified on an
+  UNSEEN episode: 0.96→0.55) but T=0.25 sharpening still collapses onto the argmax
+  (loops 43x); T=0.7 on an uncapped model (anchor9) still loops with 65% malformed
+  commands; capped weights + T=0.7 = clean self-terminating episodes, zero verbatim
+  streaks. Do NOT train a rep teacher-KL: the dense teacher assigns 0.79–0.99 to the
+  verbatim repeat under forcing (in-context induction) — a KL there teaches copying.
+  Eval chain: `scripts/run_kd_export_bench.sh TAG`; per-checkpoint mid-run bench via
+  CPU sidecar (see docs/ternary_qat_curriculum.md). Full arc there too.
 - **Read the code-flip telemetry, not the loss.** A ternary model only learns by flipping codes;
   lr 3e-4 flips ~0% (scale drift only) while the loss still falls. 5e-4 for ~2.2 epochs is the
   measured sweet spot; 8 epochs memorizes.

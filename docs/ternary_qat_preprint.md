@@ -116,13 +116,36 @@ positions 0.995; the agent completes a 10-step episode and self-terminates.
 
 ## 5. Remaining gap and practicalities
 
-With termination fixed, the frontier failure is **verbatim action repetition** — the agent
-re-issues the identical command (up to 49×) after unhelpful results: a state-tracking failure,
-not a termination one (it stops correctly after every call). Serving-side repetition penalties
-(`--repeat-penalty 1.3 --repeat-last-n 2048 --presence-penalty 0.8`) eliminate it; a
-training-side counterpart (one-sided hinge on the mean per-token logprob of re-issuing the
-previous command in synthetic command→failure→retry contexts) is implemented and under test.
-Capability at 2 bits — actually resolving hard issues — remains open; behavior no longer is.
+With termination fixed, the frontier failure was **verbatim action repetition** — the agent
+re-issuing the identical command (up to 59×), a state-tracking failure, not a termination one.
+Its resolution took a four-run measurement ladder whose findings generalize:
+
+1. **The pathology is trained, and it is state-dependent.** Vanilla is flat in P(repeat) as
+   identical rounds accumulate; KD-trained models escalate (0.33→0.52 on synthetic contexts,
+   0.78→0.98 on real-material contexts). A hinge trained on synthetic contexts achieved its
+   objective perfectly (curve inverted, below vanilla) and changed real behavior by ~0.02:
+   constructed states do not transfer.
+2. **The loop state is the full self-generated history.** On the same weights, constructed
+   contexts read 0.08–0.15 at any depth (k ≤ 25); the reconstructed real episode reads 0.96 at
+   the *first* re-issue; the same real prefix truncated to 3k tokens reads 0.06. Training
+   contexts must therefore be harvested episode prefixes (bare-model episodes on
+   training-pool instances; the eval instance held out).
+3. **Do not distill these states.** The dense 32B teacher itself assigns 0.79–0.99 to the
+   verbatim repeat under teacher forcing at every depth — in-context pattern continuation is
+   competent-LM behavior — so a teacher-KL at loop states teaches copying. The correct
+   objective is a bounded one-sided hinge at the untrained model's own level (cap 0.6),
+   which cannot damage legitimate retries.
+4. **Weights and sampler are jointly necessary.** The measured 2×2 (bare model): capped
+   weights at T=0.25 still loop (sharpening collapses onto the argmax at P≈0.55); uncapped
+   weights at T=0.7 still loop *and* emit 65% malformed commands (uncapped models need low
+   temperature for syntax — exactly the regime that loops); capped weights at T=0.7 produce
+   clean, self-terminating episodes with zero verbatim streaks and no penalties.
+
+The final recipe: the anchor stack + repetition hinge on real-material and harvested
+full-prefix contexts (cap 0.6), served at temperature 0.7 / top_p 0.95 with no repeat or
+presence penalties. Val masked-CE improved monotonically along the ladder (0.745 → 0.741) —
+the behavioral losses cost nothing. Capability at 2 bits — actually resolving hard issues —
+remains open; behavior no longer is.
 
 Evaluate on **three instruments together**, each blind somewhere: the in-training probe (can't
 see multi-turn loops), P(stop) at real corpus stop positions (catches a bimodal weak tail the
