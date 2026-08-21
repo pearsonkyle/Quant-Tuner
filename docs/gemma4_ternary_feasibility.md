@@ -277,6 +277,47 @@ the rare-token-degradation risk the `vllm_export` notes record ("Pineple"). Keep
 This does not kill the project, but it changes what it is: a **quality-at-low-bit research
 result** (and possibly a throughput one, if ternary kernels are faster), not a footprint win.
 
+### E4B is the worst member of the family for this, and that is the argument for doing it
+
+The 21% is an E4B fact, not a gemma-4 fact. Measured from both checkpoints' own tensor
+shapes:
+
+| | ternarizable linears | embeddings | towers | ternary trunk + Q4_0 emb, vs the same at Q4_0 |
+|---|---:|---:|---:|---:|
+| **E4B** | 3.918 B — **49.3%** | 3.496 B — 44.0% | 0.472 B | 3.51 G vs 4.67 G = **0.75×** |
+| **31B** | 29.287 B — **93.6%** | 1.415 B — 4.5% | 0.570 B | 9.18 G vs 17.88 G = **0.51×** |
+
+Half of E4B is embedding table that ternarization cannot touch; on the 31B it is 4.5%.
+So the same technique that buys ~25% here buys ~2× there, and the case for running the
+hard, cheap model first is that **it is the hard one** — a method that survives E4B's
+economics is not being flattered by them.
+
+Three things also get easier with scale, not harder:
+
+* **The teacher question dissolves.** A 31B student's natural teacher is the dense 31B
+  itself — self-KD, which is what quantization-aware distillation wants anyway. No
+  separate model resident, no tokenizer gate to pass, and none of the
+  different-model confound that makes "KLD vs dense" ambiguous at E4B scale.
+* **No KV-donor cliff.** E4B's two worst layers are 22–23 (KLD 0.6255 / 0.2705) because
+  they are the last KV donors for the 18 sharing layers above them, and layer 24 falls
+  back to 0.065. The 31B declares `num_kv_shared_layers: 0`, so that structure does not
+  exist and its depth profile should be flatter to schedule.
+* **More redundancy.** E4B is a MatFormer-style efficiency model, already
+  information-dense; there is less slack in it to give up than in a conventional dense
+  31B.
+
+**The obstacle, which the schedule happens to solve.** fp32 latents for 29.3 B params are
+**117 GB**, over a 95 GB card — and fp32 is not optional here, since bf16 underflows the
+TWN threshold and no codes flip. But only *trainable* layers need fp32 latents: at 6 of
+60 layers that is ~11.7 GB fp32 plus the frozen remainder in bf16, roughly 70 GB, which
+fits. `--dtype` is model-wide today, so mixed-dtype freezing is real work — but it means
+the progressive schedule is not only a quality strategy at 31B scale, it is what makes
+the run possible at all.
+
+Everything else transfers as MECHANISM and nothing as CONSTANT: re-measure the
+output-space damage ordering, the per-kind ranking, the stop-probe baseline and the lr,
+exactly as this study had to.
+
 ---
 
 ## Serving path
