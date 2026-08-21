@@ -319,3 +319,41 @@ policy IS the target policy and the KLD metric is unconfounded. Two problems, on
 Note this does NOT contradict the 4,090x stop-signal ratio in the table: the teacher does
 stop at the corpus's real stop targets (P=0.477). The probe positions are synthetic ones
 where E4B stops and the 31B, rendered through E4B's template, does not.
+
+## Arm 2 (lr 5e-4): the same failure, faster — so it is the teacher, not the lr
+
+    step 25  control 0.0000 (arm 1 read 0.0041 here)  diagnostic 0.0004
+    step 50  control 0.0000                            diagnostic 0.0005   -> PROBE-ABORT
+
+The **diagnostic fell BELOW vanilla** (0.0004 vs 0.002744). The model is not shifting
+where it stops, it is losing P(stop) *everywhere* — the loss of position-dependence, and
+exactly what distilling a teacher that reads 0.0000 at every probe position produces.
+
+Both arms, monotone in lr:
+
+| arm | lr | code flips | KLD (from 0.0762) | recovered | control |
+|---|---|---|---|---|---|
+| 1 | 2e-4 | ~2% | 0.2724 | **-257.7%** | 0.0043 |
+| 2 | 5e-4 | 5.6-6.2% | 0.3576 | **-369.5%** | 0.0000 |
+
+More lr -> more code flips -> MORE damage and worse termination. The flips are real
+learning (arm 2 even shows the first true sign reversals, `±->∓: 8`, where arm 1 had
+none) — they are just learning the wrong target. This is what "training is walking
+toward a different model" looks like from the dense model's point of view.
+
+Arm 3 (1e-3) was cancelled: it would trace the same curve faster.
+
+### What four passing checks failed to catch
+
+The 31B teacher passed every gate this pipeline has, and was still unusable:
+
+* tokenizer identity — **262,144/262,144** ids, every control token included
+* corpus fingerprint, all 651 windows present, forced stop id `[106]`
+* support coverage **0.9993**
+* a **4,090x** discriminative stop-signal ratio at the corpus's real stop targets
+
+All four are properties of the TABLE. None of them asks whether the teacher's policy is
+the one the student should adopt, and the one instrument that does — the teacher's own
+stop probe, read through the student's template — was reading 0.0000 at every point
+before a single training step ran. It was in the log; it was not a gate. **It should be
+one.**

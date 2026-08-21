@@ -95,9 +95,13 @@ CKPT="$OUT/trained_latents.pt"
 [ -f "$CKPT" ] || CKPT=""
 if [ -n "$CKPT" ]; then
     echo "[$TAG] measuring damage from $CKPT (CPU)"
-    .venv/bin/python scripts/gemma4_stage_damage.py \
+    # --probe attributes a termination collapse to the ternarization or to the training.
+    # The in-training series cannot: its first reading is already --probe-every steps
+    # deep, so both hypotheses look identical there. Arm 1 needed exactly this to show
+    # the untrained ternary model's control sits at 0.0734, ABOVE dense's 0.0703.
+    .venv/bin/python scripts/gemma4_stage_damage.py --probe \
         --ternary-layers "$LAYERS" --dense-kind "$DENSE_KIND" --ckpt "$CKPT" \
-        --out "$OUT/stage_damage_trained.json" 2>&1 | tail -6
+        --out "$OUT/stage_damage_trained.json" 2>&1 | tail -8
 else
     echo "[$TAG] no checkpoint written — nothing to measure"
 fi
