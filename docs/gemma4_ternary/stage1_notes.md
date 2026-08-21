@@ -181,13 +181,20 @@ therefore not a small carve-out:
     down_proj 1.101 B @ 4.5 bpw   = 0.619 GB   (Q4_0)
 
 A "ternary" E4B whose `down_proj` is bf16 is a model dominated by the one kind we
-declined to ternarize. This does not change stage 1's question -- which is whether QAT
-recovers damage -- but it changes what shipping looks like: `down_proj` wants to be
-4-bit, not dense, and ideally quantization-aware at 4 bits during training rather than
-left in bf16 and quantized after. The export mechanism already exists
-(`llama-quantize --tensor-type`, same lever as `quantize.mtp_pin`).
+declined to ternarize.
 
-Flagging now so the number is on the record before the schedule is committed to.
+**The feasibility doc already settled the packaging** (`docs/gemma4_ternary_feasibility.md`,
+size-economics section) and settled it better, because it accounts for embeddings and
+towers too: `down_proj` at Q4_0 costs 0.33 GB and moves the artifact from 0.79x to 0.86x
+of Google's Q4_0. The table above only re-derives the trunk half of that from the
+checkpoint's own shapes.
+
+What is NOT yet settled is the training question it implies: if `down_proj` ships at
+4 bits, it should be **quantization-aware at 4 bits during QAT**, not held in bf16 and
+quantized afterwards -- otherwise every stage trains its dense neighbours against a
+`down_proj` more precise than the one that will run. The current `--dense-kind` mechanism
+has no third state for "quantize this one, but not to ternary". Out of scope for stage 1,
+which asks only whether damage recovers; on the record before the schedule is committed.
 - `2026-08-21` - the damage harness validated against a real checkpoint, and its first
   reading is a useful warning. The 2-step CPU smoke went `untrained kld=0.0180` ->
   `trained kld=0.0511`, i.e. **recovered -184%**: two steps made the damage three times
