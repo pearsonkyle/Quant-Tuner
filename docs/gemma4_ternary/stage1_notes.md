@@ -201,3 +201,28 @@ Flagging now so the number is on the record before the schedule is committed to.
 - `2026-08-21` - set `GRAD_ACCUM=1` (was 4) for the same reason the Bonsai full run uses
   it at this window size. Full stage is 1 epoch = 651 steps; if damage is still falling
   at the end, extend rather than starting long.
+
+## Accumulation: why 1 now, and what would raise it
+
+Feasibility first -- accum 1 gives 651 steps/epoch, so a 60-step arm is a real read and
+the probe samples termination three times inside it. ~9.4k supervised tokens per update
+at 32k context is not a small batch; it is what the Bonsai full run used at this window.
+
+Two measured reasons accumulation will matter for a real full run, recorded now so the
+decision is not re-derived from scratch:
+
+1. **The effective batch varies 20x step to step.** Supervised tokens per window run
+   1,657 / 9,407 (mean) / 32,011, because window density ranges 0.05-1.00. At accum 1
+   one step is one window, so consecutive updates are estimated from wildly different
+   amounts of signal. Accumulation smooths that heterogeneity, not just the variance.
+2. **Clipping has removed the natural damping.** `gnorm=48` against `--clip-norm 0.25`
+   is a ~190x rescale, so every step is a FIXED-LENGTH step along a noisy direction.
+   Normally a noisy gradient is also a small one and the step self-damps; clipping
+   removes that, which makes the direction estimate the only thing left to improve --
+   exactly what accumulation improves.
+
+**Sequencing follows from the lr coupling.** An lr tuned at accum 1 does not transfer to
+accum 2. So the arms and the FIRST full stage both run at accum 1, and the tuned lr is
+the lr that runs. Raise accum only on observed instability (loss spikes, probe
+oscillation, flip direction reversing) and re-check lr with it rather than carrying it
+over.
