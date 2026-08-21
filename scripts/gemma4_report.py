@@ -400,8 +400,8 @@ def main() -> int:
  .kpi span{{font-size:11px;color:{MUTED}}}
  li{{color:#444;margin:.15rem 0;max-width:78ch}} ul{{padding-left:1.1rem}}
  .tw,.fig{{overflow-x:auto;max-width:100%}}
- table{{font-variant-numeric:tabular-nums}}
- table{{border-collapse:collapse;font-size:12px;margin:.4rem 0}}
+ table{{border-collapse:collapse;font-size:12px;margin:.4rem 0;
+        font-variant-numeric:tabular-nums}}
  td,th{{border-bottom:1px solid #eee;padding:3px 10px;text-align:right}}
  th{{color:{MUTED};font-weight:500}}
  td:first-child,th:first-child{{text-align:left;font-family:ui-monospace,monospace}}
