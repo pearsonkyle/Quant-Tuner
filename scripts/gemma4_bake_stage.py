@@ -19,7 +19,8 @@ codes, and a stage that changed ~0% of them lowered its loss by drifting scales.
 
 Usage::
 
-    python scripts/gemma4_bake_stage.py --ckpt out/gemma4-ternary/stage1/ckpt-final.pt \
+    python scripts/gemma4_bake_stage.py \
+        --ckpt out/gemma4-ternary/stage1/trained_latents.pt \
         --out out/gemma4-ternary/stage1/baked
 """
 

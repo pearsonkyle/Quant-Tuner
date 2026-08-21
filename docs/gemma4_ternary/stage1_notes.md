@@ -136,3 +136,61 @@ tables are precomputed; the control arm is not a new experiment, it is one comma
   **42%**, matching the Gaussian value from the weight-space scan -- the same null
   result seen from a third angle. Bonsai's is 34.5%: a natively-ternary model has a
   genuinely denser code distribution than TWN-on-Gaussian produces.
+- `2026-08-21` - the CPU smoke ran to completion (2 steps, checkpoint written) and the
+  flip telemetry carries the first encouraging signal: **1.39-1.70% of codes flipped in
+  two steps at lr 5e-4**, on every tracked tensor. That is the opposite of the Bonsai
+  failure mode (3e-4 flips ~0% and the loss falls on scale drift alone), and the reason
+  is structural: Bonsai's weights start ON the grid, so a flip needs a real move, while
+  gemma's start off it with a large fraction sitting near the TWN threshold.
+  The decomposition says exactly that -- every flip is `0<->±` (0->± 37,782, ±->0
+  43,875 on one tensor) and `±->∓` is **0** across the board. Threshold crossings, not
+  sign reversals: `Delta = 0.7*mean(|W|)` moves as the weights train, and a true sign
+  flip needs a weight to cross zero, which is a far larger move. Density 58.8 -> 58.7%,
+  scale drift ~1.1%.
+  Caveat: two steps at 2048 tokens is not evidence about the full stage, only that the
+  lever is connected.
+- `2026-08-21` - the smoke also caught a bug in the damage harness. A stage's checkpoint
+  holds **18** tensors for a 2-layer stage, not 16: the ternary latents plus the
+  `--dense-kind down_proj` weights, which are trainable and DID train. Loading only the
+  latents would measure a model that was never trained, and the strict matcher would
+  have raised on the two extras. Both kinds are loaded now, still refusing a partial
+  match in either direction.
+
+## Size accounting for `--dense-kind down_proj` (raised, not resolved)
+
+Measured from the checkpoint's own tensor shapes:
+
+| kind | params | share of decoder linears |
+|---|---|---|
+| `mlp.down_proj` | 1.101 B | **28.1%** |
+| `mlp.gate_proj` | 1.101 B | 28.1% |
+| `mlp.up_proj` | 1.101 B | 28.1% |
+| `self_attn.{q,o}_proj` | 0.257 B each | 6.6% each |
+| `self_attn.{k,v}_proj` | 0.037 B each | 0.9% each |
+| `per_layer_input_gate` | 0.028 B | 0.7% |
+
+3.918 B decoder linears of a 7.941 B model. Holding `down_proj` dense in **bf16** is
+therefore not a small carve-out:
+
+    ternary   2.817 B @ 2.125 bpw = 0.748 GB
+    down_proj 1.101 B @ 16 bpw    = 2.202 GB   <- 2.9x the ternary trunk
+    down_proj 1.101 B @ 4.5 bpw   = 0.619 GB   (Q4_0)
+
+A "ternary" E4B whose `down_proj` is bf16 is a model dominated by the one kind we
+declined to ternarize. This does not change stage 1's question -- which is whether QAT
+recovers damage -- but it changes what shipping looks like: `down_proj` wants to be
+4-bit, not dense, and ideally quantization-aware at 4 bits during training rather than
+left in bf16 and quantized after. The export mechanism already exists
+(`llama-quantize --tensor-type`, same lever as `quantize.mtp_pin`).
+
+Flagging now so the number is on the record before the schedule is committed to.
+- `2026-08-21` - the damage harness validated against a real checkpoint, and its first
+  reading is a useful warning. The 2-step CPU smoke went `untrained kld=0.0180` ->
+  `trained kld=0.0511`, i.e. **recovered -184%**: two steps made the damage three times
+  worse while flipping 1.4-1.7% of codes. The configuration is meaningless as a training
+  result (2 steps at full lr on a 2-window, 2048-token corpus is noise injection, and
+  `--warmup-frac 0.05` of 2 steps is no warmup at all). What it establishes is that
+  **flip % is not a health metric on its own** - codes moved, and they moved the wrong
+  way. Only the damage number can tell those apart, which is why the A/B is read on four
+  columns with no single one deciding. It also shows the harness is correctly signed and
+  sensitive at the 0.01 scale the criteria live at.

@@ -85,7 +85,10 @@ tail -3 "$OUT/train.log"
 # damage number is exactly what says whether the abort was early-termination or the
 # stage genuinely failing to recover. So measure either way, and let the caller gate on
 # the trainer's rc.
-CKPT=$(ls -t "$OUT"/ckpt-*.pt 2>/dev/null | head -1)
+# The trainer writes trained_latents.pt (atomically replaced) plus step-stamped hard
+# links beside it -- there is no ckpt-*.pt.
+CKPT="$OUT/trained_latents.pt"
+[ -f "$CKPT" ] || CKPT=""
 if [ -n "$CKPT" ]; then
     echo "[$TAG] measuring damage from $CKPT (CPU)"
     .venv/bin/python scripts/gemma4_stage_damage.py \

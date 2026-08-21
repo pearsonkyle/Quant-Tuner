@@ -81,27 +81,39 @@ def latent_modules(model) -> dict[str, torch.nn.Parameter]:
 
 
 def load_latents(model, ckpt: Path) -> tuple[int, int]:
-    """Copy a checkpoint's latents into the wrapped model. Returns (loaded, expected).
+    """Copy a checkpoint's trained tensors into the wrapped model. Returns (ternary, dense).
 
-    Refuses a partial load. A checkpoint whose keys half-match the wrapping silently
-    leaves the rest of the stage at its shipped weights, and the resulting damage
-    number would read as recovery.
+    A stage's checkpoint holds TWO kinds of tensor and both were trained:
+
+    * ``….linear.weight`` — the ternary latents, one per wrapped linear.
+    * ``….weight`` — the ``--dense-kind`` tensors held OFF the grid inside a trainable
+      layer. Letting them adapt to their ternarized neighbours is most of why a partial
+      schedule beats all-at-once, so measuring the stage without them measures a model
+      that was never trained. (Measured: 16 latents + 2 dense down_proj for a 2-layer
+      stage.)
+
+    Refuses a partial load in either direction. A checkpoint whose keys half-match the
+    wrapping silently leaves the rest of the stage at its shipped weights, and the
+    resulting damage number reads as recovery.
     """
     blob = torch.load(ckpt, map_location="cpu", weights_only=False, mmap=True)
-    latent_sd = blob["latents"]
+    ck = blob["latents"]
     live = latent_modules(model)
-    missing = sorted(set(live) - set(latent_sd))
-    extra = sorted(set(latent_sd) - set(live))
+    dense_live = {n: q for n, q in model.named_parameters()
+                  if n in ck and not n.endswith(".linear.weight")}
+    known = set(live) | set(dense_live)
+    missing = sorted(set(live) - set(ck))
+    extra = sorted(set(ck) - known)
     if missing or extra:
         raise ValueError(
             f"checkpoint does not match the wrapping: {len(missing)} wrapped latents "
             f"absent from the checkpoint (e.g. {missing[:2]}), {len(extra)} checkpoint "
-            f"tensors with no wrapped latent (e.g. {extra[:2]}). Check --ternary-layers "
-            f"and --dense-kind match the run that produced it.")
+            f"tensors with no home in the model (e.g. {extra[:2]}). Check "
+            f"--ternary-layers and --dense-kind match the run that produced it.")
     with torch.no_grad():
-        for n, p in live.items():
-            p.copy_(latent_sd[n].to(p.dtype))
-    return len(live), len(latent_sd)
+        for n, q in {**live, **dense_live}.items():
+            q.copy_(ck[n].to(q.dtype))
+    return len(live), len(dense_live)
 
 
 def main() -> None:
@@ -160,8 +172,9 @@ def main() -> None:
           f"ppl={rows['untrained']['ppl']:.2f}", flush=True)
 
     if args.ckpt:
-        n, _ = load_latents(model, args.ckpt)
-        print(f"[trained] loaded {n} latents from {args.ckpt}", flush=True)
+        n_t, n_d = load_latents(model, args.ckpt)
+        print(f"[trained] loaded {n_t} ternary latents + {n_d} trained dense tensors "
+              f"from {args.ckpt}", flush=True)
         with torch.no_grad():
             rows["trained"] = compare(ref, _logits(model, windows), windows)
         u, t = rows["untrained"]["kld"], rows["trained"]["kld"]

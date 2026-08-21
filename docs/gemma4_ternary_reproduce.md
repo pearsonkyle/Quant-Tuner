@@ -305,7 +305,7 @@ plausible-but-wrong, but only by luck of the vocab sizes.
 $PY scripts/gemma4_stage_damage.py --ternary-layers 0,1,2,3,7,8 --dense-kind down_proj \
     --out out/gemma4-ternary/stage1/stage_damage_untrained.json
 $PY scripts/gemma4_stage_damage.py --ternary-layers 0,1,2,3,7,8 --dense-kind down_proj \
-    --ckpt out/gemma4-ternary/stage1/ckpt-final.pt \
+    --ckpt out/gemma4-ternary/stage1/trained_latents.pt \
     --out out/gemma4-ternary/stage1/stage_damage_trained.json
 ```
 
