@@ -1,0 +1,33 @@
+{
+ "model": "google/gemma-4-E4B-it-qat-q4_0-unquantized",
+ "split": "test",
+ "window": 2048,
+ "windows": 3,
+ "ternary_layers": [
+  0,
+  1,
+  2,
+  3,
+  7,
+  8
+ ],
+ "dense_kinds": [
+  "down_proj"
+ ],
+ "n_latents": 48,
+ "ckpt": null,
+ "rows": {
+  "dense": {
+   "kld": 0.0,
+   "top1_agree": 1.0,
+   "nll": 1.4128275581945975,
+   "ppl": 4.107553482055664
+  },
+  "untrained": {
+   "kld": 0.07616269293551643,
+   "top1_agree": 0.9163411458333334,
+   "nll": 1.397616170346737,
+   "ppl": 4.045544624328613
+  }
+ }
+}

@@ -85,8 +85,18 @@ def census(model_dir: Path, names: list[str] | None, want_all: bool) -> list[dic
 
     from quant_tuner.qat.ternary import ternarize_group
 
-    index = json.loads((model_dir / "model.safetensors.index.json").read_text())
-    weight_map: dict[str, str] = index["weight_map"]
+    idx = model_dir / "model.safetensors.index.json"
+    if idx.exists():
+        weight_map: dict[str, str] = json.loads(idx.read_text())["weight_map"]
+    else:
+        # A checkpoint small enough to ship as one file has no index -- e.g.
+        # gemma-4-E4B-it-qat-q4_0-unquantized, 15.9 GB in a single model.safetensors.
+        # Reading its key list gives the same map with one shard in it.
+        single = model_dir / "model.safetensors"
+        if not single.exists():
+            raise SystemExit(f"[census] neither {idx.name} nor {single.name} in {model_dir}")
+        with safe_open(single, framework="pt") as f:
+            weight_map = dict.fromkeys(f.keys(), single.name)  # noqa: SIM118
     if want_all:
         # the trainable linears: attention + MLP projections inside a decoder layer
         wanted = [k for k in weight_map

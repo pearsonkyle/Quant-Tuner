@@ -67,6 +67,29 @@ Secondary gates, each of which can independently fail the stage:
 - **Val trend.** Masked CE on `corpus_sft_gemma4_val_32768.pt` (86 windows, fingerprint
   `16177b9a361cbdd7`), disjoint from train by session group.
 
+## The lr A/B, pre-registered
+
+`lr 5e-4` is Bonsai's measured sweet spot and is only a first guess here, because the
+two situations are not the same one. Bonsai's weights START on the ternary grid, so the
+only question is whether the lr is large enough to flip codes at all (measured: 3e-4
+flips ~0% and drifts scales while the loss falls). gemma's weights start OFF the grid,
+so step 0 is a large perturbation and there is real gradient signal from the outset; the
+risk shifts from "too small to move anything" toward "large enough to break
+termination".
+
+Three 60-step arms (`EPOCHS=0.37` at `GRAD_ACCUM=4` over 651 windows), identical but for
+lr: **2e-4 / 5e-4 / 1e-3**. Each is read on four things, and no single one decides:
+
+1. **flip %** — near-zero means the arm learned nothing regardless of its loss.
+2. **damage** (`gemma4_stage_damage.py`, the go/no-go metric) at 60 steps.
+3. **stop probe** vs 0.00274 / 0.0703.
+4. **val masked-CE** trend.
+
+Pick the largest lr that is still flipping codes and holding termination, then run the
+full stage at `EPOCHS=2.0` (326 steps). If no arm recovers meaningfully by 60 steps that
+is itself informative, but it is NOT the NO-GO verdict — 60 steps is a sixth of the
+stage, and the verdict is read at the end of a full stage.
+
 ## Known confound, declared up front
 
 The teacher is **`google/gemma-4-31B-it`** — a different, larger model, not the
@@ -95,3 +118,21 @@ tables are precomputed; the control arm is not a new experiment, it is one comma
   on the shipped model, so the panel would have drawn the most-broken-looking line as
   the healthy control. It now reads `PROBE_SPECS`, detected from the points present in
   the run's own log; Qwen's published reference line is pinned unchanged.
+- `2026-08-21` - CPU trainer smoke (2 layers, 2 windows x 2048) confirms the gemma path
+  end to end: dialect detected (7 probe points, stop id 106), 16 latents wrapped with
+  `down_proj` held dense, group-scale lr, adafactor, flip telemetry. **Step 1 reads
+  `loss=7.6378 gnorm=48.10`.** That gnorm is the thing to watch: `--clip-norm 0.25` is
+  Bonsai's number, and Bonsai starts exactly ON the ternary grid, so its step-0 gradient
+  is an ordinary fine-tuning gradient. gemma starts OFF the grid, so step 0 carries the
+  whole ternarization perturbation and the clip is rescaling by ~190x. If the A/B arms
+  come back flip-starved, clip is the second knob to vary, not lr alone.
+- `2026-08-21` - the report's step-0 census defaulted to Bonsai's
+  (`out/exp-058/census_step0.csv`), whose tensor names are `model.layers.N....` against
+  gemma's `model.language_model.layers.N....` -- they can never join, so the
+  distribution-shift panel would have rendered empty rather than wrong. Generated
+  `out/gemma4-ternary/census_step0.csv`; pass it as `CENSUS=` to the report watcher.
+  `ternary_distribution.py census` needed a fix to read a single-file checkpoint (gemma
+  ships 15.9 GB as one `model.safetensors`, with no index). Its zero-fraction reads
+  **42%**, matching the Gaussian value from the weight-space scan -- the same null
+  result seen from a third angle. Bonsai's is 34.5%: a natively-ternary model has a
+  genuinely denser code distribution than TWN-on-Gaussian produces.
