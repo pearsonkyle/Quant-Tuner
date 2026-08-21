@@ -60,6 +60,7 @@ from gemma4_layer_damage import (  # noqa: E402
     compare,
 )
 
+from quant_tuner.qat.stop_probe import StopProbe, format_line  # noqa: E402
 from quant_tuner.qat.ternary import TernaryLinear  # noqa: E402
 from quant_tuner.qat.train import (  # noqa: E402
     decoder_layers,
@@ -131,6 +132,9 @@ def main() -> None:
                     help="tensor kind held dense inside every ternarized layer")
     ap.add_argument("--ckpt", type=Path, default=None,
                     help="trained latents; omit to measure the untrained stage only")
+    ap.add_argument("--probe", action="store_true",
+                    help="also run the stop probe at each stage — separates "
+                         "'ternarization broke termination' from 'training did'")
     ap.add_argument("--threads", type=int, default=192)
     ap.add_argument("--out", type=Path, default=None)
     args = ap.parse_args()
@@ -152,9 +156,25 @@ def main() -> None:
         ref = _logits(model, windows)
     print(f"[ref] dense reference logits in {time.time()-t0:.0f}s", flush=True)
 
+    probe = StopProbe.build(tok) if args.probe else None
+
+    def run_probe(tag: str) -> dict | None:
+        """The probe is the ONLY instrument that sees the termination failure; masked-CE
+        cannot (sft32k's validation went flat for 225 steps while its diagnostic climbed
+        to 0.97). Running it at each stage attributes a control collapse to the
+        TERNARIZATION or to the TRAINING, which the in-training series cannot do on its
+        own — its first reading is already 25 steps deep."""
+        if probe is None:
+            return None
+        pr = probe.measure(model, "cpu")
+        print(f"[probe/{tag}] {format_line(pr, probe.dialect)}", flush=True)
+        return pr
+
     rows: dict[str, dict] = {}
+    probes: dict[str, dict] = {}
     with torch.no_grad():
         rows["dense"] = compare(ref, _logits(model, windows), windows)
+    probes["dense"] = run_probe("dense")
     print(f"[dense] self-check kld={rows['dense']['kld']:.2e} "
           f"(must be ~0; a nonzero here invalidates everything below)", flush=True)
 
@@ -167,6 +187,7 @@ def main() -> None:
 
     with torch.no_grad():
         rows["untrained"] = compare(ref, _logits(model, windows), windows)
+    probes["untrained"] = run_probe("untrained")
     print(f"[untrained] kld={rows['untrained']['kld']:.4f} "
           f"top1={rows['untrained']['top1_agree']:.3f} "
           f"ppl={rows['untrained']['ppl']:.2f}", flush=True)
@@ -177,6 +198,7 @@ def main() -> None:
               f"from {args.ckpt}", flush=True)
         with torch.no_grad():
             rows["trained"] = compare(ref, _logits(model, windows), windows)
+        probes["trained"] = run_probe("trained")
         u, t = rows["untrained"]["kld"], rows["trained"]["kld"]
         rows["recovered_frac"] = {"kld": (u - t) / u if u else float("nan")}
         print(f"[trained] kld={t:.4f} top1={rows['trained']['top1_agree']:.3f} "
@@ -186,7 +208,8 @@ def main() -> None:
     blob = {"model": args.model, "split": args.split, "window": args.window,
             "windows": args.windows, "ternary_layers": idx,
             "dense_kinds": args.dense_kind, "n_latents": len(live),
-            "ckpt": str(args.ckpt) if args.ckpt else None, "rows": rows}
+            "ckpt": str(args.ckpt) if args.ckpt else None, "rows": rows,
+            "probes": {k: v for k, v in probes.items() if v}}
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(json.dumps(blob, indent=1) + "\n")

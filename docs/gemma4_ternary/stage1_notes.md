@@ -276,3 +276,46 @@ mode, not the target. The corpus-conditioned table above is what KD actually tra
 `2026-08-21 22:11` — arm 1 (lr 2e-4) training. **`mem=30.3/61.9 GiB`** on a 95 GiB card,
 **46.8 s/step** — the last untested risk, and it fits with room. 60 steps ≈ 47 min per
 arm. `loss=1.4229 kl=1.1170 an=0.5153 gnorm=31.63` at step 1.
+
+## Arm 1 (lr 2e-4): PROBE-ABORT at step 50, and the attribution
+
+The guard fired on the **control**, not the diagnostic:
+
+    PROBE-ABORT: answer_after_tool=0.0043 < --probe-abort-control 0.01 for 2 consecutive
+    probes — the model is losing the ability to STOP where stopping is right
+
+i.e. the LOOP failure, not early termination. The diagnostic stayed at 0.0055 against a
+0.03 threshold.
+
+`gemma4_stage_damage.py --probe` decomposes it, which the in-training series cannot do
+(its first reading is already 25 steps deep):
+
+| | KLD vs dense | diagnostic | control |
+|---|---|---|---|
+| dense | 0.0000 | 0.0027 | 0.0703 |
+| untrained ternary (6 layers) | 0.0762 | 0.0097 | **0.0734** |
+| trained (50 steps, lr 2e-4) | **0.2724** | 0.0055 | **0.0043** |
+
+**Ternarization is exonerated.** Six ternarized layers leave the control at 0.0734,
+slightly ABOVE dense. Termination survives ternarization untouched.
+
+**Training did both harms.** The control fell 17x and the damage got 3.6x WORSE
+(recovered **-257.7%**). Not a failure to recover — an active move away.
+
+### The mechanism is the teacher, and this is the declared confound firing
+
+The 31B teacher's own probe reads **0.0000 at every point**, including
+`answer_after_tool` where E4B reads 0.0703. KD pulls the student toward the teacher's
+distribution, and the student's control went 0.0734 -> 0.0043, heading for the teacher's
+0.000. **The stop anchor cannot defend against this**: its target is the teacher's
+per-position P(stop) from the same table, so it anchors to the same wrong policy.
+
+The KLD rise has the same cause and was declared before launch: KLD is measured against
+dense E4B while KD pulls toward a DIFFERENT model, so "damage" and "moving toward the
+teacher" are summed in one number. The pre-registered remedy is the same for both — the
+**self-KD control arm**, teacher = the dense E4B itself. Then the teacher's termination
+policy IS the target policy and the KLD metric is unconfounded. Two problems, one fix.
+
+Note this does NOT contradict the 4,090x stop-signal ratio in the table: the teacher does
+stop at the corpus's real stop targets (P=0.477). The probe positions are synthetic ones
+where E4B stops and the 31B, rendered through E4B's template, does not.
