@@ -233,3 +233,12 @@ accum 2. So the arms and the FIRST full stage both run at accum 1, and the tuned
 the lr that runs. Raise accum only on observed instability (loss spikes, probe
 oscillation, flip direction reversing) and re-check lr with it rather than carrying it
 over.
+- `2026-08-21` - de-risked the teacher-probe step (runbook 7b) on CPU, using E4B as its
+  own teacher, so the 31B run is a validated 2-minute job when the card frees. It also
+  cross-validates the instrument: `teacher_stop_probe.py` and `measure_stop_baseline.py`
+  are separate scripts and agree on all seven points to **9e-06 relative**
+  (`sentence_period` 0.00274438 vs 0.00274440, `answer_after_tool` 0.07031588 vs
+  0.07031582). That is worth knowing rather than assuming, because the report draws the
+  TEACHER's values as dotted asymptotes against the STUDENT's in-training series -- if
+  the two paths disagreed, the asymptote would be wrong exactly where the panel is meant
+  to be trusted.
