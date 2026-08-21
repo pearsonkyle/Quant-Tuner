@@ -293,6 +293,7 @@ def main() -> int:
     base = load("stop_baseline.json")
     untr = load("stage1/stage_damage_untrained.json")
     kd = kd_progress(R / "kd" / "precompute_31b.log")
+    sig = load("kd/stop_signal_31b.json")
     arms = sorted(d for d in R.glob("ab-lr*") if d.is_dir())
     stage1 = [d for d in (R / "stage1",) if (d / "train.log").exists()]
 
@@ -304,7 +305,12 @@ def main() -> int:
     k.append(kpi("damage scan", "done" if dmg else "pending",
                  f"{len(order)} layers ranked" if dmg else "—"))
     if kd and kd["done_flag"]:
-        k.append(kpi("KD table (31B)", "done", f"{kd['positions']:,} positions"))
+        # NOT called "coverage": that word already means the stored top-K's share of
+        # the teacher's mass (0.9993 here), and two different numbers under one name in
+        # the same strip is how a reader ends up quoting the wrong one.
+        cov = (f" · P(stop)={sig['at_stop_target']['mean']:.2f} at stop targets"
+               if sig else "")
+        k.append(kpi("KD table (31B)", "done", f"{kd['positions']:,} positions{cov}"))
     elif kd:
         k.append(kpi("KD table (31B)", f"{100 * kd['done'] / kd['total']:.0f}%",
                      f"{kd['done']}/{kd['total']} · ETA {kd['eta_h']:.1f} h"))
@@ -363,6 +369,32 @@ def main() -> int:
             f"stop position: after a complete answer it prefers <code>\\n\\n</code> "
             f"(0.275) over the stop token, and the control has ~25× of headroom over the "
             f"diagnostic where Qwen's had ~10⁴.</p>{fig_probe_baseline(base)}</section>")
+
+    if sig:
+        a, e = sig["at_stop_target"], sig["elsewhere"]
+        secs.append(
+            f"<section><h2>What the teacher teaches about stopping</h2>"
+            f"<p><code>coverage</code> says the stored top-K captured the teacher's mass; "
+            f"it says nothing about whether the teacher is right where it matters. "
+            f"Termination is the failure mode of this pipeline — every trained run so far "
+            f"drove P(stop | completed sentence) from 0.009 to ~0.95 — so the number to "
+            f"check before distilling is whether the teacher separates the corpus's real "
+            f"stop targets from everything else.</p>"
+            f'<div class="tw"><table>'
+            f"<tr><th>teacher P(stop)</th><th>n</th><th>mean</th><th>p25</th>"
+            f"<th>median</th><th>p75</th><th>p95</th></tr>"
+            f"<tr><td>at a real stop target</td><td>{a['n']:,}</td>"
+            f"<td>{a['mean']:.4f}</td><td>{a['p25']:.4f}</td><td>{a['p50']:.4f}</td>"
+            f"<td>{a['p75']:.4f}</td><td>{a['p95']:.4f}</td></tr>"
+            f"<tr><td>everywhere else</td><td>{e['n']:,}</td>"
+            f"<td>{e['mean']:.6f}</td><td>{e['p25']:.6f}</td><td>{e['p50']:.6f}</td>"
+            f"<td>{e['p75']:.6f}</td><td>{e['p95']:.6f}</td></tr></table></div>"
+            f"<p>A <b>{sig['ratio_mean']:,.0f}×</b> ratio on exactly the decision that "
+            f"keeps breaking. The distribution at stop targets is bimodal (p25 "
+            f"{a['p25']:.4f}, p75 {a['p75']:.4f}) because the teacher often prefers a "
+            f"newline immediately before the turn ends — the same preference the shipped "
+            f"E4B shows, and the reason the fixed-position teacher probe reads ~0 at "
+            f"every point while this reads 0.477.</p></section>")
 
     tbl = arms_table(arms + stage1)
     if tbl:

@@ -242,3 +242,37 @@ over.
   TEACHER's values as dotted asymptotes against the STUDENT's in-training series -- if
   the two paths disagreed, the asymptote would be wrong exactly where the panel is meant
   to be trusted.
+
+## The KD table, and the number that actually matters about it
+
+`2026-08-21 22:09` — 651/651 windows, **6,124,496 positions** x top-64, 2.3 GB, 6.24 h.
+Verification passed: fingerprint `0c70d992882d29a7`, every window present, forced id
+`[106]`, support coverage **0.9993**.
+
+But coverage says the stored top-K captured the teacher's mass; it says nothing about
+whether the teacher is RIGHT where it matters. So, measured on the corpus the student
+actually trains on (`scripts/kd_stop_signal.py`):
+
+| teacher P(stop) | n | mean | p25 | median | p75 | p95 |
+|---|---|---|---|---|---|---|
+| at a real stop target | 6,300 | **0.4771** | 0.0018 | 0.3871 | 0.9903 | 0.9989 |
+| everywhere else | 6,118,196 | **0.000117** | 0.0 | 0.0 | 0.0 | 0.0 |
+
+**A 4,090x discriminative ratio on exactly the decision this pipeline keeps breaking.**
+The signal is in the table; whether the student learns it is now a training question, not
+a data question.
+
+**The teacher probe reads ~0 at every point, and that is not a contradiction.** The fixed
+probe scores one position; at a stop target the teacher frequently prefers a newline
+FIRST (`'\n\n':0.815` ahead of `'<turn|>':0.002` on one window, `'<turn|>':0.790` on
+another) — the same preference the shipped E4B shows, which is why gemma has no sharp
+stop point and why its control has only ~25x of headroom. The bimodality at stop targets
+(p25 0.0018, p75 0.9903) is that split. Do not feed the near-zero probe values to the
+report as asymptotes: they would read as "drive P(stop) to zero", which is the failure
+mode, not the target. The corpus-conditioned table above is what KD actually transfers.
+
+## Stage-1 arms, live
+
+`2026-08-21 22:11` — arm 1 (lr 2e-4) training. **`mem=30.3/61.9 GiB`** on a 95 GiB card,
+**46.8 s/step** — the last untested risk, and it fits with room. 60 steps ≈ 47 min per
+arm. `loss=1.4229 kl=1.1170 an=0.5153 gnorm=31.63` at step 1.

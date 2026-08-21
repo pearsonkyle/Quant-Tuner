@@ -1,0 +1,9 @@
+{
+  "start": 6.835885330014335e-11,
+  "mid_sentence": 2.474225929390353e-14,
+  "sentence_period": 8.184883881767746e-08,
+  "sentence_newline": 5.639837581838947e-06,
+  "after_tool_call": 3.026373107672953e-08,
+  "after_tool_response": 1.1677189881709182e-08,
+  "answer_after_tool": 2.814872277667746e-05
+}
