@@ -45,3 +45,15 @@ def test_census_says_what_is_missing_rather_than_reading_nothing(tmp_path):
     (tmp_path / "config.json").write_text("{}")
     with pytest.raises(SystemExit, match="neither"):
         census(tmp_path, None, want_all=True)
+
+
+def test_census_all_excludes_multimodal_towers(tmp_path):
+    """gemma-4's audio tower ships `…audio_tower.layers.0.self_attn.relative_k_proj.weight`,
+    which matches the decoder-projection pattern exactly. A tower tensor in the step-0
+    census is a row that can never move, reported beside rows that did."""
+    w = {"model.language_model.layers.0.self_attn.q_proj.weight": torch.randn(256, 256),
+         "model.audio_tower.layers.0.self_attn.relative_k_proj.weight": torch.randn(256, 256)}
+    save_file(w, str(tmp_path / "model.safetensors"))
+    rows = census(tmp_path, None, want_all=True)
+    assert len(rows) == 1, rows
+    assert "audio_tower" not in rows[0]["tensor"]
