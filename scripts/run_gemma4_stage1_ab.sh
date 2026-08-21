@@ -17,7 +17,7 @@ set -uo pipefail
 cd "$(dirname "$0")/.."
 
 LRS="${LRS:-2e-4 5e-4 1e-3}"
-EPOCHS="${EPOCHS:-0.37}"        # 651 windows / accum 4 -> ~60 steps
+EPOCHS="${EPOCHS:-0.0922}"      # 651 windows @ accum 1 -> 60 steps
 PREFIX="${PREFIX:-ab}"
 SUFFIX="${SUFFIX:-}"            # set when varying something other than lr
 

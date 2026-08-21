@@ -42,8 +42,12 @@ BETA="${BETA:-0.2}"                 # stop-anchor hinge
 MARGIN="${MARGIN:-1.0}"
 MARGIN_HI="${MARGIN_HI:-0.1}"
 CLIP="${CLIP:-0.25}"
-EPOCHS="${EPOCHS:-2.0}"
-GRAD_ACCUM="${GRAD_ACCUM:-4}"
+# accum 1 at a 32768 window is the Bonsai precedent (run_kd_anchor_qat.sh) and gives
+# 651 steps per epoch here -- fine-grained enough that a 60-step arm is a real read and
+# that --probe-every 25 samples termination often enough to abort before a collapse
+# finishes. accum 4 would make one step 131k tokens and a 60-step arm a blunt instrument.
+EPOCHS="${EPOCHS:-1.0}"
+GRAD_ACCUM="${GRAD_ACCUM:-1}"
 ABORT="${ABORT:-0.03}"              # ~11x gemma's 0.00274 diagnostic
 ABORT_CTRL="${ABORT_CTRL:-0.01}"    # last-ditch floor under gemma's 0.0703 control
 CORPUS="${CORPUS:-out/gemma4-ternary/corpus_sft_gemma4_32768.pt}"

@@ -77,8 +77,12 @@ so step 0 is a large perturbation and there is real gradient signal from the out
 risk shifts from "too small to move anything" toward "large enough to break
 termination".
 
-Three 60-step arms (`EPOCHS=0.37` at `GRAD_ACCUM=4` over 651 windows), identical but for
-lr: **2e-4 / 5e-4 / 1e-3**. Each is read on four things, and no single one decides:
+Three 60-step arms (`EPOCHS=0.0922` at `GRAD_ACCUM=1` over 651 windows), identical but
+for lr: **2e-4 / 5e-4 / 1e-3**. Accum 1 at a 32768 window follows the Bonsai full-run
+precedent and gives 651 steps per epoch, so a 60-step arm is a real read and
+`--probe-every 25` samples termination three times inside it. At accum 4 one step is
+131k tokens, a 60-step arm sees a third of the corpus in 60 blunt updates, and the probe
+fires only twice. Each is read on four things, and no single one decides:
 
 1. **flip %** — near-zero means the arm learned nothing regardless of its loss.
 2. **damage** (`gemma4_stage_damage.py`, the go/no-go metric) at 60 steps.
@@ -194,3 +198,6 @@ Flagging now so the number is on the record before the schedule is committed to.
   way. Only the damage number can tell those apart, which is why the A/B is read on four
   columns with no single one deciding. It also shows the harness is correctly signed and
   sensitive at the 0.01 scale the criteria live at.
+- `2026-08-21` - set `GRAD_ACCUM=1` (was 4) for the same reason the Bonsai full run uses
+  it at this window size. Full stage is 1 epoch = 651 steps; if damage is still falling
+  at the end, extend rather than starting long.
