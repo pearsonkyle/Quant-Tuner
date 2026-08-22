@@ -588,3 +588,35 @@ its control was already falling 0.1570 -> 0.0106 by step 75; nine more GPU-hours
 would have bought a slower copy of a known answer. Running instead: 60-step self-KD +
 `--stop-weight 5.5`, abort guards OFF (the synthetic probe has not earned the right to
 end a run), read out on the real-corpus probe.
+
+### Self-KD closes the ternarization-specific half
+
+| checkpoint | mean | median | commits (>0.5) | ratio |
+|---|---|---|---|---|
+| shipped | 0.3452 | 0.4317 | 35% | 2,054x |
+| untrained ternary | 0.2418 | 0.1583 | 15% | 379x |
+| dense-ft (NO ternarization) | 0.1327 | 0.0925 | **3%** | 123x |
+| **self-KD (ternary)** | 0.0788 | 0.0405 | **3%** | 87x |
+| ce-only (ternary) | 0.0265 | 0.0073 | 0% | 91x |
+
+**A ternary model trained with self-KD terminates as well as a DENSE fine-tune does** —
+same 3% commitment, comparable ratio, against CE-only's 0%. A dense fine-tune carries no
+quantization at all, so this says self-KD has removed essentially all of the
+ternarization-SPECIFIC damage to the stop decision.
+
+The two failures separate cleanly:
+
+1. training on this corpus costs 35% -> 3%, **dense or ternary**
+2. ternarization alone costs 35% -> 15%
+3. together, untreated (ce-only): 0%
+4. together, with self-KD: **3% — back to the dense-training floor**
+
+So self-KD is the fix for (2), and (1) is untouched by anything tried so far. (1) is what
+`--stop-weight 5.5` addresses, and it is a corpus/objective problem rather than a
+quantization one — which also means fixing it should help the DENSE model equally, a
+prediction worth testing.
+
+Combined with the capability result (held-out CE 1.7290 ternary vs 1.7796 dense at
+matched training), the working hypothesis for stage 1 is now: **ternarizing six layers
+costs no measurable capability and, under self-KD, no measurable termination beyond what
+fine-tuning itself costs.**
