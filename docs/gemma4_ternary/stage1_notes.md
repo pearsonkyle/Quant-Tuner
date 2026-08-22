@@ -506,3 +506,35 @@ policy was wrong, a metric that measured drift, a control that was missing) and 
 the configuration worth spending a full stage on.
 
 Queued: **self-KD, 651 steps (1 epoch), lr 2e-4**, guards armed. ~8.7 h.
+
+## A mechanism for the termination failure, and an unused lever
+
+    supervised tokens 6,124,496   stop targets 6,300
+    -> one stop decision per 972 "keep going" tokens
+
+The Bonsai stop-weight work measured **1 per 176** on its corpus. Ours is **5.5x rarer**,
+and `--stop-weight` has been at its default 1.0 in every arm run tonight. The direction
+matters: Bonsai's failure was stopping too EAGERLY, where a 6x change in stop-weight
+moved the diagnostic by 0.02 and was written off as not the lever. Ours is the opposite
+failure — losing the ability to stop — which is exactly what up-weighting the stop target
+corrects. First principled fix to test.
+
+## Auditing the instrument every abort fired on
+
+`stop_probe.py` scores **seven hand-written prompts**. It is the right in-training
+instrument (0.7 s, runnable every 25 steps) but it is seven prompts, and the shipped
+Bonsai model is standing proof it can mislead: textbook-healthy probe, looping
+trajectory. `gemma4_stop_on_corpus.py` measures what it stands in for — real stop targets
+from the HELD-OUT val corpus, 2048 tokens of real context each, P(<turn|>) at the
+position that must predict it, against the same number of ordinary supervised positions.
+
+**The shipped model's own reading reframes every "collapse" tonight:**
+
+    [shipped] P(stop) AT a real stop target  mean 0.3452  median 0.4317  >0.5 on 35%
+    [shipped] P(stop) elsewhere              mean 0.000168     ratio 2,054x
+
+The undamaged model commits to stopping at only **35%** of real stop targets. It puts
+most of its mass on the newline BEFORE the turn ends — the same preference the teacher
+table showed (median 0.605 with full-window context, lower here at ctx 2048) and the same
+reason gemma has no sharp stop point and only ~25x of probe headroom. Whatever the arms
+did, they must be judged against 0.345, not against 1.0.
