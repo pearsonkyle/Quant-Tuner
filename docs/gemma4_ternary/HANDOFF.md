@@ -35,7 +35,7 @@ metric the brief pre-registered turned out to be invalid, twice over:
 | ce-only | 0.0% | 0.0265 | 2.9e-04 | 91 | — |
 | self-KD (α 0.5) | 2.5% | 0.0788 | 9.1e-04 | 87 | 1.9948 |
 | self-KD + stop-weight 5.5 | 5.0% | 0.0781 | 4.3e-05 | 1798 | 2.0478 |
-| self-KD + stop-weight 16 | *pending* | | | | 2.6457 |
+| self-KD + stop-weight 16 | 17.5% | 0.2706 | 6.4e-04 | 419 | 2.6457 |
 
 Read it as **two independent failures**, not one:
 - **commitment** (`frac_top1`) — is stopping the *top* choice at a real stop target.
@@ -48,9 +48,27 @@ at 5%. Reporting them blended would have scored that a win.
 
 - **The commitment deficit is not quantization-specific.** A dense fine-tune lands at the
   same 2.5% as ternary self-KD. Whatever destroys commitment does it to a bf16 model too.
-- **stop-weight is the wrong lever for it.** 5.5 bought discrimination and no commitment;
-  16 bought neither *and* cost the model its learning (val 2.7072 → 2.6457, essentially
-  flat, against 5.5's 2.4918 → 2.0478).
+- **stop-weight only moves the model along a capability/commitment curve.** This is the
+  central result and it superseded an earlier, wrong summary of mine ("16 bought
+  neither"): stop-weight 16 read the *highest* commitment of any trained arm, 17.5%. But
+  all four of its stop metrics land on **untrained-ternary** (15.0% / 0.2418 / 6.38e-04 /
+  379 — at n=40 that is 7 targets vs 6, i.e. noise), because what it actually did was
+  decline to learn: unweighted val CE 2.7072 → 2.6457 against 5.5's 2.4918 → 2.0478, and
+  20–25% fewer code flips.
+
+  | arm | final val CE | flips (L0 q_proj) | commit |
+  |---|---|---|---|
+  | untrained-ternary | — | 0% | 15.0% |
+  | stop-weight 16 | 2.6457 | 2.28% | 17.5% |
+  | stop-weight 5.5 | 2.0478 | 2.72% | 5.0% |
+  | self-KD (100 steps) | 1.9948 | 4.14% | 2.5% |
+  | dense fine-tune | 1.7796 | (dense) | 2.5% |
+  | CE only | 1.7290 | 2.65% | 0.0% |
+
+  **The ordering by val CE is the exact reverse of the ordering by commitment**, and it
+  does not care about the grid — the dense fine-tune sits next to CE-only. Fitting this
+  corpus destroys the stopping policy in proportion to how well you fit it. Validation is
+  unweighted masked CE (`run_validation` passes no `weights=`), so these are comparable.
 - **The corpus is not at fault, and I checked rather than assumed.** 13,273 `<end_of_turn>`
   tokens are present, **6,300 labeled and 6,973 correctly masked** (the ends of user/tool
   turns). gemma stops at every assistant turn including tool calls and the corpus labels
@@ -83,11 +101,21 @@ shipped behaviour instead of overshooting into a stop-happy model.
 Two arms, 60 steps each, ~50 min apiece: β=8 and β=25, both with stop-weight 5.5.
 `an` is reported raw (pre-β) in the step line, and loss adds `β · an`.
 
-**Pre-registered criteria, written before launch:**
-- **Pass** — commitment ≥ 15% (the untrained-ternary level, i.e. training no longer
-  destroys the stopping policy) at val masked-CE ≤ 2.10 and ratio ≥ 1000.
+**Pre-registered criteria** (sharpened after sw16 — a bare commitment bar is clearable by
+under-training, so val CE is now part of the pass condition, not a side note):
+- **Pass** — commitment ≥ 15% **and** val masked-CE ≤ 2.10 and ratio ≥ 1000. That is
+  *off* the curve above, not further along it.
 - **Partial** — commitment 8–15% at val ≤ 2.10. Carry into the full stage with larger β.
-- **Fail** — commitment < 8%, or val > 2.15. Then the anchor is not the lever either.
+- **Fail** — commitment < 8%, or val > 2.15, or commitment bought at a val CE that puts
+  the arm back on the curve.
+
+A saturating anchor is the one thing tried so far that *could* leave the curve: it adds
+force only at stop targets and only until the student reaches the teacher's own level
+there, so unlike a 16× CE reweighting it has no mechanism for degrading general fit. If
+it too only walks the curve, the honest conclusion is that this corpus and this objective
+cannot both be satisfied, and the next move is a mixed objective — holding the shipped
+model's full distribution at stop targets while fitting content elsewhere — not another
+scalar.
 
 If an arm passes: `scripts/run_gemma4_stage1_full.sh` runs stage 1 at full length
 (1 epoch = 651 steps, ~8.5 h) with a CPU sidecar that reads commitment off each

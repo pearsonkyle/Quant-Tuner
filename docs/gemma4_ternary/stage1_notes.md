@@ -96,3 +96,60 @@ commitment toward the dense distribution?) is superseded by the anchor arms.
 
 The anchor arms (beta 8 and 25) were queued and never started. They are the first thing
 to run on the new machine; criteria are pre-registered above and unchanged.
+
+## 2026-08-22 16:45 — sw16's read-out landed after the pause, and it corrects me
+
+`sw16-lr2e-4: commit 17.5%  P(stop)@stop 0.2706  elsewhere 6.45e-04  ratio 419`
+
+I had written that stop-weight 16 "bought neither" half. **That is wrong as stated** — it
+read the highest commitment of any trained arm, above the 15% bar I pre-registered for
+the anchor. But it is not the win the number looks like, and the reason is visible in
+every other column.
+
+All four of its stop metrics land on **untrained-ternary**, not partway between:
+
+| | commit | P(stop)@stop | elsewhere | ratio |
+|---|---|---|---|---|
+| untrained-ternary | 15.0% | 0.2418 | 6.38e-04 | 379 |
+| sw16 | 17.5% | 0.2706 | 6.45e-04 | 419 |
+
+At n=40 probe points, 17.5% vs 15.0% is 7 targets vs 6. Nothing here is distinguishable
+from the model before training.
+
+**What it actually did was refuse to learn.** Validation is unweighted masked CE
+(`run_validation` passes no `weights=`), so the numbers are comparable across arms, and
+sw16's barely moved: 2.7072 → 2.6457, against sw5.5's 2.4918 → 2.0478. It also flipped
+20–25% fewer codes (layer-0 q_proj 2.28% vs sw5.5's 2.72%).
+
+### The real finding: commitment and capability trade off monotonically on this corpus
+
+| arm | final val CE | flips (L0 q_proj) | commit |
+|---|---|---|---|
+| untrained-ternary | — | 0% | 15.0% |
+| stop-weight 16 | 2.6457 | 2.28% | 17.5% |
+| stop-weight 5.5 | 2.0478 | 2.72% | 5.0% |
+| self-KD (100 steps) | 1.9948 | 4.14% | 2.5% |
+| dense fine-tune | 1.7796 | (dense) | 2.5% |
+| CE only | 1.7290 | 2.65% | 0.0% |
+
+**The ordering by val CE is the exact reverse of the ordering by commitment**, and it
+does not care about the grid — the dense fine-tune sits right next to CE-only. Fitting
+this corpus destroys the stopping policy in proportion to how well you fit it. Every
+"lever" tried so far, stop-weight included, has only moved the model along this curve;
+stop-weight 16 bought its commitment by declining to train.
+
+### This sharpens the anchor criterion, and it is the version to use
+
+The pass bar is no longer "commitment ≥ 15%" — sw16 clears that trivially by
+under-training. It is:
+
+> **commitment ≥ 15% AND val masked-CE ≤ 2.10** — i.e. *off* the curve, not further
+> along it. Anything that buys commitment by raising val CE is not a result.
+
+This is exactly what a saturating anchor should be able to do and a weight cannot: it
+adds force only at stop targets and only until the student reaches the teacher's own
+level there, so it has no mechanism for degrading the model's general fit the way a 16×
+CE reweighting does. If the anchor also only walks the curve, the honest conclusion is
+that this corpus and this objective cannot both be satisfied, and the next move is a
+mixed objective (e.g. holding the shipped model's full distribution at stop targets
+while fitting content elsewhere), not another scalar.
