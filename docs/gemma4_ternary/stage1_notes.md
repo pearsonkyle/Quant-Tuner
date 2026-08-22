@@ -357,3 +357,56 @@ the one the student should adopt, and the one instrument that does — the teach
 stop probe, read through the student's template — was reading 0.0000 at every point
 before a single training step ran. It was in the log; it was not a gate. **It should be
 one.**
+
+## CE-only inverts the story, and exposes a flaw in MY metric
+
+| arm | teacher | lr | KLD | recovered | control @50 | flips |
+|---|---|---|---|---|---|---|
+| untrained ternary | — | — | 0.0762 | — | 0.0734 | — |
+| arm 1 | 31B KD | 2e-4 | 0.2724 | -257.7% | 0.0043 | ~2% |
+| arm 2 | 31B KD | 5e-4 | 0.3576 | -369.5% | 0.0000 | 5.6-6.2% |
+| **CE-only** | **none** | 2e-4 | **0.3866** | **-407.7%** | 0.0022 | 2.4-2.7% |
+
+**CE-only is the worst arm.** Removing the teacher made BOTH damage and termination
+worse, so the foreign teacher was restraining the drift rather than causing it. The
+earlier conclusion — "the 31B teacher caused the collapse" — is wrong. It accelerates it
+(control 0.0041 by step 25 vs CE's 0.0453) and then holds a floor; CE-only decays past it.
+
+### The metric cannot answer the question it was written for
+
+`KLD(dense ‖ candidate)` on held-out text sums two things that a fine-tune does at once:
+
+1. ternarization damage failing to recover, and
+2. the model legitimately learning the training distribution.
+
+Every fine-tune does (2) whether or not it does (1), so **every "recovered -X%" figure
+above is contaminated**, and the ordering across arms measures how hard each one trained
+rather than how well it recovered. The 5x gap between untrained (0.0762) and CE-only
+(0.3866) is mostly (2).
+
+This is a flaw in the experimental design, not a surprise in the data. `notes.md`
+pre-registered the self-KD arm for the TEACHER confound and did not pre-register a
+control for this one.
+
+### The missing control, now queued
+
+Train the SAME six layers with **no ternarization** — identical corpus, lr, steps —
+expressed as `--dense-kind _proj --dense-kind gate`, which leaves every linear trainable
+but off the grid (`wrap_model` refuses a trainable layer that is not also ternarized, so
+this is how a dense arm is written). Then:
+
+* if the dense arm also lands near 0.38, ternarization is not what these numbers
+  measured, and the honest reading of tonight is that the instrument was wrong;
+* if it lands near 0.08, training really does amplify ternarization damage and the
+  original NO-GO reading stands.
+
+`gemma4_stage_damage.py --ref-ckpt` then measures `KLD(dense fine-tune ‖ ternary fine-tune)`
+directly — the same layers, the same data, the same number of steps, differing only in
+whether the weights were on the grid. That is the quantity the study meant by "damage"
+all along.
+
+Its abort guards are deliberately disabled (`--probe-abort 0`): a dense arm must be
+allowed to show a termination collapse, because if a DENSE fine-tune on this corpus also
+drives the control to ~0.004, then termination is a property of the corpus and the
+schedule, not of ternarization — which would be the single most useful thing learned
+tonight.

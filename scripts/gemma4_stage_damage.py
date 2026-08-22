@@ -132,6 +132,9 @@ def main() -> None:
                     help="tensor kind held dense inside every ternarized layer")
     ap.add_argument("--ckpt", type=Path, default=None,
                     help="trained latents; omit to measure the untrained stage only")
+    ap.add_argument("--ref-ckpt", type=Path, default=None,
+                    help="measure against a DENSE fine-tune of the same layers instead "
+                         "of the shipped model — isolates ternarization from training")
     ap.add_argument("--probe", action="store_true",
                     help="also run the stop probe at each stage — separates "
                          "'ternarization broke termination' from 'training did'")
@@ -151,10 +154,26 @@ def main() -> None:
         args.model, dtype=torch.float32, device_map="cpu")
     model.eval()
 
+    # The reference decides what "damage" MEANS, and the default answer is incomplete.
+    # Against the shipped model, KLD sums two things a fine-tune does at once:
+    # ternarization damage failing to recover, and the model legitimately learning the
+    # training distribution. Measured: a CE-only ternary arm scored 0.3866 where the
+    # untrained ternarization scored 0.0762 — training moved it 5x further than
+    # ternarizing did, and no part of that number says which part was the quantization.
+    # --ref-ckpt makes the reference a DENSE fine-tune of the same layers on the same
+    # data, so what is left is the ternarization alone.
+    if args.ref_ckpt:
+        wrap_model(model, 0, layer_spec=args.ternary_layers,
+                   ternary_spec=args.ternary_layers,
+                   dense_kinds=tuple(args.dense_kind) or ("_proj", "gate"))
+        n_t, n_d = load_latents(model, args.ref_ckpt)
+        print(f"[ref] dense fine-tune reference: {n_t} latents + {n_d} dense from "
+              f"{args.ref_ckpt}", flush=True)
     t0 = time.time()
     with torch.no_grad():
         ref = _logits(model, windows)
-    print(f"[ref] dense reference logits in {time.time()-t0:.0f}s", flush=True)
+    print(f"[ref] reference logits in {time.time()-t0:.0f}s "
+          f"({'dense fine-tune' if args.ref_ckpt else 'shipped model'})", flush=True)
 
     probe = StopProbe.build(tok) if args.probe else None
 
@@ -208,7 +227,8 @@ def main() -> None:
     blob = {"model": args.model, "split": args.split, "window": args.window,
             "windows": args.windows, "ternary_layers": idx,
             "dense_kinds": args.dense_kind, "n_latents": len(live),
-            "ckpt": str(args.ckpt) if args.ckpt else None, "rows": rows,
+            "ckpt": str(args.ckpt) if args.ckpt else None,
+            "ref_ckpt": str(args.ref_ckpt) if args.ref_ckpt else None, "rows": rows,
             "probes": {k: v for k, v in probes.items() if v}}
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)
