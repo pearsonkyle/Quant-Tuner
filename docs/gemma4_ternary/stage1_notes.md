@@ -620,3 +620,37 @@ Combined with the capability result (held-out CE 1.7290 ternary vs 1.7796 dense 
 matched training), the working hypothesis for stage 1 is now: **ternarizing six layers
 costs no measurable capability and, under self-KD, no measurable termination beyond what
 fine-tuning itself costs.**
+
+## stop-weight 5.5: all of the discrimination, almost none of the commitment
+
+| arm | mean | median | commits (>0.5) | elsewhere | ratio | val CE @50 |
+|---|---|---|---|---|---|---|
+| shipped | 0.3452 | 0.4317 | **35%** | 0.000168 | 2,054x | — |
+| self-KD | 0.0788 | 0.0405 | 3% | 0.000906 | 87x | 1.9948 |
+| **self-KD + sw 5.5** | 0.0781 | 0.0226 | 5% | **0.000043** | **1,798x** | 2.0478 |
+
+The derived stop-weight did exactly one of the two things it needed to. The
+discriminative ratio went **87x -> 1,798x**, essentially back to the shipped 2,054x,
+because the model stopped leaking stop-mass into ordinary positions (elsewhere fell 21x).
+It now knows WHERE to stop. What it did not do is raise P(stop) at a real stop target:
+mean 0.0781 vs 0.0788, commitment 3% -> 5%.
+
+So "one stop decision per 972 tokens" explained the *false-positive* half of the problem
+and not the *commitment* half. Worth separating in future: `ratio` and `commits` are
+different failures with, apparently, different causes.
+
+Cost: val CE 1.9948 -> 2.0478, a small real loss.
+
+### Sweep queued (and a note on GPU discipline)
+
+**The card idled 08:29-15:17 because I queued nothing behind this arm.** Arms now run as
+a chained sweep with their read-outs backgrounded, so a finishing arm starts the next.
+
+* `sw16` — does commitment track stop-weight? If it saturates near 5%, up-weighting is
+  the wrong lever for commitment and the sweep says so cheaply.
+* `a75-sw5.5` — kd-alpha 0.75, pulling harder toward the dense model's own distribution,
+  which is where the 35% commitment lives.
+* `dense-sw5.5` — **the falsification.** The diagnosis says the commitment deficit is a
+  corpus/objective problem hitting dense and ternary alike, so stop-weight must help a
+  DENSE fine-tune about as much. If it does not, the deficit is quantization-specific
+  after all and the diagnosis is wrong.
