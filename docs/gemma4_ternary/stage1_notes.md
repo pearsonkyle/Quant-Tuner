@@ -538,3 +538,53 @@ most of its mass on the newline BEFORE the turn ends — the same preference the
 table showed (median 0.605 with full-window context, lower here at ctx 2048) and the same
 reason gemma has no sharp stop point and only ~25x of probe headroom. Whatever the arms
 did, they must be judged against 0.345, not against 1.0.
+
+## The real-corpus probe overturns the synthetic one, in both directions
+
+P(<turn|>) at real held-out stop targets, 2048 tokens of real context each:
+
+| checkpoint | mean | median | commits (>0.5) | ratio | 7-prompt probe said |
+|---|---|---|---|---|---|
+| shipped | 0.3452 | 0.4317 | **35%** | 2,054x | control 0.0703 |
+| untrained ternary | 0.2418 | 0.1583 | 15% | 379x | 0.0734 — "unchanged" |
+| **dense-ft (NO ternarization)** | 0.1327 | 0.0925 | **3%** | 123x | 0.0803 — "**improved**" |
+| ce-only (ternary) | 0.0265 | 0.0073 | **0%** | 91x | 0.0039 — "collapsed" |
+
+Two corrections, both mine, both from trusting seven hand-written prompts:
+
+1. **"Ternarization is exonerated" was wrong.** Six ternarized layers take real-corpus
+   commitment from 35% to 15% and the discriminative ratio from 2,054x to 379x. The
+   synthetic probe reported that model as unchanged.
+2. **"A dense fine-tune improves termination" was wrong, and backwards.** It takes
+   commitment from 35% to **3%** — a 12x degradation the probe scored as an improvement
+   over the shipped model.
+
+So termination is damaged by **training on this corpus**, dense or not, and ternarization
+compounds it. That reverses the interaction story from two messages ago, which was itself
+built on the same bad instrument.
+
+### The structural cause, and a fix with a derived value
+
+gemma renders an entire tool exchange as **one** model turn. A session with twenty tool
+calls carries twenty `<|im_end|>` stop targets under ChatML and exactly **one** `<turn|>`
+here. Hence:
+
+    this corpus     1 stop target per 972 supervised tokens
+    Bonsai sft8k    1 per 176                -> 5.5x denser
+
+`--stop-weight` has been at its default **1.0** in every arm tonight. Setting it to
+**5.5 = 972/176** makes a stop decision carry the same share of the loss it carried in
+the recipe every other hyperparameter here came from. That is a unit conversion, not a
+sweep.
+
+The Bonsai result does not contradict this: there, stop-weight 6.0 vs 1.0 moved the
+diagnostic by 0.02 and was written off — but Bonsai's failure was stopping too EAGERLY,
+which up-weighting the stop target cannot fix. Ours is the opposite failure.
+
+### Action
+
+Killed the 651-step self-KD run at step 100 (checkpoint saved). It lacked this fix and
+its control was already falling 0.1570 -> 0.0106 by step 75; nine more GPU-hours on it
+would have bought a slower copy of a known answer. Running instead: 60-step self-KD +
+`--stop-weight 5.5`, abort guards OFF (the synthetic probe has not earned the right to
+end a run), read out on the real-corpus probe.
