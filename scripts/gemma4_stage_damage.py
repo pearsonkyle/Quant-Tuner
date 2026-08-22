@@ -163,11 +163,26 @@ def main() -> None:
     # --ref-ckpt makes the reference a DENSE fine-tune of the same layers on the same
     # data, so what is left is the ternarization alone.
     if args.ref_ckpt:
-        wrap_model(model, 0, layer_spec=args.ternary_layers,
-                   ternary_spec=args.ternary_layers,
-                   dense_kinds=tuple(args.dense_kind) or ("_proj", "gate"))
-        n_t, n_d = load_latents(model, args.ref_ckpt)
-        print(f"[ref] dense fine-tune reference: {n_t} latents + {n_d} dense from "
+        # The reference is a DENSE fine-tune, so its tensors are plain `….weight` and go
+        # straight into the unwrapped model — no wrap_model call, which would otherwise
+        # have to use the candidate's --dense-kind and then refuse the load. The shipped
+        # values are kept and restored, so "untrained" keeps meaning what it means in
+        # every other invocation: the ternarized SHIPPED weights.
+        rc = torch.load(args.ref_ckpt, map_location="cpu", weights_only=False, mmap=True)
+        ref_sd = rc["latents"]
+        if any(k.endswith(".linear.weight") for k in ref_sd):
+            raise ValueError(f"--ref-ckpt {args.ref_ckpt} contains ternary latents; the "
+                             f"reference must be a DENSE fine-tune of the same layers")
+        live = dict(model.named_parameters())
+        missing = sorted(set(ref_sd) - set(live))
+        if missing:
+            raise ValueError(f"--ref-ckpt has {len(missing)} tensors absent from the "
+                             f"model (e.g. {missing[:2]})")
+        shipped = {k: live[k].detach().clone() for k in ref_sd}
+        with torch.no_grad():
+            for k, v in ref_sd.items():
+                live[k].copy_(v.to(live[k].dtype))
+        print(f"[ref] dense fine-tune reference: {len(ref_sd)} tensors from "
               f"{args.ref_ckpt}", flush=True)
     t0 = time.time()
     with torch.no_grad():
@@ -189,13 +204,28 @@ def main() -> None:
         print(f"[probe/{tag}] {format_line(pr, probe.dialect)}", flush=True)
         return pr
 
+    if args.ref_ckpt:
+        with torch.no_grad():
+            for k, v in shipped.items():
+                dict(model.named_parameters())[k].copy_(v)
+        del shipped
+        print("[ref] shipped weights restored; 'untrained' below is the ternarized "
+              "SHIPPED model, as in every other run", flush=True)
+
     rows: dict[str, dict] = {}
     probes: dict[str, dict] = {}
     with torch.no_grad():
         rows["dense"] = compare(ref, _logits(model, windows), windows)
     probes["dense"] = run_probe("dense")
-    print(f"[dense] self-check kld={rows['dense']['kld']:.2e} "
-          f"(must be ~0; a nonzero here invalidates everything below)", flush=True)
+    if args.ref_ckpt:
+        # NOT a self-check here: the reference is the dense fine-tune, so this row is
+        # KLD(dense-ft ‖ shipped) — how far the dense arm travelled, which is the floor
+        # the ternary arms are read against. It SHOULD be large.
+        print(f"[shipped] kld={rows['dense']['kld']:.4f} vs the dense fine-tune — this "
+              f"is the training drift itself, not a self-check", flush=True)
+    else:
+        print(f"[dense] self-check kld={rows['dense']['kld']:.2e} "
+              f"(must be ~0; a nonzero here invalidates everything below)", flush=True)
 
     idx = sorted(parse_layers(args.ternary_layers, len(decoder_layers(model))))
     wrap_model(model, 0, layer_spec=args.ternary_layers,
@@ -219,10 +249,17 @@ def main() -> None:
             rows["trained"] = compare(ref, _logits(model, windows), windows)
         probes["trained"] = run_probe("trained")
         u, t = rows["untrained"]["kld"], rows["trained"]["kld"]
-        rows["recovered_frac"] = {"kld": (u - t) / u if u else float("nan")}
+        # u is EXACTLY 0 for a dense control arm: nothing was ternarized, so the
+        # "untrained" model is the reference and there is no damage to recover a
+        # fraction of. Report the absolute drift instead of dividing by zero — that arm
+        # exists precisely to say how much of a ternary arm's KLD is just fine-tuning.
+        frac = (u - t) / u if u > 1e-9 else None
+        rows["recovered_frac"] = {"kld": frac}
+        tail = (f"recovered {100 * frac:.1f}% of the stage's damage" if frac is not None
+                else "no ternarization in this arm — its KLD is pure fine-tuning drift, "
+                     "the floor to read the ternary arms against")
         print(f"[trained] kld={t:.4f} top1={rows['trained']['top1_agree']:.3f} "
-              f"ppl={rows['trained']['ppl']:.2f}  |  recovered "
-              f"{100*(u-t)/u:.1f}% of the stage's damage", flush=True)
+              f"ppl={rows['trained']['ppl']:.2f}  |  {tail}", flush=True)
 
     blob = {"model": args.model, "split": args.split, "window": args.window,
             "windows": args.windows, "ternary_layers": idx,

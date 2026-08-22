@@ -449,3 +449,60 @@ would have been beaten by an arm with a handicap. If the dense arm's KLD comes o
 LOWER, the result is ambiguous between "ternarization amplifies damage" and "the ternary
 arm was clipped into a different trajectory", and the follow-up is to match on val CE
 rather than on step count.
+
+## The dense control lands, and it re-reads everything
+
+| arm | ternarized | val CE @60 | KLD vs shipped | over dense floor | control | diagnostic |
+|---|---|---|---|---|---|---|
+| dense control | **no** | **1.7796** | 0.2175 | (floor) | **0.0803** | 0.0000 |
+| ce-only | yes | **1.7290** | 0.3866 | +0.1691 | 0.0039 | 0.0041 |
+| selfkd | yes | 1.9948 | 0.3212 | +0.1037 | **0.0399** | 0.0002 |
+| ab-lr2e-4 (31B KD, 50 steps) | yes | 2.4779 | 0.2724 | +0.0549 | 0.0043 | 0.0055 |
+| ab-lr5e-4 (31B KD, 50 steps) | yes | 2.1980 | 0.3576 | +0.1401 | 0.0000 | 0.0005 |
+
+reference: untrained ternarization 0.0762 · shipped control 0.0703 · diagnostic 0.002744
+
+### 1. The metric was measuring how hard the arm trained
+
+A **dense** fine-tune — nothing ternarized — moves 0.2175 in KLD from the shipped model.
+So most of every ternary arm's KLD was training, not quantization, and the "recovered
+-258%/-370%/-408%" figures were an artifact of the instrument. The clincher is that
+`ce-only` has *higher* KLD-vs-shipped than the dense arm **and lower val CE**: it moved
+further from the reference *because* it fit the training distribution harder. That is
+what the KLD column was ranking all along.
+
+### 2. At matched training, ternarization costs nothing measurable in capability
+
+`dense-control` and `ce-only` are matched on layers, corpus, lr, steps, seed and window
+order, with no teacher in either, differing **only** in whether the weights sit on the
+ternary grid. Held-out masked CE at step 60: **dense 1.7796, ternary 1.7290.** The
+ternary arm is not worse; it is slightly better, while being clipped ~2.6x harder
+(gnorm 12-21 dense vs 35-55 ternary).
+
+That is the strongest evidence yet that the SCHEDULE is viable — and it is invisible in
+the metric the study pre-registered.
+
+### 3. Termination is the real failure, and it is an INTERACTION
+
+Neither ingredient breaks it alone:
+
+* ternarization alone (untrained): control **0.0734** — above the shipped 0.0703
+* dense training alone: control **0.0803** at step 60, and 0.1485 at step 50 mid-run —
+  *improved*, with the diagnostic falling to 0.0000
+
+Together they collapse it (ce-only 0.0039). Whatever the mechanism, it is specific to
+the stop decision: the same arm fits held-out data better than the dense one.
+
+**Self-KD mitigates it 10x** (0.0399 vs 0.0039) at a cost in val CE (1.9948 vs 1.7290) —
+the anchor and KL trade fitting speed for keeping the stop policy. Its anchor loss stays
+at 0.28 where the 31B arms' climbed past 1.30.
+
+### Where the stage-1 question actually stands
+
+Unanswered, and now for an honest reason rather than a broken instrument: **60 steps is
+9% of one epoch**, and the pre-registered criteria say the verdict is read at the end of
+a full stage. What the arms did was find and fix three instrument faults (a teacher whose
+policy was wrong, a metric that measured drift, a control that was missing) and identify
+the configuration worth spending a full stage on.
+
+Queued: **self-KD, 651 steps (1 epoch), lr 2e-4**, guards armed. ~8.7 h.
