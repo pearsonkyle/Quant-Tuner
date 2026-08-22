@@ -302,6 +302,16 @@ def precompute_topk(
     print(f"[kd] student vocab {s_vocab}; KD restricted to first {kd_vocab} ids; top-K={topk}",
           flush=True)
 
+    # Same fused-path trap the trainer patches around, and it bites a forward-only pass
+    # just as hard: with enable_gqa=True, a head_dim past FlashAttention's 256 cap leaves
+    # SDPA on math and materializes [batch, heads, S, S]. gemma-4-E4B is a 16 GB model
+    # and OOM'd a 95 GiB card at a 32768 window before this.
+    if backend.is_cuda:
+        from quant_tuner.qat.attention import enable_gqa_repeat_where_unfused
+        enable_gqa_repeat_where_unfused()
+        print("[kd] GQA: expanding K/V where no fused kernel takes grouped K/V "
+              "(fp32, or head_dim past the flash cap)", flush=True)
+
     print(f"[kd] loading teacher {teacher} ({tdtype}, {dev}) ...", flush=True)
     model = load_teacher(teacher, device=dev, dtype=tdtype)
     t_vocab = resolve_vocab_size(model.config)

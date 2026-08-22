@@ -265,8 +265,15 @@ def disable_chunked_sdpa() -> None:
 _original_use_gqa = None
 
 
-def enable_fp32_gqa_repeat() -> None:
-    """Stop transformers asking SDPA for GQA in fp32, where no fused kernel provides it.
+#: FlashAttention's head-dimension cap. Above it flash declines and, with
+#: ``enable_gqa=True`` also ruling out the memory-efficient kernel, SDPA lands on math.
+#: gemma-4 sits right on the wrong side of this: its full-attention layers use
+#: ``global_head_dim: 512`` while the sliding ones use 256.
+FLASH_MAX_HEAD_DIM = 256
+
+
+def enable_gqa_repeat_where_unfused() -> None:
+    """Stop transformers asking SDPA for GQA where no fused kernel provides it.
 
     transformers passes ``enable_gqa=True`` to ``scaled_dot_product_attention`` whenever
     the mask is None on CUDA (``use_gqa_in_sdpa``), rather than expanding K/V itself. For
@@ -290,6 +297,18 @@ def enable_fp32_gqa_repeat() -> None:
     memory is the materialized expansion, not a second attention algorithm — far below
     the score matrix it avoids.
 
+    **The dtype is not the only way to fall off the fused path.** FlashAttention also
+    caps head_dim at 256, and gemma-4's full-attention layers use ``global_head_dim:
+    512`` (its sliding layers use 256, so only some layers fall through — which is why
+    the failure looks intermittent). With ``enable_gqa=True`` still set, the
+    memory-efficient kernel is ruled out too and the dispatcher lands on math, which
+    materializes ``[batch, n_heads, S, S]``. Measured: a bf16 forward-only pass of
+    gemma-4-E4B — a **16 GB** model — OOM'd a 95 GiB card at a 32768 window, allocating
+    88.5 GiB, because ``[1, 8, 32768, 32768]`` is 17.2 GiB per layer. The 31B teacher
+    escaped it only because its head_dim is 256.
+
+    So the predicate is honest about both: fp32, and head_dim past the flash cap.
+
     Idempotent; :func:`disable_fp32_gqa_repeat` restores the original predicate.
     """
     global _original_use_gqa
@@ -302,9 +321,15 @@ def enable_fp32_gqa_repeat() -> None:
     def use_gqa_in_sdpa(attention_mask, key):
         if key.dtype not in (torch.float16, torch.bfloat16):
             return False
+        if key.shape[-1] > FLASH_MAX_HEAD_DIM:
+            return False
         return _original_use_gqa(attention_mask, key)
 
     _sdpa_mod.use_gqa_in_sdpa = use_gqa_in_sdpa
+
+
+#: The original name, from when fp32 was the only known way off the fused path.
+enable_fp32_gqa_repeat = enable_gqa_repeat_where_unfused
 
 
 def disable_fp32_gqa_repeat() -> None:

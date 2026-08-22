@@ -180,3 +180,37 @@ def test_keep_chunking_leaves_qwen_windows_whole_and_splits_gemma():
 
     assert _chunk_positions(KEEP_CHUNK_BYTES, 151_669, 2) >= 32_768
     assert _chunk_positions(KEEP_CHUNK_BYTES, 262_144, 2) < 32_768
+
+
+def test_gqa_predicate_declines_past_the_flash_head_dim_cap():
+    """FlashAttention caps head_dim at 256. Past it flash declines, and `enable_gqa=True`
+    also rules out the memory-efficient kernel, so SDPA lands on math and materializes
+    [batch, heads, S, S]. gemma-4's full-attention layers use global_head_dim 512 (its
+    sliding layers use 256, so only SOME layers fall through and the failure looks
+    intermittent): a bf16 forward-only pass of the 16 GB E4B allocated 88.5 GiB at a
+    32768 window before this. The 31B teacher escaped it only at head_dim 256."""
+    from transformers.integrations import sdpa_attention as sd
+
+    from quant_tuner.qat.attention import (
+        FLASH_MAX_HEAD_DIM,
+        disable_fp32_gqa_repeat,
+        enable_gqa_repeat_where_unfused,
+    )
+
+    try:
+        enable_gqa_repeat_where_unfused()
+        bf16 = torch.float16
+        ok = torch.zeros(1, 2, 4, FLASH_MAX_HEAD_DIM, dtype=bf16)
+        too_wide = torch.zeros(1, 2, 4, FLASH_MAX_HEAD_DIM * 2, dtype=bf16)
+        fp32 = torch.zeros(1, 2, 4, FLASH_MAX_HEAD_DIM, dtype=torch.float32)
+        # mask=None is the case transformers would hand to enable_gqa
+        assert sd.use_gqa_in_sdpa(None, too_wide) is False, "head_dim 512 must not use gqa"
+        assert sd.use_gqa_in_sdpa(None, fp32) is False, "fp32 must not use gqa"
+        # At/below the cap in a supported dtype the patch must NOT interfere -- the
+        # whole point is that grouped K/V is the right call where flash takes it.
+        disable_fp32_gqa_repeat()
+        upstream = sd.use_gqa_in_sdpa(None, ok)
+        enable_gqa_repeat_where_unfused()
+        assert sd.use_gqa_in_sdpa(None, ok) == upstream, "narrowed a case flash handles"
+    finally:
+        disable_fp32_gqa_repeat()
