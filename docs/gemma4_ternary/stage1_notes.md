@@ -50,9 +50,11 @@ model. beta=8 puts the initial contribution (~1.6) alongside CE.
   the honest next move is the corpus (gemma renders a whole tool exchange as ONE model
   turn -> 1 stop target per 972 supervised tokens; splitting those turns is a corpus fix,
   not a loss fix).
-- `anchor8` alone matching `anchor8-sw5.5` on BOTH halves retires stop-weight from the
-  recipe: the anchor's continue-side hinge (margin_lo 1.0 nat) is itself a brake on
-  over-stopping.
+Second arm changed before launch from `anchor8` (anchor alone, to see whether its
+continue-side hinge retires stop-weight) to **`anchor25-sw5.5`**. beta=8 is one
+estimate's first guess and the value it replaces was 40x too weak, so bracketing beta
+is worth more tonight than attributing a hyperparameter: if 8 is still too weak, 25
+answers it in the same night; if 8 works, 25 says whether more helps or hurts.
 
 Capability result is unchanged and still the headline: at matched training, ternarizing
 six layers costs nothing measurable (held-out masked CE dense 1.7796 vs ternary 1.7290).

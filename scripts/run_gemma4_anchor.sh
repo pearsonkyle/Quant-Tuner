@@ -22,12 +22,16 @@
 # decaying to zero as the hinge closes.
 #
 # Two arms, because the attribution matters for the full stage:
-#   anchor8-sw5.5  everything that worked, with the anchor live. stop-weight 5.5 bought
-#                  the DISCRIMINATION (elsewhere 9.1e-4 -> 4.3e-5, ratio 87 -> 1798) for
-#                  +0.05 val CE, so it stays unless the anchor subsumes it.
-#   anchor8        anchor alone. Its continue-side hinge (margin_lo 1.0 nat) is also a
-#                  brake on over-stopping, so it may buy both halves by itself — in which
-#                  case the full stage drops a hyperparameter.
+#   anchor8-sw5.5   everything that worked, with the anchor live. stop-weight 5.5 bought
+#                   the DISCRIMINATION (elsewhere 9.1e-4 -> 4.3e-5, ratio 87 -> 1798) for
+#                   +0.05 val CE, so it stays.
+#   anchor25-sw5.5  the same, bracketing beta upward. beta=8 is a FIRST GUESS from one
+#                   estimate (an ~ 0.2 * 8 = 1.6 alongside CE 1.2-2.0), and 0.2 was 40x
+#                   too weak, so the useful second arm is beta sensitivity rather than
+#                   attribution: if 8 is still too weak this answers it in the same
+#                   night, and if 8 works this says whether more helps or hurts. What it
+#                   costs is knowing whether the anchor's continue-side hinge could have
+#                   replaced stop-weight — a hyperparameter, not a result.
 set -uo pipefail
 cd "$(dirname "$0")/.."
 R=out/gemma4-ternary
@@ -74,8 +78,8 @@ measure() {
 arm anchor8-sw5.5-lr2e-4 --stop-anchor 8 --stop-weight 5.5 --dense-kind down_proj
 measure anchor8-sw5.5-lr2e-4 --dense-kind down_proj &
 
-arm anchor8-lr2e-4       --stop-anchor 8 --dense-kind down_proj
-measure anchor8-lr2e-4   --dense-kind down_proj &
+arm anchor25-sw5.5-lr2e-4 --stop-anchor 25 --stop-weight 5.5 --dense-kind down_proj
+measure anchor25-sw5.5-lr2e-4 --dense-kind down_proj &
 
 wait
 say "anchor arms done"
