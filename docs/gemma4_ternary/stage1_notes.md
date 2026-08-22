@@ -83,3 +83,16 @@ That is the argument for a saturating objective rather than a weighted one, and 
 why `--stop-anchor` (converges to the *teacher's* per-position level and then goes
 silent) is the right shape where `--stop-weight` (pushes forever) is not. If the anchor
 fails at beta=8 the next move is a larger beta, not a different corpus.
+
+## 2026-08-22 16:30 — paused, GPU released
+
+Stopped for the GPU to be used elsewhere; resume notes in `docs/gemma4_ternary/HANDOFF.md`.
+
+`a75-sw5.5-lr2e-4` was killed at step 21/60. The trainer caught the signal and saved
+cleanly (`trained_latents.step21.pt` with flip telemetry: ~2.06% flips at layer 8
+q_proj, density 58.5 -> 58.3%, scale-drift 1.43%), but 21 steps is not comparable to the
+60-step arms — **treat the arm as not run**. Its question (does kd-alpha 0.75 pull
+commitment toward the dense distribution?) is superseded by the anchor arms.
+
+The anchor arms (beta 8 and 25) were queued and never started. They are the first thing
+to run on the new machine; criteria are pre-registered above and unchanged.
