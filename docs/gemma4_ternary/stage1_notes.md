@@ -56,3 +56,28 @@ model. beta=8 puts the initial contribution (~1.6) alongside CE.
 
 Capability result is unchanged and still the headline: at matched training, ternarizing
 six layers costs nothing measurable (held-out masked CE dense 1.7796 vs ternary 1.7290).
+
+### The corpus fallback above is wrong — checked before proposing it
+
+I wrote that if the anchor fails, the next move is the corpus, on the theory that gemma
+renders a whole tool exchange as one model turn. **It does not.** Decoded from the packed
+corpus (`ids`/`labels`, window 0):
+
+```
+... | GGUF at 4.75M params | **10.2 MB** ... |<turn|>\n<|turn>user\nhelp
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^.....      <- 106 labeled
+... overhead |<turn|>\n<|turn>user\n...smaller??!<turn|>\n<|turn>model\n<|tool_call>
+                                                 ^ not labeled ^ labeled again
+```
+
+The template stops at every assistant turn including tool calls, the corpus labels
+exactly those, and it masks the `<end_of_turn>` that closes a user/tool turn — 13,273
+id-106 tokens present, **6,300 labeled, 6,973 correctly masked**. So 1 stop per 972
+supervised tokens is not a rendering defect; it is what this data's assistant turns
+actually average, and re-balancing it by up-weighting would teach the model to stop more
+often than the dialect calls for.
+
+That is the argument for a saturating objective rather than a weighted one, and it is
+why `--stop-anchor` (converges to the *teacher's* per-position level and then goes
+silent) is the right shape where `--stop-weight` (pushes forever) is not. If the anchor
+fails at beta=8 the next move is a larger beta, not a different corpus.

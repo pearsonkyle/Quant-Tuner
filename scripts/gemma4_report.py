@@ -247,6 +247,53 @@ def md(text: str) -> str:
     return html
 
 
+#: Ordering for the real-corpus read-out — references first, then arms as they land.
+STOP_ORDER = ["shipped", "untrained-ternary", "dense-ft", "ce-only", "selfkd"]
+
+
+def stopcorpus_section(root: Path) -> str:
+    """The two halves of the termination failure, measured on the held-out corpus.
+
+    They are reported separately because they moved independently: stop-weight 5.5 took
+    the ratio from 87x to 1,798x while leaving commitment at 5%. A single blended number
+    would have called that a win.
+    """
+    got = [json.loads(q.read_text()) for q in sorted((root / "stopcorpus").glob("*.json"))]
+    if not got:
+        return ""
+    rank = {n: i for i, n in enumerate(STOP_ORDER)}
+    got.sort(key=lambda r: (rank.get(r["label"], len(STOP_ORDER)), r["label"]))
+    ship = next((r for r in got if r["label"] == "shipped"), None)
+    body = ""
+    for r in got:
+        a, e = r["at_stop_target"], r["elsewhere"]
+        col = ""
+        if ship and r is not ship:
+            col = (f' style="color:{GOOD}"' if a["frac_top1"] >= 0.15
+                   else f' style="color:{BAD}"' if a["frac_top1"] < 0.08 else "")
+        body += (f"<tr><td>{r['label']}</td><td{col}>{a['frac_top1']:.1%}</td>"
+                 f"<td>{a['mean']:.4f}</td><td>{e['mean']:.2e}</td>"
+                 f"<td>{r['ratio_mean']:,.0f}</td></tr>")
+    return (
+        '<section><h2>Termination, measured on the real corpus</h2>'
+        "<p>The seven-prompt synthetic probe is unreliable in <i>both</i> directions here "
+        "— it called untrained-ternary unchanged and a dense fine-tune improved. This "
+        "samples real stop targets out of the held-out corpus, gives each 2,048 tokens of "
+        "its own context, and reads P(stop) at the position that predicts it.</p>"
+        "<p>Two independent failures, so two columns. <b>commit</b> is whether stopping is "
+        "the model's <i>top</i> choice at a real stop target — the shipped model does this "
+        "35% of the time. <b>ratio</b> is P(stop) there over P(stop) at ordinary "
+        "supervised positions — low means the model volunteers stops mid-turn. Stop-weight "
+        "5.5 fixed the second and not the first, which is what a blended number would have "
+        "hidden.</p>"
+        '<div class="tw"><table>'
+        "<tr><th>arm</th><th>commit</th><th>P(stop) at stop</th><th>elsewhere</th>"
+        f"<th>ratio</th></tr>{body}</table></div>"
+        "<p>The line that matters most: a <b>dense</b> fine-tune on this corpus lands at "
+        "the same place ternary self-KD does. Whatever destroys commitment is not "
+        "ternarization.</p></section>")
+
+
 def arms_table(runs) -> str:
     rows = [arm_row(r) for r in runs]
     if not rows:
@@ -292,8 +339,13 @@ def main() -> int:
     dmg = load("layer_damage.json")
     base = load("stop_baseline.json")
     untr = load("stage1/stage_damage_untrained.json")
-    kd = kd_progress(R / "kd" / "precompute_31b.log")
-    sig = load("kd/stop_signal_31b.json")
+    # The 31B teacher was REFUSED after its own probe read 0.00003 where the student
+    # reads 0.07032 — it passed every table-level check (tokenizer 262,144/262,144,
+    # coverage 0.9993) and still could not teach stopping. Training distils against the
+    # shipped E4B itself, so the report must describe THAT table.
+    kd = kd_progress(R / "kd" / "precompute_e4bself.log")
+    kd_name = "KD table (self)"
+    sig = load("kd/stop_signal_e4bself.json") or load("kd/stop_signal_31b.json")
     arms = sorted(d for d in R.glob("ab-lr*") if d.is_dir())
     stage1 = [d for d in (R / "stage1",) if (d / "train.log").exists()]
 
@@ -310,12 +362,12 @@ def main() -> int:
         # the same strip is how a reader ends up quoting the wrong one.
         cov = (f" · P(stop)={sig['at_stop_target']['mean']:.2f} at stop targets"
                if sig else "")
-        k.append(kpi("KD table (31B)", "done", f"{kd['positions']:,} positions{cov}"))
+        k.append(kpi(kd_name, "done", f"{kd['positions']:,} positions{cov}"))
     elif kd:
-        k.append(kpi("KD table (31B)", f"{100 * kd['done'] / kd['total']:.0f}%",
+        k.append(kpi(kd_name, f"{100 * kd['done'] / kd['total']:.0f}%",
                      f"{kd['done']}/{kd['total']} · ETA {kd['eta_h']:.1f} h"))
     else:
-        k.append(kpi("KD table (31B)", "pending", "—"))
+        k.append(kpi(kd_name, "pending", "—"))
     k.append(kpi("stage-1 baseline",
                  f"{untr['rows']['untrained']['kld']:.4f}" if untr else "pending",
                  "untrained KLD, down_proj dense"))
@@ -342,6 +394,7 @@ def main() -> int:
             f"{untr['rows']['dense']['ppl']:.3f}) — not the 0.1047 in the damage table, "
             "which ternarized every linear in those layers including the most damaging "
             "kind.</p></section>")
+    secs.append(stopcorpus_section(R))
     if dmg:
         secs.append(
             f"<section><h2>Damage per tensor kind</h2>"
