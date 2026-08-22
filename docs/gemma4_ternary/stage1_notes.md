@@ -410,3 +410,42 @@ allowed to show a termination collapse, because if a DENSE fine-tune on this cor
 drives the control to ~0.004, then termination is a property of the corpus and the
 schedule, not of ternarization — which would be the single most useful thing learned
 tonight.
+
+## Self-KD table + the gate that should have existed
+
+`2026-08-22 02:00` — self-KD table built in **62 min** (5.7 s/window vs the 31B's 34.5),
+verified: fingerprint match, all 651 windows, forced id `[106]`, coverage **0.9917**.
+
+| teacher | coverage | P(stop) at stop targets | elsewhere | ratio | probe control |
+|---|---|---|---|---|---|
+| 31B | 0.9993 | 0.4771 (median 0.387) | 0.000117 | 4,090x | **0.00003** |
+| self (dense E4B) | 0.9917 | **0.5300** (median **0.605**) | 0.000534 | 993x | **0.07032** |
+
+The self teacher has the *lower* discriminative ratio and is the better teacher, which is
+the point: ratio is a table statistic, and the column that decides usability is the last
+one. The 31B's own control reads 0.00003 where the student reads 0.07032 — distilling it
+teaches the student not to stop, and its anchor pulls the same way.
+
+`run_gemma4_selfkd_arm.sh` now GATES on that before spending GPU time: refuse a teacher
+whose control is under a quarter of the student's. Checked against both —
+
+    31B (the one that broke arms 1-2)    control 0.00003  floor 0.01758  REFUSED
+    self (dense E4B)                     control 0.07032  floor 0.01758  accepted
+
+It would have saved ~2 GPU-hours and two misread arms. The reading was in the log before
+arm 1 started; it was not a gate.
+
+## A limitation of the dense control, stated before its result
+
+The dense arm is matched on layers, corpus, lr, steps and window order (`wrapped 0; 54
+trainable; 0.56B`, same fingerprint) — but **not on effective step size**. Measured
+gnorm: dense **12-21**, ternary **35-55**. The STE produces ~2.5x larger gradients, so at
+`--clip-norm 0.25` the ternary arm is rescaled ~2.6x harder and the two arms do not take
+equal-sized steps despite equal lr.
+
+Direction of the bias: the dense arm trains HARDER per step. So *if the dense arm's KLD
+comes out as high as the ternary arms', ternarization is exonerated conclusively* — it
+would have been beaten by an arm with a handicap. If the dense arm's KLD comes out much
+LOWER, the result is ambiguous between "ternarization amplifies damage" and "the ternary
+arm was clipped into a different trajectory", and the follow-up is to match on val CE
+rather than on step count.
