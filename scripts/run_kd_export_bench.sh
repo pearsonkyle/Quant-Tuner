@@ -28,7 +28,7 @@ PYTHONPATH=src .venv/bin/python scripts/probe_stop_prob.py \
 
 echo "[bench] 3/4 in-distribution stop measurement"
 PYTHONPATH=src .venv/bin/python scripts/measure_indist_stop.py \
-    --corpus out/exp-058/fixed/corpus_ourssft_val_32768.pt \
+    --corpus "${VAL_CORPUS:-out/exp-058/fixed/corpus_ourssft_val_32768.pt}" \
     --latents "$CK" --windows 8 2>&1 | grep -vE "it/s\]|%\|" | grep indist
 
 echo "[bench] 4/4 SWE mimic"
