@@ -50,7 +50,7 @@ from quant_tuner.qat.attention import (
     use_prefix,
 )
 from quant_tuner.qat.corpus import corpus_fingerprint
-from quant_tuner.qat.kd_precompute import kd_loss_from_topk
+from quant_tuner.qat.kd_precompute import kd_loss_from_topk, resolve_vocab_size
 from quant_tuner.qat.kd_table import KDTable, stop_logp_of
 from quant_tuner.qat.master_opt import MasterOptimizer
 from quant_tuner.qat.steer import RepBatch, SteerBatch, repetition_losses, steering_loss
@@ -1312,7 +1312,13 @@ def train_qat(cfg: QATConfig) -> int:
         im_end_id = blob.get("stop_id", blob.get("im_end_id"))
         if im_end_id is None:
             sys.exit("[qat] --stop-weight needs 'stop_id' in the corpus blob; rebuild it")
-        ce_weights = torch.ones(model.config.vocab_size, device=dev, dtype=torch.float32)
+        # NOT model.config.vocab_size: a multimodal config keeps the language head's
+        # vocabulary under text_config, and Gemma4Config raises AttributeError on the
+        # flat name — so --stop-weight crashed on gemma-4 before a single step ran.
+        # resolve_vocab_size already walks text_config/llm_config/decoder for the KD
+        # path; the same walk is what this needs.
+        ce_weights = torch.ones(resolve_vocab_size(model.config), device=dev,
+                                dtype=torch.float32)
         ce_weights[int(im_end_id)] = cfg.stop_weight
         print(f"[qat] stop-token weight {cfg.stop_weight}x on id {im_end_id} "
               f"({blob.get('im_end_targets', '?')} targets in the corpus)", flush=True)

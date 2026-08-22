@@ -331,3 +331,25 @@ def test_report_draws_a_measured_reference_for_a_new_family():
     assert refs == {"sentence_period": spec.vanilla[0],
                     "answer_after_tool": spec.vanilla[1]}
     assert refs["answer_after_tool"] < 0.5, "gemma's control is 0.07, not Qwen's ~1.0"
+
+
+def test_stop_weight_vocab_comes_from_the_language_config():
+    """--stop-weight builds a per-vocab CE weight vector, and a multimodal config has no
+    flat `vocab_size` — gemma-4's lives under `text_config`, so the flat lookup raised
+    AttributeError and killed the run before step 1. The KD path already had the walk."""
+    from quant_tuner.qat.kd_precompute import resolve_vocab_size
+
+    class Text:
+        vocab_size = 262144
+
+    class Multimodal:          # what Gemma4Config looks like to this code
+        text_config = Text()
+
+        def __getattr__(self, k):        # transformers raises rather than returning None
+            raise AttributeError(k)
+
+    class Flat:
+        vocab_size = 151669
+
+    assert resolve_vocab_size(Multimodal()) == 262144
+    assert resolve_vocab_size(Flat()) == 151669
