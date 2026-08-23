@@ -722,6 +722,54 @@ benchmarked GGUF, with the check that must pass at each step).
   amd64 emulation. `--cleanup-images` *untags* images, leaving `<none>` dangling layers — run
   `scripts/docker_housekeep.sh` alongside long runs (SWE images + dangling only; never `-a`).
 
+### Ternarizing a DENSE model from scratch — gemma-4-E4B (`docs/gemma4_ternary/`)
+The opposite problem to the Bonsai fine-tune above: the shipped model is dense, so a
+schedule has to move layers onto the ternary grid a few at a time and train in between.
+**Paused 2026-08-22 with the GPU released; `docs/gemma4_ternary/HANDOFF.md` is the resume
+document** (state, what to copy, verification, and the next command). Full log in
+`docs/gemma4_ternary/stage1_notes.md`; brief in `scripts/GEMMA4_TERNARY_STAGE1_PROMPT.md`.
+- **Stage 1 costs no measurable capability.** At matched training — same layers, corpus,
+  lr, steps, seed, no teacher in either arm, differing only in the grid — held-out masked
+  CE was **dense 1.7796 vs ternary 1.7290** for layers `0,1,2,3,7,8` with `down_proj` held
+  dense (its solo KLD is 1.199, 3.4x the next-worst kind, so it never goes on the grid).
+- **All three pre-registered metrics failed, for one reason: each assumed the shipped or
+  dense model is the ceiling, and at stage 1 it is not.** KLD-vs-shipped is dominated by
+  fine-tuning drift (a *dense* fine-tune moves 0.2175 by itself). KLD against a matched
+  dense fine-tune measures divergence rather than damage — ternarizing *lowers* ppl on the
+  damage probe (4.566 -> 4.359). And `--ref-ckpt` makes `recovered_frac` undefined, because
+  `trained` has the drift cancelled and `untrained` does not; `gemma4_stage_damage.py` now
+  refuses to print one. What survives is capability against a matched control.
+- **`scripts/gemma4_stop_on_corpus.py` is the termination instrument, not the 7-prompt
+  probe** — that one called untrained-ternary unchanged and a dense fine-tune improved.
+  It samples real stop targets from the held-out corpus with 2,048 tokens of context each.
+  Report its two halves separately (`gemma4_stop_table.py`): **commitment** (is stopping
+  the top choice at a real stop target) and **discrimination** (P(stop) there over
+  elsewhere). Stop-weight 5.5 moved the second 87 -> 1798 and left the first at 5%.
+- **Commitment and capability trade off monotonically on this corpus, and the grid is
+  irrelevant to it.** Ordered by final val CE the arms come out in exactly reverse order
+  by commitment, with the dense fine-tune sitting next to CE-only. Stop-weight 16 shows
+  why a bare commitment bar is worthless: it read the highest commitment of any trained
+  arm (17.5%) by *declining to learn* (val 2.7072 -> 2.6457, 20-25% fewer code flips), and
+  all four of its stop metrics land on untrained-ternary. Judge a run on commitment
+  **and** val CE together.
+- **The corpus is not the problem — checked, not assumed.** 13,273 `<end_of_turn>` tokens,
+  6,300 labeled and 6,973 correctly masked (user/tool turn ends). 1 stop per 972 supervised
+  tokens is what this data's assistant turns average, so re-balancing by weight would teach
+  stopping more often than the dialect calls for. That is the argument for a **saturating**
+  objective (`--stop-anchor`, a one-sided hinge to the teacher's own per-position log
+  P(stop)) over a weighted one — the next experiment, written and never run
+  (`scripts/run_gemma4_anchor.sh`).
+- **A teacher can pass every table-level check and still be unusable.** `gemma-4-31B-it`
+  matched the tokenizer 262,144/262,144 at coverage 0.9993 and stop ratio 4,090x, and its
+  own stop probe read 0.00003 where the student reads 0.07032. Training distils against the
+  **shipped E4B itself**; `run_gemma4_selfkd_arm.sh` now gates on the teacher's probe.
+- flash-attn is structurally unavailable for gemma-4: FA2 caps head_dim at 256 and this
+  model uses `global_head_dim 512`, so `attention.enable_gqa_repeat_where_unfused()` keys
+  off head_dim as well as dtype.
+- gemma-4's vision/audio towers contain submodules literally named `linear`, so name-based
+  latent selection finds 280 where `wrap_model` produced 48 — select by module **type**
+  (pinned by `test_latent_modules_counts_wrapped_latents_not_names`).
+
 ### Publishable datasets (`src/quant_tuner/datasets/`)
 Staged under `datasets/<name>/`; payloads are gitignored, but the card, `manifest.json` and
 `CHANGELOG.md` are tracked so the repo records exactly what shipped. **Adding a dataset is a
