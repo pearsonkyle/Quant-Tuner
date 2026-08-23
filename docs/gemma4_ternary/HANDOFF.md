@@ -132,6 +132,13 @@ RECIPE_ARGS="--stop-anchor 8 --stop-weight 5.5" TAG=anchor8 \
 
 ## What to move to the new machine
 
+**Decision taken 2026-08-23: nothing under `out/` is transferred — the corpus and KD table
+get rebuilt on the new box.** See "Rebuilding the corpus and KD table" below for what that
+costs and the one caveat that bites (the fingerprint may not reproduce). The table here is
+kept because it is still the map of what exists and what each item is worth, and because
+the `stopcorpus/*.json` read-outs are under 1 MB — if you can grab anything at all, grab
+those, since they are the reference rows every future arm is read against.
+
 Everything under `out/gemma4-ternary/` is **60 GB** and most of it is reproducible. The
 irreducible set is **2.7 GB**:
 
@@ -194,6 +201,36 @@ hf download google/gemma-4-E4B-it-qat-q4_0-unquantized   # ~16 GB, forward-only 
 #   out/gemma4-ternary/dense-control-lr2e-4/trained_latents.pt   (2.1 GB, optional)
 ```
 
+### Rebuilding the corpus and KD table instead of copying them
+
+Chosen path: nothing under `out/` moves, so both get rebuilt. Read this first — a rebuilt
+corpus is **not guaranteed to reproduce fingerprint `0c70d992882d29a7`**.
+
+`qat/corpus.py` changed after this corpus was packed (blob dated 2026-08-17; commit
+`bfc30c2` then passed the detected `dialect` into `masked_ids_for_session` and fixed the
+audit's tool-call counter). The archived blob's `per_source` therefore under-reports tool
+calls by ~450× — it says `tool_calls_rendered: 57` for `logs` and `0` for `logs-agents`
+where the packed corpus actually holds **25,772 `<|tool_call>` tokens, 97.7% of the
+26,389 in source**. The corpus is sound and the code is already correct; only the archived
+audit is stale. Do not "fix" a corpus on the strength of that field.
+
+What this means operationally:
+- Rebuild the corpus **and** the KD table together. They are fingerprint-bound, and
+  `verify_kd_table.py` refuses a mismatch — which is the check you want.
+- **If the new fingerprint differs from `0c70d992882d29a7`, the archived
+  `stopcorpus/*.json` read-outs are no longer comparable** to anything measured on the new
+  corpus. The three reference rows (`shipped`, `untrained-ternary`, `dense-ft`) then need
+  re-measuring before any new arm can be read against them — that is CPU, not GPU, roughly
+  an hour each with `gemma4_stop_on_corpus.py --n 40 --ctx 2048`.
+- Rebuild inputs: the corpus is packed from `out/corpora/qwen3-universal-v2/sft.jsonl.gz`
+  (also gitignored — `scripts/build_universal_corpus.py` regenerates it from the tracked
+  `datasets/`), at `window 32768, min_density 0.05, max_tool_tokens 8192, split
+  sft:train`, dialect auto-detected as `gemma4` from the tokenizer.
+- The KD table is `kd_precompute.py` against the **shipped E4B itself** with
+  `--include-ids 106` (the forced stop id — `--stop-anchor` needs the stop token in every
+  support row, and on a plain top-K table ~98% of rows lack it). Expect ~0.99 support
+  coverage. This is the several-GPU-hours item.
+
 **Verify the transfer before spending a GPU-hour on it.** The KD table is bound to the
 corpus by fingerprint `0c70d992882d29a7`; a table from a different corpus resolves fine
 and distils against the wrong distribution at every position.
@@ -244,8 +281,9 @@ the dense fine-tune reference (12 windows, split `test`):
 
 | row | KLD vs dense-ft | top-1 | ppl |
 |---|---|---|---|
-| shipped | 0.3173 | — | 4.566 |
-| ternarized shipped ("untrained") | 0.2635 | 0.870 | 4.359 |
+| shipped | 0.3173 | 0.858 | 4.566 |
+| ternarized shipped ("untrained") | 0.2635 | 0.869 | 4.359 |
+| **dense fine-tune (the reference)** | 0 | 1.000 | **4.295** |
 | trained ternary (self-KD, 100 steps) | 0.3927 | 0.826 | 4.284 |
 
 The harness printed "recovered −49.1%", and **that number is not interpretable** — the
@@ -258,11 +296,13 @@ under `--ref-ckpt`, and now also reports the reference's own ppl so the file can
 the question its KLD column invites.
 
 The deeper problem is that **KLD-from-a-dense-reference measures divergence, not damage**,
-and on stage 1 the ternary arm is not the worse model: ternarizing lowers ppl on this
-probe (4.566 → 4.359, consistent across two independent window sets), the trained ternary
-is the best of the three reported (4.284), and the matched held-out CE comparison has the
-ternary arm ahead (1.7290 vs 1.7796). A large KLD between two models of equal quality is
-difference, not injury.
+and with the reference's own ppl now in the file the point is unarguable: the trained
+ternary scores **4.284** against the dense fine-tune's **4.295** — a 0.26% difference, a
+tie — while sitting **0.3927 KLD away from it**. Two models of equal quality, far apart in
+distribution. That is difference, not injury, and no threshold on that KLD can tell the
+two apart. (Both fine-tunes beat shipped at 4.566; ternarizing alone already lowers ppl to
+4.359, consistent across two independent window sets; and the matched held-out CE
+comparison has the ternary arm ahead at 1.7290 vs 1.7796.)
 
 So all three metrics the brief pre-registered have now failed for the same underlying
 reason: **each assumed the shipped or dense model is the ceiling, and on stage 1 it is
