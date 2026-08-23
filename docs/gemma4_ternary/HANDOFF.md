@@ -16,9 +16,11 @@ metric the brief pre-registered turned out to be invalid, twice over:
    corpus moves 0.2175 from shipped all by itself, so KLD-vs-shipped scores fine-tuning
    drift and ternarization damage as one number, dominated by the drift. Every
    "recovered −258% / −370% / −408%" figure from the early arms is that artifact. The
-   valid form is KLD against the **dense fine-tune** trained identically
-   (`gemma4_stage_damage.py --ref-ckpt .../dense-control-lr2e-4/trained_latents.pt`);
-   that run was in flight at pause — see "in flight" below.
+   The apparently valid form — KLD against a **dense fine-tune** trained identically —
+   was measured after the pause and **also fails**, for a deeper reason. See "Both
+   in-flight jobs landed" below; the short version is that KLD from a dense reference
+   measures divergence rather than damage, and on stage 1 the ternary arm is the better
+   model of the two.
 2. *The 7-prompt synthetic stop probe is unreliable in both directions here.* It called
    untrained-ternary unchanged and a dense fine-tune improved. Replaced by
    `scripts/gemma4_stop_on_corpus.py`, which samples real stop targets out of the
@@ -153,13 +155,107 @@ Not on this machine and re-downloadable: `google/gemma-4-E4B-it-qat-q4_0-unquant
 `LLAMA_CPP_DIR=vendor/llama.cpp-prism` is needed only for Q2_0 export (ftype 41 is
 fork-only), which this study has not reached.
 
-## In flight at pause
+## Day 1 on the new machine
 
-Two CPU jobs were still running and do not touch the GPU; if the machine outlives this
-session they will land in `out/gemma4-ternary/stopcorpus/sw16-lr2e-4.json` and
-`out/gemma4-ternary/stage1/stage_damage_vs_dense.json`. Neither is load-bearing —
-sw16's val CE already disqualified it, and the damage number is a deliverable rather
-than a decision input.
+Branch is **`qat/ternary-32k-cuda`**. Note that another session has been committing to it
+in parallel (exp-059, a separate Qwen-coder QAT study) — rebase rather than assume the
+tip is where this study left it, and nothing below shares state with exp-059 except the
+`src/quant_tuner/qat/` code.
+
+**Hardware.** The 60-step arms ran at ~70 GB of GPU memory (the trainer's own report is
+`mem=30.3/62.0GiB` for tensors; nvidia-smi showed 69.9 GB resident). Budget an 80 GB card.
+fp32 latents and fp32 compute are not optional here — bf16 underflows the ternary
+threshold and no codes flip.
+
+```bash
+git checkout qat/ternary-32k-cuda && git pull --rebase
+uv sync
+hf download google/gemma-4-E4B-it-qat-q4_0-unquantized   # ~16 GB, forward-only teacher too
+
+# copy from the old box (2.7 GB; see the table above for why only these)
+#   out/gemma4-ternary/corpus_sft_gemma4_32768.pt
+#   out/gemma4-ternary/corpus_sft_gemma4_val_32768.pt
+#   out/gemma4-ternary/kd/e4bself_topk64_fs106.pt
+#   out/gemma4-ternary/{layer_damage,stop_baseline}.json
+#   out/gemma4-ternary/kd/stop_signal_e4bself.json
+#   out/gemma4-ternary/stopcorpus/            (all the read-outs; < 1 MB, hours of CPU)
+#   out/gemma4-ternary/dense-control-lr2e-4/trained_latents.pt   (2.1 GB, optional)
+```
+
+**Verify the transfer before spending a GPU-hour on it.** The KD table is bound to the
+corpus by fingerprint `0c70d992882d29a7`; a table from a different corpus resolves fine
+and distils against the wrong distribution at every position.
+
+```bash
+uv run python scripts/verify_kd_table.py \
+    --table out/gemma4-ternary/kd/e4bself_topk64_fs106.pt \
+    --corpus out/gemma4-ternary/corpus_sft_gemma4_32768.pt
+# expected — verified on the old box 2026-08-23:
+#   corpus fingerprint  0c70d992882d29a7  (651 windows, all present: True)
+#   forced ids          [106]
+#   support coverage    0.9917
+#   topk=64, positions=6,124,496, windows=651
+#   [kd-verify] OK
+uv run pytest tests/unit/test_qat_wrap_model.py -q     # 12 tests, no model files needed
+uv run python scripts/gemma4_stop_table.py             # should reprint the table above
+```
+
+**Then run the experiment that is already written and was never started:**
+
+```bash
+bash scripts/run_gemma4_anchor.sh      # two 60-step arms, beta 8 and 25, ~50 min each
+uv run python scripts/gemma4_stop_table.py
+```
+
+Judge it on the sharpened bar — commitment ≥ 15% **and** val masked-CE ≤ 2.10 — not on
+commitment alone, because sw16 already cleared a bare commitment bar by under-training.
+
+If an arm passes, the full stage is one command and about 8.5 hours:
+
+```bash
+RECIPE_ARGS="--stop-anchor 8 --stop-weight 5.5" TAG=anchor8 \
+    bash scripts/run_gemma4_stage1_full.sh
+```
+
+Keep `bash scripts/gemma4_report_watch.sh 300` running alongside it (the argument is
+the refresh interval in seconds, not a path) so
+`report.html` stays live, and **queue the next arm before the current one ends** — an
+unqueued gap cost 6.8 h of idle card on 2026-08-22.
+
+## Both in-flight jobs landed — and the damage metric is the third one to fail
+
+The sw16 stop read-out is folded into the table above; it is what produced the
+capability/commitment curve.
+
+**The damage measurement completed and does not answer the brief's question.** Against
+the dense fine-tune reference (12 windows, split `test`):
+
+| row | KLD vs dense-ft | top-1 | ppl |
+|---|---|---|---|
+| shipped | 0.3173 | — | 4.566 |
+| ternarized shipped ("untrained") | 0.2635 | 0.870 | 4.359 |
+| trained ternary (self-KD, 100 steps) | 0.3927 | 0.826 | 4.284 |
+
+The harness printed "recovered −49.1%", and **that number is not interpretable** — the
+two rows do not sit on the same footing. `trained` is (trained ternary ‖ trained dense):
+both saw the same data, so the fine-tuning drift largely cancels and what is left is
+close to ternarization alone. `untrained` is (ternarized *shipped* ‖ trained dense),
+which still carries the entire drift, because the reference moved and that candidate did
+not. Their ratio is not a recovery fraction. `gemma4_stage_damage.py` no longer emits one
+under `--ref-ckpt`, and now also reports the reference's own ppl so the file can answer
+the question its KLD column invites.
+
+The deeper problem is that **KLD-from-a-dense-reference measures divergence, not damage**,
+and on stage 1 the ternary arm is not the worse model: ternarizing lowers ppl on this
+probe (4.566 → 4.359, consistent across two independent window sets), the trained ternary
+is the best of the three reported (4.284), and the matched held-out CE comparison has the
+ternary arm ahead (1.7290 vs 1.7796). A large KLD between two models of equal quality is
+difference, not injury.
+
+So all three metrics the brief pre-registered have now failed for the same underlying
+reason: **each assumed the shipped or dense model is the ceiling, and on stage 1 it is
+not.** The measurement that survives is capability against a matched control (held-out
+masked CE), plus the real-corpus stop read-out for the policy the CE cannot see.
 
 **`a75-sw5.5-lr2e-4` was stopped at step 21 of 60** to free the GPU. The trainer caught
 the signal and saved cleanly (`trained_latents.step21.pt`, with flip telemetry), but 21

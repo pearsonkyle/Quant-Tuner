@@ -214,8 +214,14 @@ def main() -> None:
 
     rows: dict[str, dict] = {}
     probes: dict[str, dict] = {}
+    # The reference scored against itself: KLD is 0 by construction, but the NLL/ppl is
+    # the reference's OWN quality on these windows, and without it the file cannot answer
+    # the question its KLD column invites — "is the ternary arm worse, or just different?"
+    # Without it the file reports three candidate ppls and no yardstick, which is how the
+    # first --ref-ckpt run ended up uninterpretable.
     with torch.no_grad():
-        rows["dense"] = compare(ref, _logits(model, windows), windows)
+        rows["reference"] = compare(ref, ref, windows)
+    rows["dense"] = compare(ref, _logits(model, windows), windows)
     probes["dense"] = run_probe("dense")
     if args.ref_ckpt:
         # NOT a self-check here: the reference is the dense fine-tune, so this row is
@@ -254,8 +260,26 @@ def main() -> None:
         # fraction of. Report the absolute drift instead of dividing by zero — that arm
         # exists precisely to say how much of a ternary arm's KLD is just fine-tuning.
         frac = (u - t) / u if u > 1e-9 else None
-        rows["recovered_frac"] = {"kld": frac}
+        if args.ref_ckpt:
+            # The two rows do not sit on the same footing against a fine-tuned reference,
+            # so their ratio is not a recovery fraction and printing one invites the
+            # reader to quote it. `trained` is (trained ternary ‖ trained dense): both saw
+            # the same data, so the fine-tuning drift largely cancels and what is left is
+            # close to ternarization alone. `untrained` is (ternarized SHIPPED ‖ trained
+            # dense), which still carries the whole drift — the reference moved and this
+            # candidate did not. The honest before/after pairs each candidate with the
+            # dense model AT ITS OWN point in training: use `stage_damage_untrained.json`
+            # (ternarized shipped ‖ shipped) as the "before" and this file's `trained` as
+            # the "after".
+            frac = None
+            rows["recovered_frac"] = {"kld": None, "why": "not defined against a "
+                                      "fine-tuned reference; see stage_damage_untrained"}
+        else:
+            rows["recovered_frac"] = {"kld": frac}
         tail = (f"recovered {100 * frac:.1f}% of the stage's damage" if frac is not None
+                else "recovery fraction undefined here — 'untrained' still carries the "
+                     "full training drift against this reference; pair the 'before' with "
+                     "the SHIPPED reference instead" if args.ref_ckpt
                 else "no ternarization in this arm — its KLD is pure fine-tuning drift, "
                      "the floor to read the ternary arms against")
         print(f"[trained] kld={t:.4f} top1={rows['trained']['top1_agree']:.3f} "
