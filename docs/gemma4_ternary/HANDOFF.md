@@ -172,7 +172,19 @@ git checkout qat/ternary-32k-cuda && git pull --rebase
 uv sync
 hf download google/gemma-4-E4B-it-qat-q4_0-unquantized   # ~16 GB, forward-only teacher too
 
-# copy from the old box (2.7 GB; see the table above for why only these)
+# copy from the old box — `out/` is GITIGNORED, so none of this travels with the repo.
+# Bundle exactly the irreducible set (2.7 GB, verified) on the OLD machine:
+#
+#   tar -czf /tmp/gemma4-ternary-resume.tgz \
+#       out/gemma4-ternary/corpus_sft_gemma4_32768.pt \
+#       out/gemma4-ternary/corpus_sft_gemma4_val_32768.pt \
+#       out/gemma4-ternary/kd/e4bself_topk64_fs106.pt \
+#       out/gemma4-ternary/kd/stop_signal_e4bself.json \
+#       out/gemma4-ternary/layer_damage.json \
+#       out/gemma4-ternary/stop_baseline.json \
+#       out/gemma4-ternary/stopcorpus out/gemma4-ternary/stage1
+#
+# then untar at the repo root on the new one. Contents:
 #   out/gemma4-ternary/corpus_sft_gemma4_32768.pt
 #   out/gemma4-ternary/corpus_sft_gemma4_val_32768.pt
 #   out/gemma4-ternary/kd/e4bself_topk64_fs106.pt
