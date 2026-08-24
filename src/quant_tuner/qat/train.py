@@ -73,6 +73,7 @@ class QATConfig:
     layers: str | None = None
     epochs: float = 3.0
     grad_accum: int = 8
+    accum_offload: str = "auto"   # auto|on|off: CPU-stash accum grads (auto = CUDA & accum>1)
     lr: float = 5e-5
     optim: str = "adamw"
     weight_decay: float = 0.0
@@ -422,7 +423,56 @@ class GradSpikeGuard:
 #: swings from ~400 to the full window depending on a window's trainable density — an
 #: intermittent multi-GB spike that OOM-kills a long run at an unpredictable step. 1024
 #: caps it at ~0.6 GB.
-LOGIT_CHUNK = 1024
+LOGIT_CHUNK = int(os.environ.get("QAT_LOGIT_CHUNK", "1024"))
+
+
+class GradOffload:
+    """CPU stash for accumulated grads when ``grad_accum > 1`` on a tight-VRAM card.
+
+    At accum 1 the grads materialize layer-by-layer during backward while activations
+    free in tandem, so grads and peak activations never fully coexist. At accum >= 2 all
+    ~28 GB of fp32 grads sit resident through every later micro-batch's forward+backward
+    -- measured +2.1 GiB over the accum-1 peak on the 95 GiB card, which is exactly the
+    margin that OOM-killed coder3 twice (in the ternary STE, not the lm_head). Stashing
+    the group's running grad sum in pinned CPU RAM between micro-batches restores the
+    accum-1 memory profile; fp32 addition on CPU is exact, so the optimizer sees
+    bit-identical accumulated grads. Cost: one D2H+zero per micro-batch and one H2D at
+    the group boundary (~28 GB each way, a few s per ~256 s accum-4 step).
+    """
+
+    def __init__(self, params) -> None:
+        self.params = [q for q in params if q.requires_grad]
+        self._bufs: dict[int, torch.Tensor] = {}
+
+    def stash(self) -> None:
+        """buf += grad (CPU, fp32-exact); grad = None. Call after a non-final backward."""
+        for q in self.params:
+            g = q.grad
+            if g is None:
+                continue
+            b = self._bufs.get(id(q))
+            if b is None:
+                b = torch.zeros(g.shape, dtype=g.dtype)
+                try:
+                    b = b.pin_memory()
+                except RuntimeError:
+                    pass  # pinning is an optimization, never a requirement
+                self._bufs[id(q)] = b
+            b.add_(g.detach().cpu())
+            q.grad = None
+
+    def restore(self) -> None:
+        """grad += buf; buf zeroed. Call after the group's final backward, before step."""
+        for q in self.params:
+            b = self._bufs.get(id(q))
+            if b is None:
+                continue
+            g = b.to(q.device)
+            if q.grad is None:
+                q.grad = g
+            else:
+                q.grad.add_(g)
+            b.zero_()
 
 
 @contextlib.contextmanager
@@ -1337,6 +1387,12 @@ def train_qat(cfg: QATConfig) -> int:
     rp_acc: list[float] = []          # repetition hinge over the current accum group
     rk_acc: list[float] = []          # rep teacher-KL over the current accum group
     rt_acc: list[float] = []          # harvested-episode rep hinge (every Nth step)
+    grad_offload = None
+    if cfg.grad_accum > 1 and cfg.accum_offload != "off" and (
+            cfg.accum_offload == "on" or dev.startswith("cuda")):
+        grad_offload = GradOffload(trainable)
+        print(f"[qat] accum grad offload: CPU stash across {cfg.grad_accum}-window groups "
+              f"(restores the accum-1 peak-memory profile)", flush=True)
     opt.zero_grad()
     while step < total_steps and not stop["f"]:
         w = order[mi % n_win].item()
@@ -1410,6 +1466,11 @@ def train_qat(cfg: QATConfig) -> int:
                 continue
             (loss / cfg.grad_accum).backward()
         n_acc += 1
+        if grad_offload is not None:
+            if n_acc < cfg.grad_accum:
+                grad_offload.stash()
+            else:
+                grad_offload.restore()
         tokens_seen += int(ids.shape[1])
         if win_src is not None:
             sname = src_names[int(win_src[w])] if src_names else str(int(win_src[w]))
@@ -1588,6 +1649,7 @@ def _build_parser() -> argparse.ArgumentParser:
                          "kind — see docs/gemma4_ternary_feasibility.md.")
     ap.add_argument("--epochs", type=float, default=3.0)
     ap.add_argument("--grad-accum", type=int, default=8)
+    ap.add_argument("--accum-offload", choices=["auto", "on", "off"], default="auto")
     ap.add_argument("--lr", type=float, default=5e-5)
     ap.add_argument("--optim",
                     choices=["adamw", "adafactor", "adamw8bit", "lion8bit",
@@ -1767,7 +1829,7 @@ def main(argv: list[str] | None = None) -> int:
         train_layers=args.train_layers, layers=args.layers,
         ternary_layers=args.ternary_layers,
         dense_kinds=tuple(args.dense_kind or ()), epochs=args.epochs,
-        grad_accum=args.grad_accum, lr=args.lr, optim=args.optim,
+        grad_accum=args.grad_accum, accum_offload=args.accum_offload, lr=args.lr, optim=args.optim,
         weight_decay=args.weight_decay, beta1=args.beta1, dtype=args.dtype,
         compute_dtype=args.compute_dtype, kd_teacher=args.kd_teacher,
         kd_table=args.kd_table,
