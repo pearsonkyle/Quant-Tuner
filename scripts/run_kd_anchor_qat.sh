@@ -40,6 +40,7 @@ REP_TRAJ="${REP_TRAJ:-}"            # harvested full-prefix episode contexts (an
 REP_TRAJ_N="${REP_TRAJ_N:-4}"
 REP_TRAJ_EVERY="${REP_TRAJ_EVERY:-4}"
 CLIP="${CLIP:-1.0}"
+GRAD_ACCUM="${GRAD_ACCUM:-1}"    # accum N = 1/N optimizer steps at the flip-viable LR (total-drift lever for big corpora)
 CORPUS="${CORPUS:-out/exp-058/fixed/corpus_ourssft_32768.pt}"
 VAL="${VAL:-out/exp-058/fixed/corpus_ourssft_val_32768.pt}"
 TABLE="${TABLE:-out/exp-058/kd/ourssft_8b_topk64_fs151645.pt}"   # forced-stop table
@@ -67,7 +68,7 @@ PYTHONPATH=src .venv/bin/python -m quant_tuner.qat.train \
     --lr-scale group-scale \
     --train-layers 36 --optim adafactor --dtype fp32 \
     --compute-dtype fp32 --matmul-precision high \
-    --grad-accum 1 --epochs "$EPOCHS" --lr "$LR" --warmup-frac 0.05 \
+    --grad-accum "$GRAD_ACCUM" --epochs "$EPOCHS" --lr "$LR" --warmup-frac 0.05 \
     --stop-weight 1.0 --grad-spike-factor 0 \
     --val-every 50 --probe-every 25 \
     --probe-abort "$ABORT" --probe-abort-control "$ABORT_CTRL" \
