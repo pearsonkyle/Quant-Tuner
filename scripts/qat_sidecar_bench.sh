@@ -9,6 +9,7 @@ PREFIX="${PREFIX:-coder1}"
 CK=${RUN}/trained_latents.step${STEP}.pt
 [ -f "$CK" ] || { echo "[sidecar] no checkpoint $CK"; exit 1; }
 TAG=${PREFIX}-s${STEP}
+UTAG=$(echo "$TAG" | tr "[:lower:]" "[:upper:]")
 export CUDA_VISIBLE_DEVICES=""
 export LLAMA_CPP_DIR=vendor/llama.cpp-prism
 
@@ -40,6 +41,6 @@ echo "[sidecar] 3/3 mimic episode (dask, T=0.7)"
 cd /workspace/swe-mimic
 timeout 10800 .venv/bin/python run_agent.py \
     --instance instance.json \
-    --base-url "http://127.0.0.1:$PORT/v1" --label "CODER1-S${STEP}-CPU" \
-    --temperature 0.7 --out sidecar_coder1.csv 2>&1 | tail -12
+    --base-url "http://127.0.0.1:$PORT/v1" --label "${UTAG}-CPU" \
+    --temperature 0.7 --out "sidecar_${PREFIX}.csv" 2>&1 | tail -12
 echo "[sidecar] done rc=$?"
