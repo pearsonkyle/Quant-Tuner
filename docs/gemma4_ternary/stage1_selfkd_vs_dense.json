@@ -1,0 +1,51 @@
+{
+ "model": "google/gemma-4-E4B-it-qat-q4_0-unquantized",
+ "split": "test",
+ "window": 2048,
+ "windows": 12,
+ "ternary_layers": [
+  0,
+  1,
+  2,
+  3,
+  7,
+  8
+ ],
+ "dense_kinds": [
+  "down_proj"
+ ],
+ "n_latents": 48,
+ "ckpt": "out/gemma4-ternary/selfkd-full-lr2e-4/trained_latents.pt",
+ "ref_ckpt": "out/gemma4-ternary/dense-control-lr2e-4/trained_latents.pt",
+ "rows": {
+  "reference": {
+   "kld": 0.0,
+   "top1_agree": 1.0,
+   "nll": 1.4574266635269548,
+   "ppl": 4.294893264770508
+  },
+  "dense": {
+   "kld": 0.31731974651726585,
+   "top1_agree": 0.8578694661458334,
+   "nll": 1.5186873956160223,
+   "ppl": 4.566227436065674
+  },
+  "untrained": {
+   "kld": 0.2634586311178282,
+   "top1_agree": 0.8694254557291666,
+   "nll": 1.4722554057671005,
+   "ppl": 4.359055042266846
+  },
+  "trained": {
+   "kld": 0.3927082580824693,
+   "top1_agree": 0.8258870442708334,
+   "nll": 1.4549305245685293,
+   "ppl": 4.284185886383057
+  },
+  "recovered_frac": {
+   "kld": null,
+   "why": "not defined against a fine-tuned reference; see stage_damage_untrained"
+  }
+ },
+ "probes": {}
+}

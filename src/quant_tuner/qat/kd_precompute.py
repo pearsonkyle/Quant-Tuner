@@ -47,7 +47,22 @@ from typing import Any
 
 import torch
 
+from quant_tuner.qat._device import resolve_backend
+
 DEFAULT_TOPK = 64
+
+#: Both chunk sizes are budgeted in BYTES, not positions, because every transient here
+#: scales with the vocabulary and the vocabulary is the thing that changes between
+#: teachers. A fixed position count that was comfortable at Qwen's 151,669 is 1.73x
+#: larger at gemma-4's 262,144, and the failure lands at whichever window happens to be
+#: densest -- not at the first one, which is what a smoke test sees.
+POS_CHUNK_BYTES = 2 * 2**30   #: one [chunk, V] fp32 copy inside the softmax/top-K
+KEEP_CHUNK_BYTES = 10 * 2**30 #: the [K, V] teacher-logit tensor held across the top-K
+
+
+def _chunk_positions(budget_bytes: int, vocab: int, itemsize: int) -> int:
+    """Positions that fit ``budget_bytes`` for one ``[positions, vocab]`` tensor."""
+    return max(256, budget_bytes // max(1, vocab * itemsize))
 
 
 # --------------------------------------------------------------------------- config helpers
@@ -165,16 +180,82 @@ def tokenizer_compatibility(student_tok, teacher_tok) -> tuple[int, str]:
 
 
 # ------------------------------------------------------------------------------- precompute
+def force_into_support(
+    ids_k: torch.Tensor, vals: torch.Tensor, logp_full: torch.Tensor,
+    include_ids: list[int],
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Guarantee ``include_ids`` appear in every stored support row.
+
+    The tail bucket in ``kd_loss_from_topk`` caps the student's TOTAL out-of-support
+    mass, but says nothing about which token carries it. Forcing the stop token into
+    the support makes the KL an exact per-position constraint on P(stop) — the j-th
+    forced id replaces the (last-j)-th slot (the lowest-prob entries) in rows where it
+    is absent, at its TRUE teacher logprob, and the tail is recomputed. Rows that
+    already contain the id are untouched. Support rows are no longer sorted by prob
+    afterwards; nothing downstream relies on that.
+    """
+    if len(include_ids) > ids_k.shape[-1]:
+        raise ValueError(f"{len(include_ids)} forced ids > top-{ids_k.shape[-1]} support")
+    for j, fid in enumerate(include_ids):
+        absent = ~(ids_k == fid).any(-1)
+        if absent.any():
+            slot = ids_k.shape[-1] - 1 - j
+            ids_k[absent, slot] = fid
+            vals[absent, slot] = logp_full[absent, fid]
+    tail = torch.log1p(-torch.exp(vals).sum(-1).clamp(max=1 - 1e-6))
+    return ids_k, vals, tail
+
+
 def _teacher_logits(teacher, ids: torch.Tensor, keep_idx: torch.Tensor) -> torch.Tensor:
-    """[K, V] teacher logits at ``keep_idx``, using logits_to_keep when supported."""
+    """[K, V] teacher logits at ``keep_idx``, using logits_to_keep when supported.
+
+    Returned in the model's own dtype — the fp32 upcast happens per position chunk in
+    ``precompute_topk``. A 32B teacher's [20k, 151k] logits are 11.5 GiB in fp32; two
+    whole-tensor fp32 copies (upcast + log_softmax) OOM'd a 95 GiB card that holds the
+    bf16 weights (65 GiB) with room for exactly one of them.
+
+    ``use_cache=False`` is not a micro-optimization. Precompute is one forward per
+    window and never generates, so every byte of KV cache is waste — and the waste
+    scales with the teacher's KV width, which is exactly what changes between teachers.
+    Qwen3-32B's 8 KV heads cost 8.6 GiB per 32k window (survivable, so it went
+    unnoticed); gemma-4-31B's 16 KV heads at head_dim 256 cost **32 GiB**, which OOM'd
+    the card inside the trunk before a single logit was computed.
+    """
     try:
-        out = teacher(input_ids=ids, logits_to_keep=keep_idx)
+        out = teacher(input_ids=ids, logits_to_keep=keep_idx, use_cache=False)
         lg = out.logits
         if lg.shape[1] == keep_idx.numel():          # honored the index tensor
-            return lg[0].float()
-        return lg[0].index_select(0, keep_idx).float()  # returned full seq anyway
+            return lg[0]
+        return lg[0].index_select(0, keep_idx)       # returned full seq anyway
     except TypeError:                                 # architecture lacks the kwarg
-        return teacher(input_ids=ids).logits[0].index_select(0, keep_idx).float()
+        return teacher(input_ids=ids, use_cache=False).logits[0].index_select(0, keep_idx)
+
+
+def _topk_rows(
+    lg: torch.Tensor, topk: int, include_ids: list[int] | None,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Top-K support rows (logp, ids, tail) from [K, V] logits in any dtype.
+
+    The fp32 softmax/top-K runs in byte-budgeted position chunks: peak transient is one
+    [chunk, V] fp32 pair instead of two whole-[K, V] copies. Chunking is exact —
+    log_softmax, topk and force_into_support are all rowwise.
+    """
+    v_l, i_l, t_l = [], [], []
+    pos_chunk = _chunk_positions(POS_CHUNK_BYTES, lg.shape[-1], 4)
+    for i in range(0, lg.shape[0], pos_chunk):
+        logp_full = torch.log_softmax(lg[i:i + pos_chunk].float(), dim=-1)
+        vals_c, ids_c = torch.topk(logp_full, topk, dim=-1)
+        if include_ids:
+            ids_c, vals_c, tail_c = force_into_support(ids_c, vals_c, logp_full,
+                                                       include_ids)
+        else:
+            # exact tail mass so training can renormalize without bias
+            tail_c = torch.log1p(-torch.exp(vals_c).sum(-1).clamp(max=1 - 1e-6))
+        v_l.append(vals_c)
+        i_l.append(ids_c)
+        t_l.append(tail_c)
+        del logp_full
+    return torch.cat(v_l), torch.cat(i_l), torch.cat(t_l)
 
 
 def precompute_topk(
@@ -188,10 +269,17 @@ def precompute_topk(
     device: str | None = None,
     dtype: torch.dtype | None = None,
     student_chat_template: Path | None = None,
+    include_ids: list[int] | None = None,
 ) -> dict:
-    """Run the teacher over ``corpus`` and store top-K logprobs at labeled positions."""
-    dev = device or ("mps" if torch.backends.mps.is_available() else "cpu")
-    tdtype = dtype or (torch.float16 if dev == "mps" else torch.float32)
+    """Run the teacher over ``corpus`` and store top-K logprobs at labeled positions.
+
+    ``include_ids`` forces those token ids into every stored support row (see
+    :func:`force_into_support`) — pass the stop id so the KL constrains P(stop)
+    per-position instead of only through the tail bucket.
+    """
+    backend = resolve_backend(device or "auto")
+    dev = backend.name
+    tdtype = dtype or backend.teacher_dtype
 
     blob = torch.load(corpus, weights_only=False)
     ids_all, lbl_all = blob["ids"], blob["labels"]
@@ -214,6 +302,16 @@ def precompute_topk(
     print(f"[kd] student vocab {s_vocab}; KD restricted to first {kd_vocab} ids; top-K={topk}",
           flush=True)
 
+    # Same fused-path trap the trainer patches around, and it bites a forward-only pass
+    # just as hard: with enable_gqa=True, a head_dim past FlashAttention's 256 cap leaves
+    # SDPA on math and materializes [batch, heads, S, S]. gemma-4-E4B is a 16 GB model
+    # and OOM'd a 95 GiB card at a 32768 window before this.
+    if backend.is_cuda:
+        from quant_tuner.qat.attention import enable_gqa_repeat_where_unfused
+        enable_gqa_repeat_where_unfused()
+        print("[kd] GQA: expanding K/V where no fused kernel takes grouped K/V "
+              "(fp32, or head_dim past the flash cap)", flush=True)
+
     print(f"[kd] loading teacher {teacher} ({tdtype}, {dev}) ...", flush=True)
     model = load_teacher(teacher, device=dev, dtype=tdtype)
     t_vocab = resolve_vocab_size(model.config)
@@ -234,12 +332,23 @@ def precompute_topk(
             continue
         ids = ids_all[w:w + 1].to(dev)
         keep_dev = keep.to(dev)
+        # The number of labeled positions swings 1.7k-32k per window (density 0.05-1.00),
+        # so [K, V] swings 0.8-15.6 GiB at gemma's vocab. Splitting the head selection
+        # costs one extra trunk forward per extra slice and is exact -- the trunk is
+        # stateless, so which positions the head reads changes nothing about the rest.
+        keep_chunk = _chunk_positions(KEEP_CHUNK_BYTES, kd_vocab, tdtype.itemsize)
+        v_l, i_l, t_l = [], [], []
         with torch.no_grad():
-            lg = _teacher_logits(model, ids, keep_dev)[:, :kd_vocab]
-            logp_full = torch.log_softmax(lg, dim=-1)
-            vals, ids_k = torch.topk(logp_full, topk, dim=-1)
-            # exact tail mass so training can renormalize without bias
-            tail = torch.log1p(-torch.exp(vals).sum(-1).clamp(max=1 - 1e-6))
+            for c in range(0, keep.numel(), keep_chunk):
+                lg = _teacher_logits(model, ids, keep_dev[c:c + keep_chunk])[:, :kd_vocab]
+                vc, ic, tc = _topk_rows(lg, topk, include_ids)
+                v_l.append(vc)
+                i_l.append(ic)
+                t_l.append(tc)
+                del lg
+                backend.empty_cache()
+        vals, ids_k, tail = torch.cat(v_l), torch.cat(i_l), torch.cat(t_l)
+        n_chunks = len(v_l)
         wins.append(torch.full((keep.numel(),), w, dtype=torch.int32))
         poss.append(keep.to(torch.int32))
         idxs.append(ids_k.to(torch.int32).cpu())
@@ -249,10 +358,9 @@ def precompute_topk(
         if (w + 1) % 5 == 0 or w == n_win - 1:
             el = time.time() - t0
             print(f"[kd] window {w+1}/{n_win}  positions={n_pos_total}  "
-                  f"{el:.0f}s ({el/(w+1):.1f}s/window)", flush=True)
-        del lg, logp_full
-        if dev == "mps":
-            torch.mps.empty_cache()
+                  f"head_slices={n_chunks}  {el:.0f}s ({el/(w+1):.1f}s/window)", flush=True)
+        del vals, ids_k, tail, v_l, i_l, t_l
+        backend.empty_cache()
 
     payload = {
         "win": torch.cat(wins), "pos": torch.cat(poss),
@@ -261,6 +369,7 @@ def precompute_topk(
         "teacher": str(teacher), "teacher_vocab": t_vocab, "student_vocab": s_vocab,
         "corpus": str(corpus), "corpus_fingerprint": corpus_fp,
         "n_windows": n_win, "n_positions": n_pos_total,
+        "include_ids": list(include_ids or []),
     }
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -275,20 +384,39 @@ def kd_loss_from_topk(
     student_logits: torch.Tensor, idx: torch.Tensor, logp: torch.Tensor,
     tail: torch.Tensor | None = None, temp: float = 1.0,
 ) -> torch.Tensor:
-    """KL(teacher || student) restricted to the stored top-K support.
+    """KL(teacher || student) over the stored top-K support plus a tail bucket.
 
-    ``student_logits`` [K_pos, V]; ``idx``/``logp`` [K_pos, K]. BOTH distributions are
-    renormalized over the same K-token support — renormalizing only the teacher would leave a
-    constant offset (the student's missing tail mass), so the loss would not reach 0 even for
-    an identical student. The stored ``tail`` records the teacher mass discarded by the
-    truncation, so callers can audit how much of the distribution the top-K covers.
+    ``student_logits`` [K_pos, V]; ``idx``/``logp`` [K_pos, K]; ``tail`` [K_pos] is the
+    teacher's log-mass outside its top-K.
+
+    With ``tail`` given (and ``temp == 1``) the KL is taken over K+1 buckets: the K stored
+    tokens at their TRUE probabilities plus one bucket for everything else (teacher side
+    stored at precompute, student side ``1 - Σ support``). This term is the whole point:
+    renormalizing both sides over the top-K — the previous form — makes the loss blind to
+    any student mass placed OUTSIDE the teacher's support (inflating an out-of-support
+    logit deflates every support prob proportionally, and renormalization cancels it
+    exactly). Measured on our corpus, ``<|im_end|>`` is outside the teacher's top-64 at
+    98.2% of supervised positions, so the termination collapse — P(stop) rising exactly
+    where the teacher keeps it in the tail — was invisible to the renormalized KL. The
+    tail bucket caps the student's total out-of-support mass at the teacher's (~0.006
+    mean), which pins P(stop) as a side effect. An identical student still scores 0.
+
+    With ``temp != 1`` the tail bucket is skipped (a T-tempered tail is not derivable from
+    the stored T=1 tail) and both sides fall back to top-K renormalization.
 
     Returns a scalar averaged over positions.
     """
     s_logp = torch.log_softmax(student_logits / temp, dim=-1)
     s_at = s_logp.gather(-1, idx.long())
+    t_logp = logp.float() / temp
+    if tail is not None and temp == 1.0:
+        t_sup = t_logp.exp()
+        t_tail = tail.float().exp().clamp_min(1e-8)
+        s_tail = (1.0 - s_at.exp().sum(-1)).clamp_min(1e-8)
+        kl = ((t_sup * (t_logp - s_at)).sum(-1)
+              + t_tail * (t_tail.log() - s_tail.log()))
+        return kl.mean()
     s_at = s_at - torch.logsumexp(s_at, dim=-1, keepdim=True)       # renormalize over top-K
-    t_logp = (logp.float() / temp)
     t_logp = t_logp - torch.logsumexp(t_logp, dim=-1, keepdim=True)  # renormalize over top-K
     t_p = t_logp.exp()
     return (t_p * (t_logp - s_at)).sum(-1).mean()

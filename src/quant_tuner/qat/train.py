@@ -40,25 +40,28 @@ from pathlib import Path
 import torch
 import torch.nn.functional as F
 
+from quant_tuner.qat._device import MPS_MAX_WINDOW, resolve_backend
 from quant_tuner.qat.attention import (
     DEFAULT_CHUNK,
     capture_prefix,
     clear_prefix,
     enable_chunked_sdpa,
+    enable_fp32_gqa_repeat,
     use_prefix,
 )
 from quant_tuner.qat.corpus import corpus_fingerprint
+from quant_tuner.qat.kd_precompute import kd_loss_from_topk, resolve_vocab_size
+from quant_tuner.qat.kd_table import KDTable, stop_logp_of
 from quant_tuner.qat.master_opt import MasterOptimizer
+from quant_tuner.qat.steer import RepBatch, SteerBatch, repetition_losses, steering_loss
+from quant_tuner.qat.stop_probe import StopProbe
+from quant_tuner.qat.stop_probe import format_line as stop_probe_fmt
 from quant_tuner.qat.ternary import TernaryLinear, ternarize_group
 
 REPO = Path(__file__).resolve().parents[3]
 MODEL = REPO / "out" / "exp-057" / "model"
-# MPSGraph refuses a tensor with > INT_MAX elements, and the unfused training SDPA path
-# materializes [n_heads, S, S]. The ceiling is therefore n_heads*S^2 < 2^31, i.e. S <= 8191
-# at 32 heads — 8192 fails by exactly ONE element (32*8192^2 == 2^31). Measured fwd+bwd on
-# torch 2.12/M4 Max: 4096/6144/7168/8064/8128/8191 all pass, 8192 is the only failure. Use
-# 8064 (a multiple of 128) for an ~8k window; it holds the universal corpus's 7500-token cap.
-MPS_MAX_WINDOW = 8191
+
+__all__ = ["MPS_MAX_WINDOW", "QATConfig", "main", "train_qat"]
 
 
 @dataclass
@@ -70,6 +73,7 @@ class QATConfig:
     layers: str | None = None
     epochs: float = 3.0
     grad_accum: int = 8
+    accum_offload: str = "auto"   # auto|on|off: CPU-stash accum grads (auto = CUDA & accum>1)
     lr: float = 5e-5
     optim: str = "adamw"
     weight_decay: float = 0.0
@@ -77,10 +81,66 @@ class QATConfig:
     dtype: str = "fp32"
     compute_dtype: str = "fp32"
     kd_teacher: Path | None = None
+    #: precomputed top-K teacher table (kd_precompute). Offline KD: no teacher
+    #: in memory, so it composes with an all-36 student where --kd-teacher
+    #: (which loads a dense teacher alongside) does not.
+    kd_table: Path | None = None
     kd_alpha: float = 0.5
     kd_temp: float = 1.0
+    #: β for the stop-token log-ratio hinge (0 = off; needs a forced-stop --kd-table).
+    #: The KL's restoring force on the stop logit is P_s−P_t — proportional to the drift,
+    #: so α-insensitive at small P; this hinge is O(1) in log space at any magnitude.
+    stop_anchor: float = 0.0
+    #: free band (nats) below/above the teacher's log P(stop) at CONTINUE-positions.
+    stop_anchor_margin: float = 1.0
+    #: free band (nats) at STOP-positions — much tighter, because a nat below
+    #: P(stop)=0.99999 is P(stop)=0.37. 0.1 nat allows sag to ~0.905.
+    stop_anchor_margin_hi: float = 0.1
+    #: abort when the probe's CONTROL falls below this (0 disables). The diagnostic-only
+    #: abort missed the a0.75 run's real failure: sentence_period retreated under the
+    #: threshold at step 150 while after_tool_call fell 0.9998 -> 0.8876 — the sft32k
+    #: loop failure, unguarded.
+    probe_abort_control: float = 0.0
+    #: consecutive violating probes required before either abort fires. 2 tolerates the
+    #: trough of a bounded oscillation; a real collapse aborts one probe later.
+    probe_abort_patience: int = 2
+    #: weight of the termination-steering loss (0 = off): an auxiliary batch of short
+    #: probe-FAMILY contexts forwarded every step — CE toward stop after tool calls,
+    #: one-sided hinge on log P(stop) at sentence positions. The probe itself stays
+    #: held out. See qat/steer.py.
+    steer_weight: float = 0.0
+    steer_n: int = 8
+    steer_seed: int = 11
+    #: weight of the repetition-steering hinge (0 = off): suppresses near-verbatim
+    #: re-issue of the previous command after a tool result. The anchor6 agent episode
+    #: repeated one command 49x; server-side penalties fixed it at serving time, this
+    #: is the training-time counterpart.
+    steer_rep_weight: float = 0.0
+    steer_rep_cap: float = 0.5
+    steer_rep_k: str = "1"          # comma-separated identical-round counts, round-robin
+    steer_rep_kd: str | None = None  # RepKD table (capture_rep_teacher.py); adds teacher-KL
+    steer_rep_kd_weight: float = 0.1
+    steer_rep_bank: str | None = None  # real-material bank (build_rep_bank.py)
+    steer_rep_n: int = 6
+    steer_rep_traj: str | None = None  # harvested episode contexts (build_rep_traj_contexts.py)
+    steer_rep_traj_n: int = 4
+    steer_rep_traj_every: int = 4      # apply every Nth step (full prefixes are long)
+    #: max grad norm. 1.0 was hardcoded since the CUDA port; the dense control showed
+    #: the control-face waves ride gnorm spikes (2.5-4.8 in ternary at troughs), so
+    #: this is the amplitude-damping lever.
+    clip_norm: float = 1.0
     val_corpus: Path | None = None
     val_every: int = 20
+    # Termination telemetry cadence. 0 disables. Defaults to the validation cadence
+    # so the two series line up on the same steps in the report.
+    probe_every: int = 25
+    #: abort the run (exit 3, checkpoint saved) when the probe's diagnostic exceeds this.
+    #: 0 disables. A collapsing run is visible by ~step 50 and monotone from there; this
+    #: converts an 11-hour post-mortem into a 40-minute one.
+    probe_abort: float = 0.0
+    #: "group-scale" gives each latent tensor lr * median(s)/median-of-medians (clamped
+    #: to [0.5, 2.0]) so large-scale tensors (v/up/gate) are not flip-starved. fp32 only.
+    lr_scale: str = "none"
     val_windows: int = 16
     train_norms: bool = False
     resume: Path | None = None
@@ -89,11 +149,30 @@ class QATConfig:
     ckpt_keep: int = 2
     warmup_frac: float = 0.05
     grad_spike_factor: float = 4.0
-    chunked_attention: bool = True
-    empty_cache_every: int = 5
+    #: "auto" (patch only where the backend needs it, or for --trained-tail),
+    #: "on" (always patch — for benchmarking it against a fused kernel), "off"
+    chunked_attention: str = "auto"
+    #: None -> the backend's default (5 on MPS, off on CUDA); see qat._device
+    empty_cache_every: int | None = None
     metrics_jsonl: bool = True
     trained_tail: int = 0
     stop_weight: float = 1.0
+    device: str = "auto"
+    #: torch.set_float32_matmul_precision; see the --matmul-precision help
+    matmul_precision: str = "highest"
+    #: Which layers are ternarized AT ALL (None = every layer). Distinct from ``layers``/
+    #: ``train_layers``, which choose what gets GRADIENTS. On a natively-ternary model the
+    #: two coincide — everything is already on the grid, so a frozen layer is ternary for
+    #: free. On a DENSE model they must not: a progressive schedule needs a third state,
+    #: "still bf16, not on the grid, not being moved there yet", and without this every
+    #: layer would be ternarized from step 0 — the all-at-once approach the schedule exists
+    #: to avoid.
+    ternary_layers: str | None = None
+    #: Tensor-name substrings kept DENSE wherever they appear, e.g. "down_proj". Measured
+    #: on gemma-4-E4B (docs/gemma4_ternary_feasibility.md): ternarizing mlp.down_proj alone
+    #: takes perplexity from ~19 to 149 while every other kind stays in band, so it is the
+    #: one tensor worth spending bits on. Applied on top of ``ternary_layers``.
+    dense_kinds: tuple[str, ...] = ()
 
 
 def parse_layers(spec: str, n_layers: int) -> set[int]:
@@ -111,9 +190,33 @@ def parse_layers(spec: str, n_layers: int) -> set[int]:
     return {layer for layer in out if 0 <= layer < n_layers}
 
 
+#: Where a decoder's layer list lives, most-specific first. A plain CausalLM keeps it at
+#: ``model.model.layers``; a multimodal wrapper like ``Gemma4ForConditionalGeneration``
+#: nests it under a language_model, and reading the wrong one raises rather than silently
+#: training a vision tower — but only because we look it up instead of hard-coding.
+_LAYER_PATHS = ("model.language_model.layers", "model.layers",
+                "model.model.layers", "model.decoder.layers")
+
+
+def decoder_layers(model):
+    """The transformer block list, wherever this architecture puts it."""
+    for path in _LAYER_PATHS:
+        obj = model
+        for part in path.split("."):
+            obj = getattr(obj, part, None)
+            if obj is None:
+                break
+        if obj is not None and hasattr(obj, "__len__") and len(obj):
+            return obj
+    raise AttributeError(
+        f"no decoder layer list found on {type(model).__name__} (tried {_LAYER_PATHS}); "
+        f"add its path to _LAYER_PATHS")
+
+
 def wrap_model(model, n_train: int, layer_spec: str | None = None,
-               train_norms: bool = False) -> int:
-    layers = model.model.layers
+               train_norms: bool = False, ternary_spec: str | None = None,
+               dense_kinds: tuple[str, ...] = ()) -> int:
+    layers = decoder_layers(model)
     if layer_spec:
         trainable_idx = parse_layers(layer_spec, len(layers))
         label = f"explicit layers {sorted(trainable_idx)}"
@@ -121,10 +224,41 @@ def wrap_model(model, n_train: int, layer_spec: str | None = None,
         trainable_idx = set(range(max(0, len(layers) - n_train), len(layers)))
         label = f"last {n_train} layers"
 
-    def swap(mod, trainable):
+    ternary_idx = (parse_layers(ternary_spec, len(layers)) if ternary_spec
+                   else set(range(len(layers))))
+    if not trainable_idx <= ternary_idx:
+        raise ValueError(
+            f"layers {sorted(trainable_idx - ternary_idx)} are set to train but not to "
+            f"ternarize — their gradients would move a latent nothing quantizes, which "
+            f"is plain fine-tuning wearing a QAT label")
+    n_dense = 0
+    #: Parameter ids of weights deliberately kept DENSE inside a trainable layer. They are
+    #: ordinary ``Linear.weight``s, not ``.linear.weight`` latents, so the requires_grad
+    #: pass below cannot recognise them by name — and they DO train: letting the dense
+    #: tensors adapt to their ternarized neighbours is most of why a partial schedule beats
+    #: all-at-once.
+    dense_trainable: set[int] = set()
+    #: Parameter ids of the ternary LATENTS in trainable layers, collected as they are
+    #: wrapped. Identity, not name: the old name match (".linear.weight" plus a layer index
+    #: parsed from "layers.") also hits a multimodal model's TOWERS, whose encoders have
+    #: their own layers.N and submodules literally called `linear`. On gemma-4-E4B that
+    #: marked 85 tensors / 167.8 M params of vision+audio tower trainable — they never
+    #: receive a gradient from a text forward, so nothing failed loudly; they just consumed
+    #: optimizer state and were exposed to weight decay. Bonsai has no towers, which is why
+    #: this survived until a multimodal model was tried.
+    latent_trainable: set[int] = set()
+
+    def swap(mod, trainable, ternary=True, prefix=""):
+        nonlocal n_dense
         c = 0
         for name, child in list(mod.named_children()):
+            full = f"{prefix}{name}"
             if isinstance(child, torch.nn.Linear) and child.in_features % 128 == 0:
+                if not ternary or any(k in full for k in dense_kinds):
+                    n_dense += 1
+                    if trainable:
+                        dense_trainable.add(id(child.weight))
+                    continue
                 if not trainable:
                     # Frozen layer: shipped weights are already exactly on the ternary
                     # grid, so TernaryLinear would be a bit-exact no-op costing ~5 W-sized
@@ -139,22 +273,87 @@ def wrap_model(model, n_train: int, layer_spec: str | None = None,
                         continue
                     print(f"[qat]   frozen linear off-grid -> wrapping: {name}", flush=True)
                 setattr(mod, name, TernaryLinear(child, trainable=trainable))
+                if trainable:
+                    latent_trainable.add(id(child.weight))
                 c += 1
             else:
-                c += swap(child, trainable)
+                c += swap(child, trainable, ternary, f"{full}.")
         return c
 
-    nw = sum(swap(layer, i in trainable_idx) for i, layer in enumerate(layers))
-    for name, p in model.named_parameters():
-        li = int(name.split("layers.")[1].split(".")[0]) if "layers." in name else -1
-        is_latent = ".linear.weight" in name and li in trainable_idx
-        is_norm = train_norms and li in trainable_idx and "norm" in name
-        p.requires_grad_(is_latent or is_norm)
+    nw = sum(swap(layer, i in trainable_idx, i in ternary_idx)
+             for i, layer in enumerate(layers))
+    trainable_ids = latent_trainable | dense_trainable
+    if train_norms:
+        for i in sorted(trainable_idx):
+            trainable_ids |= {id(q) for n_, q in layers[i].named_parameters() if "norm" in n_}
+    for p in model.parameters():
+        p.requires_grad_(id(p) in trainable_ids)
     nt = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    dense_note = (f"; {n_dense} linears left DENSE "
+                  f"({len(dense_trainable)} of them trainable)" if n_dense else "")
     print(f"[qat] training {label} ({len(trainable_idx)} layers"
-          f"{', +norms' if train_norms else ''}); wrapped {nw}; "
+          f"{', +norms' if train_norms else ''}); ternary layers "
+          f"{len(ternary_idx)}/{len(layers)}; wrapped {nw}{dense_note}; "
           f"trainable {nt/1e9:.2f}B", flush=True)
     return nw
+
+
+def latent_lr_mults(
+    named_params, *, clamp: tuple[float, float] = (0.5, 2.0),
+) -> dict[str, float]:
+    """Per-tensor lr multipliers proportional to the median TWN group scale.
+
+    A flip needs the latent to cross its group's threshold, and that distance is
+    proportional to the group scale ``s`` — while adafactor's normalized step is ~lr
+    for every coordinate. So at uniform lr, large-scale tensors are structurally
+    starved of code flips. Measured on the shipped model: v/up/gate carry the largest
+    scales (0.035-0.048, growing with depth) and flip least (0.0000-0.0002% in the
+    59-step arms); q/down carry the smallest (~0.022-0.026) and flip most (0.0145%,
+    0.0057%); sorting the tracked tensors by ``s`` almost exactly anti-orders them by
+    observed flip rate. ``lr_t = lr * s_t / median(s)`` (clamped) equalizes flip
+    opportunity; non-2D params (norms, biases) keep 1.0.
+    """
+    from quant_tuner.qat.ternary import DEFAULT_GROUP_SIZE, ternarize_group
+    scales: dict[str, float] = {}
+    with torch.no_grad():
+        for n, p in named_params:
+            if p.ndim == 2 and p.shape[1] % DEFAULT_GROUP_SIZE == 0:
+                _, s, _ = ternarize_group(p.detach())
+                scales[n] = float(s.float().median())
+    if not scales:
+        return {n: 1.0 for n, _ in named_params}
+    ref = sorted(scales.values())[len(scales) // 2]
+    return {n: (min(max(scales[n] / ref, clamp[0]), clamp[1]) if n in scales else 1.0)
+            for n, _ in named_params}
+
+
+def probe_abort_check(probs, diag_key, ctrl_key, *, abort_hi, abort_ctrl_lo,
+                      patience, strikes) -> str | None:
+    """Update strike counters; return "diagnostic"/"control" once patience is exhausted.
+
+    Oscillation-tolerant on purpose: a reading back inside the band RESETS its counter.
+    anchor3's abort fired at the trough of an oscillation that had already recovered
+    once (0.9903 -> 0.9693 -> 0.9886 -> 0.9288) — a single-reading guard cannot tell a
+    bounded oscillation's trough from the start of a collapse, and killing at the
+    trough also hands the export the worst possible checkpoint. Patience N costs one
+    probe interval (~19 min at probe-every 25) on a true monotone collapse — every
+    observed collapse would still have aborted, one probe later.
+    """
+    if probs is None:
+        return None
+    if abort_hi and probs.get(diag_key, 0.0) > abort_hi:
+        strikes["diag"] += 1
+    else:
+        strikes["diag"] = 0
+    if abort_ctrl_lo and probs.get(ctrl_key, 1.0) < abort_ctrl_lo:
+        strikes["ctrl"] += 1
+    else:
+        strikes["ctrl"] = 0
+    if strikes["diag"] >= patience:
+        return "diagnostic"
+    if strikes["ctrl"] >= patience:
+        return "control"
+    return None
 
 
 def lr_at(step, total, base, warmup_frac=0.05):
@@ -175,12 +374,20 @@ class GradSpikeGuard:
 
     The guard compares each step's pre-clip norm against the median of a trailing window.
     A step above `factor` x median is dropped (grads zeroed, LR schedule untouched), so a
-    handful of pathological batches cannot move the weights. It deliberately does NOT
-    trigger during warmup, when there is no stable median yet and norms are legitimately
-    large.
+    handful of pathological batches cannot move the weights.
 
-    `factor=0` disables. Skipping is recorded so a run that skips constantly is visible
-    as a too-low `factor` rather than as a mysteriously slow run.
+    **It is NOT warmup-aware, and that is a real hazard — read this before enabling it.**
+    The only thing delaying it is `min_history`, so with 20 norms accumulated it goes live
+    at step 21 regardless of where warmup ends. On the sft8k-full run the LR peaked at
+    step 30 and the loss rose 1.06 -> 9.80 over the next five steps while validation
+    improved *monotonically* through it — a healthy post-warmup reorganization, not a
+    divergence. A factor of 4.0 would have skipped exactly those steps and suppressed it
+    silently, since a skipped step is invisible in the loss curve.
+
+    So: leave it OFF (`factor=0`) for a run whose warmup transient is expected, and use it
+    only to protect a run that has already been shown to diverge. Skipping is recorded in
+    `n_skipped` so a run that skips constantly is visible as a too-low `factor` rather
+    than as a mysteriously slow run.
     """
 
     def __init__(self, factor: float = 4.0, window: int = 25, min_history: int = 20):
@@ -216,7 +423,56 @@ class GradSpikeGuard:
 #: swings from ~400 to the full window depending on a window's trainable density — an
 #: intermittent multi-GB spike that OOM-kills a long run at an unpredictable step. 1024
 #: caps it at ~0.6 GB.
-LOGIT_CHUNK = 1024
+LOGIT_CHUNK = int(os.environ.get("QAT_LOGIT_CHUNK", "1024"))
+
+
+class GradOffload:
+    """CPU stash for accumulated grads when ``grad_accum > 1`` on a tight-VRAM card.
+
+    At accum 1 the grads materialize layer-by-layer during backward while activations
+    free in tandem, so grads and peak activations never fully coexist. At accum >= 2 all
+    ~28 GB of fp32 grads sit resident through every later micro-batch's forward+backward
+    -- measured +2.1 GiB over the accum-1 peak on the 95 GiB card, which is exactly the
+    margin that OOM-killed coder3 twice (in the ternary STE, not the lm_head). Stashing
+    the group's running grad sum in pinned CPU RAM between micro-batches restores the
+    accum-1 memory profile; fp32 addition on CPU is exact, so the optimizer sees
+    bit-identical accumulated grads. Cost: one D2H+zero per micro-batch and one H2D at
+    the group boundary (~28 GB each way, a few s per ~256 s accum-4 step).
+    """
+
+    def __init__(self, params) -> None:
+        self.params = [q for q in params if q.requires_grad]
+        self._bufs: dict[int, torch.Tensor] = {}
+
+    def stash(self) -> None:
+        """buf += grad (CPU, fp32-exact); grad = None. Call after a non-final backward."""
+        for q in self.params:
+            g = q.grad
+            if g is None:
+                continue
+            b = self._bufs.get(id(q))
+            if b is None:
+                b = torch.zeros(g.shape, dtype=g.dtype)
+                try:
+                    b = b.pin_memory()
+                except RuntimeError:
+                    pass  # pinning is an optimization, never a requirement
+                self._bufs[id(q)] = b
+            b.add_(g.detach().cpu())
+            q.grad = None
+
+    def restore(self) -> None:
+        """grad += buf; buf zeroed. Call after the group's final backward, before step."""
+        for q in self.params:
+            b = self._bufs.get(id(q))
+            if b is None:
+                continue
+            g = b.to(q.device)
+            if q.grad is None:
+                q.grad = g
+            else:
+                q.grad.add_(g)
+            b.zero_()
 
 
 @contextlib.contextmanager
@@ -260,9 +516,15 @@ def prefix_window(model, ids: torch.Tensor, n_prefix: int):
         clear_prefix()
 
 
+LOG_HALF = -0.6931471805599453   # log(0.5): teacher-side split between
+                                 # continue-positions and stop-positions
+
+
 def masked_forward(model, ids: torch.Tensor, lbl: torch.Tensor, *,
                    need_logits: bool = True, logit_chunk: int = LOGIT_CHUNK,
-                   n_prefix: int = 0, weights: torch.Tensor | None = None):
+                   n_prefix: int = 0, weights: torch.Tensor | None = None,
+                   kd=None, kd_temp: float = 1.0,
+                   stop_anchor=None):
     """Masked-CE forward: lm_head only at labeled positions.
 
     Selects positions t with lbl[t+1] != -100 (HF shift semantics), runs the
@@ -275,6 +537,23 @@ def masked_forward(model, ids: torch.Tensor, lbl: torch.Tensor, *,
     gradient. Targets falling inside the prefix are dropped from the loss — they have no
     graph — so the reported CE is over the tail's targets only and is NOT comparable with
     a full-window CE on the same data.
+
+    ``kd`` is an optional :class:`~quant_tuner.qat.kd_table.KDWindow` of precomputed
+    teacher top-K logprobs for THIS window, already aligned to ``keep_idx``. When given the
+    return is ``(ce, logits, keep_idx, kl, anchor)`` — two elements longer — and the KD
+    term is computed inside the SAME logit chunks as CE, because a separate pass would
+    materialize the ``[K, V]`` logits a second time (5.8 GiB at 29% density on a 32768
+    window).
+
+    ``stop_anchor`` (KD path only) is ``(stop_id, t_stop_logp [K] fp32, margin)``: adds a
+    per-position hinge on the STOP token's log-prob gap to the teacher,
+    ``relu(|log P_s(stop) − log P_t(stop)| − margin)``, returned (mean over K) as the
+    5th element (else None). This exists because the KL's restoring force on the stop
+    logit is ``P_s − P_t`` — proportional to the drift itself, ~0.01 when the student
+    drifts through 1e-2 against a 1e-6 teacher, which is why tripling α (0.5 → 0.75)
+    barely changed the collapse trajectory. The hinge's gradient is O(1) in LOG space
+    at any drift magnitude; the margin leaves an e^margin band around the teacher free
+    so it does not fight ordinary calibration differences.
 
     ``weights`` is an optional per-vocab-id CE weight vector, used to upweight the
     terminating `<|im_end|>` target: it is 0.57% of labels but carries the entire stop
@@ -300,8 +579,17 @@ def masked_forward(model, ids: torch.Tensor, lbl: torch.Tensor, *,
                              position_ids=pos).last_hidden_state      # [1, S-n_prefix, H]
         # keep_idx indexes the SHIFTED targets, i.e. hidden position t predicts tgt[t];
         # only t >= n_prefix has a graph. Re-base onto the tail's own coordinates.
+        n_drop = int((keep_idx < n_prefix).sum())
         keep_idx = keep_idx[keep_idx >= n_prefix]
         h = hidden[:, keep_idx - n_prefix, :]
+        if kd is not None and n_drop:
+            # The KD window was validated against the FULL keep_idx (rows in position
+            # order); targets inside the prefix carry no gradient and were just dropped,
+            # so drop their teacher rows too or every chunk pairs a student position
+            # with an earlier token's distribution. Same for the anchor's teacher rows.
+            kd = kd.slice(n_drop, len(kd))
+            if stop_anchor is not None:
+                stop_anchor = (stop_anchor[0], stop_anchor[1][n_drop:], stop_anchor[2])
     else:
         hidden = model.model(input_ids=ids).last_hidden_state         # [1, S, H]
         h = hidden[:, keep_idx, :]                                    # [1, K, H]
@@ -309,15 +597,93 @@ def masked_forward(model, ids: torch.Tensor, lbl: torch.Tensor, *,
     K = keep_idx.numel()
     if K == 0:
         raise ValueError("no labeled target carries a gradient (prefix covers the window)")
+    if kd is not None and len(kd) != K:
+        raise ValueError(
+            f"KD window has {len(kd)} rows for {K} gradient-carrying targets — the "
+            f"teacher rows would be paired with the wrong positions.")
+    if stop_anchor is not None:
+        if kd is None:
+            raise ValueError("stop_anchor requires the KD path (teacher rows)")
+        if int(stop_anchor[1].numel()) != K:
+            raise ValueError(
+                f"stop anchor has {int(stop_anchor[1].numel())} teacher rows for {K} "
+                f"targets — would pair positions wrongly.")
 
-    if need_logits or logit_chunk >= K:
+    def anchor_pen(lg, t_stop):
+        """One-sided hinge on the stop token's log-prob gap to the teacher; summed.
+
+        One-sided PER POSITION TYPE, not L1: continue-positions (teacher P(stop) < 0.5)
+        outnumber stop-positions 176:1 in this corpus, so a symmetric |gap| hinge exerts
+        a massive net-DOWNWARD trunk-level pressure on P(stop) — measured: it crushed
+        the diagnostic to 0.0000 while collapsing the control 0.9987 -> 0.6974 by step
+        175. Here each position only penalizes drift in its harmful direction — stopping
+        MORE than the teacher where the teacher continues, stopping LESS where the
+        teacher stops — and exerts zero force once the student is on the safe side, so
+        the 176:1 imbalance has nothing to push with.
+        """
+        sid, _, margin_lo, margin_hi = stop_anchor
+        s_stop = lg[:, sid] - torch.logsumexp(lg, dim=-1)
+        is_stop_pos = t_stop > LOG_HALF
+        direction = torch.where(is_stop_pos, -1.0, 1.0)
+        # A nat of slack means different things on the two sides: at continue-positions
+        # it is 1e-6 -> 2.7e-6 (harmless); at stop-positions it is P(stop) 0.99999 ->
+        # 0.37 — the control can collapse to uselessness without the hinge ever
+        # engaging (measured: an=0.009 while the probe control fell 1.0000 -> 0.9753).
+        margin = torch.where(is_stop_pos, margin_hi, margin_lo)
+        return (direction * (s_stop - t_stop) - margin).clamp_min(0.0).sum()
+
+    if need_logits or (logit_chunk >= K and kd is None):
         logits = model.lm_head(h).float()                    # [1, K, V]
         ce = F.cross_entropy(logits[0], targets, weight=weights)
+        if kd is not None:
+            kl = kd_loss_from_topk(logits[0], kd.idx, kd.logp, kd.tail, temp=kd_temp)
+            anchor = (anchor_pen(logits[0], stop_anchor[1]) / K
+                      if stop_anchor is not None else None)
+            return ce, (logits if need_logits else None), keep_idx, kl, anchor
         return ce, (logits if need_logits else None), keep_idx
 
     def block_sum(hb, tb):
         return F.cross_entropy(model.lm_head(hb).float(), tb, weight=weights,
                                reduction="sum")
+
+    def block_sum_kd(hb, tb, kidx, klogp, ktail, tstop):
+        """CE sum, KD sum AND stop-anchor sum for one chunk, from ONE lm_head call.
+
+        KD has to run inside the same chunk as CE: computing it separately would
+        materialize [K, V] logits a second time, which is the 5.8 GiB spike (at 29%
+        density on a 32768 window) that the chunking exists to avoid. All are summed,
+        not averaged, so the caller can divide by the true totals — a mean of per-chunk
+        means is wrong whenever K is not a multiple of the chunk.
+        """
+        lg = model.lm_head(hb).float()
+        ce_s = F.cross_entropy(lg, tb, weight=weights, reduction="sum")
+        kl_s = kd_loss_from_topk(lg, kidx, klogp, ktail, temp=kd_temp) * hb.shape[0]
+        an_s = (anchor_pen(lg, tstop) if tstop is not None
+                else lg.new_zeros(()))
+        return ce_s, kl_s, an_s
+
+    if kd is not None:
+        total = h.new_zeros((), dtype=torch.float32)
+        kl_total = h.new_zeros((), dtype=torch.float32)
+        an_total = h.new_zeros((), dtype=torch.float32)
+        denom = (weights[targets].sum() if weights is not None
+                 else torch.as_tensor(float(K), device=h.device))
+        for i in range(0, K, logit_chunk):
+            hb, tb = h[0, i:i + logit_chunk], targets[i:i + logit_chunk]
+            kb = kd.slice(i, i + logit_chunk)
+            ts = (stop_anchor[1][i:i + logit_chunk].to(hb.device)
+                  if stop_anchor is not None else None)
+            if torch.is_grad_enabled() and hb.requires_grad:
+                ce_s, kl_s, an_s = torch.utils.checkpoint.checkpoint(
+                    block_sum_kd, hb, tb, kb.idx, kb.logp, kb.tail, ts,
+                    use_reentrant=False)
+            else:
+                ce_s, kl_s, an_s = block_sum_kd(hb, tb, kb.idx, kb.logp, kb.tail, ts)
+            total = total + ce_s
+            kl_total = kl_total + kl_s
+            an_total = an_total + an_s
+        anchor = an_total / float(K) if stop_anchor is not None else None
+        return total / denom, None, keep_idx, kl_total / float(K), anchor
 
     total = h.new_zeros((), dtype=torch.float32)
     # With a `weight` vector the denominator is sum(w[target]), not K — otherwise
@@ -349,8 +715,34 @@ def kd_kl(teacher, ids: torch.Tensor, keep_idx: torch.Tensor,
     return F.kl_div(s_logp, t_logp, log_target=True, reduction="none").sum(-1).mean()
 
 
-def snapshot_codes(model, k: int = 8) -> dict[str, tuple[torch.Tensor, torch.Tensor]]:
-    """Snapshot (codes int8, scale fp16) of k trainable linears spread across layers."""
+def latent_weights(model, opt) -> dict[str, torch.Tensor]:
+    """Map module name -> the tensor that IS the trained latent.
+
+    Under ``--compute-dtype bf16`` the live ``linear.weight`` is a bf16 *copy* of an fp32
+    master owned by the optimizer, and :func:`export_qat` ternarizes the **masters**. Read
+    the live copy instead and the flip telemetry describes a model that is never exported:
+    bf16 carries 8 mantissa bits, so a latent sitting within ~0.2% of the TWN threshold
+    ternarizes differently in the two, and flips get recorded at the wrong step. Since flip
+    velocity — not loss — is how this project decides whether a ternary run is learning at
+    all, that instrument has to read the same tensor the artifact will.
+
+    Returns ``{}`` in the fp32 case, where the live weight already is the latent.
+    """
+    if not isinstance(opt, MasterOptimizer):
+        return {}
+    by_param = {id(p): m for p, m in zip(opt.params, opt.masters, strict=True)}
+    return {name: by_param[id(mod.linear.weight)]
+            for name, mod in model.named_modules()
+            if isinstance(mod, TernaryLinear) and id(mod.linear.weight) in by_param}
+
+
+def snapshot_codes(model, k: int = 8, latents: dict[str, torch.Tensor] | None = None,
+                   ) -> dict[str, tuple[torch.Tensor, torch.Tensor]]:
+    """Snapshot (codes int8, scale fp16) of k trainable linears spread across layers.
+
+    ``latents`` (see :func:`latent_weights`) overrides where each module's latent is read
+    from — required under bf16 compute, a no-op otherwise.
+    """
     mods = [(n, m) for n, m in model.named_modules()
             if isinstance(m, TernaryLinear) and m.linear.weight.requires_grad]
     if not mods or k <= 0:
@@ -361,12 +753,14 @@ def snapshot_codes(model, k: int = 8) -> dict[str, tuple[torch.Tensor, torch.Ten
     with torch.no_grad():
         for i in picks:
             n, m = mods[i]
-            codes, scale, _ = ternarize_group(m.linear.weight.detach().float())
+            w = (latents or {}).get(n, m.linear.weight)
+            codes, scale, _ = ternarize_group(w.detach().float())
             snaps[n] = (codes.to(torch.int8).cpu(), scale.to(torch.float16).cpu())
     return snaps
 
 
-def flip_report(model, snaps, prev: dict | None = None) -> tuple[dict, str]:
+def flip_report(model, snaps, prev: dict | None = None,
+                latents: dict[str, torch.Tensor] | None = None) -> tuple[dict, str]:
     """Codes flipped / scale drift vs the start-of-run snapshot.
 
     Beyond the cumulative flip count this records three things the raw percentage
@@ -385,12 +779,15 @@ def flip_report(model, snaps, prev: dict | None = None) -> tuple[dict, str]:
     ``scale_drift`` stays the mean absolute relative move (comparable with older runs);
     ``scale_drift_signed`` is added because the absolute value hides whether scales are
     systematically growing or shrinking.
+
+    ``latents`` must be passed whatever was passed to :func:`snapshot_codes`, or the
+    comparison is against a differently-rounded baseline.
     """
     mods = dict(model.named_modules())
     stats, lines = {}, []
     with torch.no_grad():
         for name, (codes0, scale0) in snaps.items():
-            w = mods[name].linear.weight.detach().float()
+            w = (latents or {}).get(name, mods[name].linear.weight).detach().float()
             codes, scale, _ = ternarize_group(w)
             c = codes.to(torch.int8).cpu()
             flip_pct = 100.0 * (c != codes0).float().mean().item()
@@ -446,8 +843,70 @@ def run_validation(model, ids_all, lbl_all, dev, max_windows: int,
     return tot / max(1, n)
 
 
+def write_run_config(out: Path, cfg: QATConfig, **facts) -> Path:
+    """Record everything needed to reproduce and compare this run, at step 0.
+
+    Comparing two QAT runs after the fact needs the hyper-parameters, and those used to
+    exist only in the launch command — so a run directory could not answer "what lr and
+    window produced this?" once the shell was gone. Written before the first step so a
+    killed run still explains itself, and never overwritten on ``--resume`` (the resumed
+    leg gets its own numbered file) because the two legs can differ in lr or corpus and
+    collapsing them would misattribute whichever one is read.
+    """
+    import dataclasses
+    import subprocess
+
+    rec: dict = {"kind": "run_config"}
+    for f in dataclasses.fields(cfg):
+        v = getattr(cfg, f.name)
+        rec[f.name] = str(v) if isinstance(v, Path) else v
+    rec.update(facts)
+    rec["argv"] = sys.argv
+    rec["started_utc"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    rec["torch"] = torch.__version__
+    try:  # provenance is best-effort — a dirty tree or no git must not kill a 10 h run
+        rec["git_commit"] = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=Path(__file__).resolve().parent,
+            capture_output=True, text=True, timeout=10).stdout.strip() or None
+    except (OSError, subprocess.SubprocessError):
+        rec["git_commit"] = None
+
+    path = out / "run_config.json"
+    n = 1
+    while path.exists():           # a resume leg is a new record, not a replacement
+        path = out / f"run_config.{n}.json"
+        n += 1
+    path.write_text(json.dumps(rec, indent=2, default=str) + "\n")
+    print(f"[qat] run config -> {path}", flush=True)
+    return path
+
+
 def train_qat(cfg: QATConfig) -> int:
-    dev = "mps" if torch.backends.mps.is_available() else "cpu"
+    backend = resolve_backend(cfg.device)
+    dev = backend.name
+    empty_cache_every = (cfg.empty_cache_every if cfg.empty_cache_every is not None
+                         else backend.default_empty_cache_every)
+    print(f"[qat] device {backend.describe()}", flush=True)
+    if cfg.matmul_precision != "highest":
+        # TF32/bf16 tensor cores for the fp32 MATMULS only. This is a different knob from
+        # --compute-dtype: the latents, the TWN threshold, ternarize_group and its
+        # deliberate fp16 scale rounding are all elementwise fp32 and stay bit-exact, so
+        # the codes AND the scales a step produces are unchanged. Only the matmul's
+        # internal accumulation is reduced (TF32 keeps 10 mantissa bits, bf16 8).
+        #
+        # --compute-dtype bf16 rounds the latent itself to 8 mantissa bits before
+        # ternarizing. Measured, that does NOT move the codes: on the shipped weights and
+        # on real trained latents, 0 of 117M codes differ, because a ternary latent sits
+        # at 0 or +-s while delta = 0.7*mean|W| sits between them — nothing is within even
+        # fp32 precision of the threshold. What it does move is the SCALE (0.05-0.10% off
+        # the fp16 value the exported Q2_0 carries) and the gradients, and therefore what
+        # GradSpikeGuard sees as a spike.
+        torch.set_float32_matmul_precision(cfg.matmul_precision)
+        print(f"[qat] fp32 matmul precision '{cfg.matmul_precision}' "
+              f"(tensor cores; latents and ternarization stay exact fp32)", flush=True)
+    if backend.name == "cpu":
+        print("[qat] WARNING: no accelerator found — training on CPU is ~100x slower "
+              "and is almost certainly not what you want.", flush=True)
     if cfg.dtype == "bf16":
         print("[qat] WARNING: bf16 latents underflow the ternary threshold — no codes "
               "will flip at stable LRs. Use compute_dtype=bf16 (fp32 masters) instead.",
@@ -460,25 +919,41 @@ def train_qat(cfg: QATConfig) -> int:
     blob = torch.load(cfg.corpus, weights_only=False)
     ids_all, lbl_all = blob["ids"], blob["labels"]
     n_win, window = ids_all.shape
-    if cfg.trained_tail and not cfg.chunked_attention:
+    if cfg.trained_tail and cfg.chunked_attention == "off":
         sys.exit("[qat] --trained-tail needs the patched attention: the prefix K/V ride in "
                  "qat.attention's store, not a transformers Cache. Drop "
                  "--no-chunked-attention.")
-    if dev == "mps" or cfg.trained_tail:
-        # Query-chunked SDPA removes the MPSGraph INT_MAX score-tensor cap entirely
-        # (bit-identical output; see qat.attention). Without it the ceiling is
-        # n_heads*S^2 < 2^31, i.e. S <= 8191 at 32 heads. It is also what carries the
-        # prefix K/V, so --trained-tail requires it on every device.
-        if cfg.chunked_attention:
-            enable_chunked_sdpa()
-            print(f"[qat] chunked SDPA enabled (query blocks of {DEFAULT_CHUNK}) — the "
-                  f"{MPS_MAX_WINDOW}-token MPSGraph cap does not apply; the limit is memory",
-                  flush=True)
-        elif window > MPS_MAX_WINDOW:
-            sys.exit(f"[qat] window {window} > {MPS_MAX_WINDOW}: MPS attention hits the "
-                     f"MPSGraph INT_MAX limit (n_heads x S^2 must stay < 2^31; at 32 heads "
-                     f"that is S <= {MPS_MAX_WINDOW}). Either rebuild the corpus at 8064 or "
-                     f"drop --no-chunked-attention.")
+    # Query-chunked SDPA is REQUIRED on Metal (it removes the MPSGraph INT_MAX
+    # score-tensor cap; bit-identical output — see qat.attention) and is what carries the
+    # prefix K/V for --trained-tail on every device. On CUDA neither applies to a plain
+    # full-gradient run: FlashAttention never materializes the score matrix, so the
+    # chunked path is pure overhead there and stays off unless asked for.
+    # fp32 + GQA has no fused SDPA kernel, so transformers' enable_gqa=True drops the
+    # whole call to the math backend and materializes [batch, heads, S, S] — 7.75 GiB at
+    # a 8064 window, which OOMs a 95 GiB card. Expanding K/V instead reaches the
+    # memory-efficient kernel. bf16/fp16 keep the native grouped path.
+    if backend.is_cuda and cfg.compute_dtype == "fp32":
+        enable_fp32_gqa_repeat()
+        print("[qat] fp32 GQA: expanding K/V so SDPA reaches the memory-efficient kernel "
+              "(enable_gqa=True would fall back to math and materialize [heads,S,S])",
+              flush=True)
+
+    want_chunked = (cfg.chunked_attention == "on" or
+                    (cfg.chunked_attention == "auto"
+                     and (backend.needs_chunked_sdpa or cfg.trained_tail)))
+    if want_chunked:
+        enable_chunked_sdpa()
+        print(f"[qat] chunked SDPA enabled (query blocks of {DEFAULT_CHUNK}) — the "
+              f"{MPS_MAX_WINDOW}-token MPSGraph cap does not apply; the limit is memory",
+              flush=True)
+    elif backend.max_window and window > backend.max_window:
+        sys.exit(f"[qat] window {window} > {backend.max_window}: MPS attention hits the "
+                 f"MPSGraph INT_MAX limit (n_heads x S^2 must stay < 2^31; at 32 heads "
+                 f"that is S <= {backend.max_window}). Either rebuild the corpus at 8064 or "
+                 f"drop --no-chunked-attention.")
+    else:
+        print(f"[qat] stock SDPA on {backend.name} (fused/flash kernels; no score matrix "
+              f"is materialized, so there is no window cap to chunk around)", flush=True)
     # Per-window source label, when the builder recorded one. The corpus mixes sources with
     # very different assistant fractions (0.08 refusals .. 0.79 broad-instruct), so a single
     # loss curve cannot say which data is driving the flips; a per-source breakdown can.
@@ -500,12 +975,14 @@ def train_qat(cfg: QATConfig) -> int:
     model = AutoModelForCausalLM.from_pretrained(cfg.model_dir, dtype=dtype).to(dev)
     model.config.use_cache = False
     model.gradient_checkpointing_enable()  # transformers>=5 defaults use_reentrant=False
-    wrap_model(model, cfg.train_layers, layer_spec=cfg.layers, train_norms=cfg.train_norms)
+    wrap_model(model, cfg.train_layers, layer_spec=cfg.layers,
+               train_norms=cfg.train_norms, ternary_spec=cfg.ternary_layers,
+               dense_kinds=cfg.dense_kinds)
     model.train()
 
     teacher = None
     if cfg.kd_teacher:
-        tdtype = torch.float16 if dev == "mps" else torch.float32
+        tdtype = backend.teacher_dtype
         teacher = AutoModelForCausalLM.from_pretrained(cfg.kd_teacher, dtype=tdtype).to(dev)
         teacher.config.use_cache = False
         teacher.eval().requires_grad_(False)
@@ -521,22 +998,66 @@ def train_qat(cfg: QATConfig) -> int:
 
     def make_inner(params):
         if cfg.optim == "adafactor":
+            # scale_parameter=False + relative_step=False makes this "Adam with a rank-1
+            # second moment", and beta1 defaults to None — i.e. NO MOMENTUM. That is the
+            # variable the 8-bit options below exist to test: a ternary latent only
+            # changes anything when it crosses the ternarization threshold, and crossing
+            # needs pressure accumulated over many steps. Without momentum a latent near
+            # the threshold jitters on instantaneous gradients, while a coarse signal
+            # present in nearly every batch is reinforced every step regardless.
             from transformers import Adafactor
             return Adafactor(params, lr=cfg.lr, scale_parameter=False,
                              relative_step=False, warmup_init=False,
                              beta1=cfg.beta1, weight_decay=cfg.weight_decay)
+        if cfg.optim in ("adamw8bit", "lion8bit", "ademamix8bit"):
+            # 8-bit state is what makes real per-parameter moments affordable here.
+            # Measured against Adafactor's 70.6 GiB peak on a 95 GiB card at all-36:
+            #   AdamW      +55.6 GiB -> ~126 GiB   OOM
+            #   Adafactor + beta1  +27.8 GiB -> ~98 GiB   OOM
+            #   AdamW8bit  +13.9 GiB -> ~84 GiB    fits
+            #   Lion8bit    +7.0 GiB -> ~78 GiB    fits
+            # NOTE the CLAUDE.md line "an 8-bit optimizer is a no-op here" is about
+            # 8-bit ADAFACTOR (whose state is already ~9 MB). Against AdamW it is the
+            # difference between fitting and not.
+            import bitsandbytes as bnb
+            cls = {"adamw8bit": bnb.optim.AdamW8bit,
+                   "lion8bit": bnb.optim.Lion8bit,
+                   "ademamix8bit": bnb.optim.AdEMAMix8bit}[cfg.optim]
+            kw = {"lr": cfg.lr, "weight_decay": cfg.weight_decay}
+            if cfg.beta1 is not None and cfg.optim != "ademamix8bit":
+                kw["betas"] = (cfg.beta1, 0.999 if cfg.optim == "adamw8bit" else 0.99)
+            return cls(params, **kw)
+        # foreach fuses ~250 tiny per-tensor kernels into a handful of multi-tensor ones
+        # on CUDA; on MPS the same kernels deadlock at full-model scale (qat._device).
         return torch.optim.AdamW(params, lr=cfg.lr, weight_decay=cfg.weight_decay,
-                                 foreach=False)
+                                 foreach=backend.foreach)
 
+    if cfg.lr_scale not in ("none", "group-scale"):
+        sys.exit(f"[qat] unknown --lr-scale {cfg.lr_scale!r}")
+    if cfg.lr_scale != "none" and cfg.compute_dtype == "bf16":
+        sys.exit("[qat] --lr-scale is not wired for the bf16 master path (fp32 is the "
+                 "supported training dtype for this model anyway)")
     if cfg.compute_dtype == "bf16":
         # masters are cloned fp32 BEFORE the bf16 cast; the cast keeps Parameter
         # identity, so the wrapper's param references stay live
-        opt = MasterOptimizer(trainable, make_inner)
+        opt = MasterOptimizer(trainable, make_inner, foreach=backend.foreach)
         model.to(torch.bfloat16)
         print("[qat] bf16 compute + fp32 masters "
               f"({sum(m.numel() for m in opt.masters)/1e9:.2f}B master params)", flush=True)
     else:
-        opt = make_inner(trainable)
+        if cfg.lr_scale == "group-scale":
+            # One param group per tensor, each carrying its multiplier; the schedule
+            # (opt_step) applies `base_lr * lr_mult` every step, so warmup/cosine and
+            # the multiplier compose. Extra dict keys survive add_param_group.
+            mults = latent_lr_mults(trainable_named)
+            opt = make_inner([{"params": [p], "lr_mult": mults[n]}
+                              for n, p in trainable_named])
+            scaled = [m for m in mults.values() if m != 1.0]
+            print(f"[qat] lr-scale group-scale: {len(scaled)} tensors, "
+                  f"mult {min(scaled):.2f}..{max(scaled):.2f} "
+                  f"(median-scale-normalized, clamp [0.5, 2.0])", flush=True)
+        else:
+            opt = make_inner(trainable)
     print(f"[qat] optimizer {cfg.optim} (wd={cfg.weight_decay}"
           f"{f', beta1={cfg.beta1}' if cfg.beta1 else ''})", flush=True)
 
@@ -595,7 +1116,7 @@ def train_qat(cfg: QATConfig) -> int:
             print(f"[qat] resumed at step {step} (mi={mi}) with adafactor state", flush=True)
         else:
             print(f"[qat] resumed at step {step} (mi={mi}); OPTIMIZER STATE RESET "
-                  f"({'adamw state is not checkpointed (56 GB at all-36)' if cfg.optim == 'adamw' else 'no state in ckpt'})",
+                  f"({'optimizer state is not checkpointed for ' + cfg.optim if cfg.optim != 'adafactor' else 'no state in ckpt'})",
                   flush=True)
         loss_first = ck.get("loss_first")
         # `ck` is function-scoped, so without this it stays alive for the WHOLE run —
@@ -604,18 +1125,140 @@ def train_qat(cfg: QATConfig) -> int:
         ck.clear()
         del latents, ck
         gc.collect()
-        if dev == "mps":
-            torch.mps.empty_cache()
+        backend.empty_cache()
 
-    snaps = snapshot_codes(model, cfg.flip_sample)
-    print(f"[qat] flip telemetry on {len(snaps)} linears", flush=True)
+    # Under bf16 compute the latents live in the optimizer's fp32 masters, and that is
+    # what export ternarizes — so that is what the flip telemetry must read.
+    latents_for_flips = latent_weights(model, opt)
+    snaps = snapshot_codes(model, cfg.flip_sample, latents=latents_for_flips)
+    print(f"[qat] flip telemetry on {len(snaps)} linears"
+          f"{' (reading fp32 masters)' if latents_for_flips else ''}", flush=True)
+
+    # Termination telemetry. Built from the model's own tokenizer so the probe prompt is
+    # rendered by the same chat template the corpus was packed with — a probe built from a
+    # different template measures a prompt the model never sees.
+    kd_table = None
+    if cfg.kd_table:
+        kd_table = KDTable.load(cfg.kd_table, corpus_fingerprint=fp)
+        print(f"[qat] KD {kd_table}", flush=True)
+        # A PARTIAL table is the quiet failure: windows it does not cover would train on
+        # plain CE while the rest train on CE+KL, so the objective silently changes from
+        # window to window and the run is neither one experiment nor the other. Refuse it
+        # rather than letting a --max-windows smoke table drive a real run.
+        missing = [w for w in range(n_win) if not kd_table.has_window(w)]
+        if missing:
+            sys.exit(f"[qat] KD table covers {n_win - len(missing)}/{n_win} windows "
+                     f"(first uncovered: {missing[0]}). Windows without teacher rows would "
+                     f"train on plain CE while the others train on CE+KL — the objective "
+                     f"would change from window to window. Re-run kd_precompute without "
+                     f"--max-windows, or pass a corpus matching the table.")
+        print(f"[qat] KD alpha={cfg.kd_alpha} T={cfg.kd_temp}; loss = "
+              f"{1 - cfg.kd_alpha:g}*CE + {cfg.kd_alpha:g}*T^2*KL", flush=True)
+        if kd_table.coverage() < 0.8:
+            print(f"[qat] WARNING top-{kd_table.topk} captures only "
+                  f"{kd_table.coverage():.1%} of the teacher's mass — the KL is a weaker "
+                  f"constraint than it looks; consider a larger --topk", flush=True)
+
+    stop_anchor_id = None
+    if cfg.stop_anchor > 0:
+        if kd_table is None:
+            sys.exit("[qat] --stop-anchor needs --kd-table (the teacher's per-position "
+                     "P(stop) lives in the forced-stop table)")
+        from transformers import AutoTokenizer
+
+        from quant_tuner.qat.dialect import detect as _detect
+        _t = AutoTokenizer.from_pretrained(str(cfg.model_dir))
+        stop_anchor_id = _t.convert_tokens_to_ids(_detect(_t).stop_piece)
+        # Fail at startup, not at window 0: the plain top-K table lacks the stop id in
+        # ~98% of rows and there is nothing to anchor to.
+        stop_logp_of(kd_table.for_window(
+            0, kd_table._pos[kd_table._lo[0]:kd_table._hi[0]]), stop_anchor_id)
+        print(f"[qat] stop anchor beta={cfg.stop_anchor} margin="
+              f"{cfg.stop_anchor_margin}/{cfg.stop_anchor_margin_hi} nats "
+              f"(continue/stop positions) on token {stop_anchor_id} — O(1) log-space "
+              f"restoring force (the KL's is P_s−P_t, vanishing exactly when needed)",
+              flush=True)
+
+    stop_probe = None
+    if cfg.probe_every:
+        try:
+            from transformers import AutoTokenizer
+            _tok = AutoTokenizer.from_pretrained(str(cfg.model_dir))
+            stop_probe = StopProbe.build(_tok)
+            print(f"[qat] stop-probe every {cfg.probe_every} steps "
+                  f"({len(stop_probe.prompts)} points, stop id {stop_probe.stop_id})",
+                  flush=True)
+        except Exception as exc:
+            print(f"[qat] stop-probe unavailable ({exc}) — continuing without it",
+                  flush=True)
+    steer_batch = None
+    if cfg.steer_weight > 0:
+        from transformers import AutoTokenizer as _AT
+        _stok = _AT.from_pretrained(str(cfg.model_dir))
+        # stop_id from the dialect, not SteerBatch's Qwen default — a gemma run would
+        # otherwise steer toward id 151645 silently (same id under Qwen, so no-op there).
+        _sid = (stop_probe.stop_id if stop_probe is not None
+                else StopProbe.build(_stok).stop_id)
+        steer_batch = SteerBatch.build(_stok, n=cfg.steer_n, seed=cfg.steer_seed,
+                                       stop_id=_sid).to(dev)
+        print(f"[qat] steering: {cfg.steer_n} probe-family contexts every step, "
+              f"weight {cfg.steer_weight} (CE->stop on control rows, hinge above "
+              f"{steer_batch.cap_logp:.2f} logp on diagnostic rows; probe held out)",
+              flush=True)
+    rep_batch = None
+    rep_kd = None
+    if cfg.steer_rep_weight > 0 or cfg.steer_rep_kd:
+        from transformers import AutoTokenizer as _AT2
+        _rtok = _AT2.from_pretrained(str(cfg.model_dir))
+        _ks = [int(x) for x in str(cfg.steer_rep_k).split(",") if x.strip()]
+        _bank = None
+        if cfg.steer_rep_bank:
+            import json as _json
+            _bank = _json.loads(Path(cfg.steer_rep_bank).read_text())
+        rep_batch = RepBatch.build(_rtok, n=cfg.steer_rep_n,
+                                   cap_p=cfg.steer_rep_cap, k=_ks,
+                                   bank=_bank).to(dev)
+    rep_traj_batch = None
+    if cfg.steer_rep_traj:
+        from transformers import AutoTokenizer as _AT3
+        rep_traj_batch = RepBatch.from_harvest(
+            _AT3.from_pretrained(str(cfg.model_dir)), cfg.steer_rep_traj,
+            n=cfg.steer_rep_traj_n, cap_p=cfg.steer_rep_cap).to(dev)
+        print(f"[qat] rep traj steering: {rep_traj_batch.ids.shape[0]} harvested "
+              f"episode contexts (L={rep_traj_batch.ids.shape[1]}), every "
+              f"{cfg.steer_rep_traj_every} steps, cap {cfg.steer_rep_cap} — the real "
+              f"loop state needs its full history (truncation collapses it)", flush=True)
+        print(f"[qat] repetition steering: {rep_batch.ids.shape[0]} contexts every "
+              f"step, weight {cfg.steer_rep_weight}, per-token cap "
+              f"{cfg.steer_rep_cap}, identical rounds k={_ks}, "
+              f"bank={cfg.steer_rep_bank or 'synthetic'} "
+              f"on verbatim command re-issue", flush=True)
+        if cfg.steer_rep_kd:
+            from quant_tuner.qat.steer import RepKD
+            rep_kd = RepKD.load(cfg.steer_rep_kd, rep_batch).to(dev)
+            print(f"[qat] rep teacher-KL: {rep_kd.idx.shape[0]} span positions from "
+                  f"{rep_kd.teacher} (weight {cfg.steer_rep_kd_weight}, tail-bucket, "
+                  f"fingerprint {rep_kd.fingerprint}) — the hinge suppresses the "
+                  f"repeat, the KL supplies the alternative", flush=True)
+
     flip_stats: dict = {}
+    abort_strikes = {"diag": 0, "ctrl": 0}
 
     # Machine-readable telemetry. The stdout log is human-facing and has to be re-parsed
     # (scripts/parse_qat_log.py) to plot anything; this is the same numbers, already
     # structured, appended so a resume extends rather than truncates the series.
     metrics_path = out / "metrics.jsonl"
     metrics_fh = metrics_path.open("a") if cfg.metrics_jsonl else None
+
+    # The run's own provenance, written BEFORE the first step so it exists even if the run
+    # is killed. Until this existed the hyper-parameters lived only in the launch command
+    # and died with the shell: a finished run directory could not say what lr, window or
+    # stop-weight produced it, which makes two runs uncomparable after the fact. Everything
+    # here is either cfg, or a fact the trainer alone knows (corpus fingerprint, resolved
+    # device, effective step count).
+    write_run_config(out, cfg, fingerprint=fp, n_windows=n_win, window=window,
+                     total_steps=total_steps, device=str(dev),
+                     assistant_frac=blob.get("assistant_frac"))
 
     def emit(kind: str, **fields) -> None:
         if metrics_fh is None:
@@ -626,7 +1269,8 @@ def train_qat(cfg: QATConfig) -> int:
     def save_ckpt(at):
         nonlocal flip_stats
         if snaps:
-            flip_stats, lines = flip_report(model, snaps, prev=flip_stats)
+            flip_stats, lines = flip_report(model, snaps, prev=flip_stats,
+                                            latents=latents_for_flips)
             print(f"[qat] code flips vs run start:\n{lines}", flush=True)
             for tname, st in flip_stats.items():
                 emit("flip", step=at, tensor=tname, **st)
@@ -635,8 +1279,7 @@ def train_qat(cfg: QATConfig) -> int:
         # multiples of --ckpt-every), i.e. peak-training memory + this spike. Release the
         # cached MPS blocks and the flip-report temporaries FIRST so the copy has headroom.
         gc.collect()
-        if dev == "mps":
-            torch.mps.empty_cache()
+        backend.empty_cache()
         if isinstance(opt, MasterOptimizer):
             latents = {n: m.detach().cpu() for n, m in zip(t_names, opt.masters, strict=True)}
         else:
@@ -674,23 +1317,24 @@ def train_qat(cfg: QATConfig) -> int:
                 print(f"[qat] checkpoint rotation skipped ({e})", flush=True)
         del latents, payload
         gc.collect()
-        if dev == "mps":
-            torch.mps.empty_cache()
+        backend.empty_cache()
         print(f"[qat] checkpoint @ step {at}: {len(t_names)} tensors", flush=True)
 
     def opt_step() -> tuple[float, bool]:
         """Step unless the guard rejects it. Returns (pre-clip grad norm, skipped)."""
+        base = lr_at(step, total_steps, cfg.lr, cfg.warmup_frac)
         for pg in opt.param_groups:
-            pg["lr"] = lr_at(step, total_steps, cfg.lr, cfg.warmup_frac)
+            pg["lr"] = base * pg.get("lr_mult", 1.0)
         if isinstance(opt, MasterOptimizer):
             # clip_and_step needs the norm BEFORE deciding, so measure on the masters
             gn = opt.stage_grads_and_norm()
             if guard.check(gn):
                 opt.zero_grad()
                 return gn, True
-            opt.step_staged(1.0)
+            opt.step_staged(cfg.clip_norm)
         else:
-            gn = float(torch.nn.utils.clip_grad_norm_(trainable, 1.0, foreach=False))
+            gn = float(torch.nn.utils.clip_grad_norm_(trainable, cfg.clip_norm,
+                                                      foreach=backend.foreach))
             if guard.check(gn):
                 opt.zero_grad()
                 return gn, True
@@ -713,10 +1357,18 @@ def train_qat(cfg: QATConfig) -> int:
 
     ce_weights = None
     if cfg.stop_weight != 1.0:
-        im_end_id = blob.get("im_end_id")
+        # `stop_id` is the dialect-neutral key; `im_end_id` is the Qwen-era name kept so
+        # corpora built before qat/dialect.py existed still train.
+        im_end_id = blob.get("stop_id", blob.get("im_end_id"))
         if im_end_id is None:
-            sys.exit("[qat] --stop-weight needs 'im_end_id' in the corpus blob; rebuild it")
-        ce_weights = torch.ones(model.config.vocab_size, device=dev, dtype=torch.float32)
+            sys.exit("[qat] --stop-weight needs 'stop_id' in the corpus blob; rebuild it")
+        # NOT model.config.vocab_size: a multimodal config keeps the language head's
+        # vocabulary under text_config, and Gemma4Config raises AttributeError on the
+        # flat name — so --stop-weight crashed on gemma-4 before a single step ran.
+        # resolve_vocab_size already walks text_config/llm_config/decoder for the KD
+        # path; the same walk is what this needs.
+        ce_weights = torch.ones(resolve_vocab_size(model.config), device=dev,
+                                dtype=torch.float32)
         ce_weights[int(im_end_id)] = cfg.stop_weight
         print(f"[qat] stop-token weight {cfg.stop_weight}x on id {im_end_id} "
               f"({blob.get('im_end_targets', '?')} targets in the corpus)", flush=True)
@@ -729,6 +1381,18 @@ def train_qat(cfg: QATConfig) -> int:
     tokens_seen = 0
     n_tail_empty = 0
     src_loss: dict[str, list[float]] = {}
+    kl_acc: list[float] = []          # KD KL over the current accum group
+    an_acc: list[float] = []          # stop-anchor penalty over the current accum group
+    st_acc: list[float] = []          # steering loss over the current accum group
+    rp_acc: list[float] = []          # repetition hinge over the current accum group
+    rk_acc: list[float] = []          # rep teacher-KL over the current accum group
+    rt_acc: list[float] = []          # harvested-episode rep hinge (every Nth step)
+    grad_offload = None
+    if cfg.grad_accum > 1 and cfg.accum_offload != "off" and (
+            cfg.accum_offload == "on" or dev.startswith("cuda")):
+        grad_offload = GradOffload(trainable)
+        print(f"[qat] accum grad offload: CPU stash across {cfg.grad_accum}-window groups "
+              f"(restores the accum-1 peak-memory profile)", flush=True)
     opt.zero_grad()
     while step < total_steps and not stop["f"]:
         w = order[mi % n_win].item()
@@ -747,14 +1411,54 @@ def train_qat(cfg: QATConfig) -> int:
         # The prefix block spans forward AND backward: checkpoint recompute happens inside
         # .backward(), and a recompute that cannot see the prefix raises CheckpointError.
         with prefix_window(model, ids, n_prefix):
-            ce, s_logits, keep_idx = masked_forward(model, ids, lbl,
-                                                    need_logits=teacher is not None,
-                                                    n_prefix=n_prefix, weights=ce_weights)
-            if teacher is not None:
-                kl = kd_kl(teacher, ids, keep_idx, s_logits, cfg.kd_temp)
+            kd_win = None
+            if kd_table is not None:
+                # Aligned to this window's keep_idx, and verified against it — a table
+                # built from a different pack would resolve without erroring and distil
+                # every position against another token's distribution.
+                kd_win = kd_table.for_window(w, (lbl[:, 1:][0] != -100)
+                                             .nonzero(as_tuple=True)[0]).to(dev)
+            anchor_arg = None
+            if kd_win is not None and cfg.stop_anchor > 0:
+                anchor_arg = (stop_anchor_id, stop_logp_of(kd_win, stop_anchor_id),
+                              cfg.stop_anchor_margin, cfg.stop_anchor_margin_hi)
+            # NOT `out` — that is the run directory in this scope, and shadowing it
+            # made save_ckpt do `tuple / str` four tests later.
+            fwd = masked_forward(model, ids, lbl,
+                                 need_logits=teacher is not None,
+                                 n_prefix=n_prefix, weights=ce_weights,
+                                 kd=kd_win, kd_temp=cfg.kd_temp,
+                                 stop_anchor=anchor_arg)
+            if kd_win is not None:
+                ce, s_logits, keep_idx, kl, anchor = fwd
                 loss = (1 - cfg.kd_alpha) * ce + cfg.kd_alpha * (cfg.kd_temp ** 2) * kl
+                if anchor is not None:
+                    loss = loss + cfg.stop_anchor * anchor
+                    an_acc.append(float(anchor.detach()))
+                kl_v = float(kl.detach())
             else:
-                loss = ce
+                ce, s_logits, keep_idx = fwd
+                kl_v = None
+                if teacher is not None:
+                    kl = kd_kl(teacher, ids, keep_idx, s_logits, cfg.kd_temp)
+                    loss = (1 - cfg.kd_alpha) * ce + cfg.kd_alpha * (cfg.kd_temp ** 2) * kl
+                else:
+                    loss = ce
+            if steer_batch is not None:
+                st_loss, _st_m = steering_loss(model, steer_batch)
+                loss = loss + cfg.steer_weight * st_loss
+                st_acc.append(float(st_loss.detach()))
+            if rep_batch is not None:
+                rp_loss, rk_loss, _rp_m = repetition_losses(model, rep_batch, rep_kd)
+                loss = loss + cfg.steer_rep_weight * rp_loss
+                rp_acc.append(float(rp_loss.detach()))
+                if rk_loss is not None:
+                    loss = loss + cfg.steer_rep_kd_weight * rk_loss
+                    rk_acc.append(float(rk_loss.detach()))
+            if rep_traj_batch is not None and step % cfg.steer_rep_traj_every == 0:
+                rt_loss, _, _rt_m = repetition_losses(model, rep_traj_batch)
+                loss = loss + cfg.steer_rep_weight * rt_loss
+                rt_acc.append(float(rt_loss.detach()))
             lv = float(loss.detach())
             if not math.isfinite(lv):
                 # skip BEFORE backward: the accumulated group stays valid, n_acc unchanged
@@ -762,10 +1466,17 @@ def train_qat(cfg: QATConfig) -> int:
                 continue
             (loss / cfg.grad_accum).backward()
         n_acc += 1
+        if grad_offload is not None:
+            if n_acc < cfg.grad_accum:
+                grad_offload.stash()
+            else:
+                grad_offload.restore()
         tokens_seen += int(ids.shape[1])
         if win_src is not None:
             sname = src_names[int(win_src[w])] if src_names else str(int(win_src[w]))
             src_loss.setdefault(sname, []).append(lv)
+        if kl_v is not None:
+            kl_acc.append(kl_v)
         if loss_first is None:
             loss_first = lv
         recent.append(lv)
@@ -778,30 +1489,57 @@ def train_qat(cfg: QATConfig) -> int:
                       f"SKIPPED ({guard.n_skipped} so far)", flush=True)
             n_acc = 0
             step += 1
-            # Periodic MPS cache release: over a long all-36 run the allocator fragments and
-            # working-set creeps until it swaps (s/step balloons) and macOS OOM-kills the
-            # process. Release at the post-step memory trough to keep it bounded.
-            # Every 25 steps was NOT enough at window 8064/all-36: an OOM kill landed at
-            # ~step 12 with swap at 63 GB, i.e. mid-interval, before the release ever fired.
-            # The release is cheap (~1 s) next to a ~390 s step, so err on frequent.
-            if dev == "mps" and step % cfg.empty_cache_every == 0:
-                torch.mps.empty_cache()
+            # Periodic allocator-cache release. On MPS this is load-bearing: over a long
+            # all-36 run the allocator fragments and the working set creeps until it swaps
+            # (s/step balloons) and macOS OOM-kills the process. Every 25 steps was NOT
+            # enough at window 8064/all-36 — a kill landed at ~step 12 with swap at 63 GB,
+            # mid-interval, before the release ever fired, so the MPS default is 5. On CUDA
+            # the failure mode does not exist and the release costs a device sync plus the
+            # blocks the allocator would have reused, so the default there is off.
+            if empty_cache_every and step % empty_cache_every == 0:
+                backend.empty_cache()
             if step == 1 or step % 5 == 0:
-                mem = torch.mps.current_allocated_memory() / 1024**3 if dev == "mps" else 0
+                mem, mem_peak = backend.allocated_gib(), backend.peak_gib()
                 avg = sum(recent) / len(recent)
+                # base schedule lr; with --lr-scale each group runs base * its lr_mult
+                cur_lr = lr_at(step, total_steps, cfg.lr, cfg.warmup_frac)
                 emit("step", step=step, total_steps=total_steps, loss=avg,
-                     lr=opt.param_groups[0]["lr"], grad_norm=grad_norm,
+                     kd_kl=(sum(kl_acc) / len(kl_acc)) if kl_acc else None,
+                     stop_anchor=(sum(an_acc) / len(an_acc)) if an_acc else None,
+                     steer=(sum(st_acc) / len(st_acc)) if st_acc else None,
+                     steer_rep=(sum(rp_acc) / len(rp_acc)) if rp_acc else None,
+                     lr=cur_lr, grad_norm=grad_norm,
                      grad_median=guard.last_median, n_skipped=guard.n_skipped, mem_gib=mem,
+                     mem_peak_gib=mem_peak, device=backend.name,
                      n_tail_empty=n_tail_empty,
                      tokens_seen=tokens_seen, elapsed_s=time.time() - t0,
                      s_per_step=(time.time() - t0) / max(1, step - step0),
                      loss_by_source={k: sum(v) / len(v) for k, v in src_loss.items()})
+                kl_str = f" kl={sum(kl_acc)/len(kl_acc):.4f}" if kl_acc else ""
+                if an_acc:
+                    kl_str += f" an={sum(an_acc)/len(an_acc):.4f}"
+                if st_acc:
+                    kl_str += f" st={sum(st_acc)/len(st_acc):.4f}"
+                if rp_acc:
+                    kl_str += f" rp={sum(rp_acc)/len(rp_acc):.4f}"
+                if rk_acc:
+                    kl_str += f" rk={sum(rk_acc)/len(rk_acc):.4f}"
+                if rt_acc:
+                    kl_str += f" rt={sum(rt_acc)/len(rt_acc):.4f}"
                 src_loss.clear()
-                print(f"[qat] step {step}/{total_steps} loss={avg:.4f} "
-                      f"lr={opt.param_groups[0]['lr']:.2e} "
+                kl_acc.clear()
+                an_acc.clear()
+                st_acc.clear()
+                rp_acc.clear()
+                rk_acc.clear()
+                rt_acc.clear()
+                print(f"[qat] step {step}/{total_steps} loss={avg:.4f}{kl_str} "
+                      f"lr={cur_lr:.2e} "
                       # pre-clip; a divergence shows up here BEFORE the loss reacts
                       f"gnorm={grad_norm:.2f} "
-                      f"mem={mem:.1f}GiB "
+                      # live bytes, then the high-water mark — the peak is what decides
+                      # whether the next checkpoint save or validation OOMs
+                      f"mem={mem:.1f}/{mem_peak:.1f}GiB "
                       # steps run in THIS process, not the absolute step — after a resume
                       # the latter divides by a step count this process never spent time on
                       # and under-reports by (step / steps_here), which is exactly the
@@ -812,19 +1550,72 @@ def train_qat(cfg: QATConfig) -> int:
                 # activations on top of a training cache that is already at the working-set
                 # ceiling. Measured at a 32768 window — the val interval was the only place
                 # swap moved (+11 GiB), and it dragged the surrounding steps with it.
-                if dev == "mps":
-                    torch.mps.empty_cache()
+                backend.empty_cache()
                 t_val = time.time()
                 vl = run_validation(model, val_ids, val_lbl, dev, cfg.val_windows, n_prefix)
                 val_s = time.time() - t_val
-                if dev == "mps":
-                    torch.mps.empty_cache()
+                backend.empty_cache()
                 emit("val", step=step, val_masked_ce=vl, val_windows=cfg.val_windows,
                      val_seconds=val_s)
                 # Report the cost: at a long window validation is not free next to a step,
                 # and `--val-windows` is the knob that pays for itself.
                 print(f"[qat] step {step} VAL masked-CE {vl:.4f} "
                       f"({cfg.val_windows} windows in {val_s:.0f}s)", flush=True)
+            if stop_probe is not None and cfg.probe_every and step % cfg.probe_every == 0:
+                # Termination telemetry. The masked-CE validation cannot see this: it
+                # scores the model on the corpus's own continuations, and a model that has
+                # collapsed the stop decision into "sentence end -> <|im_end|>" still
+                # scores well there — sft32k's val went flat for 225 steps while its
+                # P(stop | sentence end) went to 0.97. Five short forwards, no gradients.
+                t_pr = time.time()
+                probs = None
+                try:
+                    probs = stop_probe.measure(model, dev)
+                    emit("stopprobe", step=step, seconds=time.time() - t_pr, **probs)
+                    print(f"[qat] step {step} STOPPROBE "
+                          f"{stop_probe_fmt(probs, stop_probe.dialect)}",
+                          flush=True)
+                except Exception as exc:            # never let telemetry kill a long run
+                    print(f"[qat] step {step} STOPPROBE failed: {exc}", flush=True)
+                backend.empty_cache()
+                # The diagnostic point is per chat family (gemma-4's control point means
+                # the opposite of Qwen's), so read its name off the probe, not a constant.
+                diag = stop_probe.diagnostic
+                ctrl = stop_probe.control
+                fired = probe_abort_check(
+                    probs, diag, ctrl, abort_hi=cfg.probe_abort,
+                    abort_ctrl_lo=cfg.probe_abort_control,
+                    patience=max(1, cfg.probe_abort_patience), strikes=abort_strikes)
+                for side, n in abort_strikes.items():
+                    if fired is None and n > 0:
+                        key, val = (diag, probs.get(diag)) if side == "diag"                             else (ctrl, probs.get(ctrl))
+                        print(f"[qat] step {step} PROBE-WARN: {key}={val:.4f} outside "
+                              f"the abort band (strike {n}/"
+                              f"{max(1, cfg.probe_abort_patience)}) — a second "
+                              f"consecutive violation aborts.", flush=True)
+                if fired == "control":
+                    # Losing the ability to stop where stopping is right — the sft32k
+                    # loop failure (a0.75: control 0.9998 -> 0.8876 while the
+                    # diagnostic sat under its threshold).
+                    print(f"[qat] step {step} PROBE-ABORT: {ctrl}="
+                          f"{probs[ctrl]:.4f} < --probe-abort-control "
+                          f"{cfg.probe_abort_control} for {abort_strikes['ctrl']} "
+                          f"consecutive probes — the model is losing the ability to "
+                          f"STOP where stopping is right (the loop failure); saving "
+                          f"and stopping.", flush=True)
+                elif fired == "diagnostic":
+                    # Stopping too early — visible by ~step 50 and monotone in every
+                    # observed collapse; a full run spends 8+ hours past this point
+                    # learning nothing we will ship.
+                    print(f"[qat] step {step} PROBE-ABORT: {diag}="
+                          f"{probs[diag]:.4f} > --probe-abort {cfg.probe_abort} for "
+                          f"{abort_strikes['diag']} consecutive probes — termination "
+                          f"is collapsing; saving and stopping.", flush=True)
+                if fired is not None:
+                    save_ckpt(step)
+                    if metrics_fh is not None:
+                        metrics_fh.close()
+                    sys.exit(3)
             if cfg.ckpt_every and step % cfg.ckpt_every == 0:
                 save_ckpt(step)
     # drop any partial accum group before the final save
@@ -845,10 +1636,24 @@ def _build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--train-layers", type=int, default=18)
     ap.add_argument("--layers", type=str, default=None,
                     help="explicit layer indices to train, e.g. '0-14,32,34,35'; overrides --train-layers")
+    ap.add_argument("--ternary-layers", type=str, default=None,
+                    help="layer indices to TERNARIZE, e.g. '24-41'; default = all. "
+                         "Separate from --layers, which picks what gets gradients: on a "
+                         "dense model (gemma-4) a layer left out of this stays bf16 and "
+                         "off the grid, which is what makes a progressive schedule "
+                         "expressible at all. Every trained layer must also be ternarized.")
+    ap.add_argument("--dense-kind", action="append", default=None, metavar="SUBSTR",
+                    help="keep linears whose name contains SUBSTR dense, in every layer "
+                         "(repeatable). Measured on gemma-4-E4B: 'down_proj' alone takes "
+                         "PPL ~19 -> 149 when ternarized, against <1.0 KLD for every other "
+                         "kind — see docs/gemma4_ternary_feasibility.md.")
     ap.add_argument("--epochs", type=float, default=3.0)
     ap.add_argument("--grad-accum", type=int, default=8)
+    ap.add_argument("--accum-offload", choices=["auto", "on", "off"], default="auto")
     ap.add_argument("--lr", type=float, default=5e-5)
-    ap.add_argument("--optim", choices=["adamw", "adafactor"], default="adamw",
+    ap.add_argument("--optim",
+                    choices=["adamw", "adafactor", "adamw8bit", "lion8bit",
+                             "ademamix8bit"], default="adamw",
                     help="adafactor: factored 2nd moment (~MBs vs AdamW's 56 GB at "
                          "all-36) -> full-36 fp32 fits. Per-tensor loop, MPS-safe.")
     ap.add_argument("--weight-decay", type=float, default=0.0,
@@ -861,12 +1666,91 @@ def _build_parser() -> argparse.ArgumentParser:
                     help="bf16: fp32-master trick — masters own the latents, fwd/bwd run in bf16")
     ap.add_argument("--kd-teacher", type=Path, default=None,
                     help="HF path of a same-vocab dense teacher (e.g. a SWE-tuned Qwen3-8B); enables KD")
+    ap.add_argument("--kd-table", type=Path,
+                    help="precomputed top-K teacher table from scripts/kd_precompute.py. "
+                         "Offline KD — no teacher in memory, unlike --kd-teacher.")
     ap.add_argument("--kd-alpha", type=float, default=0.5,
                     help="loss = (1-a)*CE + a*T^2*KL(teacher||student)")
     ap.add_argument("--kd-temp", type=float, default=1.0)
+    ap.add_argument("--stop-anchor", type=float, default=0.0,
+                    help="beta for the stop-token log-ratio hinge, "
+                         "relu(|log P_s(stop) - log P_t(stop)| - margin) per position. "
+                         "O(1) restoring force in log space where the KL's vanishes with "
+                         "the drift. Needs a forced-stop --kd-table (--include-ids).")
+    ap.add_argument("--stop-anchor-margin", type=float, default=1.0,
+                    help="free band in nats at continue-positions")
+    ap.add_argument("--stop-anchor-margin-hi", type=float, default=0.1,
+                    help="free band in nats at stop-positions (teacher P(stop) > 0.5). "
+                         "Tighter on purpose: one nat below 0.99999 is P(stop)=0.37.")
+    ap.add_argument("--steer-weight", type=float, default=0.0,
+                    help="termination-steering loss weight (0 = off): an auxiliary "
+                         "batch of short probe-FAMILY contexts every step — CE toward "
+                         "stop after tool calls, one-sided hinge at sentence "
+                         "positions. The probe itself stays held out.")
+    ap.add_argument("--steer-n", type=int, default=8)
+    ap.add_argument("--steer-seed", type=int, default=11)
+    ap.add_argument("--steer-rep-weight", type=float, default=0.0,
+                    help="repetition-steering hinge weight (0 = off): suppress "
+                         "near-verbatim re-issue of the previous command after a tool "
+                         "result. Training-time counterpart of the serving-side "
+                         "repeat/presence penalties.")
+    ap.add_argument("--steer-rep-cap", type=float, default=0.5,
+                    help="per-token probability cap above which verbatim command "
+                         "repetition is penalized")
+    ap.add_argument("--steer-rep-kd", default=None,
+                    help="RepKD table from scripts/capture_rep_teacher.py — adds a "
+                         "tail-bucket teacher-KL at the rep-context span positions "
+                         "(the hinge suppresses the repeat; this supplies the "
+                         "teacher's alternative)")
+    ap.add_argument("--steer-rep-kd-weight", type=float, default=0.1)
+    ap.add_argument("--steer-rep-traj", default=None,
+                    help="harvested full-prefix episode contexts "
+                         "(build_rep_traj_contexts.py) — the states where the loop "
+                         "actually lives; constructed contexts at any depth do not "
+                         "transfer to them")
+    ap.add_argument("--steer-rep-traj-n", type=int, default=4)
+    ap.add_argument("--steer-rep-traj-every", type=int, default=4)
+    ap.add_argument("--steer-rep-n", type=int, default=6,
+                    help="number of rep contexts (few FIXED contexts overfit — "
+                         "anchor8 inverted its 6 synthetic states while real states "
+                         "stayed at 0.96)")
+    ap.add_argument("--steer-rep-bank", default=None,
+                    help="real-material context bank from scripts/build_rep_bank.py "
+                         "(synthetic contexts don't transfer — anchor8)")
+    ap.add_argument("--steer-rep-k", default="1",
+                    help="comma-separated identical-round counts assigned round-robin "
+                         "across the rep contexts (measured: the repeat probability "
+                         "escalates with k on trained latents; train at 2-5)")
+    ap.add_argument("--clip-norm", type=float, default=1.0,
+                    help="max grad norm (was hardcoded 1.0). The control-face waves "
+                         "ride gnorm spikes; ~0.25 damps what leaks through the "
+                         "ternary quantization filter.")
+    ap.add_argument("--probe-abort-patience", type=int, default=2,
+                    help="consecutive violating probes required before either abort "
+                         "fires. 2 tolerates the trough of a bounded oscillation "
+                         "(anchor3 died at one); a real collapse aborts one probe "
+                         "later (~19 min).")
+    ap.add_argument("--probe-abort-control", type=float, default=0.0,
+                    help="abort (exit 3, checkpoint saved) when the probe CONTROL "
+                         "drops below this (0 disables). The other failure direction: "
+                         "losing the ability to stop after a tool call = the loop "
+                         "failure. Healthy runs sit >= 0.995; collapses pass 0.95 "
+                         "decisively.")
     ap.add_argument("--val-corpus", type=Path, default=None,
                     help="masked corpus built with --split test; masked-CE validation")
     ap.add_argument("--val-every", type=int, default=20)
+    ap.add_argument("--probe-every", type=int, default=25,
+                    help="measure P(<|im_end|>) at fixed positions every N steps "
+                         "(0 disables). Masked-CE cannot see a collapsed stop "
+                         "decision; this can.")
+    ap.add_argument("--probe-abort", type=float, default=0.0,
+                    help="abort (exit 3, checkpoint saved) when the probe diagnostic "
+                         "exceeds this (0 disables). E.g. 0.09 = 10x the vanilla "
+                         "0.0092 — every observed collapse blew far past that.")
+    ap.add_argument("--lr-scale", choices=["none", "group-scale"], default="none",
+                    help="group-scale: per-tensor lr proportional to the median TWN "
+                         "group scale (clamped [0.5, 2.0]) so large-scale tensors "
+                         "(v/up/gate) are not flip-starved at uniform lr. fp32 only.")
     ap.add_argument("--val-windows", type=int, default=16)
     ap.add_argument("--train-norms", action="store_true",
                     help="also train RMSNorm/q_norm/k_norm weights in the trainable layers")
@@ -890,14 +1774,36 @@ def _build_parser() -> argparse.ArgumentParser:
                          "nothing to roll back to — the live file is already overwritten.")
     ap.add_argument("--no-metrics-jsonl", dest="metrics_jsonl", action="store_false",
                     help="skip the structured metrics.jsonl sidecar")
-    ap.add_argument("--empty-cache-every", type=int, default=5,
-                    help="release the MPS allocator cache every N steps (default 5). At "
-                         "all-36/window 8064 the old 25 let the working set creep into "
-                         "swap and OOM-kill the process mid-interval; the release costs "
-                         "~1 s against a ~390 s step.")
-    ap.add_argument("--no-chunked-attention", dest="chunked_attention", action="store_false",
-                    help="use the stock SDPA kernel; caps the MPS window at 8191 tokens "
-                         "(n_heads*S^2 < 2^31). Chunked SDPA is bit-identical and on by default.")
+    ap.add_argument("--empty-cache-every", type=int, default=None,
+                    help="release the allocator cache every N steps (default: 5 on MPS, "
+                         "off on CUDA). On MPS at all-36/window 8064 a cadence of 25 let "
+                         "the working set creep into swap and OOM-kill the process "
+                         "mid-interval, and the release costs ~1 s against a ~390 s step. "
+                         "CUDA has no such failure mode and the release costs a device "
+                         "sync plus reusable blocks; 0 disables.")
+    ap.add_argument("--matmul-precision", choices=["highest", "high", "medium"],
+                    default="highest",
+                    help="torch.set_float32_matmul_precision for the fp32 path. 'highest' "
+                         "(default) is true fp32 — what every published run used. 'high' "
+                         "uses TF32 tensor cores (10 mantissa bits) and 'medium' bf16 "
+                         "ones (8). Unlike --compute-dtype this leaves the LATENTS in "
+                         "exact fp32, so the TWN threshold and every code flip are "
+                         "unperturbed; only the matmul accumulation is reduced. No effect "
+                         "under --compute-dtype bf16, which is already not doing fp32 "
+                         "matmuls.")
+    ap.add_argument("--device", default="auto",
+                    help="cuda / mps / cpu / cuda:N (default auto: cuda > mps > cpu)")
+    ap.add_argument("--chunked-attention", choices=["auto", "on", "off"], default="auto",
+                    help="query-chunked SDPA (qat.attention). 'auto' patches it only where "
+                         "the backend needs it — on MPS, where the stock kernel caps the "
+                         "window at 8191 tokens (n_heads*S^2 < 2^31), and for "
+                         "--trained-tail on any device, which carries its prefix K/V. On "
+                         "CUDA the fused/flash kernel never materializes the score matrix, "
+                         "so auto leaves it off. 'on' forces it (benchmarking); 'off' "
+                         "refuses it everywhere.")
+    ap.add_argument("--no-chunked-attention", dest="chunked_attention",
+                    action="store_const", const="off",
+                    help="alias for --chunked-attention off")
     ap.add_argument("--trained-tail", type=int, default=0,
                     help="prefix-context mode: encode all but the last N tokens of each "
                          "window under no_grad into a KV cache and backprop only through "
@@ -920,12 +1826,34 @@ def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
     cfg = QATConfig(
         corpus=args.corpus, out=args.out, model_dir=args.model_dir,
-        train_layers=args.train_layers, layers=args.layers, epochs=args.epochs,
-        grad_accum=args.grad_accum, lr=args.lr, optim=args.optim,
+        train_layers=args.train_layers, layers=args.layers,
+        ternary_layers=args.ternary_layers,
+        dense_kinds=tuple(args.dense_kind or ()), epochs=args.epochs,
+        grad_accum=args.grad_accum, accum_offload=args.accum_offload, lr=args.lr, optim=args.optim,
         weight_decay=args.weight_decay, beta1=args.beta1, dtype=args.dtype,
         compute_dtype=args.compute_dtype, kd_teacher=args.kd_teacher,
-        kd_alpha=args.kd_alpha, kd_temp=args.kd_temp, val_corpus=args.val_corpus,
+        kd_table=args.kd_table,
+        kd_alpha=args.kd_alpha, kd_temp=args.kd_temp,
+        stop_anchor=args.stop_anchor, stop_anchor_margin=args.stop_anchor_margin,
+        stop_anchor_margin_hi=args.stop_anchor_margin_hi,
+        val_corpus=args.val_corpus,
         val_every=args.val_every, val_windows=args.val_windows,
+        probe_every=args.probe_every, probe_abort=args.probe_abort,
+        probe_abort_control=args.probe_abort_control,
+        probe_abort_patience=args.probe_abort_patience,
+        steer_weight=args.steer_weight, steer_n=args.steer_n,
+        steer_seed=args.steer_seed, clip_norm=args.clip_norm,
+        steer_rep_weight=args.steer_rep_weight,
+        steer_rep_cap=args.steer_rep_cap,
+        steer_rep_k=args.steer_rep_k,
+        steer_rep_kd=args.steer_rep_kd,
+        steer_rep_kd_weight=args.steer_rep_kd_weight,
+        steer_rep_bank=args.steer_rep_bank,
+        steer_rep_n=args.steer_rep_n,
+        steer_rep_traj=args.steer_rep_traj,
+        steer_rep_traj_n=args.steer_rep_traj_n,
+        steer_rep_traj_every=args.steer_rep_traj_every,
+        lr_scale=args.lr_scale,
         train_norms=args.train_norms, resume=args.resume,
         flip_sample=args.flip_sample, ckpt_every=args.ckpt_every,
         ckpt_keep=args.ckpt_keep, warmup_frac=args.warmup_frac,
@@ -934,6 +1862,7 @@ def main(argv: list[str] | None = None) -> int:
         empty_cache_every=args.empty_cache_every,
         metrics_jsonl=args.metrics_jsonl,
         trained_tail=args.trained_tail, stop_weight=args.stop_weight,
+        device=args.device, matmul_precision=args.matmul_precision,
     )
     return train_qat(cfg)
 

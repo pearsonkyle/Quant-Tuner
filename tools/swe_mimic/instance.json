@@ -1,0 +1,93 @@
+{
+  "instance_id": "dask__dask-11393",
+  "base_commit": "e71d4361a57e7990e4a325021e6382877ac9ab49",
+  "created_at": "2024-09-17 15:56:38",
+  "environment_setup_commit": "e71d4361a57e7990e4a325021e6382877ac9ab49",
+  "hints_text": "GPUtester: Can one of the admins verify this patch?\n\nAdmins can comment `ok to test` to allow this one PR to run or `add to allowlist` to allow all future PRs from the same author to run.\ngithub-actions[bot]: ## Unit Test Results\n_See [test report](https://dask.github.io/dask/test_report.html) for an extended history of previous test failures. This is useful for diagnosing flaky tests._\n\n\u2007\u2007\u2007\u2008\u200713 files\u2004 \u00b10\u2002\u2003\u2007\u2007\u2007\u2008\u200713 suites\u2004 \u00b10\u2002\u2003\u20023h 14m 17s :stopwatch: + 7m 59s\n\u200713\u2008213 tests \u00b10\u2002\u2003\u200712\u2008156 :white_check_mark: \u2006-\u200a1\u2002\u2003\u20071\u2008056 :zzz: \u00b10\u2002\u2003\u20071 :x: +\u20071\u2002\n137\u2008811 runs\u200a \u00b10\u2002\u2003118\u2008775 :white_check_mark: \u2006-\u200a5\u2002\u200319\u2008026 :zzz: \u2006-\u200a5\u2002\u200310 :x: +10\u2002\n\nFor more details on these failures, see [this check](https://github.com/dask/dask/runs/30270247992).\n\nResults for commit 13d19bc9.\u2003\u00b1 Comparison against base commit e71d4361.\n\n[test-results]:data:application/gzip;base64,H4sIAE6u6WYC/1XMSQ7DIAyF4atErLuImellKkqwhJqhIrCKevdCxnb5Plv/QjD0fib3BtitIXMO6VpdjjaFaawbpFCFyjVtd7q+rPsxZ+cqUhDywld4V2x/DG3oq53gY5xikbZIzOOWVhpg32catFLixD1tWioPO9JH6S/tpmEIqQwCrAPzdEYZqazXHFB4LZhF7zgY7DTngjJE8vkCCvGLERsBAAA=\n",
+  "patch": "diff --git a/.github/workflows/update-gpuci.yml b/.github/workflows/update-gpuci.yml\nindex b657cb091..bb8c55456 100644\n--- a/.github/workflows/update-gpuci.yml\n+++ b/.github/workflows/update-gpuci.yml\n@@ -21,7 +21,7 @@ jobs:\n \n       - name: Get latest cuDF nightly version\n         id: cudf_latest\n-        uses: jacobtomlinson/gha-anaconda-package-version@0.1.3\n+        uses: jacobtomlinson/gha-anaconda-package-version@0.1.4\n         with:\n           org: \"rapidsai-nightly\"\n           package: \"cudf\"\n@@ -29,7 +29,7 @@ jobs:\n \n       - name: Get latest UCX-Py nightly version\n         id: ucx_py_latest\n-        uses: jacobtomlinson/gha-anaconda-package-version@0.1.3\n+        uses: jacobtomlinson/gha-anaconda-package-version@0.1.4\n         with:\n           org: \"rapidsai-nightly\"\n           package: \"ucx-py\"\ndiff --git a/continuous_integration/gpuci/axis.yaml b/continuous_integration/gpuci/axis.yaml\nindex 7b30d5065..41fca92d9 100644\n--- a/continuous_integration/gpuci/axis.yaml\n+++ b/continuous_integration/gpuci/axis.yaml\n@@ -9,6 +9,6 @@ LINUX_VER:\n - ubuntu20.04\n \n RAPIDS_VER:\n-- \"24.10\"\n+- \"24.12\"\n \n excludes:\ndiff --git a/dask/dataframe/utils.py b/dask/dataframe/utils.py\nindex d748db315..456843efb 100644\n--- a/dask/dataframe/utils.py\n+++ b/dask/dataframe/utils.py\n@@ -434,10 +434,14 @@ def check_matching_columns(meta, actual):\n         if extra or missing:\n             extra_info = f\"  Extra:   {extra}\\n  Missing: {missing}\"\n         else:\n-            extra_info = \"Order of columns does not match\"\n+            extra_info = (\n+                f\"Order of columns does not match.\"\n+                f\"\\nActual:   {actual.columns.tolist()}\"\n+                f\"\\nExpected: {meta.columns.tolist()}\"\n+            )\n         raise ValueError(\n             \"The columns in the computed data do not match\"\n-            \" the columns in the provided metadata\\n\"\n+            \" the columns in the provided metadata.\\n\"\n             f\"{extra_info}\"\n         )\n \n",
+  "problem_statement": "\"Order of columns does not match\" error should give an extra info about expected order\nIt is not clear what order we should provide when we see the error \"Order of columns does not match\":\r\n```python\r\nimport pandas as pd\r\nimport dask.dataframe as dd\r\n\r\ndata = {\r\n    'id': [1, 1, 1, 2, 2, 2],\r\n    'date': pd.to_datetime(['2023-01-01', '2023-01-04', '2023-01-05', '2023-01-01', '2023-01-04', '2023-01-05']),\r\n    'metric': [1,1,1,1,1,1]\r\n}\r\npd_df = pd.DataFrame(data).astype({'id': 'int64', 'metric': 'int64', 'date': 'datetime64[ns]'})\r\ndf = dd.from_pandas(pd_df)\r\n\r\ndf = (\r\n    df\r\n    .groupby(by=['id'])\r\n    .apply(lambda x: x.resample(\"D\", on=\"date\").sum().reset_index(), include_groups=True, meta={\"metric\": \"int64\", 'date': 'datetime64[ns]', 'id': 'int64'})\r\n    .reset_index(drop=True)\r\n)\r\ndisplay(df.dtypes)\r\ndisplay(df.compute())\r\n```\r\n\r\nThe right order is:\r\n```\r\nmeta={'date': 'datetime64[ns]', 'id': 'int64', \"metric\": \"int64\", }\r\n```\r\nbut it isn't clear why\r\n\r\nhttps://github.com/dask/dask/blob/e71d4361a57e7990e4a325021e6382877ac9ab49/dask/dataframe/utils.py#L437",
+  "repo": "dask/dask",
+  "test_patch": "diff --git a/dask/dataframe/tests/test_utils_dataframe.py b/dask/dataframe/tests/test_utils_dataframe.py\nindex 40dc3bbce..6b0af9935 100644\n--- a/dask/dataframe/tests/test_utils_dataframe.py\n+++ b/dask/dataframe/tests/test_utils_dataframe.py\n@@ -463,7 +463,12 @@ def test_check_matching_columns_raises_appropriate_errors():\n     df = pd.DataFrame(columns=[\"a\", \"b\", \"c\"])\n \n     meta = pd.DataFrame(columns=[\"b\", \"a\", \"c\"])\n-    with pytest.raises(ValueError, match=\"Order of columns does not match\"):\n+    with pytest.raises(\n+        ValueError,\n+        match=\"Order of columns does not match.\"\n+        \"\\nActual:   \\\\['a', 'b', 'c'\\\\]\"\n+        \"\\nExpected: \\\\['b', 'a', 'c'\\\\]\",\n+    ):\n         assert check_matching_columns(meta, df)\n \n     meta = pd.DataFrame(columns=[\"a\", \"b\", \"c\", \"d\"])\n",
+  "meta": {
+    "commit_name": "merge_commit",
+    "failed_lite_validators": [
+      "has_many_modified_files",
+      "has_many_hunks",
+      "has_pytest_match_arg"
+    ],
+    "has_test_patch": true,
+    "is_lite": false,
+    "llm_score": {
+      "difficulty_score": 0,
+      "issue_text_score": 1,
+      "test_score": 2
+    },
+    "num_modified_files": 3
+  },
+  "version": "2024.9",
+  "install_config": {
+    "env_vars": null,
+    "env_yml_path": null,
+    "install": "pip install -e .[complete]",
+    "log_parser": "parse_log_pytest",
+    "no_use_env": null,
+    "packages": "requirements.txt",
+    "pip_packages": [
+      "pytest",
+      "pytest-cov",
+      "pytest-rerunfailures",
+      "pytest-timeout",
+      "pytest-xdist"
+    ],
+    "pre_install": null,
+    "python": "3.10",
+    "reqs_path": null,
+    "test_cmd": "pytest --no-header -rA --tb=line --color=no -p no:cacheprovider -W ignore::DeprecationWarning"
+  },
+  "requirements": "bokeh==3.7.2\nclick==8.1.8\ncloudpickle==3.1.1\ncontourpy==1.3.1\ncoverage==7.8.0\n-e git+https://github.com/dask/dask.git@e71d4361a57e7990e4a325021e6382877ac9ab49#egg=dask\ndask-expr==1.1.14\ndistributed==2024.9.0\nexceptiongroup==1.2.2\nexecnet==2.1.1\nfsspec==2025.3.2\nimportlib_metadata==8.6.1\niniconfig==2.1.0\nJinja2==3.1.6\nlocket==1.0.0\nlz4==4.4.3\nMarkupSafe==3.0.2\nmsgpack==1.1.0\nnarwhals==1.32.0\nnumpy==2.2.4\npackaging==24.2\npandas==2.2.3\npartd==1.4.2\npillow==11.1.0\npluggy==1.5.0\npsutil==7.0.0\npyarrow==19.0.1\npytest==8.3.5\npytest-cov==6.0.0\npytest-rerunfailures==15.0\npytest-timeout==2.3.1\npytest-xdist==3.6.1\npython-dateutil==2.9.0.post0\npytz==2025.2\nPyYAML==6.0.2\nsix==1.17.0\nsortedcontainers==2.4.0\ntblib==3.1.0\ntomli==2.2.1\ntoolz==1.0.0\ntornado==6.4.2\ntzdata==2025.2\nurllib3==2.3.0\nxyzservices==2025.1.0\nzict==3.0.0\nzipp==3.21.0\n",
+  "environment": "name: dask\nchannels:\n  - defaults\n  - https://repo.anaconda.com/pkgs/main\n  - https://repo.anaconda.com/pkgs/r\n  - conda-forge\ndependencies:\n  - _libgcc_mutex=0.1=main\n  - _openmp_mutex=5.1=1_gnu\n  - bzip2=1.0.8=h5eee18b_6\n  - ca-certificates=2025.2.25=h06a4308_0\n  - ld_impl_linux-64=2.40=h12ee557_0\n  - libffi=3.4.4=h6a678d5_1\n  - libgcc-ng=11.2.0=h1234567_1\n  - libgomp=11.2.0=h1234567_1\n  - libstdcxx-ng=11.2.0=h1234567_1\n  - libuuid=1.41.5=h5eee18b_0\n  - ncurses=6.4=h6a678d5_0\n  - openssl=3.0.16=h5eee18b_0\n  - pip=25.0=py310h06a4308_0\n  - python=3.10.16=he870216_1\n  - readline=8.2=h5eee18b_0\n  - setuptools=75.8.0=py310h06a4308_0\n  - sqlite=3.45.3=h5eee18b_0\n  - tk=8.6.14=h39e8969_0\n  - wheel=0.45.1=py310h06a4308_0\n  - xz=5.6.4=h5eee18b_1\n  - zlib=1.2.13=h5eee18b_1\n  - pip:\n      - bokeh==3.7.2\n      - click==8.1.8\n      - cloudpickle==3.1.1\n      - contourpy==1.3.1\n      - coverage==7.8.0\n      - dask==2024.9.0+1.ge71d4361a\n      - dask-expr==1.1.14\n      - distributed==2024.9.0\n      - exceptiongroup==1.2.2\n      - execnet==2.1.1\n      - fsspec==2025.3.2\n      - importlib-metadata==8.6.1\n      - iniconfig==2.1.0\n      - jinja2==3.1.6\n      - locket==1.0.0\n      - lz4==4.4.3\n      - markupsafe==3.0.2\n      - msgpack==1.1.0\n      - narwhals==1.32.0\n      - numpy==2.2.4\n      - packaging==24.2\n      - pandas==2.2.3\n      - partd==1.4.2\n      - pillow==11.1.0\n      - pluggy==1.5.0\n      - psutil==7.0.0\n      - pyarrow==19.0.1\n      - pytest==8.3.5\n      - pytest-cov==6.0.0\n      - pytest-rerunfailures==15.0\n      - pytest-timeout==2.3.1\n      - pytest-xdist==3.6.1\n      - python-dateutil==2.9.0.post0\n      - pytz==2025.2\n      - pyyaml==6.0.2\n      - six==1.17.0\n      - sortedcontainers==2.4.0\n      - tblib==3.1.0\n      - tomli==2.2.1\n      - toolz==1.0.0\n      - tornado==6.4.2\n      - tzdata==2025.2\n      - urllib3==2.3.0\n      - xyzservices==2025.1.0\n      - zict==3.0.0\n      - zipp==3.21.0\nprefix: /opt/conda/envs/dask\n",
+  "FAIL_TO_PASS": [
+    "dask/dataframe/tests/test_utils_dataframe.py::test_check_matching_columns_raises_appropriate_errors"
+  ],
+  "FAIL_TO_FAIL": [],
+  "PASS_TO_PASS": [
+    "dask/dataframe/tests/test_utils_dataframe.py::test_shard_df_on_index",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_make_meta",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_meta_nonempty",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_meta_duplicated",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_meta_nonempty_empty_categories",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_meta_nonempty_index",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_meta_nonempty_uint64index",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_meta_nonempty_scalar",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_raise_on_meta_error",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_check_meta",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_check_meta_typename",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_is_dataframe_like[True]",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_is_dataframe_like[False]",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_apply_and_enforce_message",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_nonempty_series_sparse",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_nonempty_series_nullable_float",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_assert_eq_sorts",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_assert_eq_scheduler",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_meta_constructor_utilities[data0]",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_meta_constructor_utilities[data1]",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_meta_constructor_utilities[data2]",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_meta_constructor_utilities[data3]",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_meta_constructor_utilities[data4]",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_meta_constructor_utilities[data5]",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_meta_constructor_utilities_raise[data0]",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_meta_constructor_utilities_raise[data1]",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_valid_divisions[divisions0-True]",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_valid_divisions[divisions1-False]",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_valid_divisions[divisions2-False]",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_valid_divisions[divisions3-True]",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_valid_divisions[divisions4-True]",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_valid_divisions[123-False]",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_valid_divisions[divisions6-False]",
+    "dask/dataframe/tests/test_utils_dataframe.py::test_pyarrow_strings_enabled"
+  ],
+  "PASS_TO_FAIL": [],
+  "license_name": "BSD 3-Clause \"New\" or \"Revised\" License",
+  "docker_image": "swerebench/sweb.eval.x86_64.dask_1776_dask-11393",
+  "image_name": "swerebench/sweb.eval.x86_64.dask_1776_dask-11393"
+}

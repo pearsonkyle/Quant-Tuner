@@ -1,0 +1,15 @@
+{
+ "model": "google/gemma-4-E4B-it-qat-q4_0-unquantized",
+ "dialect": "gemma4",
+ "stop_id": 106,
+ "dtype": "float32",
+ "probs": {
+  "start": 3.3041349070117576e-06,
+  "mid_sentence": 5.368779625314346e-07,
+  "sentence_period": 0.0027443801518529654,
+  "sentence_newline": 0.013349674642086029,
+  "after_tool_call": 3.570449916878715e-05,
+  "after_tool_response": 0.00021169453975744545,
+  "answer_after_tool": 0.070315882563591
+ }
+}

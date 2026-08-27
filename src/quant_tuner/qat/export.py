@@ -88,11 +88,20 @@ def export_qat(latents: Path, tag: str = "qat", *, model_dir: Path = MODEL,
                     n_tern += 1
     print(f"[export] ternarized {n_tern} linears", flush=True)
 
-    # restore the original prism chat template (else convert bakes a thinking default)
+    # Restore the original prism chat template. This is NOT optional and must not be a
+    # silent skip: the unpacked tokenizer ships no chat_template, so the conversion bakes
+    # a thinking-enabled Qwen3 default instead. The resulting GGUF loads, serves, and
+    # answers — it just emits <think> and takes zero tool steps, which reads as a model
+    # that lost its agentic ability rather than as a missing file. Fail here instead.
     tmpl = exp_dir / "chat_template.jinja"
-    if tmpl.exists():
-        tok.chat_template = tmpl.read_text()
-        print("[export] restored original prism chat template", flush=True)
+    if not tmpl.exists():
+        raise FileNotFoundError(
+            f"{tmpl} is missing. Without it the F16 conversion bakes a thinking-enabled "
+            f"Qwen3 default and the exported model emits <think> and never tool-calls — "
+            f"a silent, benchmark-shaped failure. Copy it from the unpacked model dir: "
+            f"cp {model_dir / 'chat_template.jinja'} {tmpl}")
+    tok.chat_template = tmpl.read_text()
+    print("[export] restored original prism chat template", flush=True)
 
     out_hf.mkdir(parents=True, exist_ok=True)
     model.save_pretrained(out_hf)

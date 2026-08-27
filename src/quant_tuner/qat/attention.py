@@ -8,9 +8,18 @@ at ``S <= 8191`` (32·8192² == 2³¹ exactly — 8192 fails by *one element*).
 Chunking the **query** dimension removes the cap: block ``i`` computes scores of shape
 ``[B, n_heads, chunk, kv_len]``, which stays far under INT_MAX for any window we care
 about. Causality is preserved exactly — block ``i`` attends to keys ``[0 : i+chunk]`` under
-a ``tril(diagonal=i)`` mask — and the result is **bit-identical** to
-``is_causal=True`` (unit-tested: max abs err 0.0), because softmax is computed per query
-row and query rows are independent.
+a ``tril(diagonal=i)`` mask — and the result is **mathematically identical** to
+``is_causal=True``, because softmax is computed per query row and query rows are
+independent.
+
+It is not always *bit*-identical, and that distinction is a property of the SDPA kernel
+rather than of this code. Slicing K/V per block changes each kernel's reduction length,
+so a tiled/vectorized backend rounds differently: exact for a single block and on the MPS
+training path, but 1-2 ULP away for multi-block calls on an x86 CPU flash kernel
+(measured 2.4e-07 against outputs of magnitude ~3). What matters for training is that the
+error is **flat in the window length** — the same 2.1e-07 at 4 blocks and at 256 — so it
+is per-element rounding that does not accumulate, and long-window results stay comparable
+with short-window ones. Both properties are unit-tested in ``test_qat_attention.py``.
 
 Cost is a Python loop of ``ceil(S/chunk)`` SDPA calls per attention layer; slicing K/V to
 ``[0 : i+chunk]`` also skips the strictly-masked upper triangle, so the arithmetic is the
@@ -120,7 +129,8 @@ def chunked_causal_sdpa(query, key, value, *, dropout: float = 0.0,
                         chunk_hint: int = DEFAULT_CHUNK,
                         score_bytes: int = DEFAULT_SCORE_BYTES,
                         recompute_scores: bool = True, **sdpa_kwargs):
-    """Causal SDPA computed in query blocks. Bit-identical to the unchunked call.
+    """Causal SDPA computed in query blocks. Mathematically identical to the unchunked
+    call; bit-identical only where the kernel's reduction order allows (see module docs).
 
     Handles ``kv_len > q_len`` (a cached prefix): the queries are then the *last*
     ``q_len`` positions, so query row ``r`` of the whole call sits at absolute position
@@ -249,3 +259,84 @@ def disable_chunked_sdpa() -> None:
     _sdpa_mod.sdpa_attention_forward = _original_sdpa
     ALL_ATTENTION_FUNCTIONS["sdpa"] = _original_sdpa
     _original_sdpa = None
+
+
+# --------------------------------------------------------------------------- fp32 GQA
+_original_use_gqa = None
+
+
+#: FlashAttention's head-dimension cap. Above it flash declines and, with
+#: ``enable_gqa=True`` also ruling out the memory-efficient kernel, SDPA lands on math.
+#: gemma-4 sits right on the wrong side of this: its full-attention layers use
+#: ``global_head_dim: 512`` while the sliding ones use 256.
+FLASH_MAX_HEAD_DIM = 256
+
+
+def enable_gqa_repeat_where_unfused() -> None:
+    """Stop transformers asking SDPA for GQA where no fused kernel provides it.
+
+    transformers passes ``enable_gqa=True`` to ``scaled_dot_product_attention`` whenever
+    the mask is None on CUDA (``use_gqa_in_sdpa``), rather than expanding K/V itself. For
+    fp16/bf16 that is the right call — FlashAttention consumes grouped K/V natively. In
+    **fp32 there is no such kernel**: flash and cuDNN reject the dtype outright, and the
+    memory-efficient kernel — which *does* support fp32 — does not support ``enable_gqa``.
+    So the dispatcher silently falls all the way back to **math**, which materializes the
+    full ``[batch, n_heads, S, S]`` score matrix for backward.
+
+    Measured on Qwen3-8B (32 heads / 8 KV) at S=2048, fp32, one fwd+bwd:
+
+        repeat_kv + is_causal      0.251 GiB   fused
+        enable_gqa=True            2.156 GiB   math — [H,S,S] is 0.500 GiB
+        repeat_kv + bool mask      0.266 GiB   fused
+
+    At a 8064 window that score matrix is 7.75 GiB and the run OOMs on a 95 GiB card
+    while doing nothing unusual. transformers already has the ``repeat_kv`` branch —
+    this only makes the predicate honest about fp32, so the fused path is reachable.
+
+    Cost of expanding: K/V go from 8 to 32 heads as a *view-based* reshape, so the extra
+    memory is the materialized expansion, not a second attention algorithm — far below
+    the score matrix it avoids.
+
+    **The dtype is not the only way to fall off the fused path.** FlashAttention also
+    caps head_dim at 256, and gemma-4's full-attention layers use ``global_head_dim:
+    512`` (its sliding layers use 256, so only some layers fall through — which is why
+    the failure looks intermittent). With ``enable_gqa=True`` still set, the
+    memory-efficient kernel is ruled out too and the dispatcher lands on math, which
+    materializes ``[batch, n_heads, S, S]``. Measured: a bf16 forward-only pass of
+    gemma-4-E4B — a **16 GB** model — OOM'd a 95 GiB card at a 32768 window, allocating
+    88.5 GiB, because ``[1, 8, 32768, 32768]`` is 17.2 GiB per layer. The 31B teacher
+    escaped it only because its head_dim is 256.
+
+    So the predicate is honest about both: fp32, and head_dim past the flash cap.
+
+    Idempotent; :func:`disable_fp32_gqa_repeat` restores the original predicate.
+    """
+    global _original_use_gqa
+    from transformers.integrations import sdpa_attention as _sdpa_mod
+
+    if _original_use_gqa is not None:
+        return
+    _original_use_gqa = _sdpa_mod.use_gqa_in_sdpa
+
+    def use_gqa_in_sdpa(attention_mask, key):
+        if key.dtype not in (torch.float16, torch.bfloat16):
+            return False
+        if key.shape[-1] > FLASH_MAX_HEAD_DIM:
+            return False
+        return _original_use_gqa(attention_mask, key)
+
+    _sdpa_mod.use_gqa_in_sdpa = use_gqa_in_sdpa
+
+
+#: The original name, from when fp32 was the only known way off the fused path.
+enable_fp32_gqa_repeat = enable_gqa_repeat_where_unfused
+
+
+def disable_fp32_gqa_repeat() -> None:
+    """Restore transformers' own GQA predicate (tests)."""
+    global _original_use_gqa
+    if _original_use_gqa is None:
+        return
+    from transformers.integrations import sdpa_attention as _sdpa_mod
+    _sdpa_mod.use_gqa_in_sdpa = _original_use_gqa
+    _original_use_gqa = None

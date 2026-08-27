@@ -1,0 +1,9 @@
+step,tensor,flip_pct,zero_to_nonzero,nonzero_to_zero,sign_flips,densify_ratio,net_density_delta,scale_drift_pct,flip_pct_delta,z2nz_delta
+100,model.layers.0.self_attn.q_proj,0.1579,11321,14715,457,0.7693510023785253,-3394,1.23,,
+100,model.layers.5.self_attn.k_proj,0.1002,2598,1604,0,1.619700748129676,994,1.21,,
+100,model.layers.10.self_attn.v_proj,0.0705,2368,591,0,4.006768189509306,1777,1.16,,
+100,model.layers.15.self_attn.o_proj,0.1316,16189,5894,0,2.7466915507295555,10295,1.28,,
+100,model.layers.20.self_attn.o_proj,0.1742,22493,6727,0,3.3436896090382042,15766,1.3,,
+100,model.layers.25.mlp.gate_proj,0.1407,59477,11357,0,5.237034428106014,48120,1.34,,
+100,model.layers.30.mlp.up_proj,0.1244,45585,17018,0,2.6786343871195206,28567,1.31,,
+100,model.layers.35.mlp.down_proj,0.2296,61945,53635,0,1.1549361424442994,8310,1.25,,

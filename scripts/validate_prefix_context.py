@@ -36,6 +36,7 @@ sys.path.insert(0, str(REPO / "src"))
 
 import torch  # noqa: E402
 
+from quant_tuner.qat._device import resolve_backend  # noqa: E402
 from quant_tuner.qat.attention import enable_chunked_sdpa  # noqa: E402
 from quant_tuner.qat.train import MODEL, masked_forward, prefix_window  # noqa: E402
 
@@ -50,10 +51,16 @@ def main() -> int:
     ap.add_argument("--model-dir", type=Path, default=MODEL)
     ap.add_argument("--tail", type=int, default=4096)
     ap.add_argument("--windows", type=int, default=4)
-    ap.add_argument("--device", default="mps")
+    ap.add_argument("--device", default="auto",
+                    help="cuda / mps / cpu (default auto: cuda > mps > cpu)")
     ap.add_argument("--tol", type=float, default=TOL)
     args = ap.parse_args()
 
+    backend = resolve_backend(args.device)
+    dev = backend.name
+    print(f"[validate] device {backend.describe()}", flush=True)
+    # The prefix K/V ride in qat.attention's store rather than a transformers Cache, so
+    # the patched kernel is required to validate the split on ANY device.
     enable_chunked_sdpa()
     blob = torch.load(args.corpus, weights_only=False)
     ids_all, lbl_all = blob["ids"], blob["labels"]
@@ -65,15 +72,15 @@ def main() -> int:
     from transformers import AutoModelForCausalLM
     print(f"[validate] loading {args.model_dir}", flush=True)
     model = AutoModelForCausalLM.from_pretrained(args.model_dir, dtype=torch.float32)
-    model = model.to(args.device).eval()
+    model = model.to(dev).eval()
     model.config.use_cache = False
 
     print(f"[validate] window {window} = {n_prefix} prefix + {args.tail} tail; "
           f"tol {args.tol}", flush=True)
     worst, checked, failures = 0.0, 0, 0
     for i in range(min(args.windows, ids_all.shape[0])):
-        ids = ids_all[i:i + 1].to(args.device)
-        lbl = lbl_all[i:i + 1].to(args.device)
+        ids = ids_all[i:i + 1].to(dev)
+        lbl = lbl_all[i:i + 1].to(dev)
         # The reference scores exactly the targets a prefix split keeps, with the WHOLE
         # window in the graph — same target set, full context, no split.
         tail_only = lbl.clone()
@@ -96,8 +103,7 @@ def main() -> int:
               f"delta {delta:.2e}  targets {int(got_idx.numel())}"
               f"{'' if same_targets else ' TARGET-SET MISMATCH'}  {'ok' if ok else 'FAIL'}",
               flush=True)
-        if args.device == "mps":
-            torch.mps.empty_cache()
+        backend.empty_cache()
 
     if not checked:
         sys.exit("[validate] no window had a target in the tail — nothing was validated")

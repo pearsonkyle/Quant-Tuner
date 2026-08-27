@@ -1,0 +1,112 @@
+{
+ "cap_p": 0.6,
+ "contexts": "bank (real-material, out/exp-058/kd/rep_bank.json)",
+ "series": {
+  "vanilla": {
+   "1": 0.6171,
+   "2": 0.6188,
+   "3": 0.6263,
+   "4": 0.6335,
+   "5": 0.6368
+  },
+  "anchor7 (no rep fix)": {
+   "1": 0.7753,
+   "2": 0.9089,
+   "3": 0.9539,
+   "4": 0.9691,
+   "5": 0.9776
+  },
+  "anchor8 (synthetic hinge)": {
+   "1": 0.7768,
+   "2": 0.8752,
+   "3": 0.9249,
+   "4": 0.9436,
+   "5": 0.9558
+  },
+  "teacher 32B (forced)": {
+   "1": 0.7889,
+   "2": 0.8874,
+   "3": 0.9124,
+   "4": 0.9682,
+   "5": 0.9375
+  },
+  "anchor9 (seed 23, trained-on)": {
+   "1": 0.0492,
+   "2": 0.0439,
+   "3": 0.0447,
+   "4": 0.046,
+   "5": 0.046
+  },
+  "anchor9 (seed 99, held-out)": {
+   "1": 0.0993,
+   "2": 0.0843,
+   "3": 0.0837,
+   "4": 0.0851,
+   "5": 0.0877
+  },
+  "anchor9 REAL episode state": {
+   "1": 0.9609,
+   "2": 0.902,
+   "3": 0.9348,
+   "5": 0.9184
+  },
+  "anchor10@100 (harvested)": {
+   "3": 0.2182
+  },
+  "anchor10@200 (harvested)": {
+   "3": 0.3492
+  },
+  "anchor10@300 (harvested)": {
+   "3": 0.2181
+  },
+  "anchor10@400 (harvested)": {
+   "3": 0.2683
+  },
+  "anchor10@500 (harvested)": {
+   "3": 0.2051
+  },
+  "anchor10@600 (harvested)": {
+   "3": 0.373
+  },
+  "anchor10 (seed 99, held-out)": {
+   "1": 0.4764,
+   "2": 0.4396,
+   "3": 0.4312,
+   "4": 0.4306,
+   "5": 0.4371
+  }
+ },
+ "note": "REAL-episode series: P(repeat) measured in the reconstructed mimic episode (measure_traj_repeat.py) \u2014 same weights that read 0.08 on constructed held-out contexts. Full depth: 0.96@1 -> 0.98@29. The residual loop lives in self-generated long-context state only.",
+ "checkpoints": {
+  "100": {
+   "harvested_mean": 0.2182,
+   "harvested_max": 0.8917,
+   "bank_heldout_k3_mean": 0.1871
+  },
+  "200": {
+   "harvested_mean": 0.3492,
+   "harvested_max": 0.6536,
+   "bank_heldout_k3_mean": 0.3571
+  },
+  "300": {
+   "harvested_mean": 0.2181,
+   "harvested_max": 0.3893,
+   "bank_heldout_k3_mean": 0.2829
+  },
+  "400": {
+   "harvested_mean": 0.2683,
+   "harvested_max": 0.4417,
+   "bank_heldout_k3_mean": 0.3388
+  },
+  "500": {
+   "harvested_mean": 0.2051,
+   "harvested_max": 0.3626,
+   "bank_heldout_k3_mean": 0.3042
+  },
+  "600": {
+   "harvested_mean": 0.373,
+   "harvested_max": 0.5847,
+   "bank_heldout_k3_mean": 0.443
+  }
+ }
+}

@@ -1,0 +1,5 @@
+{
+  "sentence_period": 0.0000005,
+  "sentence_newline": 0.000143,
+  "after_tool_call": 0.999989
+}

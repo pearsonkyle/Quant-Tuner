@@ -1,0 +1,23 @@
+{
+  "n_steps_logged": 182,
+  "n_val": 18,
+  "n_flip_rows": 72,
+  "step_last": 905,
+  "total_steps": 2929,
+  "loss_first": 1.9619,
+  "loss_last": 1.3329,
+  "loss_peak": 3.3395,
+  "loss_peak_step": 540,
+  "s_per_step_first": 66.2,
+  "s_per_step_last": 64.1,
+  "mem_gib_max": 32.4,
+  "val_first": 0.9217,
+  "val_last": 1.6694,
+  "val_best": 0.7639,
+  "val_best_step": 200,
+  "flip_report_step": 900,
+  "flip_pct_max": 12.6044,
+  "flip_pct_mean": 9.974075,
+  "flip_pct_min": 7.1689,
+  "scale_drift_pct_mean": 4.7662
+}

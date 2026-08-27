@@ -1,0 +1,7 @@
+label,instance_id,resolved,patch_produced,f2p_passed,f2p_total,p2p_passed,p2p_total,steps,tool_errors,tool_err_rate,malformed,timeouts,nonzero_exits,out_tokens,in_tokens,wall_s,exit_status,hit_max_turns,reasoning_budget
+HARVEST-anchor9,12rambau__sepal_ui-814,0,0,0,1,0,6,60,0,0.0,0,0,0,7270,650395,35.2,error:MaxTurnsExceeded,1,2048
+HARVEST-anchor9,ASPP__pelita-875,0,0,0,1,9,9,60,0,0.0,0,0,0,4323,818669,28.1,error:MaxTurnsExceeded,1,2048
+HARVEST-anchor9,Azure__pykusto-159,0,0,0,1,0,20,60,0,0.0,0,0,2,3136,557330,20.5,error:MaxTurnsExceeded,1,2048
+HARVEST-anchor9,CS-SI__eodag-490,0,0,0,1,0,11,60,0,0.0,0,0,9,3497,384821,27.7,error:MaxTurnsExceeded,1,2048
+HARVEST-anchor9,DataDog__datadogpy-625,0,0,0,1,0,23,60,0,0.0,0,0,0,4137,891165,42.6,error:MaxTurnsExceeded,1,2048
+HARVEST-anchor9,Duke-GCB__lando-194,0,0,0,1,0,6,60,0,0.0,0,0,58,2177,161192,17.6,error:MaxTurnsExceeded,1,2048

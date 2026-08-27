@@ -132,3 +132,85 @@ def test_kd_loss_handles_fp16_storage_roundtrip():
     vals, idx = torch.topk(t_logp, K, dim=-1)
     loss = kd_loss_from_topk(torch.randn(P, V), idx.to(torch.int32), vals.to(torch.float16))
     assert torch.isfinite(loss) and float(loss) > 0
+
+
+def test_topk_rows_chunked_matches_whole(monkeypatch):
+    """The chunk size is a memory knob, not a numerics knob: any chunk must produce
+    exactly the table a single whole-tensor pass produces (32B OOM fix, 2026-08-19)."""
+    from quant_tuner.qat import kd_precompute as kp
+
+    torch.manual_seed(0)
+    lg = torch.randn(37, 50, dtype=torch.bfloat16)  # odd row count, bf16 like the teacher
+    stop_id = 7
+    for include in (None, [stop_id]):
+        monkeypatch.setattr(kp, "_chunk_positions", lambda *a, **k: 10_000)
+        v0, i0, t0 = kp._topk_rows(lg.clone(), 8, include)
+        monkeypatch.setattr(kp, "_chunk_positions", lambda *a, **k: 5)
+        v1, i1, t1 = kp._topk_rows(lg.clone(), 8, include)
+        assert torch.equal(i0, i1)
+        assert torch.equal(v0, v1)
+        assert torch.equal(t0, t1)
+        if include:
+            assert (i1 == stop_id).any(-1).all(), "forced id missing from a support row"
+
+
+def test_chunk_positions_is_budgeted_in_bytes_not_positions():
+    """Every transient in the precompute is [positions, vocab], so a position count
+    tuned on one teacher silently grows with the next teacher's vocabulary. gemma-4's
+    262,144 is 1.73x Qwen's 151,669 -- the same 4096 positions that cost 2.3 GiB there
+    cost 4.0 GiB here, and the OOM lands at whichever window happens to be densest
+    rather than at the first one a smoke test sees."""
+    from quant_tuner.qat.kd_precompute import _chunk_positions
+
+    budget = 2 * 2**30
+    for vocab in (151_669, 262_144):
+        n = _chunk_positions(budget, vocab, 4)
+        assert n * vocab * 4 <= budget, (vocab, n)
+    # the whole point: a bigger vocabulary buys fewer positions per chunk
+    assert _chunk_positions(budget, 262_144, 4) < _chunk_positions(budget, 151_669, 4)
+    # a small vocabulary must not collapse the chunk to something pathological
+    assert _chunk_positions(budget, 8, 4) >= 256
+
+
+def test_keep_chunking_leaves_qwen_windows_whole_and_splits_gemma():
+    """The head-selection split costs an extra trunk forward, so it must not fire on
+    the teacher it was already tuned for. At the 8 GiB budget a 151,669-vocab bf16
+    teacher covers a whole 32k window; a 262,144-vocab one does not."""
+    from quant_tuner.qat.kd_precompute import KEEP_CHUNK_BYTES, _chunk_positions
+
+    assert _chunk_positions(KEEP_CHUNK_BYTES, 151_669, 2) >= 32_768
+    assert _chunk_positions(KEEP_CHUNK_BYTES, 262_144, 2) < 32_768
+
+
+def test_gqa_predicate_declines_past_the_flash_head_dim_cap():
+    """FlashAttention caps head_dim at 256. Past it flash declines, and `enable_gqa=True`
+    also rules out the memory-efficient kernel, so SDPA lands on math and materializes
+    [batch, heads, S, S]. gemma-4's full-attention layers use global_head_dim 512 (its
+    sliding layers use 256, so only SOME layers fall through and the failure looks
+    intermittent): a bf16 forward-only pass of the 16 GB E4B allocated 88.5 GiB at a
+    32768 window before this. The 31B teacher escaped it only at head_dim 256."""
+    from transformers.integrations import sdpa_attention as sd
+
+    from quant_tuner.qat.attention import (
+        FLASH_MAX_HEAD_DIM,
+        disable_fp32_gqa_repeat,
+        enable_gqa_repeat_where_unfused,
+    )
+
+    try:
+        enable_gqa_repeat_where_unfused()
+        bf16 = torch.float16
+        ok = torch.zeros(1, 2, 4, FLASH_MAX_HEAD_DIM, dtype=bf16)
+        too_wide = torch.zeros(1, 2, 4, FLASH_MAX_HEAD_DIM * 2, dtype=bf16)
+        fp32 = torch.zeros(1, 2, 4, FLASH_MAX_HEAD_DIM, dtype=torch.float32)
+        # mask=None is the case transformers would hand to enable_gqa
+        assert sd.use_gqa_in_sdpa(None, too_wide) is False, "head_dim 512 must not use gqa"
+        assert sd.use_gqa_in_sdpa(None, fp32) is False, "fp32 must not use gqa"
+        # At/below the cap in a supported dtype the patch must NOT interfere -- the
+        # whole point is that grouped K/V is the right call where flash takes it.
+        disable_fp32_gqa_repeat()
+        upstream = sd.use_gqa_in_sdpa(None, ok)
+        enable_gqa_repeat_where_unfused()
+        assert sd.use_gqa_in_sdpa(None, ok) == upstream, "narrowed a case flash handles"
+    finally:
+        disable_fp32_gqa_repeat()

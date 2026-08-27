@@ -1,0 +1,422 @@
+[
+  {
+    "n": 1,
+    "cmd": "ls -la /test/repos/repo && find . -name \"*.py\" -exec grep -l \"Order of columns does not match\" {} \\; | head -100",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "ls: cannot access '/test/repos/repo': No such file or directory\n"
+  },
+  {
+    "n": 2,
+    "cmd": "ls -la /test/repos/repo && ls -la /testbed",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "ls: cannot access '/test/repos/repo': No such file or directory\n"
+  },
+  {
+    "n": 3,
+    "cmd": "find . -name \"*.py\" -exec grep -l \"Order of columns does not match\" {} \\;",
+    "rc": 0,
+    "kind": "ok",
+    "out_head": "./dask/dataframe/tests/test_utils_dataframe.py\n./dask/dataframe/utils.py\n"
+  },
+  {
+    "n": 4,
+    "cmd": "ls -la /testbed/dask/dataframe/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "ls: cannot access '/testbed/dask/dataframe/utils.py': No such file or directory\n"
+  },
+  {
+    "n": 5,
+    "cmd": "cd /testbed/dask/dataframe && grep -A20 -B20 'Order of columns does not match' dask/dataframe/tests/test_utils_dataframe.py",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dask/dataframe\n"
+  },
+  {
+    "n": 6,
+    "cmd": "find /testbed/dask/dataframe && grep -r \"Order of columns does not match\" dask/dataframe/tests/test_utils_dataframe.py",
+    "rc": 1,
+    "kind": "nonzero",
+    "out_head": "find: \u2018/testbed/dask/dataframe\u2019: No such file or directory\n"
+  },
+  {
+    "n": 7,
+    "cmd": "cd /testbed/dask/dataframe && grep -r \"Order of columns does not match\" dskypy/dskypy/dskypy/dskypy/dskypy/dskypy/dskypy/dskypy/dskypy/dskypy/dskypy/dskypy/dskypy/dskypy",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dask/dataframe\n"
+  },
+  {
+    "n": 8,
+    "cmd": "cd /testbed/dask && python -c \"\nimport pandas as pd\nimport dask.dataframe as df\n\ndata = {\n    'id': [1, 2, 2, 2],\n    'date': ['2023-01-01', '2023-01-04', '2023-01-05', '2023-01-01', '2023-01-04', '2023-01-05']\n    'metric': [1,1,1,1,1,1]\n}\npdf = pd.DataFrame(data).astype({'int': 'int4', 'metric': 'int64', 'date': 'datetime4[ns']},)\ndf = pd.from_df(npdf)\nprint('df.dtypes:', df.dtypes)\nprint('df.compute()', df.compute())\n\"",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dask\n"
+  },
+  {
+    "n": 9,
+    "cmd": "cd /testbed/dask/dataframe && grep -A10 'Order of columns does not match' dskypy/dskypy/dskypy/dskypy/dskypy/dskypy",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dask/dataframe\n"
+  },
+  {
+    "n": 10,
+    "cmd": "cd /testbed/dask && grep -rn \"Order of columns does not match\" dskypy/dskypy/DASSET/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dask\n"
+  },
+  {
+    "n": 11,
+    "cmd": "cd /testbed/dask && grep -rn \"Order of columns does not match\" dskypy/dskypy/DASSET/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dask\n"
+  },
+  {
+    "n": 12,
+    "cmd": "cd /testbed/dask && grep -rn \"Order of columns does not match\" dskypy/DASSET/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dask\n"
+  },
+  {
+    "n": 13,
+    "cmd": "cd /testbed/dask && ls -la /testbed/dskypy/dskypy/dskypy/dskypy/dskypy/DASSET/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dask\n"
+  },
+  {
+    "n": 14,
+    "cmd": "cd /testbed/dask && grep -r \"Order of columns does not match\" dskypy/DASSET/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dask\n"
+  },
+  {
+    "n": 15,
+    "cmd": "cd /testbed/dask && git log --oneline -10",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dask\n"
+  },
+  {
+    "n": 16,
+    "cmd": "cd /testbed/dask && git show HEAD~ && git show HEAD~dskypy/DASSET/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dask\n"
+  },
+  {
+    "n": 17,
+    "cmd": "cd /testbed/dskypy && git show HEAD~dskypy/DASSET/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 18,
+    "cmd": "cd /testbed/dskypy && git log --oneline -10",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 19,
+    "cmd": "cd /testbed/dskypy && git diff HEAD~5 -- dskypy/dskypy/dskypy/DASSET/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 20,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/dskypy",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 21,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/dskypy",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 22,
+    "cmd": "cd /testbed/dskypy && git diff HEAD dskypy/DASSET/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 23,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/dskypy",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 24,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/dskypy",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 25,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/dskypy/DASSET/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 26,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/dskypy/DASSET/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 27,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/dskypy/DASSET/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 28,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/dskypy/DASSet/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 29,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/dskypy/DASSet/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 30,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/DASSet/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 31,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/DASet/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 32,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/DASSet/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 33,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/DASSet/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 34,
+    "cmd": "cd /testbed/dskypy && grep -rn \"Order of columns does not match\" dskypy/DASSet/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 35,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/DASSet/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 36,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/DASSetSrc/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 37,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/DASetSrc/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 38,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/DASSetSrc/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 39,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/DASSetSrc/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 40,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/DASSetSrc/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 41,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/DASSetSrc/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 42,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/DASSetSrc/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 43,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/DASSetSrc/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 44,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/DASSetCs/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 45,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/DASSetCs/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 46,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/DASSetCs/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 47,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/DASSetCs/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 48,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/DASSetCs/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 49,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/DASSetCs/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 50,
+    "cmd": "cd /testbed/dask && python -c \"\nimport pandas as pd\nimport dskypy as df\n\ndata = {\n    'id': [1, 2, 2, 2],\n    'date': ['2023-01-01', '2023-01-04', '2023-01-05', '2023-01-01', '2023-01-04', '2023-01-05']\n    'metric': [1,1,1,1,1,1]\n}\npdf = np.DataFrame(data).astype({'int': 'int4', 'metric': 'int64', 'date': 'datetime4[ns']},)\ndf = np.from_df(npdf)\nprint('df.dtypes:', df.dtypes)\nprint('df.compute()', df.compute())\n\"",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dask\n"
+  },
+  {
+    "n": 51,
+    "cmd": "cd /testbed/dskypy && git diff dskypy/DASSetCs/src/README.md",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 52,
+    "cmd": "cd /testbed/dskypy && git diff HEAD dskypy/dskypy/dskypy/DASset/src/README.md",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 53,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/DASSetCs/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 54,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/DASSetCs/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 55,
+    "cmd": "cd /testbed/dskypy && git diff HEAD dskypy/DASSetCs/src/README.md",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 56,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/DASSetCs/src/README.md",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 57,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/DASSetCs/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 58,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/DASSetCs/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 59,
+    "cmd": "cd /testbed/dskypy && git checkout dskypy/DASSetCs/src/",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  },
+  {
+    "n": 60,
+    "cmd": "cd /testbed/dskypy && python -c \"\nimport pandas as pd\nimport dskypy as df\n\ndata = {\n    'columns': ['col', 'col', 'col'],\n    'dates': ['2023-01-01', '2023-01-04', '2023-01-05', '2023-01-01', '2023-01-04', '2023-01-05'],\n    'metrics': [1,1,1,1,1,1]\n}\npdf = np.DataFrame(data).astype({'int': 'int4', 'metric': 'int64', 'date': 'datetime4[ns']},)\ndf = np.from_df(npdf)\nprint('df.dtypes:', df.dtypes)\nprint('df.compute():', df.compute())\n\"",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /testbed/dskypy\n"
+  }
+]

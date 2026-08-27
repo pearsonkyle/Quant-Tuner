@@ -22,15 +22,40 @@ import json
 import re
 from pathlib import Path
 
-# "[qat] step 155/522 loss=1.2212 lr=4.30e-04 mem=30.8GiB 372.0s/step"
+# Two generations of the same line, both accepted — a report must not silently lose a run
+# because the trainer gained a field:
+#   MPS:  "[qat] step 155/522 loss=1.2212 lr=4.30e-04 mem=30.8GiB 372.0s/step"
+#   CUDA: "[qat] step 5/613 loss=1.0837 lr=6.67e-05 gnorm=1.51 mem=31.6/70.6GiB 62.7s/step"
+#   KD:   "[qat] step 10/613 loss=0.8744 kl=0.5535 lr=1.67e-04 gnorm=1.42 ..."
+#   +anchor: "... loss=0.8744 kl=0.5535 an=0.0121 lr=1.67e-04 ..."
+# kl, gnorm and the /peak half of mem are optional; without them the columns come out
+# empty rather than the row failing to parse at all.
 STEP_RE = re.compile(
-    r"^\[qat\] step (\d+)/(\d+) loss=([\d.]+) lr=([\d.e+-]+) mem=([\d.]+)GiB ([\d.]+)s/step"
+    r"^\[qat\] step (?P<step>\d+)/(?P<total>\d+) loss=(?P<loss>[\d.]+) "
+    r"(?:kl=(?P<kl>[\d.eE+-]+) )?(?:an=(?P<an>[\d.eE+-]+) )?"
+    r"(?:st=(?P<st>[\d.eE+-]+) )?(?:rp=(?P<rp>[\d.eE+-]+) )?(?:rk=(?P<rk>[\d.eE+-]+) )?(?:rt=(?P<rt>[\d.eE+-]+) )?"
+    r"lr=(?P<lr>[\d.eE+-]+) (?:gnorm=(?P<gnorm>[\d.eE+-]+) )?"
+    r"mem=(?P<mem>[\d.]+)(?:/(?P<peak>[\d.]+))?GiB (?P<sps>[\d.]+)s/step"
 )
-# "[qat] step 120 VAL masked-CE 1.1017"
+# "[qat] step 120 VAL masked-CE 1.1017" (newer runs append "(4 windows in 59s)")
 VAL_RE = re.compile(r"^\[qat\] step (\d+) VAL masked-CE ([\d.]+)")
-# "  model.layers.0.self_attn.q_proj: flips 1.8593% (0->±:131663 ±->0:179612) scale-drift 2.29%"
+# The in-training termination probe. Masked-CE cannot see a collapsed stop decision
+# (sft32k's val went flat for 225 steps while P(stop|sentence end) went to 0.97), so
+# this series is parsed separately and plotted on its own axis.
+STOPPROBE_RE = re.compile(r"^\[qat\] step (?P<step>\d+) STOPPROBE (?P<body>.*)$")
+KV_RE = re.compile(r"(?P<k>[a-z_]+)=(?P<v>[\d.eE+-]+)")
+# Also two generations. The newer one adds a third counter inside the parens and a density
+# segment before scale-drift, so the tail is matched loosely on purpose:
+#   old: "  ...q_proj: flips 1.8593% (0->±:131663 ±->0:179612) scale-drift 2.29%"
+#   new: "  ...q_proj: flips 1.2445% (0->±:102280 ±->0:106511 ±->∓:0) density 64.9->64.9%
+#         scale-drift 0.68% (+0.08%)"
+# The Δ field appears from the SECOND checkpoint on (flip velocity vs the previous
+# checkpoint) — a regex without it drops every later checkpoint and all flip panels
+# silently degenerate to step-100 (fifth instance of the format/parser drift class).
 FLIP_RE = re.compile(
-    r"^\s+(\S+): flips ([\d.]+)% \(0->\S+:(\d+) \S+->0:(\d+)\) scale-drift ([\d.]+)%"
+    r"^\s+(?P<tensor>\S+): flips (?P<pct>[\d.]+)%(?: Δ(?P<dlt>[+-][\d.]+))? "
+    r"\(0->\S+:(?P<z2nz>\d+) \S+->0:(?P<nz2z>\d+)(?: \S+->\S+:(?P<sign>\d+))?\)"
+    r".*?scale-drift (?P<drift>[\d.]+)%"
 )
 CKPT_RE = re.compile(r"^\[qat\] checkpoint @ step (\d+)")
 
@@ -38,35 +63,55 @@ CKPT_RE = re.compile(r"^\[qat\] checkpoint @ step (\d+)")
 def parse(text: str) -> dict[str, list[dict]]:
     steps: list[dict] = []
     vals: list[dict] = []
+    probes: list[dict] = []
     flips: list[dict] = []
     pending: list[dict] = []  # flip rows seen since the last checkpoint line
     last_step = 0
 
     for line in text.splitlines():
         if m := STEP_RE.match(line):
-            last_step = int(m.group(1))
+            last_step = int(m.group("step"))
             steps.append({
                 "step": last_step,
-                "total_steps": int(m.group(2)),
-                "loss": float(m.group(3)),
-                "lr": float(m.group(4)),
-                "mem_gib": float(m.group(5)),
-                "s_per_step": float(m.group(6)),
+                "total_steps": int(m.group("total")),
+                "loss": float(m.group("loss")),
+                "kd_kl": float(m.group("kl")) if m.group("kl") else None,
+                "stop_anchor": float(m.group("an")) if m.group("an") else None,
+                "steer": float(m.group("st")) if m.group("st") else None,
+                "steer_rep": float(m.group("rp")) if m.group("rp") else None,
+                "rep_kl": float(m.group("rk")) if m.group("rk") else None,
+                "rep_traj": float(m.group("rt")) if m.group("rt") else None,
+                "lr": float(m.group("lr")),
+                "grad_norm": float(m.group("gnorm")) if m.group("gnorm") else None,
+                "mem_gib": float(m.group("mem")),
+                "mem_peak_gib": float(m.group("peak")) if m.group("peak") else None,
+                "s_per_step": float(m.group("sps")),
             })
         elif m := VAL_RE.match(line):
             vals.append({"step": int(m.group(1)), "val_masked_ce": float(m.group(2))})
+        elif m := STOPPROBE_RE.match(line):
+            # Only the "k=v" pairs before the bracketed gloss; the gloss repeats two of
+            # them with reference values and would overwrite the real ones.
+            body = m.group("body").split("[")[0]
+            row = {"step": int(m.group("step"))}
+            for kv in KV_RE.finditer(body):
+                row[kv.group("k")] = float(kv.group("v"))
+            probes.append(row)
         elif m := FLIP_RE.match(line):
-            z2nz, nz2z = int(m.group(3)), int(m.group(4))
+            z2nz, nz2z = int(m.group("z2nz")), int(m.group("nz2z"))
             pending.append({
-                "tensor": m.group(1),
-                "flip_pct": float(m.group(2)),
+                "tensor": m.group("tensor"),
+                "flip_pct": float(m.group("pct")),
                 "zero_to_nonzero": z2nz,
                 "nonzero_to_zero": nz2z,
+                # ±->∓ is a straight sign reversal, a different event from recruit/prune:
+                # it changes what a weight does without changing how many are live.
+                "sign_flips": int(m.group("sign")) if m.group("sign") else None,
                 # >1 = recruiting dead weights, <1 = pruning, ~1 = sign reorganization.
                 # The split by tensor type is the whole point of tracking both counts.
                 "densify_ratio": (z2nz / nz2z) if nz2z else None,
                 "net_density_delta": z2nz - nz2z,
-                "scale_drift_pct": float(m.group(5)),
+                "scale_drift_pct": float(m.group("drift")),
             })
         elif m := CKPT_RE.match(line):
             # the flip block is printed immediately BEFORE its checkpoint line, so the
@@ -80,7 +125,7 @@ def parse(text: str) -> dict[str, list[dict]]:
     # landed yet; attribute it to the last step seen rather than dropping it
     for row in pending:
         flips.append({"step": last_step, **row})
-    return {"steps": steps, "val": vals, "flips": flips}
+    return {"steps": steps, "val": vals, "flips": flips, "probes": probes}
 
 
 def add_flip_velocity(flips: list[dict]) -> None:
@@ -155,6 +200,7 @@ def main() -> int:
     args.out.mkdir(parents=True, exist_ok=True)
     write_csv(args.out / "steps.csv", data["steps"])
     write_csv(args.out / "val.csv", data["val"])
+    write_csv(args.out / "stopprobe.csv", data["probes"])
     write_csv(args.out / "flips.csv", data["flips"])
     summary = summarize(data)
     (args.out / "summary.json").write_text(json.dumps(summary, indent=2))

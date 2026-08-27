@@ -34,13 +34,14 @@ import gzip
 import hashlib
 import json
 import random
-import re
 import sys
 from pathlib import Path
 
 import torch
 
 from quant_tuner.data import split
+from quant_tuner.qat.dialect import ChatDialect
+from quant_tuner.qat.dialect import detect as detect_dialect
 
 REPO = Path(__file__).resolve().parents[3]
 MODEL = REPO / "out" / "exp-057" / "model"
@@ -48,8 +49,8 @@ CHAT_TEMPLATE = REPO / "out" / "exp-057" / "chat_template.jinja"
 LOGTRAIN = REPO / "datasets" / "agent-logs" / "data" / "logs-cli.jsonl.gz"
 WIKI = REPO / "out" / "exp-001" / "wiki" / "wiki.test.raw"
 
-# assistant span in Qwen render: from "<|im_start|>assistant\n" to the next "<|im_end|>"
-_ASST_RE = re.compile(r"<\|im_start\|>assistant\n(.*?)<\|im_end\|>", re.DOTALL)
+#: Historical alias. The span rule itself now lives in :mod:`quant_tuner.qat.dialect`
+#: (per family); this is kept only because the audit scripts print it.
 IM_END = "<|im_end|>"
 
 # The single bash tool the openai-agents SWE backend registers (kept in sync with
@@ -150,21 +151,115 @@ def truncate_tool_messages(
     return out, n_trunc, saved
 
 
+#: Control tokens that must never appear inside message CONTENT. The corpus is rendered
+#: with special-token parsing on (it has to be — that is how the chat structure works), so
+#: a log that quotes one of these gets a REAL control token in the middle of prose.
+CONTROL_TOKEN_STRINGS = ("<|im_start|>", "<|im_end|>")
+
+
+def merge_consecutive_assistant(msgs: list[dict]) -> tuple[list[dict], int]:
+    """Merge adjacent assistant messages into one turn. Returns (msgs, n_merged).
+
+    THE DEFECT THIS FIXES. Agent logs record one logical assistant turn as several
+    messages — a prose message ("Let me check the current state:") followed by a separate
+    message carrying only ``tool_calls``. Rendered verbatim, each fragment becomes its own
+    ``<|im_start|>assistant ... <|im_end|>`` turn, so the corpus teaches that a short
+    prose preamble is followed by the STOP token rather than by the tool call that
+    actually came next. Measured on the universal SFT corpus: 21.2% of logs-agents
+    assistant messages and 9.0% of logs ones are preceded by another assistant message,
+    and 18.5% of "Let me..."-opening assistant turns end at their first sentence, against
+    0.0% in both the ultrachat and distillation corpora.
+
+    That is the corpus half of the termination collapse (P(stop | sentence end) 0.95 in
+    trained models against the shipped model's 0.009).
+
+    Only ASSISTANT messages are merged. Tool results arrive as ``user``-role messages in
+    this template, so merging consecutive user messages would fuse a real user turn with a
+    tool response — a different and worse corruption.
+    """
+    out: list[dict] = []
+    merged = 0
+    for m in msgs:
+        if (out and m.get("role") == "assistant" and out[-1].get("role") == "assistant"):
+            prev = out[-1]
+            a, b = (prev.get("content") or ""), (m.get("content") or "")
+            # Two prose fragments are separate paragraphs of one turn; prose followed by a
+            # tool-call-only message must not gain a trailing separator.
+            prev["content"] = f"{a}\n\n{b}" if (a.strip() and b.strip()) else (a or b)
+            calls = list(prev.get("tool_calls") or []) + list(m.get("tool_calls") or [])
+            if calls:
+                prev["tool_calls"] = calls
+            ra, rb = (prev.get("reasoning_content") or ""), (m.get("reasoning_content") or "")
+            if ra.strip() or rb.strip():
+                prev["reasoning_content"] = f"{ra}\n\n{rb}" if (ra.strip() and rb.strip()) \
+                    else (ra or rb)
+            merged += 1
+            continue
+        out.append(dict(m))
+    return out, merged
+
+
+def drop_empty_assistant(msgs: list[dict]) -> tuple[list[dict], int]:
+    """Remove assistant messages with no content and no tool calls.
+
+    An empty assistant message renders as ``<|im_start|>assistant\\n<|im_end|>`` — a
+    supervised span whose ONLY trained token is the stop token. It is the purest possible
+    lesson in "emit <|im_end|> immediately", and the agent logs carry 2,155 of them
+    (2,065 in logs-agents alone) from turns where the harness recorded a response that
+    held only tool-use blocks, or nothing at all.
+
+    That is what the `start` probe measures, and it moved 0.00002 -> 0.12194 in the run
+    trained on this corpus.
+
+    Run AFTER :func:`merge_consecutive_assistant`, which absorbs all but a handful of
+    these into the neighbouring turn; this catches the ones with no assistant neighbour.
+    """
+    out = [m for m in msgs
+           if not (m.get("role") == "assistant"
+                   and not (m.get("content") or "").strip()
+                   and not (m.get("tool_calls") or []))]
+    return out, len(msgs) - len(out)
+
+
+def has_inline_control_tokens(msgs: list[dict],
+                              dialect: ChatDialect | None = None) -> bool:
+    """True if any message CONTENT quotes a chat control token.
+
+    These come from our own past sessions debugging chat templates: the assistant wrote
+    ``rendered.find('<|im_end|>')`` in a code block, and with special-token parsing on that
+    becomes a real stop token inside supervised prose. Rare (2 of 6,645 occurrences) but
+    unambiguously teaches the model to emit a control token mid-sentence, so the
+    conversation is dropped rather than repaired — rewriting the token would corrupt the
+    code the message is about.
+    """
+    tokens = dialect.control_tokens if dialect is not None else CONTROL_TOKEN_STRINGS
+    for m in msgs:
+        blob = (m.get("content") or "") + (m.get("reasoning_content") or "")
+        if any(t in blob for t in tokens):
+            return True
+    return False
+
+
 def masked_ids_for_session(
-    msgs: list[dict], tok, tools: list | None = None, text: str | None = None
+    msgs: list[dict], tok, tools: list | None = None, text: str | None = None,
+    dialect: ChatDialect | None = None,
 ) -> tuple[list[int], list[int]]:
     """Return (ids, labels) with labels = ids on assistant tokens, -100 elsewhere.
 
-    The labeled span runs from the first content character after the
-    ``<|im_start|>assistant\\n`` header through the END of the terminating
-    ``<|im_end|>`` (``m.end(0)``): the terminator is a trained target — it is the
-    stop/EOS decision — while the header stays context (at inference it is part
-    of the generation prompt, never generated). The token after ``<|im_end|>``
-    (the turn-separating newline) stays -100.
+    The labeled span runs from the first token after the assistant/model turn HEADER
+    through the terminating stop token **inclusive**: the terminator is a trained
+    target — it is the stop/EOS decision, and dropping it is what caused the iter-2/3
+    looping — while the header stays context (at inference it is part of the generation
+    prompt, never generated). The token after it (the turn-separating newline) stays -100.
 
-    Tool schemas render in a system turn (# Tools block), so the assistant-span
-    mask naturally excludes them — schemas are context, only the assistant's
-    tool_calls/text (+ terminator) are trained."""
+    Tool schemas render in a system turn, so the mask naturally excludes them — schemas
+    are context; only the assistant's tool_calls/text (+ terminator) are trained. On
+    gemma-4, whose template embeds tool RESULTS inside the model turn, those are excluded
+    too; see :mod:`quant_tuner.qat.dialect` for why that rule is on ids and not a regex.
+
+    ``dialect`` defaults to whichever one ``tok``'s vocabulary supports."""
+    if dialect is None:
+        dialect = detect_dialect(tok)
     if tools is None:
         tools = reconstruct_tools(msgs)
     if text is None:  # callers that already rendered pass it in to avoid a second render
@@ -172,18 +267,7 @@ def masked_ids_for_session(
                                        add_generation_prompt=False)
     enc = tok(text, add_special_tokens=False, return_offsets_mapping=True)
     ids, offs = enc["input_ids"], enc["offset_mapping"]
-    # char spans: assistant *content* plus the terminating <|im_end|> (m.end(0))
-    spans = [(m.start(1), m.end(0)) for m in _ASST_RE.finditer(text)]
-    labels = [-100] * len(ids)
-    si = 0
-    for j, (a, b) in enumerate(offs):
-        if a == b:  # special/zero-width
-            continue
-        while si < len(spans) and spans[si][1] <= a:
-            si += 1
-        if si < len(spans) and a >= spans[si][0] and b <= spans[si][1]:
-            labels[j] = ids[j]
-    return ids, labels
+    return ids, dialect.labels(ids, text, offs, tok)
 
 
 def pack(stream_ids: list[int], stream_lbl: list[int], window: int,
@@ -212,15 +296,34 @@ def corpus_fingerprint(ids_t: torch.Tensor, lbl_t: torch.Tensor) -> str:
     return h.hexdigest()[:16]
 
 
-def load_tokenizer(model_dir: Path = MODEL, chat_template: Path = CHAT_TEMPLATE):
+def load_tokenizer(model_dir: Path | str = MODEL,
+                   chat_template: Path | None = CHAT_TEMPLATE):
+    """Tokenizer for the corpus render. ``model_dir`` may be a local dir or a repo id.
+
+    ``chat_template`` overrides whatever the tokenizer ships. That override is REQUIRED
+    for the unpacked Bonsai model, whose tokenizer carries no template at all (the render
+    would silently fall back to a thinking-enabled Qwen3 default); it must be left None
+    for a model like gemma-4 that ships its own canonical one, since substituting a
+    template changes the supervised spans.
+    """
     from transformers import AutoTokenizer
-    tok = AutoTokenizer.from_pretrained(model_dir)
-    tok.chat_template = Path(chat_template).read_text()
+    tok = AutoTokenizer.from_pretrained(str(model_dir))
+    if chat_template is not None:
+        p = Path(chat_template)
+        if not p.exists():
+            raise FileNotFoundError(
+                f"chat template {p} not found; pass chat_template=None to use the "
+                f"tokenizer's own")
+        tok.chat_template = p.read_text()
+    elif not getattr(tok, "chat_template", None):
+        raise ValueError(
+            f"{model_dir} ships no chat_template and none was given — the render would "
+            f"fall back to a library default and mask the wrong spans")
     return tok
 
 
 def _finalize(windows: list[dict], window: int, tok, *, extra: dict, out: Path | None,
-              tool_windows: int) -> dict:
+              tool_windows: int, dialect: ChatDialect | None = None) -> dict:
     """Shuffle, tensorize, run the density + stop-token audit, save, return the blob."""
     rng = random.Random(42)
     rng.shuffle(windows)
@@ -231,21 +334,28 @@ def _finalize(windows: list[dict], window: int, tok, *, extra: dict, out: Path |
     deciles = torch.quantile(dens, torch.linspace(0, 1, 11))
     print("[corpus] window trainable-density deciles: "
           + " ".join(f"{d:.2f}" for d in deciles.tolist()), flush=True)
-    im_end_id = tok.convert_tokens_to_ids(IM_END)
+    if dialect is None:
+        dialect = detect_dialect(tok)
+    stop_piece = dialect.stop_piece
+    im_end_id = tok.convert_tokens_to_ids(stop_piece)
     n_im_end = (0 if im_end_id is None
                 else int(((lbl_t == im_end_id) & (lbl_t != -100)).sum()))
-    print(f"[corpus] labeled {IM_END} targets: {n_im_end}", flush=True)
+    print(f"[corpus] dialect={dialect.name} labeled {stop_piece} targets: {n_im_end}",
+          flush=True)
     if tool_windows and im_end_id is not None:
         assert n_im_end > 0, (
-            f"no labeled {IM_END} targets — the stop-token masking bug is back "
-            "(spans must extend through m.end(0))")
+            f"no labeled {stop_piece} targets — the stop-token masking bug is back "
+            "(the supervised span must extend through the terminator inclusive)")
 
     fp = corpus_fingerprint(ids_t, lbl_t)
     blob = {"ids": ids_t, "labels": lbl_t, "window": window,
             # the id, not just the count: `--stop-weight` needs to build a per-vocab CE
             # weight vector, and reading it from the blob keeps that independent of which
-            # tokenizer the trainer happens to load
-            "im_end_id": im_end_id, "im_end_targets": n_im_end, "fingerprint": fp, **extra}
+            # tokenizer the trainer happens to load. `im_end_id` is the historical key and
+            # is kept so old blobs and the trainer keep working; `stop_id` is the same
+            # value under a name that isn't Qwen-specific.
+            "im_end_id": im_end_id, "stop_id": im_end_id, "dialect": dialect.name,
+            "im_end_targets": n_im_end, "fingerprint": fp, **extra}
     if out is not None:
         out = Path(out)
         out.parent.mkdir(parents=True, exist_ok=True)
@@ -492,10 +602,9 @@ def read_sft_jsonl(path: Path) -> list[dict]:
         return [json.loads(line) for line in f if line.strip()]
 
 
-_THINK_RE = re.compile(r"<think>\n(.*?)\n</think>", re.DOTALL)
-
-
-def _sft_conversation_ids(conv: dict, tok, max_tool_tokens: int) -> tuple[list[int], list[int], dict]:
+def _sft_conversation_ids(conv: dict, tok, max_tool_tokens: int,
+                          dialect: ChatDialect | None = None,
+                          ) -> tuple[list[int], list[int], dict]:
     """One SFT row -> (ids, labels, audit), rendered with the STUDENT's chat template.
 
     ``audit`` records what preprocessing COST, per conversation: tool-output tokens
@@ -505,7 +614,16 @@ def _sft_conversation_ids(conv: dict, tok, max_tool_tokens: int) -> tuple[list[i
     whole conversation for an agentic trajectory (one task turn, then dozens of
     assistant/tool turns) but only the tail segment of a multi-turn chat log.
     """
+    if dialect is None:
+        dialect = detect_dialect(tok)
     msgs = [dict(m) for m in conv["messages"]]
+    # BEFORE truncation and before rendering: merging changes which messages exist, so
+    # doing it after would truncate and mask a message layout the template never sees.
+    msgs, n_merged = merge_consecutive_assistant(msgs)
+    # After merging: an assistant message with neither content nor tool calls renders
+    # as a turn whose only supervised token is <|im_end|>. Merging absorbs all but a
+    # handful; this removes the rest.
+    msgs, n_empty = drop_empty_assistant(msgs)
     msgs, n_tr, saved = truncate_tool_messages(msgs, tok, max_tool_tokens)
     tools = conv.get("tools") or None
     if tools is None:
@@ -514,17 +632,22 @@ def _sft_conversation_ids(conv: dict, tok, max_tool_tokens: int) -> tuple[list[i
         tools = reconstruct_tools(msgs) or None
     text = tok.apply_chat_template(msgs, tools=tools, tokenize=False,
                                    add_generation_prompt=False)
-    ids, lbl = masked_ids_for_session(msgs, tok, tools=tools, text=text)
+    ids, lbl = masked_ids_for_session(msgs, tok, tools=tools, text=text, dialect=dialect)
+    # Counted with THIS family's markers. The Qwen strings on a gemma render report
+    # 57/26,389 tool calls surviving a corpus where 25,772 are present and supervised.
+    n_calls, n_reasoning = dialect.count_rendered(text)
     audit = {
+        "assistant_msgs_merged": n_merged,
+        "empty_assistant_dropped": n_empty,
         "tool_msgs_truncated": n_tr,
         "tool_tokens_dropped": saved,
         "src_tool_calls": sum(len(m.get("tool_calls") or []) for m in msgs),
-        "rendered_tool_calls": text.count("<tool_call>"),
+        "rendered_tool_calls": n_calls,
         # reasoning arrives either as a field (agent logs) or inline in content (CLI logs)
         "src_reasoning": sum(1 for m in msgs
                              if (m.get("reasoning_content") or "").strip()
                              or "</think>" in (m.get("content") or "")),
-        "rendered_reasoning": sum(1 for m in _THINK_RE.finditer(text) if m.group(1).strip()),
+        "rendered_reasoning": n_reasoning,
     }
     return ids, lbl, audit
 
@@ -544,6 +667,11 @@ def build_sft_corpus(*, sft_path: Path, data_split: str | None = "train",
     combined window list is shuffled by :func:`_finalize`.
     """
     tok = tok or load_tokenizer()
+    # Resolved once and threaded through: the inline-control-token filter below has to
+    # look for THIS family's tokens. Left to the Qwen default it would wave through a
+    # gemma conversation quoting "<turn|>", putting a real stop token inside supervised
+    # prose — the exact defect the filter exists to catch.
+    dl = detect_dialect(tok)
     budgets = SFT_DEFAULT_BUDGETS if budgets is None else budgets
     rows = read_sft_jsonl(sft_path)
     if data_split is not None:
@@ -576,7 +704,14 @@ def build_sft_corpus(*, sft_path: Path, data_split: str | None = "train",
         n_conv = 0
         au: collections.Counter = collections.Counter()
         for conv in convs:
-            ids, lbl, a = _sft_conversation_ids(conv, tok, max_tool_tokens)
+            # Dropped, not repaired: these are conversations that QUOTE a chat control
+            # token in their content (our own past sessions debugging chat templates), so
+            # the token becomes real inside supervised prose. Rewriting it would corrupt
+            # the code the message is about, and there are only a handful.
+            if has_inline_control_tokens(conv.get("messages") or [], dl):
+                au.update({"dropped_control": 1})
+                continue
+            ids, lbl, a = _sft_conversation_ids(conv, tok, max_tool_tokens, dl)
             au.update(a)
             ids_stream += ids
             lbl_stream += lbl
@@ -598,6 +733,9 @@ def build_sft_corpus(*, sft_path: Path, data_split: str | None = "train",
             "tool_truncation_share": round(
                 au["tool_tokens_dropped"] / max(1, kept + au["tool_tokens_dropped"]), 4),
             "tool_msgs_truncated": au["tool_msgs_truncated"],
+            "assistant_msgs_merged": au.get("assistant_msgs_merged", 0),
+            "empty_assistant_dropped": au.get("empty_assistant_dropped", 0),
+            "conversations_dropped_control_tokens": au.get("dropped_control", 0),
             "tool_calls_rendered": au["rendered_tool_calls"],
             "tool_calls_in_source": au["src_tool_calls"],
             "reasoning_rendered": au["rendered_reasoning"],
@@ -612,6 +750,14 @@ def build_sft_corpus(*, sft_path: Path, data_split: str | None = "train",
               f"tool-output truncation dropped {au['tool_tokens_dropped']:,} tok "
               f"({100 * per_source[src]['tool_truncation_share']:.0f}% of this source's "
               f"conversation content)", flush=True)
+        if (au.get("assistant_msgs_merged") or au.get("dropped_control")
+                or au.get("empty_assistant_dropped")):
+            print(f"[sft]   {'':<16} merged {au.get('assistant_msgs_merged', 0):,} split "
+                  f"assistant messages into their turn · dropped "
+                  f"{au.get('empty_assistant_dropped', 0):,} empty assistant turn(s) "
+                  f"(pure stop-token targets) · dropped "
+                  f"{au.get('dropped_control', 0)} conversation(s) quoting a control token",
+                  flush=True)
         windows += src_windows
         window_source += [source_names.index(src)] * len(src_windows)
 
@@ -630,7 +776,7 @@ def build_sft_corpus(*, sft_path: Path, data_split: str | None = "train",
           f"tool-output truncation dropped {tot_drop:,} tok "
           f"({100 * tot_drop / max(1, tot_tok + tot_drop):.0f}% of conversation content) "
           f"at --max-tool-tokens {max_tool_tokens}", flush=True)
-    return _finalize(windows, window, tok, tool_windows=len(windows), out=out,
+    return _finalize(windows, window, tok, tool_windows=len(windows), out=out, dialect=dl,
                      extra={"tool_windows": len(windows), "wiki_windows": 0,
                             "assistant_frac": frac, "split": f"sft:{data_split}",
                             "min_density": min_density, "max_tool_tokens": max_tool_tokens,

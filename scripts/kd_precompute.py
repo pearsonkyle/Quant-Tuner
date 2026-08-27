@@ -36,6 +36,11 @@ def main() -> int:
                     default=REPO / "out" / "exp-057" / "chat_template.jinja")
     ap.add_argument("--device", default=None)
     ap.add_argument("--dtype", choices=["fp16", "bf16", "fp32"], default=None)
+    ap.add_argument("--include-ids", default="",
+                    help="comma-separated token ids forced into every support row at "
+                         "their true teacher logprob (pass the stop id, 151645, so the "
+                         "KL constrains P(stop) per-position, not just via the tail "
+                         "bucket)")
     args = ap.parse_args()
 
     dtype = {"fp16": torch.float16, "bf16": torch.bfloat16,
@@ -45,6 +50,7 @@ def main() -> int:
         student_model_dir=args.student_model, topk=args.topk,
         max_windows=args.max_windows, device=args.device, dtype=dtype or None,
         student_chat_template=args.chat_template,
+        include_ids=[int(t) for t in args.include_ids.split(",") if t.strip()],
     )
     return 0
 

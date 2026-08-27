@@ -504,7 +504,30 @@ our long agentic sessions.
 For **natively-ternary** models (`prism-ml/Ternary-Bonsai-8B`), post-hoc calibration is a
 structural no-op — the "F16" is a lossless container of `w = s·c`, `c ∈ {−1,0,+1}`, so there is
 no quantization error for imatrix/AWQ/GPTQ to recover. The only lever is **more training with
-the ternarization in the loop** (BitNet/TWN STE). Full guide: `docs/ternary_qat.md`.
+the ternarization in the loop** (BitNet/TWN STE). Full guide: `docs/ternary_qat.md`;
+**end-to-end runbook: `docs/ternary_qat_reproduce.md`** (every command from raw logs to a
+benchmarked GGUF, with the check that must pass at each step).
+- **TERMINATION IS THE FAILURE MODE OF THIS PIPELINE.** Every trained run so far broke the
+  model's stop decision: `P(<|im_end|> | completed sentence)` goes from the shipped model's
+  0.009 to ~0.95, and the agent then either stops mid-task or loops. Two causes were ruled
+  out by measurement — the loss weighting (`--stop-weight` 6.0 and 1.0 both land at ~0.95, a
+  6x change moving the diagnostic by 0.02) and, on its own, the corpus (which teaches at most
+  0.055 in the probe's own situation). What the corpus DID carry was two ingestion defects,
+  now fixed in `qat/corpus.py` and unique to our logs (0.0% in ultrachat and distillation):
+  agent logs split one assistant turn into a prose message plus a tool-call message
+  (`merge_consecutive_assistant`), and carried 2,155 assistant messages with no content and
+  no tool calls, each rendering as a turn whose ONLY supervised token is the stop token
+  (`drop_empty_assistant`). Read `docs/ternary_qat_curriculum.md` before building a corpus.
+- **Measure termination DURING training** (`qat/stop_probe.py`, `--probe-every 25`, 0.7 s).
+  Masked-CE cannot see this: sft32k's validation went FLAT for 225 steps while its
+  `sentence_period` went to 0.97. The probe prompts live in that module and
+  `scripts/probe_stop_prob.py` imports them, so the torch and GGUF paths stay comparable.
+  The report's "Termination policy over training" panel plots the series.
+- **The probe and the agent trajectory are each blind in one direction** — the probe scores
+  one token at a fixed position and cannot see a multi-turn loop; the trajectory cannot tell
+  early stopping from incapacity. The shipped model proves the gap: textbook-healthy probe,
+  looping trajectory. `scripts/analyze_swe_anomalies.py` names the mode (mute / loop /
+  flailing / worked-unresolved) because `resolved=0` collapses all four.
 - `qat/ternary.py` — per-group TWN straight-through estimator; reproduces the shipped weights
   **exactly** at step 0 (the fine-tune must start from the real model, not a re-derived one).
 - `qat/corpus.py` — masking/packing shared by the log corpus, the trajectory corpus and the
@@ -539,20 +562,55 @@ the ternarization in the loop** (BitNet/TWN STE). Full guide: `docs/ternary_qat.
   configs with float ints are sanitized; `logits_to_keep` with a full-gather fallback) so a
   larger-vocab teacher needs no format change. `tokenizer_compatibility()` compares id→token
   **strings**, not `vocab_size` — a padded embedding matrix is fine, a different tokenizer is
-  refused (per-token KD across tokenizers is silently wrong). `kd_loss_from_topk` must
-  renormalize **both** sides over the stored top-K; normalizing only the teacher leaves a
-  constant offset (an identical student scored 0.89 instead of 0 — pinned by a unit test).
-- **Two training methods, one pipeline**: Method A = masked CE on verified trajectories
-  (run end-to-end); Method B = CE + KL against the precomputed top-K table (precompute and loss
-  validated, trainer wiring still open — `train.py` today only has the in-loop `--kd-teacher`,
-  which does not fit alongside an all-36 student).
+  refused (per-token KD across tokenizers is silently wrong). `kd_loss_from_topk` takes the
+  KL over **K+1 buckets** at T=1: the stored top-K at TRUE probabilities plus a tail bucket
+  (teacher side stored at precompute, student side `1 − Σ support`). Renormalizing both
+  sides over the support — the earlier form — is **blind to student mass placed outside
+  the teacher's top-K** (renormalization cancels an out-of-support logit exactly), and
+  `<|im_end|>` is outside the teacher's top-64 at 98.2% of our positions, so the
+  termination collapse was invisible to it precisely where it mattered. Both properties
+  are pinned by unit tests (identical student → 0; out-of-support inflation → penalized).
+  At T≠1 the tail bucket is skipped (a tempered tail is not derivable from the stored
+  T=1 tail) and it falls back to support renormalization — normalizing only the teacher
+  there would leave a constant offset (an identical student scored 0.89 instead of 0).
+- **Two training methods, one pipeline**: Method A = masked CE on verified trajectories;
+  **Method B = CE + KL against a precomputed top-K table, now wired end-to-end** via
+  `--kd-table` (`qat/kd_table.py`). Offline, so KD costs NO GPU memory — the table sits on
+  CPU (~1.7 GB at top-64 over our corpus) and a window's slice is ~3.6 MB; that is what
+  makes it composable with an all-36 student, which the in-loop `--kd-teacher` never was.
+  KD is computed inside the existing CE logit chunks from one lm_head call, because a
+  separate pass re-materializes `[K, vocab]` fp32 (5.8 GiB at 29% density on a 32768
+  window). Runner: `scripts/run_kd_qat.sh`.
+  - **The teacher must share the student's tokenizer id→string map**, and the obvious
+    teacher fails it: `Qwen3.8-27B` (which solves our SWE instance at IQ2_M) is vocab
+    248,320 against the student's 151,669 and is REFUSED.
+    `SWE-Lego/SWE-Lego-Qwen3-{8B,32B}` both agree on all 151,669 ids — the 8B is
+    architecturally identical to the student (hidden 4096, 36 layers). A `vocab_size`
+    difference alone is fine (they declare 151,936; the extra rows are embedding padding
+    the checker slices). Both need `load_tokenizer_tolerant`: their configs carry
+    `max_position_embeddings: 163840.0`, a float where transformers demands an int.
+  - **Read `coverage` at startup.** It is the teacher mass captured by the stored top-K
+    (0.998 for the 8B on our corpus, i.e. the KL constrains essentially the full
+    distribution). Below 0.8 the trainer warns — a low-coverage table makes the KL far
+    weaker than it looks and nothing later can detect it.
+  - Three silent failures are refused: a table from a DIFFERENT corpus (fingerprint — it
+    would resolve fine and distil against the wrong distribution everywhere), positions
+    that disagree with the trainer's `keep_idx` (especially *equal counts, different
+    positions*, which misaligns every row), and a PARTIAL table (uncovered windows would
+    train on plain CE while the rest train on CE+KL).
 - `qat/attention.py` — **query-chunked SDPA; this is what lifted the training window from
   4096 to 12288.** torch has no MPS training kernel for SDPA, so training materializes
   `[heads, S, S]` and MPSGraph rejects > INT_MAX elements: the cap was `n_heads·S² < 2³¹`,
   i.e. `S ≤ 8191` at 32 heads (8192 fails by *one element* — which is why it was recorded
   as "8k impossible"). Chunking the query dim makes the score tensor `[heads, chunk,
-  kv_len]` and is **bit-identical** to `is_causal=True` (unit-tested, max abs err 0.0 —
-  that exactness is what keeps long-window results comparable with short-window ones). It
+  kv_len]` and is **mathematically identical** to `is_causal=True`. Bit-exactness is a
+  property of the SDPA kernel, not of this code: slicing K/V per block changes each
+  kernel's reduction length, so it holds for a single block and on MPS but lands 1-2 ULP
+  away for multi-block calls on an x86 CPU flash kernel (2.4e-07 vs outputs of magnitude
+  ~3). Don't assert `torch.equal` across backends — what keeps long- and short-window
+  results comparable is that the error is **flat in the window length** (same 2.1e-07 at
+  4 and at 256 blocks), i.e. per-element rounding that does not accumulate. Both are
+  unit-tested; a real causality bug measures ~2.7e+00, six orders clear of the bound. It
   patches the registered `"sdpa"` entry **in place** rather than adding a name, on purpose:
   transformers' mask fast path keys off the string `"sdpa"` to return `attention_mask=None`
   for a causal decoder, and a custom name would instead build a `[1,1,S,S]` float mask
@@ -582,8 +640,35 @@ the ternarization in the loop** (BitNet/TWN STE). Full guide: `docs/ternary_qat.
 - **Metal constraints are hard, not preferences**: `foreach=False` (MPS multi-tensor kernels
   deadlock at full-model scale), **fp32 latents** (bf16 underflows the ternary threshold → no
   code flips), `--optim adafactor` to fit all 36 layers (~66-75 GB vs AdamW's ~116 GB).
-  `--compute-dtype bf16` is a **pessimization** at all-36 (54.5 GiB vs 31 GiB — the fp32
-  master copy stacks on top).
+  On Metal `--compute-dtype bf16` is a **pessimization** at all-36 (54.5 GiB vs 31 GiB — the
+  fp32 master copy stacks on top); on CUDA it is the opposite (see below).
+- **`qat/_device.py` owns every backend difference — do not add `if dev == "mps"` branches.**
+  `resolve_backend("auto")` (cuda > mps > cpu) returns a `Backend` carrying `foreach`,
+  `needs_chunked_sdpa`, `max_window`, `teacher_dtype`, `default_empty_cache_every` plus the
+  memory probes. Before this existed `train.py` read
+  `dev = "mps" if torch.backends.mps.is_available() else "cpu"`, which on a CUDA box
+  **silently selects CPU** — no error, ~100x slow, checkpoints still save. Two defaults
+  invert per backend: `foreach` (MPS deadlocks, CUDA wants it) and the allocator-cache
+  release (`--empty-cache-every` 5 on MPS to stop the working set creeping into swap, **0 on
+  CUDA** where the failure mode does not exist and the release costs a sync plus reusable
+  blocks). `--device` pins one; `mem_peak_gib` in `metrics.jsonl` is the number to size from.
+- **fp32 + GQA has no fused SDPA kernel on CUDA — the trainer patches around it.**
+  transformers passes `enable_gqa=True` to SDPA whenever the mask is None on CUDA
+  (`use_gqa_in_sdpa`) instead of expanding K/V. FlashAttention consumes grouped K/V natively
+  in fp16/bf16, but **rejects fp32 outright**, and the memory-efficient kernel (which does
+  support fp32) does not support `enable_gqa` — so the dispatcher falls back to **math** and
+  materializes `[batch, heads, S, S]`. On Qwen3-8B (32 heads / 8 KV) that is **7.75 GiB at a
+  8064 window**, and an all-36 fp32 run OOMs a 95 GiB card while doing nothing unusual.
+  `attention.enable_fp32_gqa_repeat()` makes the predicate honest about fp32 so transformers'
+  own `repeat_kv` branch is taken; `train.py` calls it on CUDA whenever `compute_dtype` is
+  fp32. Measured at S=2048 fp32, one fwd+bwd: `repeat_kv` 0.251 GiB (fused) vs `enable_gqa`
+  2.156 GiB (math). **This is why `--no-chunked-attention` alone was not enough on CUDA** —
+  the chunked path was masking a dispatch bug, not just an MPSGraph cap.
+- **Chunked SDPA is a Metal workaround and pure overhead on CUDA.** `--chunked-attention` is
+  tri-state: `auto` (default) patches it only where the backend needs it — MPS, and
+  `--trained-tail` on any device, which carries its prefix K/V — `on` forces it for
+  benchmarking, `off` refuses it. Measured cost of forcing it on at 8064: bf16 5.5 → 17.4
+  s/step (3.2x).
 - **Size the window from the TRAINING LOOP, not a single-window probe.** The probe omits
   the optimizer step and runs before swap builds; trusting it picked a window that could
   not train at all. Real s/step at grad-accum 4 on an idle M4 Max 128 GB (all-36, fp32,
@@ -600,6 +685,23 @@ the ternarization in the loop** (BitNet/TWN STE). Full guide: `docs/ternary_qat.
   11.5k, longest 256k). No window has a cliff — even 32k holds only 36% of tokens in
   whole conversations. Nothing is lost at a smaller window (sessions pack contiguously);
   what a longer one buys is conditioning a trajectory's tail on its start.
+- **The working recipe (2026-08-21, anchor10 — repetition arc closed):** `TAG=x LR=5e-4
+  STEER=0.1 CLIP=0.25 REP=0.1 REP_CAP=0.6 REP_K=1,2,3,4,5 REP_N=10
+  REP_BANK=out/exp-058/kd/rep_bank.json REP_TRAJ=out/exp-058/kd/rep_traj_contexts.jsonl
+  bash scripts/run_kd_anchor_qat.sh` — anchor6's stack (32B forced-stop KD table,
+  tail-bucket KL, one-sided anchor 1.0/0.1, termination steering, clip 0.25, patience-2
+  guards) + the bounded repetition hinge on real-material bank contexts AND
+  full-prefix contexts harvested from real agent episodes (`build_rep_bank.py`,
+  `gen_harvest.sh` → `build_rep_traj_contexts.py`). **Serve at temperature 0.7,
+  top_p 0.95 — NO repeat/presence penalties.** Both levers are necessary (measured
+  2x2): the hinge caps P(verbatim repeat) ≤0.6 in real episode states (verified on an
+  UNSEEN episode: 0.96→0.55) but T=0.25 sharpening still collapses onto the argmax
+  (loops 43x); T=0.7 on an uncapped model (anchor9) still loops with 65% malformed
+  commands; capped weights + T=0.7 = clean self-terminating episodes, zero verbatim
+  streaks. Do NOT train a rep teacher-KL: the dense teacher assigns 0.79–0.99 to the
+  verbatim repeat under forcing (in-context induction) — a KL there teaches copying.
+  Eval chain: `scripts/run_kd_export_bench.sh TAG`; per-checkpoint mid-run bench via
+  CPU sidecar (see docs/ternary_qat_curriculum.md). Full arc there too.
 - **Read the code-flip telemetry, not the loss.** A ternary model only learns by flipping codes;
   lr 3e-4 flips ~0% (scale drift only) while the loss still falls. 5e-4 for ~2.2 epochs is the
   measured sweet spot; 8 epochs memorizes.
@@ -619,6 +721,54 @@ the ternarization in the loop** (BitNet/TWN STE). Full guide: `docs/ternary_qat.
 - Trajectory generation (`scripts/run_ornith_distill_gen.sh`) is Docker-heavy and slow under
   amd64 emulation. `--cleanup-images` *untags* images, leaving `<none>` dangling layers — run
   `scripts/docker_housekeep.sh` alongside long runs (SWE images + dangling only; never `-a`).
+
+### Ternarizing a DENSE model from scratch — gemma-4-E4B (`docs/gemma4_ternary/`)
+The opposite problem to the Bonsai fine-tune above: the shipped model is dense, so a
+schedule has to move layers onto the ternary grid a few at a time and train in between.
+**Paused 2026-08-22 with the GPU released; `docs/gemma4_ternary/HANDOFF.md` is the resume
+document** (state, what to copy, verification, and the next command). Full log in
+`docs/gemma4_ternary/stage1_notes.md`; brief in `scripts/GEMMA4_TERNARY_STAGE1_PROMPT.md`.
+- **Stage 1 costs no measurable capability.** At matched training — same layers, corpus,
+  lr, steps, seed, no teacher in either arm, differing only in the grid — held-out masked
+  CE was **dense 1.7796 vs ternary 1.7290** for layers `0,1,2,3,7,8` with `down_proj` held
+  dense (its solo KLD is 1.199, 3.4x the next-worst kind, so it never goes on the grid).
+- **All three pre-registered metrics failed, for one reason: each assumed the shipped or
+  dense model is the ceiling, and at stage 1 it is not.** KLD-vs-shipped is dominated by
+  fine-tuning drift (a *dense* fine-tune moves 0.2175 by itself). KLD against a matched
+  dense fine-tune measures divergence rather than damage — ternarizing *lowers* ppl on the
+  damage probe (4.566 -> 4.359). And `--ref-ckpt` makes `recovered_frac` undefined, because
+  `trained` has the drift cancelled and `untrained` does not; `gemma4_stage_damage.py` now
+  refuses to print one. What survives is capability against a matched control.
+- **`scripts/gemma4_stop_on_corpus.py` is the termination instrument, not the 7-prompt
+  probe** — that one called untrained-ternary unchanged and a dense fine-tune improved.
+  It samples real stop targets from the held-out corpus with 2,048 tokens of context each.
+  Report its two halves separately (`gemma4_stop_table.py`): **commitment** (is stopping
+  the top choice at a real stop target) and **discrimination** (P(stop) there over
+  elsewhere). Stop-weight 5.5 moved the second 87 -> 1798 and left the first at 5%.
+- **Commitment and capability trade off monotonically on this corpus, and the grid is
+  irrelevant to it.** Ordered by final val CE the arms come out in exactly reverse order
+  by commitment, with the dense fine-tune sitting next to CE-only. Stop-weight 16 shows
+  why a bare commitment bar is worthless: it read the highest commitment of any trained
+  arm (17.5%) by *declining to learn* (val 2.7072 -> 2.6457, 20-25% fewer code flips), and
+  all four of its stop metrics land on untrained-ternary. Judge a run on commitment
+  **and** val CE together.
+- **The corpus is not the problem — checked, not assumed.** 13,273 `<end_of_turn>` tokens,
+  6,300 labeled and 6,973 correctly masked (user/tool turn ends). 1 stop per 972 supervised
+  tokens is what this data's assistant turns average, so re-balancing by weight would teach
+  stopping more often than the dialect calls for. That is the argument for a **saturating**
+  objective (`--stop-anchor`, a one-sided hinge to the teacher's own per-position log
+  P(stop)) over a weighted one — the next experiment, written and never run
+  (`scripts/run_gemma4_anchor.sh`).
+- **A teacher can pass every table-level check and still be unusable.** `gemma-4-31B-it`
+  matched the tokenizer 262,144/262,144 at coverage 0.9993 and stop ratio 4,090x, and its
+  own stop probe read 0.00003 where the student reads 0.07032. Training distils against the
+  **shipped E4B itself**; `run_gemma4_selfkd_arm.sh` now gates on the teacher's probe.
+- flash-attn is structurally unavailable for gemma-4: FA2 caps head_dim at 256 and this
+  model uses `global_head_dim 512`, so `attention.enable_gqa_repeat_where_unfused()` keys
+  off head_dim as well as dtype.
+- gemma-4's vision/audio towers contain submodules literally named `linear`, so name-based
+  latent selection finds 280 where `wrap_model` produced 48 — select by module **type**
+  (pinned by `test_latent_modules_counts_wrapped_latents_not_names`).
 
 ### Publishable datasets (`src/quant_tuner/datasets/`)
 Staged under `datasets/<name>/`; payloads are gitignored, but the card, `manifest.json` and
@@ -825,6 +975,18 @@ The OmniCoder reproduction is here; the CLI handles ad-hoc runs.
   `--exclude <holdout.jsonl>` builds a training pool **disjoint** from what we
   grade on — that invariant is what makes the QAT generalization number mean
   anything. `download_swebench_dataset.py` fetches the full split once.
+- **Ternary-QAT corpus + telemetry tooling** (added after the termination collapse):
+  `inspect_corpus_window.py` prints a packed window as the model sees it with supervised
+  targets bracketed, and `--audit` checks the structure (control tokens single ids, roles,
+  0 supervised tokens outside assistant turns — carry-over from the previous window is
+  expected and reported separately). `analyze_stop_context.py` measures what a corpus
+  teaches about where to stop, conditioned on position in the turn. `verify_corpus_fix.sh`
+  A/Bs two 60-step runs that differ only in the corpus. `qat_registry.py` joins every run's
+  config and measurements into `docs/qat_run_history.md`, modelling a run as a SEQUENCE of
+  legs (one per `train*.log`) so a resumed leg's mid-run loss is never read as the run's
+  start. `choose_stop_weight.py` reads the probe and the trajectory together and refuses to
+  pick a side when they disagree. `prune_export_intermediates.sh` reclaims the ~50 GB each
+  export leaves behind for a 2.1 GB deliverable.
 - **Ternary-QAT chain** (see `docs/ternary_qat.md` for the end-to-end guide):
   `run_ornith_distill_gen.sh` (harvest verified solver trajectories) →
   `build_ornith_distill_corpus.py` (resolved-only, student tokenizer, masked) →

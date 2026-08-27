@@ -1,0 +1,39 @@
+[qat] device cpu
+[qat] WARNING: no accelerator found — training on CPU is ~100x slower and is almost certainly not what you want.
+[qat] stock SDPA on cpu (fused/flash kernels; no score matrix is materialized, so there is no window cap to chunk around)
+[qat] corpus 2 windows x 2048 (27% masked, fingerprint cpusmokef7e80b74); 1.0 epochs -> 2 steps @ accum 1
+[qat] val corpus 2 windows (using 2)
+Loading weights:   0%|                                                                                                                                                   | 0/2076 [00:00<?, ?it/s]Loading weights:   8%|██████████▊                                                                                                                            | 167/2076 [00:00<00:01, 1650.85it/s]Loading weights:  35%|███████████████████████████████████████████████▏                                                                                       | 725/2076 [00:00<00:00, 3941.75it/s]Loading weights:  54%|████████████████████████████████████████████████████████████████████████▊                                                              | 1120/2076 [00:03<00:03, 271.48it/s]Loading weights:  65%|███████████████████████████████████████████████████████████████████████████████████████▏                                               | 1341/2076 [00:04<00:03, 241.52it/s]Loading weights:  71%|████████████████████████████████████████████████████████████████████████████████████████████████▎                                      | 1482/2076 [00:04<00:02, 256.27it/s]Loading weights: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 2076/2076 [00:04<00:00, 417.63it/s]
+[qat] training explicit layers [0, 1] (2 layers); ternary layers 2/42; wrapped 16; 326 linears left DENSE (2 of them trainable); trainable 0.19B
+[qat] lr-scale group-scale: 17 tensors, mult 0.50..2.00 (median-scale-normalized, clamp [0.5, 2.0])
+[qat] optimizer adafactor (wd=0.0)
+[qat] flip telemetry on 8 linears
+[qat] stop-probe every 1 steps (7 points, stop id 106)
+[qat] run config -> out/gemma4-ternary/_cpu_smoke/run_config.json
+[qat] step 1/2 loss=7.6378 lr=5.00e-04 gnorm=48.10 mem=0.0/0.0GiB 149.5s/step
+[qat] step 1 VAL masked-CE 7.2347 (16 windows in 80s)
+[qat] step 1 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0038 sentence_newline=0.0134 after_tool_call=0.0000 after_tool_response=0.0003 answer_after_tool=0.0712  [diagnostic sentence_period=0.0038 vs vanilla 0.002744; control answer_after_tool=0.0712 vs vanilla 0.070316]
+[qat] step 2 VAL masked-CE 6.8158 (16 windows in 52s)
+[qat] step 2 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0058 sentence_newline=0.0138 after_tool_call=0.0000 after_tool_response=0.0003 answer_after_tool=0.0841  [diagnostic sentence_period=0.0058 vs vanilla 0.002744; control answer_after_tool=0.0841 vs vanilla 0.070316]
+[qat] code flips vs run start:
+  model.language_model.layers.0.self_attn.q_proj: flips 1.5292% (0->±:36273 ±->0:43903 ±->∓:0) density 58.5->58.4% scale-drift 1.14% (+0.14%)
+  model.language_model.layers.0.self_attn.v_proj: flips 1.4403% (0->±:8438 ±->0:10440 ±->∓:0) density 58.2->58.1% scale-drift 1.10% (+0.15%)
+  model.language_model.layers.0.mlp.gate_proj: flips 1.4656% (0->±:175946 ±->0:208259 ±->∓:0) density 58.2->58.1% scale-drift 1.13% (+0.12%)
+  model.language_model.layers.0.per_layer_input_gate: flips 9.3806% (0->±:30136 ±->0:31341 ±->∓:0) density 54.8->54.6% scale-drift 3.75% (+1.81%)
+  model.language_model.layers.1.self_attn.k_proj: flips 1.4541% (0->±:8661 ±->0:10398 ±->∓:0) density 58.1->57.9% scale-drift 1.14% (+0.12%)
+  model.language_model.layers.1.self_attn.o_proj: flips 1.5575% (0->±:37782 ±->0:43875 ±->∓:0) density 58.8->58.7% scale-drift 1.15% (+0.11%)
+  model.language_model.layers.1.mlp.up_proj: flips 1.3920% (0->±:165748 ±->0:199144 ±->∓:0) density 57.9->57.8% scale-drift 1.08% (+0.12%)
+  model.language_model.layers.1.per_layer_projection: flips 1.6995% (0->±:4403 ±->0:6735 ±->∓:0) density 57.8->57.4% scale-drift 1.19% (+0.27%)
+[qat] checkpoint @ step 2: 18 tensors
+[qat] code flips vs run start:
+  model.language_model.layers.0.self_attn.q_proj: flips 1.5292% Δ+0.0000 (0->±:36273 ±->0:43903 ±->∓:0) density 58.5->58.4% scale-drift 1.14% (+0.14%)
+  model.language_model.layers.0.self_attn.v_proj: flips 1.4403% Δ+0.0000 (0->±:8438 ±->0:10440 ±->∓:0) density 58.2->58.1% scale-drift 1.10% (+0.15%)
+  model.language_model.layers.0.mlp.gate_proj: flips 1.4656% Δ+0.0000 (0->±:175946 ±->0:208259 ±->∓:0) density 58.2->58.1% scale-drift 1.13% (+0.12%)
+  model.language_model.layers.0.per_layer_input_gate: flips 9.3806% Δ+0.0000 (0->±:30136 ±->0:31341 ±->∓:0) density 54.8->54.6% scale-drift 3.75% (+1.81%)
+  model.language_model.layers.1.self_attn.k_proj: flips 1.4541% Δ+0.0000 (0->±:8661 ±->0:10398 ±->∓:0) density 58.1->57.9% scale-drift 1.14% (+0.12%)
+  model.language_model.layers.1.self_attn.o_proj: flips 1.5575% Δ+0.0000 (0->±:37782 ±->0:43875 ±->∓:0) density 58.8->58.7% scale-drift 1.15% (+0.11%)
+  model.language_model.layers.1.mlp.up_proj: flips 1.3920% Δ+0.0000 (0->±:165748 ±->0:199144 ±->∓:0) density 57.9->57.8% scale-drift 1.08% (+0.12%)
+  model.language_model.layers.1.per_layer_projection: flips 1.6995% Δ+0.0000 (0->±:4403 ±->0:6735 ±->∓:0) density 57.8->57.4% scale-drift 1.19% (+0.27%)
+[qat] checkpoint @ step 2: 18 tensors
+[qat] metrics -> out/gemma4-ternary/_cpu_smoke/metrics.jsonl
+[qat] done at step 2: loss 7.638 -> 7.235

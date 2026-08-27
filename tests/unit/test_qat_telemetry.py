@@ -217,3 +217,139 @@ def test_arch_card_survives_no_network(monkeypatch):
     monkeypatch.setattr("urllib.request.urlopen", boom)
     out = qat_report.arch_card("prism-ml/Whatever")
     assert "<img" in out  # degrades to the live embed rather than raising
+
+
+def test_parse_reads_the_kd_step_line():
+    """KD runs insert `kl=` between loss and lr; the pre-KD regex silently parsed ZERO
+    steps from such a log (bit the kd8b-full report on 2026-08-18)."""
+    rows = parse(
+        "[qat] step 10/613 loss=0.8744 kl=0.5535 lr=1.67e-04 gnorm=1.42 "
+        "mem=31.6/70.6GiB 45.9s/step\n"
+        "[qat] step 15/613 loss=0.8306 lr=4.53e-04 gnorm=1.00 mem=31.6GiB 46.2s/step\n"
+    )["steps"]
+    assert [r["step"] for r in rows] == [10, 15]
+    assert rows[0]["kd_kl"] == 0.5535 and rows[0]["loss"] == 0.8744
+    assert rows[1]["kd_kl"] is None          # non-KD line still parses, kl empty
+
+
+def test_parse_reads_the_stop_anchor_step_line():
+    rows = parse(
+        "[qat] step 10/613 loss=0.8744 kl=0.5535 an=0.0121 lr=1.67e-04 gnorm=1.42 "
+        "mem=31.6/70.6GiB 45.9s/step\n")["steps"]
+    assert rows[0]["kd_kl"] == 0.5535 and rows[0]["stop_anchor"] == 0.0121
+
+
+def test_parse_reads_the_steer_step_line():
+    """Third occurrence of the same failure class: every new step-line field between
+    loss= and lr= silently zeroes n_steps_logged. an= bit kd8b-full; st= bit anchor6."""
+    rows = parse(
+        "[qat] step 10/613 loss=0.87 kl=0.55 an=0.01 st=0.12 lr=1.67e-04 gnorm=1.4 "
+        "mem=31.6/70.6GiB 45.9s/step\n")["steps"]
+    assert rows and rows[0]["steer"] == 0.12 and rows[0]["kd_kl"] == 0.55
+
+
+def test_parse_reads_the_rep_steer_step_line():
+    rows = parse(
+        "[qat] step 10/613 loss=0.87 kl=0.55 an=0.01 st=0.12 rp=0.03 lr=1.67e-04 "
+        "gnorm=1.4 mem=31.6/70.6GiB 45.9s/step\n")["steps"]
+    assert rows and rows[0]["steer_rep"] == 0.03 and rows[0]["steer"] == 0.12
+
+
+def test_step_line_with_rep_kl():
+    """rk= (rep teacher-KL, anchor9) must parse — every new step-line field has broken
+    STEP_RE silently before (kl=, st=, rp=); same commit, same test, every time."""
+    rows = parse(
+        "[qat] step 7/613 loss=0.9312 kl=0.5012 an=0.0100 st=0.0002 rp=0.0031 "
+        "rk=0.4210 lr=4.99e-04 gnorm=1.10 mem=31.7/88.8GiB 49.3s/step\n")["steps"]
+    assert rows and rows[0]["kd_kl"] == 0.5012
+    assert rows[0]["steer_rep"] == 0.0031
+    assert rows[0]["rep_kl"] == 0.4210
+
+
+def test_flip_line_with_delta_field_parses():
+    """From the second checkpoint on, flip lines carry 'Δ+0.8259' between the percent
+    and the parenthesis; a regex without it silently drops every later checkpoint and
+    all flip panels degenerate to the first (fifth instance of the drift class)."""
+    text = (
+        "  model.layers.0.self_attn.q_proj: flips 0.9622% Δ+0.8259 "
+        "(0->±:70921 ±->0:90494 ±->∓:19) density 65.5->65.4% scale-drift 1.75% (+0.25%)\n"
+        "[qat] checkpoint @ step 200: 252 tensors\n")
+    rows = parse(text)["flips"]
+    assert len(rows) == 1
+    assert rows[0]["step"] == 200
+    assert rows[0]["flip_pct"] == 0.9622
+    assert rows[0]["sign_flips"] == 19
+
+
+def test_step_line_with_rep_traj():
+    """rt= (harvested-episode rep hinge, anchor10) — sixth step-line field, same rule."""
+    rows = parse(
+        "[qat] step 8/613 loss=0.9312 kl=0.5012 an=0.0100 st=0.0002 rp=0.0031 "
+        "rk=0.4210 rt=0.1200 lr=4.99e-04 gnorm=1.10 mem=31.7/88.8GiB 49.3s/step\n")["steps"]
+    assert rows and rows[0]["rep_traj"] == 0.12 and rows[0]["rep_kl"] == 0.4210
+
+
+# --------------------------------------------------------------- report: probe dialect
+
+
+def test_report_probe_style_picks_the_family_from_the_points_present():
+    """Which probe point is the CONTROL is a per-family fact, and on gemma-4 it is an
+    inversion rather than a rename: Qwen's ``after_tool_call`` reads 0.99995 on Qwen and
+    **0.00004** on gemma, because gemma's template hands over to the harness there
+    instead of ending the turn. A report that hard-codes Qwen's name draws gemma's
+    most-broken-looking line as its healthy control."""
+    from scripts.qat_report import probe_style
+
+    qwen = {"start", "mid_sentence", "sentence_period", "sentence_newline",
+            "after_tool_call"}
+    _, _, q = probe_style(qwen)
+    assert (q.diagnostic, q.control) == ("sentence_period", "after_tool_call")
+
+    gemma = qwen | {"after_tool_response", "answer_after_tool"}
+    _, _, g = probe_style(gemma)
+    assert g.control == "answer_after_tool"
+    assert g.control != q.control, "gemma must not inherit Qwen's control point"
+
+
+def test_report_keeps_the_published_qwen_reference_line():
+    """The dashed asymptote on the termination panel has meant 0.0017 in every published
+    Bonsai report. PROBE_SPECS carries 0.0092 for the same point (a different measurement
+    path), so reading the reference from there would silently rewrite the interpretation
+    of runs already written up."""
+    from scripts.qat_report import probe_style
+
+    _, refs, _ = probe_style({"sentence_period", "after_tool_call"})
+    assert refs == {"sentence_period": 0.0017, "after_tool_call": 0.99996}
+
+
+def test_report_draws_a_measured_reference_for_a_new_family():
+    """A family added later has exactly one measurement, so it uses it -- what must never
+    happen is borrowing another family's numbers."""
+    from scripts.qat_report import probe_style
+
+    _, refs, spec = probe_style({"sentence_period", "answer_after_tool"})
+    assert refs == {"sentence_period": spec.vanilla[0],
+                    "answer_after_tool": spec.vanilla[1]}
+    assert refs["answer_after_tool"] < 0.5, "gemma's control is 0.07, not Qwen's ~1.0"
+
+
+def test_stop_weight_vocab_comes_from_the_language_config():
+    """--stop-weight builds a per-vocab CE weight vector, and a multimodal config has no
+    flat `vocab_size` — gemma-4's lives under `text_config`, so the flat lookup raised
+    AttributeError and killed the run before step 1. The KD path already had the walk."""
+    from quant_tuner.qat.kd_precompute import resolve_vocab_size
+
+    class Text:
+        vocab_size = 262144
+
+    class Multimodal:          # what Gemma4Config looks like to this code
+        text_config = Text()
+
+        def __getattr__(self, k):        # transformers raises rather than returning None
+            raise AttributeError(k)
+
+    class Flat:
+        vocab_size = 151669
+
+    assert resolve_vocab_size(Multimodal()) == 262144
+    assert resolve_vocab_size(Flat()) == 151669

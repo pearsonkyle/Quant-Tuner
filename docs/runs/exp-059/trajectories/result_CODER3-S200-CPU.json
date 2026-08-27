@@ -1,0 +1,22 @@
+{
+  "label": "CODER1-S200-CPU",
+  "instance_id": "dask__dask-11393",
+  "resolved": 0,
+  "patch_produced": 0,
+  "f2p_passed": 0,
+  "f2p_total": 1,
+  "p2p_passed": 34,
+  "p2p_total": 34,
+  "steps": 0,
+  "tool_errors": 0,
+  "tool_err_rate": 0.0,
+  "malformed": 0,
+  "timeouts": 0,
+  "nonzero_exits": 0,
+  "out_tokens": 2,
+  "in_tokens": 819,
+  "wall_s": 4.1,
+  "exit_status": "completed",
+  "hit_max_turns": 0,
+  "reasoning_budget": 2048
+}

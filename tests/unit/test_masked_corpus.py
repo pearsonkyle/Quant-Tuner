@@ -23,7 +23,10 @@ class FakeTok:
     """Whitespace/special-token tokenizer with faithful char offsets."""
 
     def __init__(self):
-        self.vocab: dict[str, int] = {}
+        # Pre-seed the ChatML control tokens. `qat.dialect.detect` reads the vocabulary to
+        # decide which family's span rule applies, and it runs before any text has been
+        # tokenized — an empty vocab looks like a tokenizer from no known family at all.
+        self.vocab: dict[str, int] = {sp: i + 10 for i, sp in enumerate(SPECIALS)}
 
     def _spans(self, text: str) -> list[tuple[str, int, int]]:
         spans, i = [], 0
@@ -62,8 +65,14 @@ class FakeTok:
         rev = {v: k for k, v in self.vocab.items()}
         return "".join(rev[i] for i in ids)
 
-    def convert_tokens_to_ids(self, tok: str) -> int:
-        return self._id(tok)
+    def convert_tokens_to_ids(self, tok: str) -> int | None:
+        # Deliberately does NOT mint: `_id` invents an id for anything it is asked about,
+        # so a minting lookup would answer "yes, I have <turn|>" and detection would pick
+        # the gemma dialect for a ChatML tokenizer.
+        return self.vocab.get(tok)
+
+    def convert_ids_to_tokens(self, i: int) -> str:
+        return {v: k for k, v in self.vocab.items()}.get(i, "<unk>")
 
     def apply_chat_template(self, msgs, tools=None, tokenize=False,
                             add_generation_prompt=False):

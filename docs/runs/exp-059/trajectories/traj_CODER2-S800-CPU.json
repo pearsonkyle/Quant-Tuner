@@ -1,0 +1,9 @@
+[
+  {
+    "n": 1,
+    "cmd": "cd /workspace/swe-micode && ls && echo \"---\" && cat __init__.py",
+    "rc": 2,
+    "kind": "malformed",
+    "out_head": "/bin/sh: 1: cd: can't cd to /workspace/swe-micode\n"
+  }
+]

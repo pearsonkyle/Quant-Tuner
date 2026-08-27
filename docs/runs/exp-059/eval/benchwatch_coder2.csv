@@ -1,0 +1,7 @@
+label,instance_id,resolved,patch_produced,f2p_passed,f2p_total,p2p_passed,p2p_total,steps,tool_errors,tool_err_rate,malformed,timeouts,nonzero_exits,out_tokens,in_tokens,wall_s,exit_status,hit_max_turns,reasoning_budget
+CODER2-S400-CPU,dask__dask-11393,0,0,0,1,34,34,60,31,0.5167,31,0,26,3391,210631,171.4,error:MaxTurnsExceeded,1,2048
+CODER2-S400-CPU,dask__dask-11393,0,0,0,1,34,34,48,44,0.9167,44,0,0,10086,236818,481.2,completed,0,2048
+CODER2-S400-CPU,dask__dask-11393,0,0,0,1,34,34,60,55,0.9167,55,0,4,8755,260030,446.9,error:MaxTurnsExceeded,1,2048
+CODER2-S800-CPU,dask__dask-11393,0,0,0,1,34,34,0,0,0.0,0,0,0,8096,819,219.6,completed,0,2048
+CODER2-S800-CPU,dask__dask-11393,0,0,0,1,34,34,2,0,0.0,0,0,2,8240,2789,226.6,completed,0,2048
+CODER2-S800-CPU,dask__dask-11393,0,0,0,1,34,34,1,1,1.0,1,0,0,8149,1726,226.4,completed,0,2048

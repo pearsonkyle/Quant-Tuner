@@ -1,0 +1,46 @@
+== building coder train corpus
+[sft] broad-instruct     5258/5258 convs     827,016 tok    80% masked  -> 25 windows (-0 low-density)
+[sft]                    tool-calls 0/0 kept · reasoning 0/0 kept · tool-output truncation dropped 0 tok (0% of this source's conversation content)
+[transformers] Token indices sequence length is longer than the specified maximum sequence length for this model (257378 > 131072). Running this sequence through the model will result in indexing errors
+[sft] logs               195/205 convs   9,112,321 tok    30% masked  -> 259 windows (-18 low-density)
+[sft]                    tool-calls 9718/9298 kept · reasoning 131/336 kept · tool-output truncation dropped 397,614 tok (4% of this source's conversation content)
+[sft]                    merged 913 split assistant messages into their turn · dropped 0 empty assistant turn(s) (pure stop-token targets) · dropped 10 conversation(s) quoting a control token
+[sft] logs-agents        339/339 convs   9,434,816 tok    23% masked  -> 280 windows (-7 low-density)
+[sft]                    tool-calls 14912/14234 kept · reasoning 3141/3141 kept · tool-output truncation dropped 1,204,794 tok (11% of this source's conversation content)
+[sft]                    merged 3,770 split assistant messages into their turn · dropped 5 empty assistant turn(s) (pure stop-token targets) · dropped 0 conversation(s) quoting a control token
+[sft] multi-harness-swe  710/710 convs  11,920,132 tok    18% masked  -> 361 windows (-2 low-density)
+[sft]                    tool-calls 18408/16988 kept · reasoning 233/233 kept · tool-output truncation dropped 642,936 tok (5% of this source's conversation content)
+[sft]                    merged 4,836 split assistant messages into their turn · dropped 1 empty assistant turn(s) (pure stop-token targets) · dropped 0 conversation(s) quoting a control token
+[sft] open-swe-traces    2395/2395 convs  64,768,234 tok    26% masked  -> 1976 windows (-0 low-density)
+[sft]                    tool-calls 90852/86062 kept · reasoning 82889/82889 kept · tool-output truncation dropped 305,300 tok (0% of this source's conversation content)
+[sft] redteam-refusals   305/305 convs      83,922 tok     8% masked  -> 2 windows (-0 low-density)
+[sft]                    tool-calls 0/0 kept · reasoning 0/0 kept · tool-output truncation dropped 0 tok (0% of this source's conversation content)
+[sft] swe-trajectories   63/63 convs     877,838 tok    31% masked  -> 26 windows (-0 low-density)
+[sft]                    tool-calls 2267/2141 kept · reasoning 0/1 kept · tool-output truncation dropped 0 tok (0% of this source's conversation content)
+[sft]                    merged 43 split assistant messages into their turn · dropped 0 empty assistant turn(s) (pure stop-token targets) · dropped 0 conversation(s) quoting a control token
+[sft] TOTAL 97,024,279 tokens (26% assistant-masked) -> 2929 windows of 32768
+[sft] tool-calls 136157/128723 · reasoning 86394/86600 · tool-output truncation dropped 2,550,644 tok (3% of conversation content) at --max-tool-tokens 8192
+[corpus] window trainable-density deciles: 0.05 0.15 0.19 0.21 0.23 0.25 0.27 0.29 0.32 0.37 0.88
+[corpus] dialect=qwen labeled <|im_end|> targets: 131070
+[corpus] saved 2929 windows [(2929, 32768)] fingerprint=bb0f7bc99ce14394 -> out/exp-059/corpus_coder_32768.pt
+[corpus] masked-token share overall: 26.0%
+== building coder val corpus
+[transformers] Token indices sequence length is longer than the specified maximum sequence length for this model (200693 > 131072). Running this sequence through the model will result in indexing errors
+[sft] logs               24/25 convs   1,304,459 tok    30% masked  -> 37 windows (-2 low-density)
+[sft]                    tool-calls 1241/1193 kept · reasoning 27/55 kept · tool-output truncation dropped 102,402 tok (7% of this source's conversation content)
+[sft]                    merged 90 split assistant messages into their turn · dropped 0 empty assistant turn(s) (pure stop-token targets) · dropped 1 conversation(s) quoting a control token
+[sft] logs-agents        42/42 convs   1,401,438 tok    21% masked  -> 42 windows (-0 low-density)
+[sft]                    tool-calls 2007/1923 kept · reasoning 276/276 kept · tool-output truncation dropped 177,428 tok (11% of this source's conversation content)
+[sft]                    merged 535 split assistant messages into their turn · dropped 0 empty assistant turn(s) (pure stop-token targets) · dropped 0 conversation(s) quoting a control token
+[sft] multi-harness-swe  30/30 convs     512,989 tok    22% masked  -> 15 windows (-0 low-density)
+[sft]                    tool-calls 798/738 kept · reasoning 0/0 kept · tool-output truncation dropped 12,762 tok (2% of this source's conversation content)
+[sft]                    merged 201 split assistant messages into their turn · dropped 0 empty assistant turn(s) (pure stop-token targets) · dropped 0 conversation(s) quoting a control token
+[sft] open-swe-traces    78/78 convs   2,062,963 tok    26% masked  -> 62 windows (-0 low-density)
+[sft]                    tool-calls 2916/2760 kept · reasoning 2613/2613 kept · tool-output truncation dropped 0 tok (0% of this source's conversation content)
+[sft] TOTAL 5,281,849 tokens (25% assistant-masked) -> 156 windows of 32768
+[sft] tool-calls 6962/6614 · reasoning 2916/2944 · tool-output truncation dropped 292,592 tok (5% of conversation content) at --max-tool-tokens 8192
+[corpus] window trainable-density deciles: 0.05 0.14 0.18 0.20 0.22 0.24 0.26 0.29 0.31 0.38 0.73
+[corpus] dialect=qwen labeled <|im_end|> targets: 6212
+[corpus] saved 156 windows [(156, 32768)] fingerprint=3e16e8a5e1994072 -> out/exp-059/corpus_coder_val_32768.pt
+[corpus] masked-token share overall: 25.2%
+== done rc=0

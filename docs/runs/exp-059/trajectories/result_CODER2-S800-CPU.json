@@ -1,0 +1,22 @@
+{
+  "label": "CODER2-S800-CPU",
+  "instance_id": "dask__dask-11393",
+  "resolved": 0,
+  "patch_produced": 0,
+  "f2p_passed": 0,
+  "f2p_total": 1,
+  "p2p_passed": 34,
+  "p2p_total": 34,
+  "steps": 1,
+  "tool_errors": 1,
+  "tool_err_rate": 1.0,
+  "malformed": 1,
+  "timeouts": 0,
+  "nonzero_exits": 0,
+  "out_tokens": 8149,
+  "in_tokens": 1726,
+  "wall_s": 226.4,
+  "exit_status": "completed",
+  "hit_max_turns": 0,
+  "reasoning_budget": 2048
+}

@@ -20,9 +20,10 @@ Note this is NOT what transformers' Adafactor does internally for bf16 params â€
 that is a transient upcast-per-step with a bf16 writeback, which still loses
 sub-ulp updates between steps. Persistent masters are required.
 
-MPS safety: everything here is a plain per-tensor python loop â€” no foreach /
-fused / multi-tensor kernels (those deadlock on MPS at full-model scale), and
-``clip_grad_norm_`` is called with ``foreach=False`` explicitly.
+Device safety: the grad staging and writeback are plain per-tensor python loops on
+every backend. The multi-tensor (``foreach``) path is opt-in via the ``foreach``
+argument, because MPS's foreach kernels deadlock at full-model scale while CUDA's are
+a real speedup over ~250 individual small-kernel launches. See :mod:`quant_tuner.qat._device`.
 """
 
 from __future__ import annotations
@@ -43,8 +44,10 @@ class MasterOptimizer:
     casting the model to bf16 so the masters capture full-precision values.
     """
 
-    def __init__(self, params: Sequence[torch.nn.Parameter], make_inner: InnerFactory):
+    def __init__(self, params: Sequence[torch.nn.Parameter], make_inner: InnerFactory,
+                 foreach: bool = False):
         self.params = list(params)
+        self.foreach = foreach
         self.masters = [
             torch.nn.Parameter(p.detach().to(torch.float32).clone(), requires_grad=False)
             for p in self.params
@@ -71,7 +74,8 @@ class MasterOptimizer:
                 p.grad = None  # free the bf16 grad immediately (peak-memory trim)
         norm = 0.0
         if max_norm is not None:
-            norm = float(torch.nn.utils.clip_grad_norm_(self.masters, max_norm, foreach=False))
+            norm = float(torch.nn.utils.clip_grad_norm_(self.masters, max_norm,
+                                                        foreach=self.foreach))
         self.inner.step()
         with torch.no_grad():
             for p, m in zip(self.params, self.masters, strict=True):
@@ -92,17 +96,21 @@ class MasterOptimizer:
             else:
                 m.grad = p.grad.detach().to(torch.float32)
                 p.grad = None
-        total = torch.zeros((), dtype=torch.float32)
-        for m in self.masters:
-            if m.grad is not None:
-                g = m.grad.detach()
-                total = total + (g.float() * g.float()).sum().cpu()
-        return float(total.sqrt())
+        # Accumulate the squared norm ON DEVICE and synchronize once. A `.cpu()` per
+        # tensor is a device->host sync per tensor: at all-36 that is ~250 stalls per
+        # optimizer step, which on CUDA costs more than the arithmetic it is measuring.
+        grads = [m.grad.detach() for m in self.masters if m.grad is not None]
+        if not grads:
+            return 0.0
+        total = torch.zeros((), dtype=torch.float32, device=grads[0].device)
+        for g in grads:
+            total += g.float().pow(2).sum()
+        return float(total.sqrt().cpu())
 
     def step_staged(self, max_norm: float | None = 1.0) -> None:
         """Clip the already-staged master grads and step. Pairs with `stage_grads_and_norm`."""
         if max_norm is not None:
-            torch.nn.utils.clip_grad_norm_(self.masters, max_norm, foreach=False)
+            torch.nn.utils.clip_grad_norm_(self.masters, max_norm, foreach=self.foreach)
         self.inner.step()
         with torch.no_grad():
             for p, m in zip(self.params, self.masters, strict=True):

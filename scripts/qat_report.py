@@ -205,6 +205,215 @@ def fig_loss_lr(steps, vals, W, H, PAD):
     return p1.svg() + p2.svg() + legend([("train", LOSS), ("val", VAL)])
 
 
+def fig_kd_kl(steps, alpha, W, H, PAD):
+    """KL(teacher‖student) over training — the teacher-tracking signal KD adds.
+
+    Falling KL = the student's distribution is moving toward the teacher's. This is the
+    quantity CE cannot express: CE sees one target per position, the KL the whole shape,
+    and the shape is what pins the termination policy. With ``alpha`` given, the CE
+    component is derived from the logged total — CE = (loss − α·KL)/(1 − α), exact at
+    T=1 — so both terms read on one axis without a second log pass.
+    """
+    rows = [r for r in steps if r.get("kd_kl") is not None]
+    xs = [r["step"] for r in rows]
+    xlim = (min(xs), max(xs)) if len(xs) > 1 else (min(xs), min(xs) + 1)
+    kl = [(r["step"], r["kd_kl"]) for r in rows]
+    ce = []
+    if alpha is not None and 0.0 < alpha < 1.0:
+        ce = [(r["step"], (r["loss"] - alpha * r["kd_kl"]) / (1.0 - alpha))
+              for r in rows]
+    ymax = max([v for _, v in kl] + [v for _, v in ce] + [0.1]) * 1.15
+    p = Panel(W, H, PAD, xlim, (0, ymax), xlabel="training step", ylabel="nats",
+              xticks=nice_ticks(*xlim), yfmt="{:.2f}")
+    p.line(kl, "#0072b2", 2.2, 1.0, "KL(teacher‖student)")
+    p.dots([kl[-1]], "#0072b2", 3,
+           lambda x, y: f"step {x:g}: KL {y:.4f}")
+    if ce:
+        p.line(ce, "#e69f00", 1.6, 0.85, "CE (derived)")
+    p.note(kl[-1][0], min(kl[-1][1] * 0.85, ymax * 0.9),
+           f"KL {kl[0][1]:.3f} → {kl[-1][1]:.3f}", "end", INK)
+    items = [("KL(teacher‖student)", "#0072b2")]
+    if ce:
+        items.append(("CE (derived)", "#e69f00"))
+    return p.svg() + legend(items)
+
+
+def fig_steering(steps, W, H, PAD):
+    """Behavioral steering losses per step — the terms that police looping/termination.
+
+    <b>rp</b> (repetition hinge) is one-sided: positive only while some rep context sits
+    ABOVE the cap on P(verbatim command repeat), so the healthy shape is: nonzero early
+    (or whenever KD re-grows the copying tendency), then driven to zero and staying
+    there. A run whose rp is zero from step 1 has a hinge defined where the pathology
+    is not (anchor7's silent no-op). rk is the rep teacher-KL when enabled; st is the
+    termination steer (CE->stop + hinge), usually near zero on a healthy run.
+    """
+    rows = [r for r in steps if r.get("steer_rep") is not None]
+    xs = [r["step"] for r in rows]
+    xlim = (min(xs), max(xs)) if len(xs) > 1 else (min(xs), min(xs) + 1)
+    series = [("steer_rep", "#d55e00", "rp — repetition hinge", 2.2),
+              ("rep_kl", "#0072b2", "rk — rep teacher-KL", 1.8),
+              ("steer", "#009e73", "st — termination steer", 1.4)]
+    present = [(k, c, lbl, w_) for k, c, lbl, w_ in series
+               if any(r.get(k) is not None for r in rows)]
+    ymax = max([r[k] for k, *_ in present for r in rows if r.get(k) is not None]
+               + [0.02]) * 1.2
+    p = Panel(W, H, PAD, xlim, (0, ymax), xlabel="training step", ylabel="loss term",
+              xticks=nice_ticks(*xlim), yfmt="{:.3f}")
+    for k, c, lbl, w_ in present:
+        pts = [(r["step"], r[k]) for r in rows if r.get(k) is not None]
+        p.line(pts, c, w_, 0.95, lbl)
+        p.dots([pts[-1]], c, 3, lambda x, y, lbl=lbl: f"step {x:g}: {lbl} {y:.4f}")
+    return p.svg() + legend([(lbl, c) for _, c, lbl, _ in present])
+
+
+REP_MEASURE_COLORS = ["#000000", "#d55e00", "#0072b2", "#009e73", "#cc79a7", "#e69f00"]
+
+
+def fig_rep_measure(data, W, H, PAD):
+    """P(verbatim repeat) vs k identical rounds, per checkpoint (measure_repeat_prob).
+
+    The closed-loop pathology in one picture: on REAL-material contexts the trained
+    models escalate toward near-deterministic copying with k while vanilla stays flat
+    (~0.55). The dashed line is the training hinge cap — the trained model may retry,
+    but may not be MORE certain of the verbatim repeat than the cap. anchor8 proved
+    the same curve measured on synthetic contexts can look perfect while this one is
+    untouched — always read the bank variant.
+    """
+    series = data.get("series", {})
+    ks = sorted({int(k) for vals in series.values() for k in vals})
+    xlim = (min(ks), max(ks))
+    p = Panel(W, H, PAD, xlim, (0, 1.02), xlabel="k identical rounds in context",
+              ylabel="mean P(verbatim repeat)", xticks=ks, yfmt="{:.2f}")
+    cap = data.get("cap_p")
+    if cap:
+        p.line([(ks[0], cap), (ks[-1], cap)], "#999999", 1.2, 0.8, "hinge cap")
+    items = []
+    for i, (name, vals) in enumerate(series.items()):
+        c = REP_MEASURE_COLORS[i % len(REP_MEASURE_COLORS)]
+        pts = sorted((int(k), float(v)) for k, v in vals.items())
+        p.line(pts, c, 2.0 if i else 1.6, 0.95, name)
+        p.dots([pts[-1]], c, 3, lambda x, y, n=name: f"{n} k={x:g}: {y:.3f}")
+        items.append((name, c))
+    if cap:
+        items.append(("hinge cap", "#999999"))
+    return p.svg() + legend(items)
+
+
+# Okabe-Ito, distinguishable in both common colour-vision deficiencies. The diagnostic and
+# the control get the two strongest hues because they are the two lines a reader must
+# separate at a glance; the rest are context.
+#: Per-family reference readings AS THIS PANEL HAS ALWAYS DRAWN THEM. See probe_style.
+_REPORT_VANILLA = {"qwen": {"sentence_period": 0.0017, "after_tool_call": 0.99996}}
+
+_DIAGNOSTIC_HUE = "#d55e00"   # high is broken
+_CONTROL_HUE = "#009e73"      # high is CORRECT
+_CONTEXT_HUES = ["#cc79a7", "#0072b2", "#56b4e9", "#e69f00", "#999999"]
+
+
+def probe_style(keys):
+    """(colors, vanilla_refs, spec) for the family this run's probe points belong to.
+
+    Which point is the diagnostic and which is the control is a per-family fact, and on
+    gemma-4 it is not a relabelling but an inversion: Qwen's control ``after_tool_call``
+    reads 0.99995 on Qwen and **0.00004** on gemma, because gemma's template hands over
+    to the harness there instead of ending the turn. Hard-coding Qwen's names here would
+    draw gemma's most-broken-looking line as its healthy control and quote Qwen's
+    baseline as the asymptote. Detection is by which points are PRESENT, so a run's own
+    log decides — no flag to forget to pass.
+    """
+    from quant_tuner.qat.stop_probe import PROBE_SPECS
+
+    dialect = next((d for d, sp in PROBE_SPECS.items()
+                    if d != "qwen" and sp.control in keys), "qwen")
+    spec = PROBE_SPECS[dialect]
+    colors = {spec.diagnostic: _DIAGNOSTIC_HUE, spec.control: _CONTROL_HUE}
+    hues = iter(_CONTEXT_HUES)
+    for name, _ in spec.points:
+        colors.setdefault(name, next(hues, "#999999"))
+    # Measured on the shipped weights; a family with no measurement draws no reference
+    # line rather than borrowing another family's.
+    #
+    # Qwen's pair is pinned HERE rather than read from PROBE_SPECS on purpose: the two
+    # differ (0.0017 vs 0.0092 for sentence_period) because they were measured through
+    # different paths, and this panel's dashed line has meant 0.0017 in every published
+    # Bonsai report. Silently redrawing it would rewrite the interpretation of runs
+    # already written up. Families added later have one measurement and use it.
+    refs = _REPORT_VANILLA.get(dialect)
+    if refs is None:
+        refs = ({spec.diagnostic: spec.vanilla[0], spec.control: spec.vanilla[1]}
+                if spec.vanilla else {})
+    return colors, refs, spec
+
+
+def _probe_spec_for(probes):
+    """The ProbeSpec matching the points present in these rows."""
+    return probe_style({k for r in probes for k, v in r.items()
+                        if k != "step" and v not in (None, "")})[2]
+
+
+def _control_point(names) -> str:
+    """The point where stopping is CORRECT, for whichever family these names describe."""
+    return probe_style(set(names))[2].control
+
+
+def fig_stop_probe(probes, W, H, PAD, teacher=None):
+    """P(<|im_end|>) at fixed positions, over training.
+
+    The termination collapse this pipeline keeps hitting is invisible to masked-CE — a
+    model scoring well on the corpus's own continuations can still put 0.95 on the stop
+    token after a single sentence, and sft32k's validation went FLAT for 225 steps while
+    exactly that happened. So this is plotted on its own axis, log-scaled because the
+    healthy and broken regimes are three orders of magnitude apart and a linear axis would
+    render every healthy value as the same flat line on zero.
+
+    Read the DIAGNOSTIC (should stay LOW) against the CONTROL (should stay high-ish);
+    both names are per-family, see :func:`probe_style`. Losing either is a failure;
+    losing both is the loss of position-dependence.
+    """
+    all_keys = {k for r in probes for k, v in r.items()
+                if k != "step" and v not in (None, "")}
+    colors, vanilla, spec = probe_style(all_keys)
+    keys = [k for k in colors if any(r.get(k) is not None for r in probes)]
+    xs = [r["step"] for r in probes]
+    xlim = (min(xs), max(xs)) if len(xs) > 1 else (min(xs), min(xs) + 1)
+    lo = min([v for r in probes for k in keys
+              if (v := r.get(k)) not in (None, "")] + [1e-4])
+    p1 = Panel(W, H, PAD, xlim, (max(lo * 0.5, 1e-6), 1.6), logy=True,
+               xlabel="training step", ylabel="P(<|im_end|>)  (log)",
+               xticks=nice_ticks(*xlim), yfmt="{:g}")
+    # Reference bands first, so the data draws over them. For a KD run the teacher's
+    # own probe values (dotted) are the asymptote the KL pulls toward — the vanilla
+    # lines (dashed) are where the student STARTED, not where it should end.
+    refsets = [("vanilla", vanilla, "4 4", "start")]
+    if teacher:
+        refsets.append(("teacher", teacher, "1 3", "end"))
+    for label, refs, dash, anchor in refsets:
+        for name, ref in refs.items():
+            if name not in keys:
+                continue
+            y = p1.py(max(ref, 1e-6))
+            xa = PAD + 4 if anchor == "start" else W - PAD - 4
+            p1.parts.append(
+                f'<line x1="{PAD}" y1="{y:.1f}" x2="{W - PAD}" '
+                f'y2="{y:.1f}" stroke="{colors[name]}" stroke-width="1" '
+                f'stroke-dasharray="{dash}" opacity="0.45"/>')
+            p1.parts.append(
+                f'<text x="{xa}" y="{y - 4:.1f}" font-size="9" '
+                f'text-anchor="{anchor}" fill="{colors[name]}" opacity="0.8">'
+                f'{label} {name} {"<1e-6" if ref < 1e-6 else f"{ref:g}"}</text>')
+    for k in keys:
+        pts = [(r["step"], max(r[k], 1e-6)) for r in probes
+               if r.get(k) not in (None, "")]
+        if not pts:
+            continue
+        wide = k in (spec.diagnostic, spec.control)
+        p1.line(pts, colors[k], 2.2 if wide else 1.4, 0.95 if wide else 0.75, k)
+        p1.dots(pts, colors[k], 3 if wide else 2,
+                lambda x, y, _k=k: f"step {x:g}: P({_k}) = {y:.5f}")
+    return p1.svg() + legend([(k, colors[k]) for k in keys])
+
+
 def fig_velocity(flips, W, H, PAD):
     """Per-checkpoint change in cumulative flip % — is the run still learning?"""
     rows = [r for r in flips if r.get("flip_pct_delta") not in (None, "")]
@@ -352,8 +561,14 @@ def fig_zero_fraction(traj, W, H, PAD):
         return "<p>no trajectory data</p>"
     xs = [r["step"] for r in traj]
     d = [(r["zero_frac"] - r["zero_frac_start"]) * 100 for r in traj]
-    p = Panel(W, H, PAD, (min(xs), max(xs)), (min(d + [0.0]) * 1.15, max(d + [0.0]) * 1.15),
-              xlabel="training step", ylabel="Δ zero-fraction (pp)", yfmt="{:+.2f}")
+    # Every trajectory factually starts at Δ=0 at step 0 (zero_frac_start IS the step-0
+    # census), so anchor the lines there — it also keeps the panel well-formed when only
+    # one checkpoint exists yet (a live run's first interval used to collapse the x-axis
+    # and stack every label at the left edge).
+    xlim = (0, max(xs))
+    p = Panel(W, H, PAD, xlim, (min(d + [0.0]) * 1.15, max(d + [0.0]) * 1.15),
+              xlabel="training step", ylabel="Δ zero-fraction (pp)",
+              xticks=nice_ticks(*xlim), yfmt="{:+.2f}")
     p.rule(0.0, "#bbb")
     by: dict[str, list] = {}
     for r in traj:
@@ -361,7 +576,8 @@ def fig_zero_fraction(traj, W, H, PAD):
     ends = []
     for name, rs in by.items():
         rs.sort(key=lambda r: r["step"])
-        pts = [(r["step"], (r["zero_frac"] - r["zero_frac_start"]) * 100) for r in rs]
+        pts = [(0, 0.0)] + [(r["step"], (r["zero_frac"] - r["zero_frac_start"]) * 100)
+                            for r in rs]
         c = KIND_COLOR.get(rs[0]["kind"], MUTED)
         p.line(pts, c, 2, 0.85, name)
         ends.append((p.py(pts[-1][1]),
@@ -448,19 +664,35 @@ def main() -> int:
     ap.add_argument("--no-arch", action="store_true", help="skip the architecture section")
     ap.add_argument("--swe-workspace", type=Path,
                     help="run_swebench_eval workspace — adds the agentic outcome table")
+    ap.add_argument("--stop-prob-csv", type=Path,
+                    help="probe_stop_prob.py CSV — adds the termination-policy table")
     ap.add_argument("--notes", type=Path,
                     help="a text file of findings/next-steps; '## ' starts a heading, "
                          "'- ' a bullet, blank lines separate paragraphs")
     ap.add_argument("--window", type=int, default=8064)
     ap.add_argument("--grad-accum", type=int, default=4)
+    ap.add_argument("--kd-alpha", type=float, default=None,
+                    help="the run's KD mixing weight; lets the KD panel derive the CE "
+                         "component from the logged total (exact at T=1)")
+    ap.add_argument("--teacher-probe", action="append", default=[],
+                    metavar="NAME=PROB",
+                    help="teacher's own stop-probe reading (repeatable, e.g. "
+                         "after_tool_call=0.99999) — drawn as dotted asymptote lines "
+                         "on the termination panel")
     ap.add_argument("--title", default="QAT training dynamics")
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
 
     t = args.telemetry
-    steps = read(t / "steps.csv", {"step": int, "loss": float, "lr": float,
-                                   "mem_gib": float, "s_per_step": float})
+    steps = read(t / "steps.csv", {"step": int, "loss": float, "kd_kl": float,
+                                   "stop_anchor": float, "steer": float,
+                                   "steer_rep": float, "rep_kl": float,
+                                   "lr": float, "mem_gib": float, "s_per_step": float})
     vals = read(t / "val.csv", {"step": int, "val_masked_ce": float})
+    from quant_tuner.qat.stop_probe import PROBE_SPECS
+    probes = read(t / "stopprobe.csv",
+                  {"step": int, **{n: float for sp in PROBE_SPECS.values()
+                                   for n, _ in sp.points}})
     flips = read(t / "flips.csv", {"step": int, "flip_pct": float, "zero_to_nonzero": int,
                                    "nonzero_to_zero": int, "scale_drift_pct": float,
                                    "flip_pct_delta": float, "densify_ratio": float})
@@ -487,34 +719,96 @@ def main() -> int:
     kpis = headline(steps, vals, flips, traj, hrs, tps)
 
     cen = cen_rows
+    # Flip telemetry is only printed at checkpoints, so a report generated in the first
+    # interval of a run has none. That is the normal state of a live run, not an error —
+    # emit the curves that do exist and say why the rest are missing, rather than dying on
+    # max() of an empty sequence.
     figs = [
         ("Loss &amp; LR",
          "Is the schedule healthy? Stacked panels, shared x — not a dual axis.",
          fig_loss_lr(steps, vals, W, H, PAD)),
-        ("Flip velocity",
-         "Still learning? Codes are the only thing that survives export, so this is the "
-         "convergence signal — loss falls on scale drift alone. Past the peak = annealing.",
-         fig_velocity(flips, W, H, PAD)),
-        ("Capacity: Δ zero-fraction",
-         "Below the line = dead weights switched on. This is the same event as a flip, "
-         "counted as capacity rather than churn.",
-         fig_zero_fraction(traj, W, H, PAD)),
-        ("Mechanism: recruit vs prune",
-         "On the dashed diagonal a tensor substitutes weights at constant density; below "
-         "it, it recruits. Square axes — the 45° reading only holds at equal aspect.",
-         fig_recruit_prune(flips, W, H, PAD)),
-        ("Depth profile",
-         "One sampled tensor per layer. A big spread means a cheaper partial-layer run may "
-         "buy the same thing.",
-         fig_depth(flips, W, H, PAD)),
-        ("Efficiency",
-         "Codes changed per GPU-hour and per 1M tokens. The stop signal: when this "
-         "flattens, more hours stop changing the shipped model.",
-         fig_efficiency(flips, steps, W, H, PAD, tps)),
+    ]
+    if any(r.get("kd_kl") is not None for r in steps):
+        figs += [
+            ("Distillation: KL to the teacher",
+             "The teacher-tracking signal offline KD adds. Falling KL = the student's "
+             "distribution moving toward the teacher's — the SHAPE constraint that pins "
+             "the termination policy, which one-target-per-position CE cannot express.",
+             fig_kd_kl(steps, args.kd_alpha, W, H, PAD)),
+        ]
+    if any(r.get("steer_rep") is not None for r in steps):
+        figs += [
+            ("Behavioral steering losses",
+             "The per-step steering terms. <b>rp</b> — the repetition hinge on "
+             "real-material loop contexts (one-sided above the cap): healthy shape is "
+             "active-then-suppressed; flat zero from step 1 means the hinge lives where "
+             "the pathology is not. rk = rep teacher-KL (when enabled), st = "
+             "termination steer.",
+             fig_steering(steps, W, H, PAD)),
+        ]
+    _rm = t.parent / "rep_measure.json"
+    if _rm.exists():
+        import json as _json
+        figs += [
+            ("Repetition escalation: P(repeat) vs k",
+             "Checkpoint-level measurement on REAL-material contexts "
+             "(measure_repeat_prob.py --bank): does the model become more certain of "
+             "the verbatim repeat as identical rounds accumulate? Vanilla is flat "
+             "~0.55; anchor7/8 reached 0.96-0.98 — the 56x-loop regime. The dashed "
+             "cap is what training enforces.",
+             fig_rep_measure(_json.loads(_rm.read_text()), W, H, PAD)),
+        ]
+    if probes:
+        figs += [
+            ("Termination policy over training",
+             f"P(stop) at fixed positions, measured on the live model. "
+             f"<b>{_probe_spec_for(probes).diagnostic}</b> is the diagnostic (must stay "
+             f"LOW) and <b>{_probe_spec_for(probes).control}</b> the control (must stay "
+             f"high). Masked-CE cannot see this: sft32k's validation was flat for 225 "
+             f"steps while its sentence_period went to 0.97.",
+             fig_stop_probe(probes, W, H, PAD,
+                            teacher={k: float(v) for k, v in
+                                     (s.split("=", 1) for s in args.teacher_probe)})),
+        ]
+    if flips:
+        figs += [
+            ("Flip velocity",
+             "Still learning? Codes are the only thing that survives export, so this is the "
+             "convergence signal — loss falls on scale drift alone. Past the peak = annealing.",
+             fig_velocity(flips, W, H, PAD)),
+        ]
+        # Δ zero-fraction is the one panel that needs per-tensor density, which lives in
+        # the census rather than the log.
+        if traj:
+            figs += [
+                ("Capacity: Δ zero-fraction",
+                 "Below the line = dead weights switched on. This is the same event as a "
+                 "flip, counted as capacity rather than churn.",
+                 fig_zero_fraction(traj, W, H, PAD)),
+            ]
+        figs += [
+            ("Mechanism: recruit vs prune",
+             "On the dashed diagonal a tensor substitutes weights at constant density; below "
+             "it, it recruits. Square axes — the 45° reading only holds at equal aspect.",
+             fig_recruit_prune(flips, W, H, PAD)),
+            ("Depth profile",
+             "One sampled tensor per layer. A big spread means a cheaper partial-layer run "
+             "may buy the same thing.",
+             fig_depth(flips, W, H, PAD)),
+            ("Efficiency",
+             "Codes changed per GPU-hour and per 1M tokens. The stop signal: when this "
+             "flattens, more hours stop changing the shipped model.",
+             fig_efficiency(flips, steps, W, H, PAD, tps)),
+        ]
+    figs += [
         ("Throughput &amp; memory",
          "Rising s/step at flat resident memory = allocator fragmentation heading for swap.",
          fig_throughput(steps, W, H, PAD)),
     ]
+    pending = "" if flips else (
+        '<p class="meta">Code-flip figures appear from the first checkpoint onward — this '
+        "run has not reached one yet, so only the schedule and throughput curves are "
+        "shown. Their absence says nothing about whether codes are moving.</p>")
     body = "".join(f"<section><h2>{i + 1}. {name}</h2><p>{desc}</p>{svg}</section>"
                    for i, (name, desc, svg) in enumerate(figs))
 
@@ -529,6 +823,23 @@ def main() -> int:
                 f'own <code>config.json</code>.</p>'
                 f'<div class="cols"><div>{spec}</div>'
                 f'<div class="archwrap">{arch_card(args.arch_repo)}</div></div></section>')
+
+    stopsec = ""
+    if args.stop_prob_csv:
+        t_ = stop_prob_section(args.stop_prob_csv)
+        if t_:
+            stopsec = (
+                f"<section><h2>Termination policy — P(&lt;|im_end|&gt;)</h2>"
+                f"<p>The endpoint the loss curve cannot show. Probability of the stop token "
+                f"at fixed points in one agentic turn, greedy, read straight off "
+                f"<code>/completion</code> logprobs. Rank is in parentheses.</p>"
+                f"<p>During an agentic turn the correct continuation is a tool call, so a "
+                f"healthy model keeps P(stop) low everywhere except after a complete "
+                f"<code>&lt;/tool_call&gt;</code> block — the one point where stopping is "
+                f"right, and the only column where a high value is good. "
+                f"<b>sentence_period</b> is the diagnostic: a model that has learned to stop "
+                f"too early turns every sentence boundary into an absorbing state.</p>"
+                f"{t_}</section>")
 
     swe = ""
     if args.swe_workspace:
@@ -571,8 +882,14 @@ def main() -> int:
     args.out.write_text(f"""<!doctype html><meta charset="utf-8">
 <title>{args.title}</title>
 <style>
+ /* This page commits to a light ground on purpose: the Okabe-Ito series colors are chosen
+    for contrast against white, and re-deriving them per theme would break comparability
+    with every published figure. So paint it explicitly rather than inheriting — an
+    unpainted body renders #222 text on the host's ground, which is unreadable anywhere
+    the page is embedded in a dark context. */
+ :root{{color-scheme:light}}
  body{{font:14px/1.55 -apple-system,system-ui,sans-serif;margin:2rem auto;max-width:1000px;
-       color:{INK};padding:0 1rem}}
+       color:{INK};background:#fff;padding:0 1rem}}
  h1{{font-size:21px;margin:0 0 .2rem}} h2{{font-size:15px;margin:0 0 .2rem}}
  h3{{font-size:12px;color:{MUTED};font-weight:600;margin:0 0 .3rem;text-transform:uppercase;
      letter-spacing:.04em}}
@@ -613,8 +930,10 @@ def main() -> int:
 <p class="meta">A natively-ternary model stores <code>w = s·c</code>, <code>c ∈ {{−1,0,+1}}</code>.
 Loss can fall on scale drift alone, so every panel below is anchored on <b>code flips</b> —
 the only change that survives export to a 2-bit GGUF.</p>
+{pending}
 {body}
 {tables}
+{stopsec}
 {swe}
 {notes}
 """)
@@ -703,6 +1022,63 @@ def arch_spec(cfg: dict) -> str:
             + "</table>" + note)
 
 
+def stop_prob_section(path: Path) -> str:
+    """P(<|im_end|>) at fixed probe points, one column per model.
+
+    The endpoint no loss curve can report. A ternary QAT run can leave grammar intact and
+    still move the *stopping policy*: the sft32k run (--stop-weight 6.0) writes one correct
+    sentence and then emits the stop token instead of the tool call, which shows up here as
+    P(stop) going to ~1.0 at `sentence_period` while `mid_sentence` stays near zero.
+
+    Written by scripts/probe_stop_prob.py. Rows are probe points, columns are models in the
+    order they were measured, so the reference sits beside the run under test.
+    """
+    if not path.exists():
+        return ""
+    rows = [r for r in csv.DictReader(path.open()) if r.get("probe")]
+    if not rows:
+        return ""
+
+    labels = list(dict.fromkeys(r["label"] for r in rows))
+    probes = list(dict.fromkeys(r["probe"] for r in rows))
+    by = {(r["label"], r["probe"]): r for r in rows}
+
+    control = _control_point(probes)
+    out = ["<tr><th>probe point</th>" + "".join(f"<th>{lab}</th>" for lab in labels) + "</tr>"]
+    for p in probes:
+        cells = []
+        for lab in labels:
+            r = by.get((lab, p))
+            if r is None:
+                cells.append(f'<td style="color:{MUTED}">—</td>')
+                continue
+            raw = (r.get("stop_prob") or "").strip()
+            if not raw:
+                # Outside the top-N window: the tail bound is the honest report.
+                try:
+                    bound = f"&lt;{float(r['tail_bound']):.0e}"
+                except (KeyError, ValueError):
+                    bound = "&lt;tail"
+                cells.append(f'<td style="color:{MUTED}">{bound} '
+                             f'<span>(r&gt;{r.get("n_returned", "?")})</span></td>')
+                continue
+            v = float(raw)
+            # The control is the one point where stopping is CORRECT, so a high value
+            # there is the healthy reading and must not be flagged as a regression. Which
+            # point that IS differs per family -- on gemma-4 `after_tool_call` reads
+            # 0.00004 on the shipped model and is not a control at all.
+            broken = v > 0.5 and p != control
+            col = "#d55e00" if broken else INK
+            # The healthy values run to 1e-7; fixed decimals would print them all as
+            # 0.00000 and lose the three orders that separate "never stops here" from
+            # "occasionally stops here".
+            shown = f"{v:.5f}" if v >= 1e-4 else f"{v:.1e}"
+            cells.append(f'<td style="color:{col}">{shown}'
+                         f'<span style="color:{MUTED}"> (r{r.get("stop_rank", "?")})</span></td>')
+        out.append(f"<tr><td>{p}</td>{''.join(cells)}</tr>")
+    return "<table>" + "".join(out) + "</table>"
+
+
 def swe_section(ws: Path) -> str:
     """Agentic SWE-rebench outcome table, including the loop metric.
 
@@ -757,6 +1133,10 @@ def headline(steps, vals, flips, traj, hrs, tps) -> str:
     cells: list[tuple[str, str]] = []
     last = steps[-1]
     cells.append((f"{last['loss']:.3f}", "train loss"))
+    klrows = [r for r in steps if r.get("kd_kl") is not None]
+    if klrows:
+        cells.append((f"{klrows[-1]['kd_kl']:.3f}",
+                      f"KL to teacher (start {klrows[0]['kd_kl']:.3f})"))
     if vals:
         best = min(vals, key=lambda v: v["val_masked_ce"])
         cells.append((f"{vals[-1]['val_masked_ce']:.3f}",

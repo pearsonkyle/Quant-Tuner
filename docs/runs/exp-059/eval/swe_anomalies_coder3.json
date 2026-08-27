@@ -1,0 +1,27 @@
+{
+  "label": "CODER3-T07-Q2_0",
+  "mode": "loop",
+  "flags": [
+    "repeated the same command 3x in a row: 'grep -n -A 10 -B 5 \"check_matching_columns\" /workspace/swe-micic/work/dask__dask-11393/repo/dask/dataframe/tests/test_utils_dataframe.py'",
+    "hit max turns \u2014 never terminated on its own"
+  ],
+  "resolved": 0,
+  "patch_produced": 0,
+  "n_tool_calls": 60,
+  "distinct_commands": 42,
+  "longest_repeat_run": 3,
+  "repeated_command": "grep -n -A 10 -B 5 \"check_matching_columns\" /workspace/swe-micic/work/dask__dask-11393/repo/dask/dataframe/tests/test_utils_dataframe.py",
+  "kinds": {
+    "ok": 15,
+    "nonzero": 38,
+    "malformed": 7
+  },
+  "out_tokens": 4107,
+  "in_tokens": 694869,
+  "tool_err_rate": 0.1167,
+  "exit_status": "error:MaxTurnsExceeded",
+  "hit_max_turns": 1,
+  "wall_s": 57.2,
+  "f2p": "0/1",
+  "p2p": "34/34"
+}

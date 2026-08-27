@@ -18,10 +18,19 @@ from quant_tuner.qat import corpus as qc
 class FakeTok:
     """Character-per-token stand-in with the surface the builder uses.
 
-    Renders ``<|im_start|>{role}\\n{content}<|im_end|>\\n`` per message so the real
-    ``_ASST_RE`` span logic runs, and returns byte offsets so the label mapping is the
-    production code path.
+    Renders ``<|im_start|>{role}\\n{content}<|im_end|>\\n`` per message so the real Qwen
+    span logic runs, and returns byte offsets so the label mapping is the production code
+    path. It answers ``<|im_end|>`` in ``convert_tokens_to_ids`` because that is how
+    ``qat.dialect.detect`` identifies the family — a stub that renders ChatML but denies
+    having its stop token is not a Qwen tokenizer, and detection rightly refuses it.
     """
+
+    #: Qwen3's real control-token ids. The encoder below emits them as SINGLE tokens, the
+    #: way a real tokenizer does with special-token parsing on. Without that the corpus's
+    #: stop-token audit can never see a labeled terminator and is inert here, which is how
+    #: this stub used to silently opt out of it.
+    IM_START_ID = 151644
+    IM_END_ID = 151645
 
     def apply_chat_template(self, msgs, tools=None, tokenize=False, add_generation_prompt=False):
         parts = []
@@ -32,18 +41,37 @@ class FakeTok:
             parts.append(f"<|im_start|>{m['role']}\n{body}<|im_end|>\n")
         return "".join(parts)
 
+    #: (surface, id) for the control tokens, longest first so the scan is unambiguous.
+    SPECIALS = (("<|im_start|>", IM_START_ID), ("<|im_end|>", IM_END_ID))
+
     def __call__(self, text, add_special_tokens=False, return_offsets_mapping=False):
-        ids = [ord(c) % 256 for c in text]
+        ids: list[int] = []
+        offs: list[tuple[int, int]] = []
+        i = 0
+        while i < len(text):
+            for surface, tid in self.SPECIALS:
+                if text.startswith(surface, i):
+                    ids.append(tid)
+                    offs.append((i, i + len(surface)))
+                    i += len(surface)
+                    break
+            else:
+                ids.append(ord(text[i]) % 256)
+                offs.append((i, i + 1))
+                i += 1
         out = {"input_ids": ids}
         if return_offsets_mapping:
-            out["offset_mapping"] = [(i, i + 1) for i in range(len(text))]
+            out["offset_mapping"] = offs
         return out
 
     def decode(self, ids):
         return "".join(chr(i) for i in ids)
 
-    def convert_tokens_to_ids(self, tokenizer):
-        return None  # no <|im_end|> id -> _finalize skips the stop-token assert
+    def convert_tokens_to_ids(self, piece):
+        return self.IM_END_ID if piece == "<|im_end|>" else None
+
+    def convert_ids_to_tokens(self, i):
+        return "<|im_end|>" if i == self.IM_END_ID else "<unk>"
 
 
 def _row(idx, source, split, n_chars=4000):
@@ -150,3 +178,126 @@ def test_build_is_deterministic_for_a_seed(sft_file):
     b = qc.build_sft_corpus(sft_path=sft_file, budgets={"logs": 20_000}, window=512,
                             max_tool_tokens=0, seed=7, tok=FakeTok(), out=None)
     assert a["fingerprint"] == b["fingerprint"]
+
+
+# ------------------------------------------------- split assistant turns (the real defect)
+def test_merge_consecutive_assistant_joins_prose_and_its_tool_call():
+    """Agent logs record one assistant turn as prose + a separate tool_calls message.
+    Rendered verbatim each fragment gets its own <|im_end|>, which is what taught the
+    model that a short preamble is followed by the STOP token."""
+    from quant_tuner.qat.corpus import merge_consecutive_assistant
+    msgs = [
+        {"role": "user", "content": "fix it"},
+        {"role": "assistant", "content": "Let me check the current state:"},
+        {"role": "assistant", "tool_calls": [{"id": "c1", "function": {"name": "bash"}}]},
+        {"role": "tool", "content": "ok", "tool_call_id": "c1"},
+    ]
+    out, n = merge_consecutive_assistant(msgs)
+    assert n == 1
+    assert [m["role"] for m in out] == ["user", "assistant", "tool"]
+    a = out[1]
+    assert a["content"] == "Let me check the current state:"   # no trailing separator
+    assert len(a["tool_calls"]) == 1
+
+
+def test_merge_joins_two_prose_fragments_as_paragraphs():
+    from quant_tuner.qat.corpus import merge_consecutive_assistant
+    out, n = merge_consecutive_assistant([
+        {"role": "assistant", "content": "First."},
+        {"role": "assistant", "content": "Second."},
+    ])
+    assert n == 1
+    assert out[0]["content"] == "First.\n\nSecond."
+
+
+def test_merge_concatenates_tool_calls_from_both():
+    from quant_tuner.qat.corpus import merge_consecutive_assistant
+    out, _ = merge_consecutive_assistant([
+        {"role": "assistant", "content": "a", "tool_calls": [{"id": "1"}]},
+        {"role": "assistant", "tool_calls": [{"id": "2"}]},
+    ])
+    assert [c["id"] for c in out[0]["tool_calls"]] == ["1", "2"]
+
+
+def test_merge_never_touches_user_or_tool_messages():
+    """Tool results arrive as user-role messages under this template, so merging
+    consecutive user messages would fuse a real user turn with a tool response."""
+    from quant_tuner.qat.corpus import merge_consecutive_assistant
+    msgs = [{"role": "user", "content": "a"}, {"role": "user", "content": "b"},
+            {"role": "tool", "content": "x"}, {"role": "tool", "content": "y"}]
+    out, n = merge_consecutive_assistant(msgs)
+    assert n == 0
+    assert len(out) == 4
+
+
+def test_merge_does_not_mutate_the_input():
+    from quant_tuner.qat.corpus import merge_consecutive_assistant
+    msgs = [{"role": "assistant", "content": "a"}, {"role": "assistant", "content": "b"}]
+    merge_consecutive_assistant(msgs)
+    assert msgs[0]["content"] == "a", "caller's messages must be untouched"
+
+
+def test_merge_preserves_reasoning_from_both_fragments():
+    from quant_tuner.qat.corpus import merge_consecutive_assistant
+    out, _ = merge_consecutive_assistant([
+        {"role": "assistant", "content": "a", "reasoning_content": "think one"},
+        {"role": "assistant", "content": "b", "reasoning_content": "think two"},
+    ])
+    assert out[0]["reasoning_content"] == "think one\n\nthink two"
+
+
+def test_inline_control_tokens_are_detected():
+    """From our own sessions debugging chat templates: the assistant wrote
+    rendered.find('<|im_end|>') in a code block, and special-token parsing makes that a
+    real stop token inside supervised prose."""
+    from quant_tuner.qat.corpus import has_inline_control_tokens
+    assert has_inline_control_tokens(
+        [{"role": "assistant", "content": "idx = rendered.find('<|im_end|>')"}])
+    assert has_inline_control_tokens(
+        [{"role": "assistant", "reasoning_content": "the <|im_start|> marker"}])
+    assert not has_inline_control_tokens(
+        [{"role": "assistant", "content": "a normal message about tools"}])
+    assert not has_inline_control_tokens([{"role": "user", "content": None}])
+
+
+def test_empty_assistant_turns_are_dropped():
+    """An assistant message with no content and no tool calls renders as
+    '<|im_start|>assistant\\n<|im_end|>' — a supervised span whose ONLY trained token is
+    the stop token. The agent logs carry 2,155 of them."""
+    from quant_tuner.qat.corpus import drop_empty_assistant
+    msgs = [
+        {"role": "user", "content": "hi"},
+        {"role": "assistant"},                                  # no keys at all
+        {"role": "assistant", "content": "   "},                # whitespace only
+        {"role": "assistant", "content": "", "tool_calls": []},  # both empty
+        {"role": "assistant", "content": "real"},
+        {"role": "assistant", "content": "", "tool_calls": [{"id": "1"}]},  # calls = real
+    ]
+    out, n = drop_empty_assistant(msgs)
+    assert n == 3
+    assert [m.get("content") for m in out] == ["hi", "real", ""]
+
+
+def test_empty_assistant_drop_leaves_other_roles_alone():
+    from quant_tuner.qat.corpus import drop_empty_assistant
+    msgs = [{"role": "user", "content": ""}, {"role": "tool", "content": ""}]
+    out, n = drop_empty_assistant(msgs)
+    assert n == 0 and len(out) == 2
+
+
+def test_merge_then_drop_removes_the_pure_stop_turns():
+    """The two fixes compose: merging absorbs an empty assistant message into its
+    neighbour, and the drop catches the ones with no assistant neighbour."""
+    from quant_tuner.qat.corpus import drop_empty_assistant, merge_consecutive_assistant
+    msgs = [
+        {"role": "user", "content": "go"},
+        {"role": "assistant"},                                   # empty, has a neighbour
+        {"role": "assistant", "content": "Let me check:"},
+        {"role": "tool", "content": "out"},
+        {"role": "assistant"},                                   # empty, NO neighbour
+    ]
+    merged, nm = merge_consecutive_assistant(msgs)
+    dropped, nd = drop_empty_assistant(merged)
+    assert nm == 1 and nd == 1
+    assert [m["role"] for m in dropped] == ["user", "assistant", "tool"]
+    assert dropped[1]["content"] == "Let me check:"

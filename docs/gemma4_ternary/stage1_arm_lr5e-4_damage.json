@@ -1,0 +1,43 @@
+{
+ "model": "google/gemma-4-E4B-it-qat-q4_0-unquantized",
+ "split": "test",
+ "window": 2048,
+ "windows": 3,
+ "ternary_layers": [
+  0,
+  1,
+  2,
+  3,
+  7,
+  8
+ ],
+ "dense_kinds": [
+  "down_proj"
+ ],
+ "n_latents": 48,
+ "ckpt": "out/gemma4-ternary/ab-lr5e-4/trained_latents.pt",
+ "rows": {
+  "dense": {
+   "kld": 0.0,
+   "top1_agree": 1.0,
+   "nll": 1.4128272198140621,
+   "ppl": 4.1075520515441895
+  },
+  "untrained": {
+   "kld": 0.07616302402069171,
+   "top1_agree": 0.9163411458333334,
+   "nll": 1.3976184005538623,
+   "ppl": 4.045553684234619
+  },
+  "trained": {
+   "kld": 0.35760003126536805,
+   "top1_agree": 0.8269856770833334,
+   "nll": 1.4364097714424133,
+   "ppl": 4.205569267272949
+  },
+  "recovered_frac": {
+   "kld": -3.695192133760557
+  }
+ },
+ "probes": {}
+}

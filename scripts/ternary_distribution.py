@@ -85,12 +85,27 @@ def census(model_dir: Path, names: list[str] | None, want_all: bool) -> list[dic
 
     from quant_tuner.qat.ternary import ternarize_group
 
-    index = json.loads((model_dir / "model.safetensors.index.json").read_text())
-    weight_map: dict[str, str] = index["weight_map"]
+    idx = model_dir / "model.safetensors.index.json"
+    if idx.exists():
+        weight_map: dict[str, str] = json.loads(idx.read_text())["weight_map"]
+    else:
+        # A checkpoint small enough to ship as one file has no index -- e.g.
+        # gemma-4-E4B-it-qat-q4_0-unquantized, 15.9 GB in a single model.safetensors.
+        # Reading its key list gives the same map with one shard in it.
+        single = model_dir / "model.safetensors"
+        if not single.exists():
+            raise SystemExit(f"[census] neither {idx.name} nor {single.name} in {model_dir}")
+        with safe_open(single, framework="pt") as f:
+            weight_map = dict.fromkeys(f.keys(), single.name)  # noqa: SIM118
     if want_all:
-        # the trainable linears: attention + MLP projections inside a decoder layer
+        # The trainable linears: attention + MLP projections inside a DECODER layer.
+        # The tower exclusion is not belt-and-braces. gemma-4's audio tower ships
+        # `model.audio_tower.layers.0.self_attn.relative_k_proj.weight`, which matches the
+        # projection pattern exactly and would enter the census as a decoder tensor -- a
+        # tower the training never touches, reported beside the ones it did.
         wanted = [k for k in weight_map
-                  if re.search(r"layers\.\d+\.(self_attn|mlp)\.\w+_proj\.weight$", k)]
+                  if re.search(r"layers\.\d+\.(self_attn|mlp)\.\w+_proj\.weight$", k)
+                  and "_tower" not in k]
     else:
         wanted = [f"{n}.weight" for n in (names or [])]
         missing = [w for w in wanted if w not in weight_map]
