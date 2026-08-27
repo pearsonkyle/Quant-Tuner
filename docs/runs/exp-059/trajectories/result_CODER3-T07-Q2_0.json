@@ -1,0 +1,22 @@
+{
+  "label": "CODER3-T07-Q2_0",
+  "instance_id": "dask__dask-11393",
+  "resolved": 0,
+  "patch_produced": 0,
+  "f2p_passed": 0,
+  "f2p_total": 1,
+  "p2p_passed": 34,
+  "p2p_total": 34,
+  "steps": 60,
+  "tool_errors": 7,
+  "tool_err_rate": 0.1167,
+  "malformed": 7,
+  "timeouts": 0,
+  "nonzero_exits": 38,
+  "out_tokens": 4107,
+  "in_tokens": 694869,
+  "wall_s": 57.2,
+  "exit_status": "error:MaxTurnsExceeded",
+  "hit_max_turns": 1,
+  "reasoning_budget": 2048
+}

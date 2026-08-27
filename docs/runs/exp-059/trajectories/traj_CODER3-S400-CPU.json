@@ -1,0 +1,1213 @@
+[
+  {
+    "n": 1,
+    "cmd": "find /workspace/swe-mimic -type f -name '*.py' | grep -E '(dask|utils|dataframe)' | head -20",
+    "rc": 0,
+    "kind": "ok",
+    "out_head": "/workspace/swe-mimic/.venv/lib/python3.11/site-packages/uvicorn/protocols/utils.py\n/workspace/swe-mimic/.venv/lib/python3.11/site-packages/tqdm/_utils.py\n/workspace/swe-mimic/.venv/lib/python3.11/site-packages/tqdm/dask.py\n/workspace/swe-mimic/.venv/lib/python3.11/site-packages/tqdm/utils.py\n/workspace/swe-mimic/.venv/lib/python3.11/site-packages/tqdm/contrib/utils_worker.py\n/workspace/swe-mimic/."
+  },
+  {
+    "n": 2,
+    "cmd": "find /workspace/swe-mimic/dask -type f -name '*.py' | grep -E '(dataframe|utils)' | head -30",
+    "rc": 0,
+    "kind": "ok",
+    "out_head": "find: \u2018/workspace/swe-mimic/dask\u2019: No such file or directory\n"
+  },
+  {
+    "n": 3,
+    "cmd": "ls -la /workspace/swe-mimic/",
+    "rc": 0,
+    "kind": "ok",
+    "out_head": "total 8412\ndrwxrwxr-x 6 root root    4096 Aug 26 07:15 .\ndrwxr-xr-x 8 root root    4096 Aug 24 05:33 ..\ndrwxrwxr-x 4 root root     142 Aug 15 04:16 .venv\ndrwxrwxr-x 2 root root      39 Aug 15 04:23 __pycache__\n-rw-rw-r-- 1 root root    3255 Aug 15 05:21 agent-bench.log\ndrwxrwxr-x 2 root root     188 Aug 15 05:46 archive_v1\n-rw-rw-r-- 1 root root     842 Aug 24 19:43 benchwatch_coder2.csv\n-rw-rw-r-"
+  },
+  {
+    "n": 4,
+    "cmd": "find /workspace/swe-mimic -type d -name \"dask\"",
+    "rc": 0,
+    "kind": "ok",
+    "out_head": "/workspace/swe-mimic/work/dask__dask-11393/repo/dask\n/workspace/swe-mimic/work/dask__dask-11393/venv/lib/python3.10/site-packages/dask-2024.9.0+1.ge71d4361a.dist-info/licenses/dask\n/workspace/swe-mimic/work/12rambau__sepal_ui-814/venv/lib/python3.12/site-packages/dask\n/workspace/swe-mimic/work/12rambau__sepal_ui-814/venv/lib/python3.12/site-packages/dask-2026.7.1.dist-info/licenses/dask\n"
+  },
+  {
+    "n": 5,
+    "cmd": "find /workspace/swe-mimic/work/dask__dask-11393/repo/dask -type f -name '*utils*' -o -name '*dataframe*' | grep -i order",
+    "rc": 1,
+    "kind": "nonzero",
+    "out_head": ""
+  },
+  {
+    "n": 6,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimic/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 1,
+    "kind": "nonzero",
+    "out_head": ""
+  },
+  {
+    "n": 7,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/: No such file or directory\n"
+  },
+  {
+    "n": 8,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/: No such file or directory\n"
+  },
+  {
+    "n": 9,
+    "cmd": "ls -la /workspace/swe-mimc/work/dask__dask-11393/repo/dask/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "ls: cannot access '/workspace/swe-mimc/work/dask__dask-11393/repo/dask/': No such file or directory\n"
+  },
+  {
+    "n": 10,
+    "cmd": "ls -la /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "ls: cannot access '/workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py': No such file or directory\n"
+  },
+  {
+    "n": 11,
+    "cmd": "find /workspace/swe-mimc/work/dask__dask-11393/repo/dask -type f | head -10",
+    "rc": 0,
+    "kind": "ok",
+    "out_head": "find: \u2018/workspace/swe-mimc/work/dask__dask-11393/repo/dask\u2019: No such file or directory\n"
+  },
+  {
+    "n": 12,
+    "cmd": "pwd",
+    "rc": 0,
+    "kind": "ok",
+    "out_head": "/workspace/swe-mimic/work/dask__dask-11393/repo\n"
+  },
+  {
+    "n": 13,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 14,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 16,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 16,
+    "cmd": "find /workspace/swe-mimc/work/dask__dask-11393/repo/dask -type f -name '*.py' | grep -E '(utils|dataframe)' | head -10",
+    "rc": 0,
+    "kind": "ok",
+    "out_head": "find: \u2018/workspace/swe-mimc/work/dask__dask-11393/repo/dask\u2019: No such file or directory\n"
+  },
+  {
+    "n": 18,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 18,
+    "cmd": "ls -la /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "ls: cannot access '/workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py': No such file or directory\n"
+  },
+  {
+    "n": 20,
+    "cmd": "ls -la /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "ls: cannot access '/workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py': No such file or directory\n"
+  },
+  {
+    "n": 20,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 26,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 27,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 29,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/: No such file or directory\n"
+  },
+  {
+    "n": 30,
+    "cmd": "find /workspace/swe-mimc/work/dask__dask-11393/repo/dask -type f -name '*.py' | grep -E '(utils|dataframe)' | head -5",
+    "rc": 0,
+    "kind": "ok",
+    "out_head": "find: \u2018/workspace/swe-mimc/work/dask__dask-11393/repo/dask\u2019: No such file or directory\n"
+  },
+  {
+    "n": 30,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 34,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/: No such file or directory\n"
+  },
+  {
+    "n": 39,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/: No such file or directory\n"
+  },
+  {
+    "n": 39,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 40,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 40,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 42,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/: No such file or directory\n"
+  },
+  {
+    "n": 44,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 44,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 47,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc: No such file or directory\n"
+  },
+  {
+    "n": 47,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 47,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/: No such file or directory\n"
+  },
+  {
+    "n": 49,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/: No such file or directory\n"
+  },
+  {
+    "n": 51,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 51,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 51,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/: No such file or directory\n"
+  },
+  {
+    "n": 51,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/: No such file or directory\n"
+  },
+  {
+    "n": 51,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 51,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 53,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/: No such file or directory\n"
+  },
+  {
+    "n": 55,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 61,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/: No such file or directory\n"
+  },
+  {
+    "n": 63,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 64,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 64,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 67,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 71,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/: No such file or directory\n"
+  },
+  {
+    "n": 72,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/: No such file or directory\n"
+  },
+  {
+    "n": 74,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 77,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 77,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 80,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 81,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/: No such file or directory\n"
+  },
+  {
+    "n": 87,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 90,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 91,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 91,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 92,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 94,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 94,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/: No such file or directory\n"
+  },
+  {
+    "n": 96,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 97,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/: No such file or directory\n"
+  },
+  {
+    "n": 98,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 98,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 100,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 101,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 101,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 102,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 103,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 104,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 105,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 107,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 108,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 108,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 110,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/: No such file or directory\n"
+  },
+  {
+    "n": 111,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/: No such file or directory\n"
+  },
+  {
+    "n": 111,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 112,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 112,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 112,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 112,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/: No such file or directory\n"
+  },
+  {
+    "n": 113,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/: No such file or directory\n"
+  },
+  {
+    "n": 115,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 117,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 120,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 121,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 121,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 121,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 121,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 122,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 123,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/: No such file or directory\n"
+  },
+  {
+    "n": 123,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 123,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 126,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 126,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 126,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/: No such file or directory\n"
+  },
+  {
+    "n": 130,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 133,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 134,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 135,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 135,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/: No such file or directory\n"
+  },
+  {
+    "n": 136,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 136,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 136,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 138,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/: No such file or directory\n"
+  },
+  {
+    "n": 139,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 140,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 141,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 142,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 144,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 145,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 145,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 148,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/: No such file or directory\n"
+  },
+  {
+    "n": 148,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 149,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 151,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 152,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 153,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 153,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 153,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/: No such file or directory\n"
+  },
+  {
+    "n": 154,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 154,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 154,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 156,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 156,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 159,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 159,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 160,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 162,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 162,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 163,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 164,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 164,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/: No such file or directory\n"
+  },
+  {
+    "n": 164,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/: No such file or directory\n"
+  },
+  {
+    "n": 165,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/: No such file or directory\n"
+  },
+  {
+    "n": 167,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 169,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 172,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -rn \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/*.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  },
+  {
+    "n": 173,
+    "cmd": "grep -n \"Order of columns does not match\" /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py",
+    "rc": 2,
+    "kind": "nonzero",
+    "out_head": "grep: /workspace/swe-mimc/work/dask__dask-11393/repo/dask/utils.py: No such file or directory\n"
+  }
+]

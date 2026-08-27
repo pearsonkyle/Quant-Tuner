@@ -1,0 +1,22 @@
+{
+  "label": "CODER3-S600-CPU",
+  "instance_id": "dask__dask-11393",
+  "resolved": 0,
+  "patch_produced": 0,
+  "f2p_passed": 0,
+  "f2p_total": 1,
+  "p2p_passed": 34,
+  "p2p_total": 34,
+  "steps": 52,
+  "tool_errors": 1,
+  "tool_err_rate": 0.0192,
+  "malformed": 1,
+  "timeouts": 0,
+  "nonzero_exits": 45,
+  "out_tokens": 4562,
+  "in_tokens": 426741,
+  "wall_s": 406.0,
+  "exit_status": "completed",
+  "hit_max_turns": 0,
+  "reasoning_budget": 2048
+}

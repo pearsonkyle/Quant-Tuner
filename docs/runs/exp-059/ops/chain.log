@@ -1,0 +1,64 @@
+[chain] KD table ready:
+[kd] saved 24996286 positions x top-64 -> out/exp-059/kd/coder_32b_topk64_fs151645.pt (9392.3 MB; 0.38 KB/position)
+[coder1] lr=5e-4 alpha=0.5 anchor beta=0.2 margins=1.0/0.1 steer=0.1 rep=0.1 clip=0.25 table=coder_32b_topk64_fs151645.pt -> out/exp-059/kd32b-full-coder1
+[coder1] finished rc=1
+    return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 1.50 GiB. GPU 0 has a total capacity of 94.97 GiB of which 436.81 MiB is free. Including non-PyTorch memory, this process has 94.54 GiB memory in use. Of the allocated memory 86.85 GiB is allocated by PyTorch, and 7.02 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf)
+[chain] training rc=1 — stopping before eval
+[coder1] lr=5e-4 alpha=0.5 anchor beta=0.2 margins=1.0/0.1 steer=0.1 rep=0.1 clip=0.25 table=coder_32b_topk64_fs151645.pt -> out/exp-059/kd32b-full-coder1
+[chain] KD precompute over path-diversified corpus
+[kd] saved 25195360 positions x top-64 -> out/exp-059/kd/coder2_32b_topk64_fs151645.pt (9467.1 MB; 0.38 KB/position)
+[coder2] lr=5e-4 alpha=0.5 anchor beta=0.2 margins=1.0/0.1 steer=0.1 rep=0.1 clip=0.25 table=coder2_32b_topk64_fs151645.pt -> out/exp-059/kd32b-full-coder2
+Terminated
+[chain] training rc=143 — stopping before eval
+[coder3] lr=5e-4 alpha=0.5 anchor beta=0.2 margins=1.0/0.1 steer=0.1 rep=0.1 clip=0.25 table=coder2_32b_topk64_fs151645.pt -> out/exp-059/kd32b-full-coder3
+[coder3] finished rc=1
+    codes = torch.sign(Wg) * mask                            # {-1,0,+1}
+            ~~~~~~~~~~~~~~~^~~~~~
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 192.00 MiB. GPU 0 has a total capacity of 94.97 GiB of which 100.81 MiB is free. Including non-PyTorch memory, this process has 94.86 GiB memory in use. Of the allocated memory 93.46 GiB is allocated by PyTorch, and 758.51 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf)
+[chain] training rc=1 — stopping before eval
+[coder3] lr=5e-4 alpha=0.5 anchor beta=0.2 margins=1.0/0.1 steer=0.1 rep=0.1 clip=0.25 table=coder2_32b_topk64_fs151645.pt -> out/exp-059/kd32b-full-coder3
+[coder3] finished rc=1
+    codes = torch.sign(Wg) * mask                            # {-1,0,+1}
+            ~~~~~~~~~~~~~~~^~~~~~
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 192.00 MiB. GPU 0 has a total capacity of 94.97 GiB of which 100.81 MiB is free. Including non-PyTorch memory, this process has 94.86 GiB memory in use. Of the allocated memory 93.46 GiB is allocated by PyTorch, and 758.51 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf)
+[chain] training rc=1 — stopping before eval
+[coder3] lr=5e-4 alpha=0.5 anchor beta=0.2 margins=1.0/0.1 steer=0.1 rep=0.1 clip=0.25 table=coder2_32b_topk64_fs151645.pt -> out/exp-059/kd32b-full-coder3
+[coder3] finished rc=0
+[qat] checkpoint @ step 743: 252 tensors
+[qat] metrics -> out/exp-059/kd32b-full-coder3/metrics.jsonl
+[qat] done at step 743: loss 1.896 -> 0.509
+[bench] 1/4 export out/exp-059/kd32b-full-coder3/trained_latents.pt
+llama_quantize: quantize time = 33257.44 ms
+llama_quantize:    total time = 33257.44 ms
+[export] DONE: /workspace/Quant-Tuner/out/exp-057/Ternary-Bonsai-8B-coder3-Q2_0.gguf (2.03 GiB)
+[bench] 2/4 GGUF stop probe
+[probe] spawning: vendor/llama.cpp-prism/build/bin/llama-server --model out/exp-057/Ternary-Bonsai-8B-coder3-Q2_0.gguf --ctx-size 8192 --n-gpu-layers 0 --threads 64 --jinja --host 127.0.0.1 --port 18081
+[probe] coder3-Q2_0: stop id 151645, prefix 836 chars
+  start             P(stop)=< 3.98e-05 (outside top 60)  rank=>60   top1='The' (0.572)
+  mid_sentence      P(stop)=< 1.81e-06 (outside top 60)  rank=>60   top1=' structure' (0.800)
+  sentence_period   P(stop)=< 1.30e-05 (outside top 60)  rank=>60   top1=' The' (0.789)
+  sentence_newline  P(stop)=< 3.22e-05 (outside top 60)  rank=>60   top1='<tool_call>' (0.754)
+  after_tool_call   P(stop)=0.9999738                    rank=1     top1='' (1.000)
+[bench] 3/4 in-distribution stop measurement
+[indist]      vanilla after_tool_call: n= 351 mean=0.9808 median=0.9945 p10=0.9843
+[indist]      vanilla       prose_end: n=   5 mean=0.1471 median=0.0486 p10=0.0012
+[indist] loaded 252 latent tensors from out/exp-059/kd32b-full-coder3/trained_latents.pt
+[indist] kd32b-full-coder3 after_tool_call: n= 351 mean=0.9104 median=0.9489 p10=0.7786
+[indist] kd32b-full-coder3       prose_end: n=   5 mean=0.6120 median=0.7809 p10=0.1619
+[bench] 4/4 SWE mimic
+ANCHOR10-Q2_0,dask__dask-11393,0,0,0,1,34,34,60,4,0.0667,4,0,1,8351,831311,43.9,error:MaxTurnsExceeded,1,2048
+ANCHOR10-RP-Q2_0,dask__dask-11393,0,0,0,1,34,34,1,0,0.0,0,0,0,190,1922,1.0,completed,0,2048
+ANCHOR10-T07-Q2_0,dask__dask-11393,0,0,0,1,34,34,44,0,0.0,0,0,1,24052,384310,139.2,completed,0,2048
+ANCHOR10-T07-Q2_0,dask__dask-11393,0,0,0,1,34,34,14,0,0.0,0,0,0,15099,99630,64.5,completed,0,2048
+ANCHOR9-T07-Q2_0,dask__dask-11393,0,0,0,1,34,34,48,31,0.6458,31,0,3,18294,873650,98.7,error:InternalServerError,0,2048
+CODER3-Q2_0,dask__dask-11393,0,0,0,1,34,34,60,0,0.0,0,0,47,3343,825507,23.2,error:MaxTurnsExceeded,1,2048
+[swe] harness fingerprint 4b7e448a0b99 recorded for CODER3-Q2_0
+[swe] anomaly analysis
+[anomaly] -> out/exp-058/eval/swe_anomalies_coder3.json
+  CODER3-Q2_0            loop                 calls=60  out_tok=3343    f2p=0/1 p2p=34/34
+      ! repeated the same command 35x in a row: 'cd /workspace/swe-mimic && grep -n "Order of columns does not match" dask/dataframe/io/utils.py'
+      ! hit max turns — never terminated on its own
+/dev/nvme0n1p3  512G  435G   78G  85% /workspace
+[chain] done rc=0

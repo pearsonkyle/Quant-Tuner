@@ -1,0 +1,312 @@
+[qat] device cuda (NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 95 GiB, cc 12.0, 1 visible)
+[qat] fp32 matmul precision 'high' (tensor cores; latents and ternarization stay exact fp32)
+[qat] fp32 GQA: expanding K/V so SDPA reaches the memory-efficient kernel (enable_gqa=True would fall back to math and materialize [heads,S,S])
+[qat] stock SDPA on cuda (fused/flash kernels; no score matrix is materialized, so there is no window cap to chunk around)
+[qat] corpus 2974 windows x 32768 (26% masked, fingerprint bd8ac0be9c453fa6); 1.0 epochs -> 2974 steps @ accum 1
+[qat] val corpus 157 windows (using 16)
+Loading weights:   0%|                                                                                                                                       | 0/399 [00:00<?, ?it/s]Loading weights:   1%|▋                                                                                                                              | 2/399 [00:00<01:00,  6.58it/s]Loading weights:   1%|█▎                                                                                                                             | 4/399 [00:00<00:57,  6.87it/s]Loading weights:   9%|██████████▋                                                                                                                   | 34/399 [00:00<00:05, 70.30it/s]Loading weights:  12%|██████████████▊                                                                                                               | 47/399 [00:00<00:04, 83.01it/s]Loading weights:  15%|██████████████████▉                                                                                                           | 60/399 [00:01<00:05, 63.52it/s]Loading weights:  18%|██████████████████████                                                                                                        | 70/399 [00:01<00:05, 59.71it/s]Loading weights:  20%|████████████████████████▋                                                                                                     | 78/399 [00:01<00:05, 63.45it/s]Loading weights:  22%|███████████████████████████▏                                                                                                  | 86/399 [00:01<00:05, 56.62it/s]Loading weights:  23%|█████████████████████████████▎                                                                                                | 93/399 [00:01<00:06, 48.75it/s]Loading weights:  25%|███████████████████████████████▎                                                                                              | 99/399 [00:01<00:07, 42.54it/s]Loading weights:  26%|████████████████████████████████▌                                                                                            | 104/399 [00:02<00:07, 37.27it/s]Loading weights:  27%|██████████████████████████████████▏                                                                                          | 109/399 [00:02<00:07, 38.64it/s]Loading weights:  29%|████████████████████████████████████                                                                                         | 115/399 [00:02<00:07, 36.91it/s]Loading weights:  30%|█████████████████████████████████████▌                                                                                       | 120/399 [00:02<00:07, 38.67it/s]Loading weights:  31%|███████████████████████████████████████▏                                                                                     | 125/399 [00:02<00:06, 41.04it/s]Loading weights:  33%|████████████████████████████████████████▋                                                                                    | 130/399 [00:02<00:07, 35.12it/s]Loading weights:  34%|██████████████████████████████████████████▌                                                                                  | 136/399 [00:03<00:08, 32.19it/s]Loading weights:  36%|█████████████████████████████████████████████                                                                                | 144/399 [00:03<00:08, 30.48it/s]Loading weights:  38%|███████████████████████████████████████████████▌                                                                             | 152/399 [00:03<00:07, 33.51it/s]Loading weights:  40%|█████████████████████████████████████████████████▍                                                                           | 158/399 [00:03<00:07, 32.82it/s]Loading weights:  42%|████████████████████████████████████████████████████                                                                         | 166/399 [00:03<00:05, 41.12it/s]Loading weights:  44%|██████████████████████████████████████████████████████▊                                                                      | 175/399 [00:03<00:04, 50.86it/s]Loading weights:  47%|██████████████████████████████████████████████████████████▎                                                                  | 186/399 [00:04<00:03, 64.03it/s]Loading weights:  49%|████████████████████████████████████████████████████████████▊                                                                | 194/399 [00:04<00:03, 65.80it/s]Loading weights:  52%|█████████████████████████████████████████████████████████████████▏                                                           | 208/399 [00:04<00:02, 69.00it/s]Loading weights:  54%|███████████████████████████████████████████████████████████████████▋                                                         | 216/399 [00:04<00:02, 69.62it/s]Loading weights:  58%|████████████████████████████████████████████████████████████████████████                                                     | 230/399 [00:04<00:02, 71.61it/s]Loading weights:  60%|██████████████████████████████████████████████████████████████████████████▌                                                  | 238/399 [00:04<00:02, 72.40it/s]Loading weights:  62%|█████████████████████████████████████████████████████████████████████████████                                                | 246/399 [00:04<00:02, 72.83it/s]Loading weights:  65%|████████████████████████████████████████████████████████████████████████████████▊                                            | 258/399 [00:05<00:01, 84.47it/s]Loading weights:  67%|███████████████████████████████████████████████████████████████████████████████████▉                                         | 268/399 [00:05<00:01, 87.85it/s]Loading weights:  70%|███████████████████████████████████████████████████████████████████████████████████████                                      | 278/399 [00:05<00:01, 73.98it/s]Loading weights:  72%|█████████████████████████████████████████████████████████████████████████████████████████▌                                   | 286/399 [00:05<00:01, 72.18it/s]Loading weights:  74%|████████████████████████████████████████████████████████████████████████████████████████████▋                                | 296/399 [00:05<00:01, 77.77it/s]Loading weights:  77%|████████████████████████████████████████████████████████████████████████████████████████████████▏                            | 307/399 [00:05<00:01, 72.04it/s]Loading weights:  79%|██████████████████████████████████████████████████████████████████████████████████████████████████▋                          | 315/399 [00:05<00:01, 72.66it/s]Loading weights:  81%|█████████████████████████████████████████████████████████████████████████████████████████████████████▏                       | 323/399 [00:05<00:01, 74.39it/s]Loading weights:  84%|████████████████████████████████████████████████████████████████████████████████████████████████████████▋                    | 334/399 [00:05<00:00, 83.66it/s]Loading weights:  86%|███████████████████████████████████████████████████████████████████████████████████████████████████████████▍                 | 343/399 [00:06<00:00, 82.84it/s]Loading weights:  88%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████▎              | 352/399 [00:06<00:00, 70.14it/s]Loading weights:  90%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████▊            | 360/399 [00:06<00:00, 69.49it/s]Loading weights:  92%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████▎         | 368/399 [00:06<00:00, 58.41it/s]Loading weights:  94%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▍       | 375/399 [00:06<00:00, 50.40it/s]Loading weights:  95%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▎     | 381/399 [00:06<00:00, 51.46it/s]Loading weights:  98%|██████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████▏  | 390/399 [00:07<00:00, 59.50it/s]Loading weights: 100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 399/399 [00:07<00:00, 56.29it/s]
+[qat] training last 36 layers (36 layers); ternary layers 36/36; wrapped 252; trainable 6.95B
+[qat] lr-scale group-scale: 248 tensors, mult 0.50..1.61 (median-scale-normalized, clamp [0.5, 2.0])
+[qat] optimizer adafactor (wd=0.0)
+[qat] flip telemetry on 8 linears
+[qat] KD KDTable(teacher='SWE-Lego/SWE-Lego-Qwen3-32B', topk=64, positions=25,195,360, windows=2974, coverage=0.998)
+[qat] KD alpha=0.5 T=1.0; loss = 0.5*CE + 0.5*T^2*KL
+[qat] stop anchor beta=0.2 margin=1.0/0.1 nats (continue/stop positions) on token 151645 — O(1) log-space restoring force (the KL's is P_s−P_t, vanishing exactly when needed)
+[qat] stop-probe every 25 steps (5 points, stop id 151645)
+[qat] steering: 8 probe-family contexts every step, weight 0.1 (CE->stop on control rows, hinge above -3.91 logp on diagnostic rows; probe held out)
+[qat] rep traj steering: 4 harvested episode contexts (L=5956), every 4 steps, cap 0.6 — the real loop state needs its full history (truncation collapses it)
+[qat] repetition steering: 10 contexts every step, weight 0.1, per-token cap 0.6, identical rounds k=[1, 2, 3, 4, 5], bank=out/exp-058/kd/rep_bank.json on verbatim command re-issue
+[qat] run config -> out/exp-059/kd32b-full-coder2/run_config.json
+[qat] step 1/2974 loss=1.8958 kl=0.7867 an=5.5500 st=0.0002 rp=0.0873 rt=0.0037 lr=3.38e-06 gnorm=6.64 mem=32.4/91.4GiB 66.9s/step
+[qat] step 5/2974 loss=2.1338 kl=0.8336 an=5.6938 st=0.0002 rp=0.0873 rt=0.0037 lr=1.69e-05 gnorm=7.04 mem=32.4/91.4GiB 61.5s/step
+[qat] step 10/2974 loss=2.0195 kl=0.7470 an=5.7768 st=0.0002 rp=0.0873 rt=0.0040 lr=3.38e-05 gnorm=8.88 mem=32.4/91.4GiB 60.7s/step
+[qat] step 15/2974 loss=1.9269 kl=0.7544 an=4.9672 st=0.0001 rp=0.0859 rt=0.0035 lr=5.07e-05 gnorm=6.86 mem=32.4/91.4GiB 60.5s/step
+[qat] step 20/2974 loss=1.8306 kl=0.7734 an=4.1932 st=0.0002 rp=0.0882 rt=0.0031 lr=6.76e-05 gnorm=5.99 mem=32.4/91.4GiB 60.4s/step
+[qat] step 25/2974 loss=1.4000 kl=0.7270 an=3.1585 st=0.0001 rp=0.0884 rt=0.0076 lr=8.45e-05 gnorm=4.79 mem=32.4/91.4GiB 60.8s/step
+[qat] step 25 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0002 sentence_newline=0.0000 after_tool_call=1.0000  [diagnostic sentence_period=0.0002 vs vanilla 0.0092; control after_tool_call=1.0000 vs vanilla 0.99995]
+[qat] step 30/2974 loss=1.2970 kl=0.7232 an=2.0962 st=0.0001 rp=0.0888 rt=0.0341 lr=1.01e-04 gnorm=2.84 mem=32.4/91.4GiB 60.7s/step
+[qat] step 35/2974 loss=0.9915 kl=0.6589 an=1.2632 st=0.0001 rp=0.0760 rt=0.0048 lr=1.18e-04 gnorm=2.94 mem=32.4/91.4GiB 60.7s/step
+[qat] step 40/2974 loss=0.8440 kl=0.6580 an=0.6864 st=0.0001 rp=0.0578 rt=0.0000 lr=1.35e-04 gnorm=2.99 mem=32.4/91.4GiB 60.6s/step
+[qat] step 45/2974 loss=0.9490 kl=0.6952 an=0.3347 st=0.0001 rp=0.0503 rt=0.0000 lr=1.52e-04 gnorm=2.07 mem=32.4/91.4GiB 60.7s/step
+[qat] step 50/2974 loss=0.9905 kl=0.6470 an=0.3424 st=0.0001 rp=0.0482 rt=0.1506 lr=1.69e-04 gnorm=2.29 mem=32.4/91.4GiB 60.7s/step
+[qat] step 50 VAL masked-CE 0.9604 (16 windows in 152s)
+[qat] step 50 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=1.0000  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=1.0000 vs vanilla 0.99995]
+[qat] step 55/2974 loss=0.6702 kl=0.5065 an=0.1153 st=0.0001 rp=0.0195 rt=0.0000 lr=1.86e-04 gnorm=1.24 mem=32.4/91.4GiB 63.4s/step
+[qat] step 60/2974 loss=0.7451 kl=0.5521 an=0.0701 st=0.0001 rp=0.0094 rt=0.0000 lr=2.03e-04 gnorm=2.18 mem=32.4/91.4GiB 63.1s/step
+[qat] step 65/2974 loss=0.6805 kl=0.5020 an=0.0603 st=0.0001 rp=0.0339 rt=0.0000 lr=2.20e-04 gnorm=2.30 mem=32.4/91.4GiB 63.0s/step
+[qat] step 70/2974 loss=0.5531 kl=0.4095 an=0.0354 st=0.0001 rp=0.0000 rt=0.0000 lr=2.36e-04 gnorm=0.99 mem=32.4/91.4GiB 62.8s/step
+[qat] step 75/2974 loss=0.7856 kl=0.5428 an=0.0212 st=0.0001 rp=0.0007 rt=0.0000 lr=2.53e-04 gnorm=7.36 mem=32.4/91.4GiB 62.7s/step
+[qat] step 75 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=0.9999  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=0.9999 vs vanilla 0.99995]
+[qat] step 80/2974 loss=0.5821 kl=0.4171 an=0.0257 st=0.0001 rp=0.0014 rt=0.0000 lr=2.70e-04 gnorm=2.07 mem=32.4/91.4GiB 62.5s/step
+[qat] step 85/2974 loss=0.6123 kl=0.4297 an=0.0226 st=0.0001 rp=0.0000 rt=0.0000 lr=2.87e-04 gnorm=5.70 mem=32.4/91.5GiB 62.5s/step
+[qat] step 90/2974 loss=0.8513 kl=0.5645 an=0.0562 st=0.0001 rp=0.0000 rt=0.0000 lr=3.04e-04 gnorm=1.41 mem=32.4/91.5GiB 62.3s/step
+[qat] step 95/2974 loss=0.6951 kl=0.5160 an=0.0991 st=0.0001 rp=0.0005 rt=0.0000 lr=3.21e-04 gnorm=0.86 mem=32.4/91.5GiB 62.2s/step
+[qat] step 100/2974 loss=0.5468 kl=0.4083 an=0.0142 st=0.0001 rp=0.0000 rt=0.0000 lr=3.38e-04 gnorm=1.20 mem=32.4/91.5GiB 62.1s/step
+[qat] step 100 VAL masked-CE 0.8194 (16 windows in 152s)
+[qat] step 100 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=1.0000  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=1.0000 vs vanilla 0.99995]
+[qat] code flips vs run start:
+  model.layers.0.self_attn.q_proj: flips 0.0075% (0->±:452 ±->0:787 ±->∓:14) density 65.5->65.5% scale-drift 0.52% (+0.01%)
+  model.layers.5.self_attn.k_proj: flips 0.0001% (0->±:6 ±->0:0 ±->∓:0) density 64.2->64.2% scale-drift 0.58% (+0.01%)
+  model.layers.10.self_attn.v_proj: flips 0.0001% (0->±:5 ±->0:1 ±->∓:0) density 61.6->61.6% scale-drift 0.67% (-0.00%)
+  model.layers.15.self_attn.o_proj: flips 0.0027% (0->±:365 ±->0:85 ±->∓:0) density 61.3->61.3% scale-drift 0.78% (-0.01%)
+  model.layers.20.self_attn.o_proj: flips 0.0088% (0->±:1164 ±->0:315 ±->∓:0) density 60.2->60.2% scale-drift 0.83% (-0.02%)
+  model.layers.25.mlp.gate_proj: flips 0.0039% (0->±:1628 ±->0:324 ±->∓:0) density 60.2->60.2% scale-drift 0.81% (-0.01%)
+  model.layers.30.mlp.up_proj: flips 0.0094% (0->±:3318 ±->0:1438 ±->∓:0) density 62.8->62.8% scale-drift 0.87% (-0.00%)
+  model.layers.35.mlp.down_proj: flips 0.0745% (0->±:21737 ±->0:15772 ±->∓:2) density 65.9->66.0% scale-drift 0.84% (-0.09%)
+[qat] checkpoint @ step 100: 252 tensors
+[qat] step 105/2974 loss=0.5999 kl=0.4403 an=0.0097 st=0.0000 rp=0.0000 rt=0.0000 lr=3.55e-04 gnorm=0.82 mem=32.4/91.5GiB 63.9s/step
+[qat] step 110/2974 loss=0.6908 kl=0.4367 an=0.0125 st=0.0001 rp=0.0001 rt=0.0000 lr=3.72e-04 gnorm=0.65 mem=32.4/91.5GiB 63.7s/step
+[qat] step 115/2974 loss=0.6100 kl=0.3966 an=0.0151 st=0.0000 rp=0.0000 rt=0.0000 lr=3.89e-04 gnorm=0.69 mem=32.4/91.5GiB 63.5s/step
+[qat] step 120/2974 loss=0.6638 kl=0.5270 an=0.0330 st=0.0001 rp=0.0019 rt=0.0000 lr=4.05e-04 gnorm=3.35 mem=32.4/91.5GiB 63.4s/step
+[qat] step 125/2974 loss=0.5247 kl=0.3913 an=0.0115 st=0.0001 rp=0.0000 rt=0.0000 lr=4.22e-04 gnorm=0.69 mem=32.4/91.5GiB 63.3s/step
+[qat] step 125 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=1.0000  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=1.0000 vs vanilla 0.99995]
+[qat] step 130/2974 loss=0.5221 kl=0.3656 an=0.0131 st=0.0000 rp=0.0000 rt=0.0000 lr=4.39e-04 gnorm=1.72 mem=32.4/91.5GiB 63.2s/step
+[qat] step 135/2974 loss=0.4910 kl=0.3468 an=0.0083 st=0.0000 rp=0.0000 rt=0.0011 lr=4.56e-04 gnorm=0.71 mem=32.4/91.5GiB 63.1s/step
+[qat] step 140/2974 loss=0.8456 kl=0.5130 an=0.0710 st=0.0000 rp=0.0000 rt=0.0000 lr=4.73e-04 gnorm=2.14 mem=32.4/91.5GiB 63.0s/step
+[qat] step 145/2974 loss=0.5374 kl=0.3632 an=0.0040 st=0.0000 rp=0.0029 rt=0.0000 lr=4.90e-04 gnorm=0.97 mem=32.4/91.5GiB 62.9s/step
+[qat] step 150/2974 loss=0.5127 kl=0.3831 an=0.0138 st=0.0000 rp=0.0000 rt=0.0000 lr=5.00e-04 gnorm=1.19 mem=32.4/91.5GiB 62.8s/step
+[qat] step 150 VAL masked-CE 0.7961 (16 windows in 152s)
+[qat] step 150 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=1.0000  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=1.0000 vs vanilla 0.99995]
+[qat] step 155/2974 loss=0.5681 kl=0.3873 an=0.0080 st=0.0000 rp=0.0000 rt=0.0000 lr=5.00e-04 gnorm=0.67 mem=32.4/91.5GiB 63.7s/step
+[qat] step 160/2974 loss=0.6541 kl=0.4412 an=0.0088 st=0.0001 rp=0.0000 rt=0.0000 lr=5.00e-04 gnorm=0.97 mem=32.4/91.5GiB 63.6s/step
+[qat] step 165/2974 loss=0.4074 kl=0.2923 an=0.0108 st=0.0000 rp=0.0000 rt=0.0000 lr=5.00e-04 gnorm=0.79 mem=32.4/91.5GiB 63.6s/step
+[qat] step 170/2974 loss=0.5215 kl=0.3608 an=0.0082 st=0.0004 rp=0.0000 rt=0.0000 lr=5.00e-04 gnorm=0.80 mem=32.4/91.5GiB 63.5s/step
+[qat] step 175/2974 loss=0.4871 kl=0.3465 an=0.0059 st=0.0000 rp=0.0000 rt=0.0000 lr=5.00e-04 gnorm=3.05 mem=32.4/91.5GiB 63.4s/step
+[qat] step 175 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=0.9998  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=0.9998 vs vanilla 0.99995]
+[qat] step 180/2974 loss=0.6261 kl=0.4618 an=0.0325 st=0.0001 rp=0.0000 rt=0.0000 lr=5.00e-04 gnorm=0.84 mem=32.4/91.5GiB 63.3s/step
+[qat] step 185/2974 loss=0.5822 kl=0.3902 an=0.0077 st=0.0000 rp=0.0000 rt=0.0000 lr=5.00e-04 gnorm=0.93 mem=32.4/91.5GiB 63.2s/step
+[qat] step 190/2974 loss=0.6511 kl=0.4487 an=0.0053 st=0.0000 rp=0.0000 rt=0.0000 lr=5.00e-04 gnorm=1.13 mem=32.4/91.5GiB 63.2s/step
+[qat] step 195/2974 loss=0.6269 kl=0.4273 an=0.0079 st=0.0000 rp=0.0000 rt=0.0000 lr=5.00e-04 gnorm=1.03 mem=32.4/91.5GiB 63.1s/step
+[qat] step 200/2974 loss=0.6198 kl=0.4636 an=0.0313 st=0.0001 rp=0.0000 rt=0.0000 lr=5.00e-04 gnorm=1.72 mem=32.4/91.5GiB 63.0s/step
+[qat] step 200 VAL masked-CE 0.9339 (16 windows in 152s)
+[qat] step 200 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=0.9999  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=0.9999 vs vanilla 0.99995]
+[qat] code flips vs run start:
+  model.layers.0.self_attn.q_proj: flips 0.3000% Δ+0.2926 (0->±:22493 ±->0:27833 ±->∓:12) density 65.5->65.5% scale-drift 1.35% (+0.07%)
+  model.layers.5.self_attn.k_proj: flips 0.2296% Δ+0.2295 (0->±:5639 ±->0:3992 ±->∓:0) density 64.2->64.3% scale-drift 1.36% (-0.00%)
+  model.layers.10.self_attn.v_proj: flips 0.1585% Δ+0.1583 (0->±:5136 ±->0:1510 ±->∓:0) density 61.6->61.6% scale-drift 1.30% (-0.06%)
+  model.layers.15.self_attn.o_proj: flips 0.3158% Δ+0.3132 (0->±:36846 ±->0:16142 ±->∓:0) density 61.3->61.4% scale-drift 1.44% (-0.06%)
+  model.layers.20.self_attn.o_proj: flips 0.3663% Δ+0.3575 (0->±:45856 ±->0:15595 ±->∓:0) density 60.2->60.4% scale-drift 1.46% (-0.13%)
+  model.layers.25.mlp.gate_proj: flips 0.3886% Δ+0.3847 (0->±:152886 ±->0:42686 ±->∓:0) density 60.2->60.5% scale-drift 1.56% (-0.18%)
+  model.layers.30.mlp.up_proj: flips 0.2863% Δ+0.2769 (0->±:99531 ±->0:44593 ±->∓:0) density 62.8->62.9% scale-drift 1.47% (-0.08%)
+  model.layers.35.mlp.down_proj: flips 0.3335% Δ+0.2590 (0->±:89125 ±->0:78746 ±->∓:7) density 65.9->66.0% scale-drift 1.38% (-0.08%)
+[qat] checkpoint @ step 200: 252 tensors
+[qat] step 205/2974 loss=0.7458 kl=0.5220 an=0.0070 st=0.0001 rp=0.0000 rt=0.0000 lr=5.00e-04 gnorm=2.84 mem=32.4/91.5GiB 63.9s/step
+[qat] step 210/2974 loss=0.6659 kl=0.4869 an=0.0111 st=0.0001 rp=0.0000 rt=0.0000 lr=4.99e-04 gnorm=1.74 mem=32.4/91.5GiB 63.8s/step
+[qat] step 215/2974 loss=0.7094 kl=0.5853 an=0.0075 st=0.0001 rp=0.0000 rt=0.0000 lr=4.99e-04 gnorm=1.63 mem=32.4/91.5GiB 63.7s/step
+[qat] step 220/2974 loss=0.7568 kl=0.6145 an=0.0138 st=0.0845 rp=0.0000 rt=0.0000 lr=4.99e-04 gnorm=41.66 mem=32.4/91.5GiB 63.6s/step
+[qat] step 225/2974 loss=0.7025 kl=0.5362 an=0.0067 st=0.0000 rp=0.0000 rt=0.0000 lr=4.99e-04 gnorm=1.73 mem=32.4/91.5GiB 63.6s/step
+[qat] step 225 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=0.9994  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=0.9994 vs vanilla 0.99995]
+[qat] step 230/2974 loss=0.8276 kl=0.5643 an=0.0054 st=0.0001 rp=0.0000 rt=0.0000 lr=4.99e-04 gnorm=1.23 mem=32.4/91.5GiB 63.5s/step
+[qat] step 235/2974 loss=0.9211 kl=0.6372 an=0.0688 st=0.0001 rp=0.0000 rt=0.0000 lr=4.99e-04 gnorm=1.01 mem=32.4/91.5GiB 63.5s/step
+[qat] step 240/2974 loss=0.6559 kl=0.5023 an=0.0154 st=0.0001 rp=0.0000 rt=0.0000 lr=4.99e-04 gnorm=0.93 mem=32.4/91.5GiB 63.4s/step
+[qat] step 245/2974 loss=0.5064 kl=0.3958 an=0.0059 st=0.0001 rp=0.0000 rt=0.0000 lr=4.99e-04 gnorm=1.18 mem=32.4/91.5GiB 63.4s/step
+[qat] step 250/2974 loss=0.7253 kl=0.5252 an=0.0061 st=0.0000 rp=0.0011 rt=0.0000 lr=4.99e-04 gnorm=3.96 mem=32.4/91.5GiB 63.3s/step
+[qat] step 250 VAL masked-CE 0.8634 (16 windows in 152s)
+[qat] step 250 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=0.9999  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=0.9999 vs vanilla 0.99995]
+[qat] step 255/2974 loss=0.6892 kl=0.5297 an=0.0121 st=0.0001 rp=0.0000 rt=0.0000 lr=4.98e-04 gnorm=1.71 mem=32.4/91.5GiB 63.8s/step
+[qat] step 260/2974 loss=0.7791 kl=0.5958 an=0.0101 st=0.0000 rp=0.0000 rt=0.0000 lr=4.98e-04 gnorm=1.66 mem=32.4/91.5GiB 63.7s/step
+[qat] step 265/2974 loss=0.6015 kl=0.4820 an=0.0129 st=0.0000 rp=0.0000 rt=0.0000 lr=4.98e-04 gnorm=1.17 mem=32.4/91.5GiB 63.7s/step
+[qat] step 270/2974 loss=0.8917 kl=0.6391 an=0.0118 st=0.0008 rp=0.0000 rt=0.0000 lr=4.98e-04 gnorm=0.89 mem=32.4/91.5GiB 63.7s/step
+[qat] step 275/2974 loss=0.6619 kl=0.5074 an=0.0146 st=0.0000 rp=0.0000 rt=0.0000 lr=4.98e-04 gnorm=35.90 mem=32.4/91.5GiB 63.6s/step
+[qat] step 275 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=0.9999  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=0.9999 vs vanilla 0.99995]
+[qat] step 280/2974 loss=0.8852 kl=0.6571 an=0.0190 st=0.0001 rp=0.0166 rt=0.0000 lr=4.98e-04 gnorm=1.87 mem=32.4/91.5GiB 63.5s/step
+[qat] step 285/2974 loss=0.6985 kl=0.5453 an=0.0068 st=0.0001 rp=0.0000 rt=0.0000 lr=4.97e-04 gnorm=1.13 mem=32.4/91.5GiB 63.5s/step
+[qat] step 290/2974 loss=0.9695 kl=0.8349 an=0.0064 st=0.0002 rp=0.0000 rt=0.0000 lr=4.97e-04 gnorm=11.40 mem=32.4/91.5GiB 63.5s/step
+[qat] step 295/2974 loss=0.7217 kl=0.5910 an=0.0402 st=0.0001 rp=0.0472 rt=0.0000 lr=4.97e-04 gnorm=1.27 mem=32.4/91.5GiB 63.4s/step
+[qat] step 300/2974 loss=1.0300 kl=0.8703 an=0.0096 st=0.0001 rp=0.0000 rt=0.0000 lr=4.97e-04 gnorm=2.38 mem=32.4/91.5GiB 63.4s/step
+[qat] step 300 VAL masked-CE 1.1854 (16 windows in 153s)
+[qat] step 300 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=1.0000  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=1.0000 vs vanilla 0.99995]
+[qat] code flips vs run start:
+  model.layers.0.self_attn.q_proj: flips 1.7647% Δ+1.4647 (0->±:129362 ±->0:166659 ±->∓:53) density 65.5->65.3% scale-drift 2.11% (+0.52%)
+  model.layers.5.self_attn.k_proj: flips 1.2704% Δ+1.0407 (0->±:28570 ±->0:24713 ±->∓:0) density 64.2->64.3% scale-drift 1.87% (+0.11%)
+  model.layers.10.self_attn.v_proj: flips 0.8250% Δ+0.6665 (0->±:23713 ±->0:10889 ±->∓:0) density 61.6->61.9% scale-drift 1.70% (-0.24%)
+  model.layers.15.self_attn.o_proj: flips 1.1516% Δ+0.8358 (0->±:126078 ±->0:67127 ±->∓:5) density 61.3->61.7% scale-drift 1.86% (-0.08%)
+  model.layers.20.self_attn.o_proj: flips 1.3294% Δ+0.9631 (0->±:152859 ±->0:70173 ±->∓:6) density 60.2->60.7% scale-drift 1.92% (-0.17%)
+  model.layers.25.mlp.gate_proj: flips 1.6280% Δ+1.2394 (0->±:564986 ±->0:254413 ±->∓:3) density 60.2->60.9% scale-drift 2.09% (-0.34%)
+  model.layers.30.mlp.up_proj: flips 1.2590% Δ+0.9726 (0->±:391409 ±->0:242252 ±->∓:0) density 62.8->63.1% scale-drift 1.91% (-0.13%)
+  model.layers.35.mlp.down_proj: flips 0.9388% Δ+0.6052 (0->±:236285 ±->0:236199 ±->∓:7) density 65.9->65.9% scale-drift 1.74% (+0.00%)
+[qat] checkpoint @ step 300: 252 tensors
+[qat] step 305/2974 loss=1.3520 kl=1.2156 an=0.0135 st=0.0000 rp=0.0000 rt=0.0000 lr=4.97e-04 gnorm=4.29 mem=32.4/91.5GiB 63.9s/step
+[qat] step 310/2974 loss=0.9326 kl=0.7145 an=0.0100 st=0.0000 rp=0.0000 rt=0.0000 lr=4.96e-04 gnorm=1.54 mem=32.4/91.5GiB 63.9s/step
+[qat] step 315/2974 loss=0.9866 kl=0.7462 an=0.0160 st=0.0000 rp=0.0000 rt=0.0000 lr=4.96e-04 gnorm=0.98 mem=32.4/91.5GiB 63.8s/step
+[qat] step 320/2974 loss=0.9219 kl=0.6892 an=0.0149 st=0.0001 rp=0.0000 rt=0.0000 lr=4.96e-04 gnorm=6.35 mem=32.4/91.5GiB 63.7s/step
+[qat] step 325/2974 loss=0.8118 kl=0.6240 an=0.0068 st=0.0000 rp=0.0000 rt=0.0000 lr=4.96e-04 gnorm=0.68 mem=32.4/91.5GiB 63.7s/step
+[qat] step 325 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=0.9998  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=0.9998 vs vanilla 0.99995]
+[qat] step 330/2974 loss=0.7003 kl=0.5768 an=0.0090 st=0.0000 rp=0.0000 rt=0.0000 lr=4.95e-04 gnorm=5.58 mem=32.4/91.5GiB 63.7s/step
+[qat] step 335/2974 loss=0.7014 kl=0.5920 an=0.0085 st=0.0000 rp=0.0000 rt=0.0000 lr=4.95e-04 gnorm=3.75 mem=32.4/91.5GiB 63.6s/step
+[qat] step 340/2974 loss=1.2871 kl=1.0327 an=0.0228 st=0.0000 rp=0.0000 rt=0.0000 lr=4.95e-04 gnorm=2.01 mem=32.4/91.5GiB 63.6s/step
+[qat] step 345/2974 loss=0.7080 kl=0.5954 an=0.0095 st=0.0000 rp=0.0000 rt=0.0000 lr=4.95e-04 gnorm=1.14 mem=32.4/91.5GiB 63.6s/step
+[qat] step 350/2974 loss=1.2694 kl=1.0912 an=0.0626 st=0.0040 rp=0.0000 rt=0.0382 lr=4.94e-04 gnorm=23.73 mem=32.4/91.5GiB 63.5s/step
+[qat] step 350 VAL masked-CE 1.1498 (16 windows in 153s)
+[qat] step 350 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=0.9857  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=0.9857 vs vanilla 0.99995]
+[qat] step 355/2974 loss=0.8566 kl=0.6876 an=0.0061 st=0.0017 rp=0.0927 rt=0.2634 lr=4.94e-04 gnorm=1.08 mem=32.4/91.5GiB 63.9s/step
+[qat] step 360/2974 loss=0.6352 kl=0.5504 an=0.0096 st=0.0000 rp=0.0000 rt=0.0000 lr=4.94e-04 gnorm=1.88 mem=32.4/91.5GiB 63.9s/step
+[qat] step 365/2974 loss=1.8021 kl=1.0057 an=0.1332 st=6.7884 rp=0.0041 rt=0.0017 lr=4.93e-04 gnorm=4.58 mem=32.4/91.5GiB 63.8s/step
+[qat] step 370/2974 loss=7.2135 kl=4.6509 an=2.2323 st=18.5940 rp=0.0017 rt=0.0323 lr=4.93e-04 gnorm=47.78 mem=32.4/91.5GiB 63.8s/step
+[qat] step 375/2974 loss=1.9779 kl=1.7410 an=0.1045 st=0.5439 rp=0.0033 rt=0.0000 lr=4.93e-04 gnorm=9.80 mem=32.4/91.5GiB 63.7s/step
+[qat] step 375 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=1.0000  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=1.0000 vs vanilla 0.99995]
+[qat] step 380/2974 loss=1.0355 kl=0.8875 an=0.0193 st=0.0001 rp=0.0098 rt=0.0341 lr=4.93e-04 gnorm=2.60 mem=32.4/91.5GiB 63.7s/step
+[qat] step 385/2974 loss=1.0707 kl=0.8947 an=0.0127 st=0.0672 rp=0.0000 rt=0.0309 lr=4.92e-04 gnorm=7.57 mem=32.4/91.5GiB 63.7s/step
+[qat] step 390/2974 loss=1.8207 kl=1.4369 an=0.1322 st=0.8913 rp=0.0203 rt=0.1168 lr=4.92e-04 gnorm=1.72 mem=32.4/91.5GiB 63.6s/step
+[qat] step 395/2974 loss=0.8975 kl=0.7720 an=0.0402 st=0.0000 rp=0.0008 rt=0.0000 lr=4.92e-04 gnorm=2.21 mem=32.4/91.5GiB 63.6s/step
+[qat] step 400/2974 loss=1.0530 kl=0.8884 an=0.0201 st=0.0000 rp=0.0013 rt=0.0000 lr=4.91e-04 gnorm=3.18 mem=32.4/91.5GiB 63.6s/step
+[qat] step 400 VAL masked-CE 1.2785 (16 windows in 153s)
+[qat] step 400 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=1.0000  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=1.0000 vs vanilla 0.99995]
+[qat] code flips vs run start:
+  model.layers.0.self_attn.q_proj: flips 4.0173% Δ+2.2525 (0->±:291745 ±->0:382004 ±->∓:238) density 65.5->64.9% scale-drift 2.99% (+1.38%)
+  model.layers.5.self_attn.k_proj: flips 2.8697% Δ+1.5993 (0->±:61651 ±->0:58712 ±->∓:1) density 64.2->64.3% scale-drift 2.35% (+0.45%)
+  model.layers.10.self_attn.v_proj: flips 1.9315% Δ+1.1065 (0->±:51327 ±->0:29682 ±->∓:3) density 61.6->62.1% scale-drift 2.09% (-0.31%)
+  model.layers.15.self_attn.o_proj: flips 2.3581% Δ+1.2065 (0->±:244166 ±->0:151438 ±->∓:26) density 61.3->61.9% scale-drift 2.24% (+0.07%)
+  model.layers.20.self_attn.o_proj: flips 2.6342% Δ+1.3047 (0->±:286046 ±->0:155873 ±->∓:19) density 60.2->61.0% scale-drift 2.31% (-0.07%)
+  model.layers.25.mlp.gate_proj: flips 3.2521% Δ+1.6241 (0->±:1052098 ±->0:584720 ±->∓:20) density 60.2->61.2% scale-drift 2.49% (-0.24%)
+  model.layers.30.mlp.up_proj: flips 2.5690% Δ+1.3101 (0->±:749039 ±->0:543990 ±->∓:6) density 62.8->63.2% scale-drift 2.26% (-0.00%)
+  model.layers.35.mlp.down_proj: flips 1.7723% Δ+0.8335 (0->±:426643 ±->0:465356 ±->∓:9) density 65.9->65.9% scale-drift 2.01% (+0.22%)
+[qat] checkpoint @ step 400: 252 tensors
+[qat] step 405/2974 loss=1.2650 kl=1.0012 an=0.0148 st=0.0000 rp=0.0016 rt=0.0000 lr=4.91e-04 gnorm=5.23 mem=32.4/91.5GiB 64.0s/step
+[qat] step 410/2974 loss=1.0336 kl=0.7770 an=0.0339 st=1.1667 rp=0.0027 rt=0.0000 lr=4.91e-04 gnorm=1.81 mem=32.4/91.5GiB 64.0s/step
+[qat] step 415/2974 loss=1.0617 kl=0.8761 an=0.0102 st=0.0001 rp=0.0008 rt=0.0000 lr=4.90e-04 gnorm=2.46 mem=32.4/91.5GiB 63.9s/step
+[qat] step 420/2974 loss=1.0544 kl=0.8765 an=0.0141 st=0.0001 rp=0.0011 rt=0.0000 lr=4.90e-04 gnorm=1.93 mem=32.4/91.5GiB 63.9s/step
+[qat] step 425/2974 loss=1.3916 kl=1.1638 an=0.0093 st=0.0001 rp=0.0000 rt=0.0000 lr=4.89e-04 gnorm=19.76 mem=32.4/91.5GiB 63.9s/step
+[qat] step 425 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=0.9998  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=0.9998 vs vanilla 0.99995]
+[qat] step 430/2974 loss=0.9731 kl=0.8394 an=0.0086 st=0.0001 rp=0.0000 rt=0.0000 lr=4.89e-04 gnorm=2.21 mem=32.4/91.5GiB 63.8s/step
+[qat] step 435/2974 loss=1.4124 kl=1.1845 an=0.0163 st=0.0001 rp=0.0000 rt=0.0000 lr=4.89e-04 gnorm=1.75 mem=32.4/91.5GiB 63.8s/step
+[qat] step 440/2974 loss=1.1185 kl=1.0191 an=0.0115 st=0.0018 rp=0.0002 rt=0.0000 lr=4.88e-04 gnorm=1.60 mem=32.4/91.5GiB 63.7s/step
+[qat] step 445/2974 loss=1.0571 kl=0.9319 an=0.0351 st=0.0000 rp=0.0000 rt=0.0000 lr=4.88e-04 gnorm=1.42 mem=32.4/91.5GiB 63.7s/step
+[qat] step 450/2974 loss=1.0786 kl=0.9151 an=0.0071 st=0.0000 rp=0.0000 rt=0.0000 lr=4.87e-04 gnorm=1.82 mem=32.4/91.5GiB 63.7s/step
+[qat] step 450 VAL masked-CE 1.3819 (16 windows in 153s)
+[qat] step 450 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=1.0000  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=1.0000 vs vanilla 0.99995]
+[qat] step 455/2974 loss=1.0779 kl=0.9467 an=0.0130 st=0.0000 rp=0.0001 rt=0.0000 lr=4.87e-04 gnorm=2.08 mem=32.4/91.5GiB 64.0s/step
+[qat] step 460/2974 loss=1.1877 kl=1.0215 an=0.0124 st=0.0000 rp=0.0008 rt=0.0000 lr=4.87e-04 gnorm=1.51 mem=32.4/91.5GiB 63.9s/step
+[qat] step 465/2974 loss=1.2155 kl=1.0869 an=0.0083 st=0.0000 rp=0.0000 rt=0.0000 lr=4.86e-04 gnorm=1.85 mem=32.4/91.5GiB 63.9s/step
+[qat] step 470/2974 loss=1.6508 kl=1.3730 an=0.0553 st=0.0000 rp=0.0000 rt=0.0000 lr=4.86e-04 gnorm=4.20 mem=32.4/91.5GiB 63.9s/step
+[qat] step 475/2974 loss=1.7542 kl=1.5799 an=0.1038 st=0.0000 rp=0.0009 rt=0.0503 lr=4.85e-04 gnorm=1.54 mem=32.4/91.5GiB 63.9s/step
+[qat] step 475 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=1.0000  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=1.0000 vs vanilla 0.99995]
+[qat] step 480/2974 loss=1.0271 kl=0.9304 an=0.0095 st=0.0000 rp=0.0011 rt=0.0000 lr=4.85e-04 gnorm=1.87 mem=32.4/91.5GiB 63.8s/step
+[qat] step 485/2974 loss=1.4590 kl=1.0709 an=0.1937 st=2.1820 rp=0.0019 rt=0.0000 lr=4.84e-04 gnorm=6.95 mem=32.4/91.5GiB 63.8s/step
+[qat] step 490/2974 loss=1.6444 kl=1.0196 an=0.1867 st=4.7504 rp=0.0227 rt=0.0000 lr=4.84e-04 gnorm=2.69 mem=32.4/91.5GiB 63.8s/step
+[qat] step 495/2974 loss=1.1430 kl=1.0064 an=0.0210 st=0.0000 rp=0.0000 rt=0.0308 lr=4.83e-04 gnorm=1.73 mem=32.4/91.5GiB 63.7s/step
+[qat] step 500/2974 loss=1.4582 kl=1.2883 an=0.0163 st=0.0000 rp=0.0000 rt=0.0000 lr=4.83e-04 gnorm=2.17 mem=32.4/91.5GiB 63.7s/step
+[qat] step 500 VAL masked-CE 1.5283 (16 windows in 153s)
+[qat] step 500 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=1.0000  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=1.0000 vs vanilla 0.99995]
+[qat] code flips vs run start:
+  model.layers.0.self_attn.q_proj: flips 6.2588% Δ+2.2415 (0->±:450781 ±->0:598377 ±->∓:896) density 65.5->64.6% scale-drift 3.94% (+2.44%)
+  model.layers.5.self_attn.k_proj: flips 4.5975% Δ+1.7278 (0->±:95372 ±->0:97445 ±->∓:18) density 64.2->64.2% scale-drift 2.84% (+0.99%)
+  model.layers.10.self_attn.v_proj: flips 3.1339% Δ+1.2024 (0->±:79710 ±->0:51733 ±->∓:2) density 61.6->62.2% scale-drift 2.38% (-0.21%)
+  model.layers.15.self_attn.o_proj: flips 3.8083% Δ+1.4501 (0->±:378745 ±->0:260050 ±->∓:128) density 61.3->62.0% scale-drift 2.64% (+0.40%)
+  model.layers.20.self_attn.o_proj: flips 4.2222% Δ+1.5880 (0->±:438464 ±->0:269778 ±->∓:124) density 60.2->61.2% scale-drift 2.72% (+0.29%)
+  model.layers.25.mlp.gate_proj: flips 5.2123% Δ+1.9602 (0->±:1603452 ±->0:1019887 ±->∓:118) density 60.2->61.4% scale-drift 2.90% (+0.13%)
+  model.layers.30.mlp.up_proj: flips 4.3047% Δ+1.7357 (0->±:1197598 ±->0:968987 ±->∓:32) density 62.8->63.2% scale-drift 2.62% (+0.32%)
+  model.layers.35.mlp.down_proj: flips 2.9238% Δ+1.1515 (0->±:684926 ±->0:786645 ±->∓:29) density 65.9->65.7% scale-drift 2.31% (+0.57%)
+[qat] checkpoint @ step 500: 252 tensors
+[qat] step 505/2974 loss=0.9772 kl=0.8574 an=0.0192 st=0.0000 rp=0.0000 rt=0.0000 lr=4.83e-04 gnorm=1.87 mem=32.4/91.5GiB 64.0s/step
+[qat] step 510/2974 loss=1.1143 kl=0.9522 an=0.0160 st=0.0000 rp=0.0000 rt=0.0000 lr=4.82e-04 gnorm=1.47 mem=32.4/91.5GiB 64.0s/step
+[qat] step 515/2974 loss=1.5304 kl=1.3523 an=0.0360 st=0.0000 rp=0.0000 rt=0.0000 lr=4.82e-04 gnorm=1.65 mem=32.4/91.5GiB 64.0s/step
+[qat] step 520/2974 loss=1.2381 kl=1.1002 an=0.0450 st=0.0000 rp=0.0000 rt=0.0000 lr=4.81e-04 gnorm=7.74 mem=32.4/91.5GiB 63.9s/step
+[qat] step 525/2974 loss=1.3491 kl=1.2197 an=0.0126 st=0.0000 rp=0.0018 rt=0.0000 lr=4.81e-04 gnorm=1.22 mem=32.4/91.5GiB 63.9s/step
+[qat] step 525 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=1.0000  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=1.0000 vs vanilla 0.99995]
+[qat] step 530/2974 loss=1.1136 kl=0.9825 an=0.0133 st=0.0000 rp=0.0000 rt=0.0000 lr=4.80e-04 gnorm=3.79 mem=32.4/91.5GiB 63.9s/step
+[qat] step 535/2974 loss=1.0116 kl=0.9144 an=0.0143 st=0.0000 rp=0.0000 rt=0.0000 lr=4.79e-04 gnorm=3.33 mem=32.4/91.5GiB 63.8s/step
+[qat] step 540/2974 loss=1.0222 kl=0.9050 an=0.0091 st=0.0000 rp=0.0003 rt=0.0000 lr=4.79e-04 gnorm=2.71 mem=32.4/91.5GiB 63.8s/step
+[qat] step 545/2974 loss=1.7721 kl=1.6602 an=0.0576 st=0.0000 rp=0.0010 rt=0.0000 lr=4.78e-04 gnorm=1.97 mem=32.4/91.5GiB 63.8s/step
+[qat] step 550/2974 loss=1.1209 kl=0.9816 an=0.0091 st=0.0000 rp=0.0000 rt=0.0000 lr=4.78e-04 gnorm=1.80 mem=32.4/91.5GiB 63.8s/step
+[qat] step 550 VAL masked-CE 1.6438 (16 windows in 153s)
+[qat] step 550 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=1.0000  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=1.0000 vs vanilla 0.99995]
+[qat] step 555/2974 loss=2.1124 kl=1.8440 an=0.0925 st=0.0000 rp=0.0000 rt=0.0000 lr=4.77e-04 gnorm=3.69 mem=32.4/91.6GiB 64.0s/step
+[qat] step 560/2974 loss=1.3350 kl=1.2017 an=0.0201 st=0.0000 rp=0.0140 rt=0.0000 lr=4.77e-04 gnorm=2.05 mem=32.4/91.6GiB 64.0s/step
+[qat] step 565/2974 loss=1.1720 kl=1.0639 an=0.0108 st=0.0000 rp=0.0000 rt=0.0013 lr=4.76e-04 gnorm=2.49 mem=32.4/91.6GiB 64.0s/step
+[qat] step 570/2974 loss=1.3558 kl=1.1889 an=0.0106 st=0.0000 rp=0.0000 rt=0.0000 lr=4.76e-04 gnorm=6.23 mem=32.4/91.6GiB 63.9s/step
+[qat] step 575/2974 loss=1.3854 kl=1.2404 an=0.0532 st=0.0000 rp=0.0006 rt=0.0000 lr=4.75e-04 gnorm=1.24 mem=32.4/91.6GiB 63.9s/step
+[qat] step 575 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=1.0000  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=1.0000 vs vanilla 0.99995]
+[qat] step 580/2974 loss=1.6495 kl=1.4488 an=0.0080 st=0.0000 rp=0.0000 rt=0.0000 lr=4.75e-04 gnorm=9.97 mem=32.4/91.6GiB 63.9s/step
+[qat] step 585/2974 loss=1.4817 kl=1.3316 an=0.0119 st=0.0000 rp=0.0000 rt=0.0000 lr=4.74e-04 gnorm=5.27 mem=32.4/91.6GiB 63.9s/step
+[qat] step 590/2974 loss=1.2666 kl=1.1322 an=0.0114 st=0.0000 rp=0.0007 rt=0.0000 lr=4.73e-04 gnorm=1.77 mem=32.4/91.6GiB 63.8s/step
+[qat] step 595/2974 loss=1.0316 kl=0.9253 an=0.0055 st=0.0000 rp=0.0000 rt=0.0000 lr=4.73e-04 gnorm=1.75 mem=32.4/91.6GiB 63.8s/step
+[qat] step 600/2974 loss=1.2070 kl=1.1082 an=0.0145 st=0.0000 rp=0.0000 rt=0.0000 lr=4.72e-04 gnorm=4.14 mem=32.4/91.6GiB 63.8s/step
+[qat] step 600 VAL masked-CE 1.5191 (16 windows in 153s)
+[qat] step 600 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=0.9999  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=0.9999 vs vanilla 0.99995]
+[qat] code flips vs run start:
+  model.layers.0.self_attn.q_proj: flips 8.3254% Δ+2.0666 (0->±:595118 ±->0:799547 ±->∓:2103) density 65.5->64.3% scale-drift 5.01% (+3.64%)
+  model.layers.5.self_attn.k_proj: flips 6.1190% Δ+1.5214 (0->±:124462 ±->0:132149 ±->∓:38) density 64.2->64.1% scale-drift 3.31% (+1.56%)
+  model.layers.10.self_attn.v_proj: flips 4.3091% Δ+1.1752 (0->±:106356 ±->0:74366 ±->∓:13) density 61.6->62.3% scale-drift 2.66% (-0.05%)
+  model.layers.15.self_attn.o_proj: flips 5.2158% Δ+1.4075 (0->±:503381 ±->0:371404 ±->∓:281) density 61.3->62.1% scale-drift 3.04% (+0.86%)
+  model.layers.20.self_attn.o_proj: flips 5.7429% Δ+1.5207 (0->±:577660 ±->0:385550 ±->∓:292) density 60.2->61.3% scale-drift 3.15% (+0.79%)
+  model.layers.25.mlp.gate_proj: flips 7.0067% Δ+1.7944 (0->±:2084636 ±->0:1441586 ±->∓:383) density 60.2->61.5% scale-drift 3.27% (+0.64%)
+  model.layers.30.mlp.up_proj: flips 5.9311% Δ+1.6264 (0->±:1598943 ±->0:1386178 ±->∓:97) density 62.8->63.2% scale-drift 2.96% (+0.75%)
+  model.layers.35.mlp.down_proj: flips 4.0640% Δ+1.1402 (0->±:934480 ±->0:1110911 ±->∓:84) density 65.9->65.6% scale-drift 2.60% (+0.98%)
+[qat] checkpoint @ step 600: 252 tensors
+[qat] step 605/2974 loss=1.0788 kl=0.9546 an=0.0094 st=0.0000 rp=0.0000 rt=0.0000 lr=4.72e-04 gnorm=1.63 mem=32.4/91.6GiB 64.0s/step
+[qat] step 610/2974 loss=1.4463 kl=1.2721 an=0.0078 st=0.0000 rp=0.0000 rt=0.0024 lr=4.71e-04 gnorm=2.89 mem=32.4/91.6GiB 64.0s/step
+[qat] step 615/2974 loss=1.2568 kl=1.1190 an=0.0141 st=0.0000 rp=0.0000 rt=0.0000 lr=4.70e-04 gnorm=1.35 mem=32.4/91.6GiB 64.0s/step
+[qat] step 620/2974 loss=1.2731 kl=1.1045 an=0.0105 st=0.0000 rp=0.0033 rt=0.0000 lr=4.70e-04 gnorm=3.31 mem=32.4/91.6GiB 64.0s/step
+[qat] step 625/2974 loss=1.2979 kl=1.1162 an=0.0077 st=0.0000 rp=0.0000 rt=0.0000 lr=4.69e-04 gnorm=2.07 mem=32.4/91.6GiB 63.9s/step
+[qat] step 625 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=1.0000  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=1.0000 vs vanilla 0.99995]
+[qat] step 630/2974 loss=1.2518 kl=1.0729 an=0.0178 st=0.0000 rp=0.0007 rt=0.0000 lr=4.68e-04 gnorm=1.61 mem=32.4/91.6GiB 63.9s/step
+[qat] step 635/2974 loss=1.4236 kl=1.2174 an=0.0139 st=0.0000 rp=0.0011 rt=0.0000 lr=4.68e-04 gnorm=1.51 mem=32.4/91.6GiB 63.9s/step
+[qat] step 640/2974 loss=1.1883 kl=1.0286 an=0.0092 st=0.0000 rp=0.0000 rt=0.0000 lr=4.67e-04 gnorm=1.42 mem=32.4/91.6GiB 63.9s/step
+[qat] step 645/2974 loss=1.6073 kl=1.4628 an=0.0176 st=0.0001 rp=0.0000 rt=0.0000 lr=4.67e-04 gnorm=1.35 mem=32.4/91.6GiB 63.8s/step
+[qat] step 650/2974 loss=1.1498 kl=1.0204 an=0.0149 st=0.0000 rp=0.0000 rt=0.0000 lr=4.66e-04 gnorm=1.57 mem=32.4/91.6GiB 63.8s/step
+[qat] step 650 VAL masked-CE 1.4617 (16 windows in 153s)
+[qat] step 650 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=1.0000  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=1.0000 vs vanilla 0.99995]
+[qat] step 655/2974 loss=1.2050 kl=1.0682 an=0.0087 st=0.0000 rp=0.0002 rt=0.0000 lr=4.65e-04 gnorm=2.02 mem=32.4/91.6GiB 64.0s/step
+[qat] step 660/2974 loss=2.5125 kl=2.2501 an=0.0826 st=0.0000 rp=0.0000 rt=0.0000 lr=4.65e-04 gnorm=2.52 mem=32.4/91.6GiB 64.0s/step
+[qat] step 665/2974 loss=1.5164 kl=1.3537 an=0.0163 st=0.0000 rp=0.0163 rt=0.0000 lr=4.64e-04 gnorm=1.19 mem=32.4/91.6GiB 64.0s/step
+[qat] step 670/2974 loss=1.1525 kl=1.0439 an=0.0117 st=0.0000 rp=0.0000 rt=0.0000 lr=4.63e-04 gnorm=1.42 mem=32.4/91.6GiB 64.0s/step
+[qat] step 675/2974 loss=1.9772 kl=1.7121 an=0.0113 st=0.0000 rp=0.0000 rt=0.0000 lr=4.62e-04 gnorm=3.53 mem=32.4/91.6GiB 63.9s/step
+[qat] step 675 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=1.0000  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=1.0000 vs vanilla 0.99995]
+[qat] step 680/2974 loss=1.2438 kl=1.1139 an=0.0089 st=0.0000 rp=0.0020 rt=0.0000 lr=4.62e-04 gnorm=3.96 mem=32.4/91.6GiB 63.9s/step
+[qat] step 685/2974 loss=1.3376 kl=1.2007 an=0.0148 st=0.0000 rp=0.0000 rt=0.0000 lr=4.61e-04 gnorm=2.27 mem=32.4/91.6GiB 63.9s/step
+[qat] step 690/2974 loss=1.2838 kl=1.1404 an=0.0126 st=0.0001 rp=0.0000 rt=0.0000 lr=4.60e-04 gnorm=3.23 mem=32.4/91.6GiB 63.9s/step
+[qat] step 695/2974 loss=1.3342 kl=1.1659 an=0.0075 st=0.0002 rp=0.0000 rt=0.0000 lr=4.60e-04 gnorm=1.46 mem=32.4/91.6GiB 63.8s/step
+[qat] step 700/2974 loss=1.0716 kl=0.9700 an=0.0072 st=0.0000 rp=0.0000 rt=0.0000 lr=4.59e-04 gnorm=2.11 mem=32.4/91.6GiB 63.8s/step
+[qat] step 700 VAL masked-CE 1.6076 (16 windows in 153s)
+[qat] step 700 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=1.0000  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=1.0000 vs vanilla 0.99995]
+[qat] code flips vs run start:
+  model.layers.0.self_attn.q_proj: flips 10.1893% Δ+1.8639 (0->±:726281 ±->0:979024 ±->∓:4170) density 65.5->64.0% scale-drift 6.10% (+4.85%)
+  model.layers.5.self_attn.k_proj: flips 7.6542% Δ+1.5352 (0->±:153357 ±->0:167589 ±->∓:95) density 64.2->63.9% scale-drift 3.82% (+2.23%)
+  model.layers.10.self_attn.v_proj: flips 5.4011% Δ+1.0920 (0->±:129952 ±->0:96550 ±->∓:35) density 61.6->62.4% scale-drift 2.92% (+0.27%)
+  model.layers.15.self_attn.o_proj: flips 6.5070% Δ+1.2912 (0->±:614631 ±->0:476528 ±->∓:536) density 61.3->62.1% scale-drift 3.44% (+1.41%)
+  model.layers.20.self_attn.o_proj: flips 7.2145% Δ+1.4716 (0->±:708203 ±->0:501594 ±->∓:602) density 60.2->61.4% scale-drift 3.62% (+1.43%)
+  model.layers.25.mlp.gate_proj: flips 8.7825% Δ+1.7758 (0->±:2545224 ±->0:1874234 ±->∓:944) density 60.2->61.6% scale-drift 3.69% (+1.31%)
+  model.layers.30.mlp.up_proj: flips 7.5527% Δ+1.6216 (0->±:1988746 ±->0:1812292 ±->∓:357) density 62.8->63.1% scale-drift 3.33% (+1.29%)
+  model.layers.35.mlp.down_proj: flips 5.2214% Δ+1.1574 (0->±:1184176 ±->0:1443664 ±->∓:166) density 65.9->65.4% scale-drift 2.93% (+1.49%)
+[qat] checkpoint @ step 700: 252 tensors
+[qat] step 705/2974 loss=2.0827 kl=1.9078 an=0.0596 st=0.0008 rp=0.0000 rt=0.0000 lr=4.58e-04 gnorm=1.26 mem=32.4/91.6GiB 64.1s/step
+[qat] step 710/2974 loss=1.3622 kl=1.2123 an=0.0144 st=0.0000 rp=0.0000 rt=0.0000 lr=4.57e-04 gnorm=0.98 mem=32.4/91.6GiB 64.0s/step
+[qat] step 715/2974 loss=1.2263 kl=1.1245 an=0.0099 st=0.0000 rp=0.0000 rt=0.0000 lr=4.57e-04 gnorm=2.81 mem=32.4/91.6GiB 64.0s/step
+[qat] step 720/2974 loss=1.3904 kl=1.2091 an=0.0097 st=0.0000 rp=0.0000 rt=0.0000 lr=4.56e-04 gnorm=2.07 mem=32.4/91.6GiB 64.0s/step
+[qat] step 725/2974 loss=1.2877 kl=1.1470 an=0.0075 st=0.0000 rp=0.0000 rt=0.0000 lr=4.55e-04 gnorm=1.12 mem=32.4/91.6GiB 64.0s/step
+[qat] step 725 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=1.0000  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=1.0000 vs vanilla 0.99995]
+[qat] step 730/2974 loss=1.3834 kl=1.2488 an=0.0120 st=0.0000 rp=0.0000 rt=0.0000 lr=4.55e-04 gnorm=2.12 mem=32.4/91.6GiB 63.9s/step
+[qat] step 735/2974 loss=1.3109 kl=1.1760 an=0.0115 st=0.0000 rp=0.0000 rt=0.0000 lr=4.54e-04 gnorm=1.25 mem=32.4/91.6GiB 63.9s/step
+[qat] step 740/2974 loss=1.3416 kl=1.1887 an=0.0090 st=0.0000 rp=0.0004 rt=0.0000 lr=4.53e-04 gnorm=1.48 mem=32.4/91.6GiB 63.9s/step
+[qat] step 745/2974 loss=1.5222 kl=1.3972 an=0.0091 st=0.0000 rp=0.0000 rt=0.0000 lr=4.52e-04 gnorm=1.47 mem=32.4/91.6GiB 63.9s/step
+[qat] step 750/2974 loss=1.4425 kl=1.2851 an=0.0153 st=0.0000 rp=0.0000 rt=0.0000 lr=4.51e-04 gnorm=2.85 mem=32.4/91.6GiB 63.9s/step
+[qat] step 750 VAL masked-CE 1.5180 (16 windows in 153s)
+[qat] step 750 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=0.9998  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=0.9998 vs vanilla 0.99995]
+[qat] step 755/2974 loss=1.4846 kl=1.2720 an=0.0114 st=0.0012 rp=0.0000 rt=0.0000 lr=4.51e-04 gnorm=1.66 mem=32.4/91.6GiB 64.0s/step
+[qat] step 760/2974 loss=1.1140 kl=0.9833 an=0.0204 st=0.0003 rp=0.0000 rt=0.0000 lr=4.50e-04 gnorm=1.22 mem=32.4/91.6GiB 64.0s/step
+[qat] step 765/2974 loss=1.1413 kl=1.0386 an=0.0181 st=0.0000 rp=0.0012 rt=0.0000 lr=4.49e-04 gnorm=1.71 mem=32.4/91.6GiB 64.0s/step
+[qat] step 770/2974 loss=1.2257 kl=1.0774 an=0.0068 st=0.0000 rp=0.0000 rt=0.0000 lr=4.48e-04 gnorm=1.80 mem=32.4/91.6GiB 64.0s/step
+[qat] step 775/2974 loss=1.2244 kl=1.0676 an=0.0171 st=0.0000 rp=0.0000 rt=0.0000 lr=4.48e-04 gnorm=1.91 mem=32.4/91.6GiB 64.0s/step
+[qat] step 775 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=1.0000  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=1.0000 vs vanilla 0.99995]
+[qat] step 780/2974 loss=1.5046 kl=1.3227 an=0.0095 st=0.0000 rp=0.0000 rt=0.0000 lr=4.47e-04 gnorm=2.37 mem=32.4/91.6GiB 63.9s/step
+[qat] step 785/2974 loss=1.6356 kl=1.5031 an=0.0076 st=0.0000 rp=0.0000 rt=0.0000 lr=4.46e-04 gnorm=3.40 mem=32.4/91.6GiB 63.9s/step
+[qat] step 790/2974 loss=1.0499 kl=0.9099 an=0.0221 st=0.0000 rp=0.0000 rt=0.0000 lr=4.45e-04 gnorm=2.04 mem=32.4/91.6GiB 63.9s/step
+[qat] step 795/2974 loss=2.5776 kl=2.3994 an=0.2441 st=0.1239 rp=0.0000 rt=0.0000 lr=4.44e-04 gnorm=1.21 mem=32.4/91.6GiB 63.9s/step
+[qat] step 800/2974 loss=1.3186 kl=1.1440 an=0.0081 st=0.0000 rp=0.0006 rt=0.0000 lr=4.43e-04 gnorm=1.06 mem=32.4/91.6GiB 63.9s/step
+[qat] step 800 VAL masked-CE 1.6917 (16 windows in 153s)
+[qat] step 800 STOPPROBE start=0.0000 mid_sentence=0.0000 sentence_period=0.0000 sentence_newline=0.0000 after_tool_call=1.0000  [diagnostic sentence_period=0.0000 vs vanilla 0.0092; control after_tool_call=1.0000 vs vanilla 0.99995]
+[qat] code flips vs run start:
+  model.layers.0.self_attn.q_proj: flips 11.8578% Δ+1.6686 (0->±:842202 ±->0:1140582 ±->∓:6631) density 65.5->63.7% scale-drift 7.17% (+6.04%)
+  model.layers.5.self_attn.k_proj: flips 9.1201% Δ+1.4659 (0->±:180356 ±->0:201963 ±->∓:206) density 64.2->63.7% scale-drift 4.43% (+2.97%)
+  model.layers.10.self_attn.v_proj: flips 6.4687% Δ+1.0677 (0->±:152680 ±->0:118587 ±->∓:51) density 61.6->62.4% scale-drift 3.19% (+0.61%)
+  model.layers.15.self_attn.o_proj: flips 7.7111% Δ+1.2040 (0->±:716344 ±->0:576566 ±->∓:791) density 61.3->62.1% scale-drift 3.86% (+2.00%)
+  model.layers.20.self_attn.o_proj: flips 8.5083% Δ+1.2938 (0->±:819618 ±->0:606878 ±->∓:966) density 60.2->61.5% scale-drift 4.11% (+2.11%)
+  model.layers.25.mlp.gate_proj: flips 10.4017% Δ+1.6192 (0->±:2953963 ±->0:2279421 ±->∓:1966) density 60.2->61.6% scale-drift 4.16% (+2.05%)
+  model.layers.30.mlp.up_proj: flips 9.0707% Δ+1.5180 (0->±:2346093 ±->0:2218480 ±->∓:855) density 62.8->63.0% scale-drift 3.72% (+1.87%)
+  model.layers.35.mlp.down_proj: flips 6.4667% Δ+1.2453 (0->±:1450863 ±->0:1803547 ±->∓:385) density 65.9->65.2% scale-drift 3.34% (+2.12%)
+[qat] checkpoint @ step 800: 252 tensors
+[qat] step 805/2974 loss=1.3745 kl=1.2439 an=0.0098 st=0.0000 rp=0.0000 rt=0.0000 lr=4.43e-04 gnorm=1.49 mem=32.4/91.6GiB 64.1s/step
+[qat] step 810/2974 loss=1.4003 kl=1.2587 an=0.0094 st=0.0000 rp=0.0000 rt=0.0000 lr=4.42e-04 gnorm=3.15 mem=32.4/91.6GiB 64.1s/step
+[qat] step 815/2974 loss=1.2231 kl=1.1141 an=0.0107 st=0.0000 rp=0.0000 rt=0.0000 lr=4.41e-04 gnorm=1.49 mem=32.4/91.6GiB 64.0s/step
+[qat] step 820/2974 loss=1.3401 kl=1.2343 an=0.0212 st=0.0000 rp=0.0000 rt=0.0000 lr=4.40e-04 gnorm=1.43 mem=32.4/91.6GiB 64.0s/step

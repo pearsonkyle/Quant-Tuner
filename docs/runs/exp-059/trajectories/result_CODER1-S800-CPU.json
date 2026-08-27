@@ -1,0 +1,22 @@
+{
+  "label": "CODER1-S800-CPU",
+  "instance_id": "dask__dask-11393",
+  "resolved": 0,
+  "patch_produced": 0,
+  "f2p_passed": 0,
+  "f2p_total": 1,
+  "p2p_passed": 34,
+  "p2p_total": 34,
+  "steps": 18,
+  "tool_errors": 14,
+  "tool_err_rate": 0.7778,
+  "malformed": 14,
+  "timeouts": 0,
+  "nonzero_exits": 3,
+  "out_tokens": 8946,
+  "in_tokens": 29209,
+  "wall_s": 336.6,
+  "exit_status": "error:InternalServerError",
+  "hit_max_turns": 0,
+  "reasoning_budget": 2048
+}
