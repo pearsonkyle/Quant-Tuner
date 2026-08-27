@@ -210,3 +210,345 @@ def test_resolve_model_class_defaults_to_auto_causal_lm():
     from quant_tuner.vllm_export import resolve_model_class
 
     assert resolve_model_class(None) is AutoModelForCausalLM
+
+
+# --- weight grid -----------------------------------------------------------
+#
+# `scheme="W4A16"` is a preset (int4 / group-128 / symmetric / minmax). Anything
+# else has to be handed to llmcompressor as explicit config_groups, and the two
+# are mutually exclusive at the modifier. These pin which path a config takes.
+
+
+def test_preset_scheme_needs_no_config_groups(tmp_path):
+    from quant_tuner.vllm_export import build_config_groups
+
+    cfg = _cfg(tmp_path)
+    assert cfg.custom_weight_grid() is False
+    assert build_config_groups(cfg) is None
+
+
+@pytest.mark.parametrize(
+    "override",
+    [
+        {"group_size": 32},
+        {"symmetric": False},
+        {"observer": "imatrix-mse"},
+        {"actorder": "static"},
+    ],
+)
+def test_any_grid_override_switches_to_config_groups(tmp_path, override):
+    from quant_tuner.vllm_export import build_config_groups
+
+    cfg = _cfg(tmp_path, **override)
+    assert cfg.custom_weight_grid() is True
+    assert build_config_groups(cfg) is not None
+
+
+def test_config_groups_match_the_published_card_recipe(tmp_path):
+    """int4, asymmetric, group 32, imatrix-mse, static act-order."""
+    from quant_tuner.vllm_export import build_config_groups
+
+    cfg = _cfg(
+        tmp_path,
+        group_size=32,
+        symmetric=False,
+        observer="imatrix-mse",
+        actorder="static",
+    )
+    cfg.validate()
+    weights = build_config_groups(cfg)["group_0"]["weights"]
+
+    assert weights == {
+        "num_bits": 4,
+        "type": "int",
+        "symmetric": False,
+        "strategy": "group",
+        "group_size": 32,
+        "observer": "imatrix-mse",
+        "actorder": "static",
+    }
+
+
+def test_per_channel_grid_drops_group_size(tmp_path):
+    # strategy "channel" with a group_size is contradictory — compressed-tensors
+    # rejects it, so the key must be absent, not present-and-negative.
+    from quant_tuner.vllm_export import build_config_groups
+
+    cfg = _cfg(tmp_path, group_size=-1)
+    weights = build_config_groups(cfg)["group_0"]["weights"]
+    assert weights["strategy"] == "channel"
+    assert "group_size" not in weights
+
+
+def test_w8a16_grid_uses_8_bits(tmp_path):
+    from quant_tuner.vllm_export import build_config_groups
+
+    cfg = _cfg(tmp_path, scheme="W8A16", group_size=32)
+    assert build_config_groups(cfg)["group_0"]["weights"]["num_bits"] == 8
+
+
+def test_validate_rejects_group_size_vllm_cannot_serve(tmp_path):
+    # Exports cleanly, then fails at `vllm serve` — after the calibration is
+    # already spent. Catch it at config time.
+    cfg = _cfg(tmp_path, group_size=48)
+    with pytest.raises(ValueError, match="not servable by vLLM"):
+        cfg.validate()
+
+
+def test_validate_rejects_unknown_observer_and_actorder(tmp_path):
+    with pytest.raises(ValueError, match="unknown observer"):
+        _cfg(tmp_path, observer="magic").validate()
+    with pytest.raises(ValueError, match="unknown actorder"):
+        _cfg(tmp_path, actorder="sideways").validate()
+
+
+def test_observer_spellings_are_interchangeable(tmp_path):
+    # The registry name is hyphenated; recipes in the wild write it either way.
+    _cfg(tmp_path, observer="imatrix_mse").validate()
+    _cfg(tmp_path, observer="imatrix-mse").validate()
+
+
+def test_activation_quantized_schemes_refuse_a_custom_grid(tmp_path):
+    # A hand-built group for W8A8 would have to specify input_activations too;
+    # silently dropping the override would be worse than refusing.
+    cfg = _cfg(tmp_path, scheme="W8A8", group_size=32)
+    with pytest.raises(ValueError, match="preset settings only"):
+        cfg.validate()
+
+
+# --- fp8 KV cache ----------------------------------------------------------
+
+
+def test_kv_cache_scheme_is_static_per_tensor_fp8(tmp_path):
+    """`dynamic: False` is the whole point — it is what makes the oneshot pass
+    *calibrate* the scales rather than defer them to runtime."""
+    from quant_tuner.vllm_export import build_kv_cache_scheme
+
+    cfg = _cfg(tmp_path, kv_cache_dtype="fp8_e4m3")
+    scheme = build_kv_cache_scheme(cfg)
+
+    assert scheme["num_bits"] == 8
+    assert scheme["type"] == "float"
+    assert scheme["strategy"] == "tensor"
+    assert scheme["dynamic"] is False
+
+
+def test_no_kv_cache_scheme_by_default(tmp_path):
+    from quant_tuner.vllm_export import build_kv_cache_scheme
+
+    assert build_kv_cache_scheme(_cfg(tmp_path)) is None
+
+
+def test_kv_cache_scheme_is_a_copy_not_the_module_constant(tmp_path):
+    from quant_tuner.vllm_export import KV_CACHE_SCHEMES, build_kv_cache_scheme
+
+    scheme = build_kv_cache_scheme(_cfg(tmp_path, kv_cache_dtype="fp8_e4m3"))
+    scheme["num_bits"] = 999
+    assert KV_CACHE_SCHEMES["fp8_e4m3"]["num_bits"] == 8
+
+
+def test_validate_rejects_unknown_kv_cache_dtype(tmp_path):
+    with pytest.raises(ValueError, match="unknown kv_cache_dtype"):
+        _cfg(tmp_path, kv_cache_dtype="fp4").validate()
+
+
+# --- export verification ---------------------------------------------------
+#
+# fp8 KV fails *quietly*: a checkpoint whose scales never got written still
+# loads and still serves. These pin the guardrail that catches it.
+
+
+def _write_export(tmp_path: Path, quantization_config, tensors: list[str]) -> Path:
+    out = tmp_path / "export"
+    out.mkdir(exist_ok=True)
+    config = {"architectures": ["Fake"]}
+    if quantization_config is not None:
+        config["quantization_config"] = quantization_config
+    (out / "config.json").write_text(json.dumps(config))
+    (out / "model.safetensors.index.json").write_text(
+        json.dumps({"weight_map": {n: "shard-0.safetensors" for n in tensors}})
+    )
+    return out
+
+
+_KV_QCFG = {
+    "format": "pack-quantized",
+    "config_groups": {},
+    "kv_cache_scheme": {"num_bits": 8, "type": "float", "strategy": "tensor"},
+}
+
+
+def test_verify_export_rejects_a_checkpoint_with_no_quantization_config(tmp_path):
+    from quant_tuner.vllm_export import verify_export
+
+    out = _write_export(tmp_path, None, ["model.layers.0.self_attn.q_proj.weight"])
+    with pytest.raises(RuntimeError, match="no quantization_config"):
+        verify_export(out, _cfg(tmp_path))
+
+
+def test_verify_export_rejects_requested_kv_with_no_kv_cache_scheme(tmp_path):
+    from quant_tuner.vllm_export import verify_export
+
+    out = _write_export(
+        tmp_path,
+        {"format": "pack-quantized", "config_groups": {}},
+        ["model.layers.0.self_attn.q_proj.weight"],
+    )
+    cfg = _cfg(tmp_path, kv_cache_dtype="fp8_e4m3")
+    with pytest.raises(RuntimeError, match="no kv_cache_scheme"):
+        verify_export(out, cfg)
+
+
+def test_verify_export_rejects_kv_scheme_that_produced_no_scales(tmp_path):
+    """The nastiest variant: the config *claims* fp8 KV, the tensors are absent."""
+    from quant_tuner.vllm_export import verify_export
+
+    out = _write_export(tmp_path, _KV_QCFG, ["model.layers.0.self_attn.q_proj.weight"])
+    cfg = _cfg(tmp_path, kv_cache_dtype="fp8_e4m3")
+    with pytest.raises(RuntimeError, match="no k_scale/v_scale tensors"):
+        verify_export(out, cfg)
+
+
+def test_verify_export_accepts_a_calibrated_kv_checkpoint(tmp_path):
+    from quant_tuner.vllm_export import verify_export
+
+    out = _write_export(
+        tmp_path,
+        _KV_QCFG,
+        [
+            "model.layers.0.self_attn.q_proj.weight",
+            "model.layers.0.self_attn.k_scale",
+            "model.layers.0.self_attn.v_scale",
+        ],
+    )
+    observed = verify_export(out, _cfg(tmp_path, kv_cache_dtype="fp8_e4m3"))
+    assert observed["kv_scale_tensors"] == {"k_scale": 1, "v_scale": 1}
+
+
+def test_count_kv_scales_ignores_linear_attention_layers(tmp_path):
+    """A hybrid model yields fewer scales than it has layers, correctly:
+    compressed-tensors' KV targets match `self_attn`/`attention`, and Qwen3.8's
+    48 DeltaNet layers are `linear_attn`. Count against real attention layers,
+    never against layer count."""
+    from quant_tuner.vllm_export import count_kv_scales
+
+    out = _write_export(
+        tmp_path,
+        _KV_QCFG,
+        [
+            "model.layers.0.linear_attn.in_proj_qkv.weight",
+            "model.layers.3.self_attn.k_scale",
+            "model.layers.3.self_attn.v_scale",
+            "model.layers.7.self_attn.k_scale",
+            "model.layers.7.self_attn.v_scale",
+        ],
+    )
+    assert count_kv_scales(out) == {"k_scale": 2, "v_scale": 2}
+
+
+# --- llmcompressor contract ------------------------------------------------
+#
+# Everything above tests the dicts we build. These test that llmcompressor
+# actually *accepts* them and resolves them to what we meant — the one thing a
+# pure-dict test cannot catch, and the thing that breaks on a version bump.
+# Skipped without the `vllm-ptq` extra, so the base env stays green.
+
+
+def _gptq_modifier(cfg):
+    from llmcompressor.modifiers.quantization import GPTQModifier
+
+    from quant_tuner.vllm_export import build_config_groups, build_kv_cache_scheme
+
+    kwargs = {"ignore": list(cfg.ignore)}
+    groups = build_config_groups(cfg)
+    if groups is not None:
+        kwargs["config_groups"] = groups
+    else:
+        kwargs["targets"] = "Linear"
+        kwargs["scheme"] = cfg.scheme
+    kv = build_kv_cache_scheme(cfg)
+    if kv is not None:
+        kwargs["kv_cache_scheme"] = kv
+    return GPTQModifier(**kwargs)
+
+
+def test_llmcompressor_resolves_the_card_recipe(tmp_path):
+    pytest.importorskip("llmcompressor")
+
+    cfg = _cfg(
+        tmp_path,
+        group_size=32,
+        symmetric=False,
+        observer="imatrix-mse",
+        actorder="static",
+        kv_cache_dtype="fp8_e4m3",
+    )
+    weights = _gptq_modifier(cfg).resolved_config.config_groups["group_0"].weights
+
+    assert (weights.num_bits, weights.type.value if hasattr(weights.type, "value")
+            else weights.type) == (4, "int")
+    assert weights.symmetric is False
+    assert weights.group_size == 32
+    assert str(weights.strategy) .endswith("group")
+    assert weights.observer == "imatrix-mse"
+    assert str(weights.actorder).endswith("static")
+
+
+def test_llmcompressor_kv_scheme_resolves_to_fp8_e4m3(tmp_path):
+    """The dtype is implied by num_bits+type, never named — assert the resolved
+    zero-point dtype so a scheme silently resolving to fp8_e5m2 (or to nothing)
+    cannot pass."""
+    import torch
+
+    pytest.importorskip("llmcompressor")
+
+    cfg = _cfg(tmp_path, kv_cache_dtype="fp8_e4m3")
+    kv = _gptq_modifier(cfg).kv_cache_scheme
+
+    assert kv is not None
+    assert kv.num_bits == 8
+    assert kv.dynamic is False
+    assert kv.zp_dtype == torch.float8_e4m3fn
+
+
+def test_kv_cache_scheme_makes_attention_a_calibration_target(tmp_path):
+    """Without attention in resolved_targets no KV observer ever attaches and
+    the export carries no scales — the failure verify_export exists to catch."""
+    pytest.importorskip("llmcompressor")
+
+    plain = _gptq_modifier(_cfg(tmp_path)).resolved_targets
+    with_kv = _gptq_modifier(_cfg(tmp_path, kv_cache_dtype="fp8_e4m3")).resolved_targets
+
+    added = with_kv - plain
+    assert added, "kv_cache_scheme added no targets"
+    assert all("attn" in t or "attention" in t for t in added), added
+
+
+def test_known_observers_still_exist_in_the_registry():
+    """Drift canary: our tuple is a copy of llmcompressor's registry."""
+    pytest.importorskip("llmcompressor")
+    from llmcompressor.observers import Observer
+
+    from quant_tuner.vllm_export import KNOWN_OBSERVERS, normalize_observer
+
+    registered = {normalize_observer(n) for n in Observer.registered_names()}
+    assert {normalize_observer(o) for o in KNOWN_OBSERVERS} <= registered
+
+
+def test_known_actorder_matches_compressed_tensors_enum():
+    pytest.importorskip("compressed_tensors")
+    from compressed_tensors.quantization import ActivationOrdering
+
+    from quant_tuner.vllm_export import KNOWN_ACTORDER
+
+    assert set(KNOWN_ACTORDER) == {e.value for e in ActivationOrdering}
+
+
+def test_kv_scale_suffixes_track_compressed_tensors_targets():
+    """If compressed-tensors renames its KV targets, count_kv_scales silently
+    counts zero and verify_export starts failing on good checkpoints."""
+    pytest.importorskip("compressed_tensors")
+    from compressed_tensors.quantization.utils import KV_CACHE_TARGETS
+
+    joined = " ".join(KV_CACHE_TARGETS)
+    assert "self_attn" in joined or "attention" in joined

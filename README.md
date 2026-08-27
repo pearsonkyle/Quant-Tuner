@@ -289,6 +289,42 @@ def ask(content, max_tokens=256):
 print(ask("What is 1+1?"))
 ```
 
+## vLLM instead of GGUF (W4A16 + fp8 KV cache)
+
+The GGUF ladder's sibling: a **compressed-tensors INT4 checkpoint vLLM serves
+directly**, calibrated on the same corpora, with **fp8 KV-cache scales baked in**.
+
+Quantizing weights saves memory once. Quantizing the KV cache saves it *per token
+per sequence* — which is what actually sets how long a context fits and how many
+requests run concurrently. On a 27B model at 262k context that is ~17 GB of bf16
+KV versus ~8.5 GB of fp8.
+
+```bash
+uv sync --extra vllm-ptq
+
+# Always dry-run a new model first: prints the resolved recipe, how many live
+# modules each ignore pattern matches, and the tensors that would vanish.
+uv run python scripts/run_vllm_ptq.py --model <hf-dir> --dry-run-ignore
+
+uv run python scripts/run_vllm_ptq.py \
+    --model <hf-dir> --corpus corpus.cal.txt --out out/w4a16-fp8kv \
+    --ctx 32768 --budget-tokens 4194304 \
+    --group-size 32 --asymmetric --observer imatrix-mse --actorder static \
+    --kv-cache-dtype fp8_e4m3
+
+vllm serve out/w4a16-fp8kv --kv-cache-dtype fp8_e4m3 --max-model-len 262144
+```
+
+`imatrix-mse` is the direct analogue of the GGUF ladder's imatrix — it weights
+the MSE clipping search by per-input-channel activation importance rather than
+taking raw range endpoints. The export is verified before it is written: a
+missing `quantization_config` (vLLM would serve bf16 at full size) and a
+requested KV scheme that produced **no** `k_scale`/`v_scale` tensors both fail
+loudly, because each otherwise yields a checkpoint that loads and serves
+perfectly while being wrong.
+
+See [`docs/vllm_w4a16_fp8kv.md`](docs/vllm_w4a16_fp8kv.md) for the full guide.
+
 ## Inspecting a quant (Jacobian lens)
 
 Beyond the leaderboard numbers, `quant-tuner lens` opens up the *inside* of a

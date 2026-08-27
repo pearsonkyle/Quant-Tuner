@@ -417,13 +417,48 @@ calibrated on *our* distribution instead of Google's generic QAT.
   cleanly into 65 slices). Do not reach for `--pipeline basic` on a recurrent
   architecture by analogy with gemma-4 — that trap is cross-layer *shared KV*,
   which is a different thing. `basic` costs 60–100 GB of Hessian offload.
-- Output dir gains `quant_tuner_ptq.json` (corpus SHA-256s, ctx, budget, scheme)
-  and `run_ptq` **fails loudly** if the exported config lacks
-  `quantization_config` (otherwise vLLM would silently serve bf16).
+- **`--kv-cache-dtype fp8_e4m3` calibrates the KV cache in the same oneshot pass**
+  — full guide in `docs/vllm_w4a16_fp8kv.md`. Weight quantization is a one-time
+  saving; KV quantization is per-token *per-sequence*, so it is what decides how
+  long a context fits and how many requests run concurrently (Qwen3.8 at 262k:
+  ~17 GB bf16 KV vs ~8.5 GB fp8). The scheme is **static per-tensor symmetric fp8**
+  — `dynamic: False` is the whole point, since a dynamic scheme defers the scale to
+  runtime and calibrates/stores nothing. compressed-tensors attaches the observers
+  via its own `KV_CACHE_TARGETS` (`re:.*(self_attn|attention)$`), so on a hybrid
+  model **fewer scales than layers is correct**: Qwen3.8 gets 16 (its `self_attn`
+  layers), not 64 — the 48 DeltaNet `linear_attn` layers have no KV cache. Check
+  `count_kv_scales()` against the softmax-attention layer count, never the layer count.
+- **The `W4A16` scheme is a preset** (int4 / group-128 / symmetric / minmax). The
+  published INT4 cards deviate on four knobs — `--group-size 32 --asymmetric
+  --observer imatrix-mse --actorder static` — and deviating on **any** of them
+  switches the run from `scheme=` to an explicit `config_groups`
+  (`build_config_groups`); the two are mutually exclusive at the modifier.
+  `imatrix-mse` is a real entry in llm-compressor's observer registry (VERIFIED on
+  0.13.0) and is the direct analogue of the GGUF imatrix — it weights the MSE
+  clipping search by per-input-channel activation importance instead of taking raw
+  range endpoints. `--actorder static` folds the permutation into the saved weights,
+  so serving pays no `g_idx` indirection; prefer it over `group` for a deployment.
+  W8A8/FP8_DYNAMIC also quantize activations, so they are supported at preset
+  settings only (a hand-built group would have to specify `input_activations`).
+  **Group size is restricted to `{-1, 32, 64, 128}`** — what vLLM's packed-int4
+  kernels accept; compressed-tensors would write any grouping and the checkpoint
+  would then fail at `vllm serve`, after the calibration is spent.
+- Output dir gains `quant_tuner_ptq.json` (corpus SHA-256s, ctx, budget, resolved
+  config groups + KV scheme, ignore-match counts, dropped tensors), and
+  `verify_export` **fails loudly** on the two silent failures — a missing
+  `quantization_config` (vLLM would serve bf16 at full size) and a requested KV
+  scheme that wrote **no `k_scale`/`v_scale` tensors** (vLLM falls back to an
+  uncalibrated cache and nothing in the log says so).
 - CLI: `scripts/run_vllm_ptq.py --model <hf-dir> --corpus corpus.cal.txt --out
-  <dir> [--ctx 8192] [--scheme W4A16|W8A8|W8A16|FP8_DYNAMIC] [--pipeline basic]`.
-  Corpus files come from `scripts/build_corpora.py`; multiple `--corpus` flags
-  split the token budget proportionally.
+  <dir> [--ctx 8192] [--scheme W4A16|W8A8|W8A16|FP8_DYNAMIC] [--pipeline basic]
+  [--group-size 32 --asymmetric --observer imatrix-mse --actorder static]
+  [--kv-cache-dtype fp8_e4m3]`. Corpus files come from
+  `scripts/build_universal_corpus.py` (or `build_corpora.py` for the published
+  two-source runs); multiple `--corpus` flags split the token budget
+  proportionally. **`--dry-run-ignore` prints the resolved recipe** alongside the
+  ignore-match counts and the tensors that would vanish — run it on every new model.
+- **Read `--budget-tokens` as *sequences*.** The 524,288 default is 16 sequences at
+  ctx 32768, far too few for a stable Hessian; use ~4M (≈128 sequences) there.
 - **gemma-4 needs `--pipeline basic`**: the default sequential (layer-sliced)
   pipeline breaks on its cross-layer shared KV (`shared_kv_states` flows from
   share-source layers into later sliding layers → `KeyError: 'sliding_attention'`
