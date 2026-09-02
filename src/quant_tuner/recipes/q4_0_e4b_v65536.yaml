@@ -1,0 +1,56 @@
+# Q4_0 for the pruned-vocabulary gemma-4-E4B, calibrated on our own corpus.
+#
+# Pass --model (the stage-1 checkpoint). Everything else is wired: this recipe
+# does NOT build a corpus from data.logs, it consumes the prebuilt
+# calibration-15m-v65536-ctx32k corpus published alongside the SFT pack.
+#
+# Why the 32K-capped variant: llama-imatrix chunks the corpus at imatrix_ctx by
+# token count and knows nothing about conversation boundaries, so a session
+# longer than ctx reaches it as fragments -- a middle chunk arrives with no
+# system prompt and no tool schemas, a context the model never sees at
+# inference. Every conversation in that corpus fits WHOLE inside 32,768 tokens.
+# This is the same constraint the stratified packer states as
+# "keep per_session_cap < the imatrix ctx", applied to whole conversations.
+#
+# Special tokens matter here and are handled: llama_cpp.imatrix defaults
+# --parse-special on, so the chat-template markers (<bos> id 2, <|turn> 79,
+# <|tool> 45, <tool|> 46) tokenize as the single ids the model sees rather than
+# as literal BPE text. Tool SCHEMAS render as <|tool>declaration:...<tool|> and
+# reasoning as reasoning_content, both verified present in the rendered corpus.
+name: q4_0_e4b_v65536
+
+model: PLACEHOLDER
+
+workspace: ./out/q4_0_e4b_v65536
+
+data:
+  # No logs: the corpus is prebuilt. Both files come from
+  # scripts/build_e4b_v2_corpora.py / the published dataset split.
+  logs: null
+  corpus: ./out/cal-15m-ctx32k/corpus.cal.txt
+  context_len: 32768
+
+calibration:
+  method: gptq
+  variant: default
+  params:
+    tokens: 15000000
+    ctx: 32768
+    dampen: 0.01
+    actorder: true
+    # 457 imatrix chunks at 15M tokens. Higher ctx trades chunks away and
+    # gemma-4 cannot use it: 35 of 42 layers are sliding attention over a
+    # 512-token window.
+    imatrix_ctx: 32768
+
+quantize:
+  type: Q4_0
+
+bench:
+  suite: full
+  eval_ctx: 8192
+  # Held-out, disjoint from calibration (test slice of the seeded split).
+  # NOTE: this file is chat-templated and llama-perplexity has no
+  # --parse-special, so absolute PPL is off-distribution; quant-vs-quant
+  # comparisons on the same file remain valid.
+  eval_corpus: ./out/cal-15m-ctx32k/corpus.eval.agentic.txt

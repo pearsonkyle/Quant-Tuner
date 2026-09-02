@@ -435,6 +435,21 @@ calibrated on *our* distribution instead of Google's generic QAT.
 - Output dir gains `quant_tuner_ptq.json` (corpus SHA-256s, ctx, budget, scheme)
   and `run_ptq` **fails loudly** if the exported config lacks
   `quantization_config` (otherwise vLLM would silently serve bf16).
+- **gemma-4-E4B (pruned v65536), canonical invocation.** Corpus from the published
+  `calibration-15m-v65536-ctx128k` split (or `out/cal-15m-ctx128k/corpus.cal.txt`);
+  GPTQ can calibrate at long context where the GGUF imatrix cannot, so it gets the
+  128K variant while the imatrix recipes get `-ctx32k`:
+  ```bash
+  uv run python scripts/run_vllm_ptq.py \
+      --model <stage-1 checkpoint> --out out/e4b-w4a16-fp8kv \
+      --corpus out/cal-15m-ctx128k/corpus.cal.txt \
+      --ctx 32768 --budget-tokens 15000000 \
+      --scheme W4A16 --kv-cache-scheme fp8_e4m3 \
+      --pipeline basic --dry-run-ignore
+  ```
+  `--pipeline basic` is mandatory (cross-layer shared KV, `num_kv_shared_layers: 18`).
+  Raise `--ctx` toward 131072 only if the box has the memory; `basic` accumulates
+  every Hessian at once. Run `--dry-run-ignore` first on any new checkpoint.
 - CLI: `scripts/run_vllm_ptq.py --model <hf-dir> --corpus corpus.cal.txt --out
   <dir> [--ctx 8192] [--scheme W4A16|W8A8|W8A16|FP8_DYNAMIC] [--pipeline basic]`.
   Corpus files come from `scripts/build_corpora.py`; multiple `--corpus` flags

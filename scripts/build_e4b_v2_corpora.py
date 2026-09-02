@@ -124,6 +124,14 @@ def main() -> int:
     ap.add_argument("--ctx", type=int, default=32768,
                     help="window the PTQ/imatrix pass will chunk at; only used to warn "
                          "when the budget cannot fill enough windows")
+    ap.add_argument("--max-conversation-tokens", type=int, default=0,
+                    help="skip conversations longer than this. Set it to the ctx the "
+                         "quantizer will use so every conversation fits WHOLE inside a "
+                         "window: llama-imatrix chunks the corpus at ctx by token count "
+                         "and knows nothing about conversation boundaries, so a session "
+                         "longer than ctx is fed to it as fragments -- a middle chunk "
+                         "arrives with no system prompt and no tool schemas, which is a "
+                         "context the model never sees at inference. 0 disables.")
     ap.add_argument("--max-source-share", type=float, default=0.08,
                     help="cap any single source at this fraction of the budget")
     ap.add_argument("--eval-tokens", type=int, default=400_000,
@@ -161,6 +169,7 @@ def main() -> int:
     for i in train_i:
         by_source[rows[i].get("source") or "(none)"].append(i)
     failures: collections.Counter = collections.Counter()
+    oversize: collections.Counter = collections.Counter()
     rng = random.Random(args.seed)
     for v in by_source.values():
         rng.shuffle(v)
@@ -199,6 +208,9 @@ def main() -> int:
         if not text:
             continue
         ntok = len(tok.encode(text))
+        if args.max_conversation_tokens and ntok > args.max_conversation_tokens:
+            oversize[s] += 1
+            continue
         per_source_text[s].append(text)
         per_source_rows[s].append(i)
         used[s] += ntok
@@ -334,6 +346,9 @@ def main() -> int:
             "windows_at_ctx": total // args.ctx,
             "conversations": sum(len(v) for v in per_source_text.values()),
             "max_source_share": args.max_source_share,
+            "max_conversation_tokens": args.max_conversation_tokens or None,
+            "skipped_oversize": dict(oversize),
+            "skipped_oversize_total": sum(oversize.values()),
             "per_source_tokens": dict(sorted(used.items(), key=lambda kv: -kv[1])),
             "per_source_share": {
                 s: round(v / total, 4) for s, v in sorted(used.items(), key=lambda kv: -kv[1])
