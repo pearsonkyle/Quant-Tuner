@@ -33,6 +33,21 @@ calibration:
     ctx: 2048
     dampen: 0.01
     actorder: true
+    # llama-imatrix context. 32,768 rather than the 4,096 default, and rather
+    # than the model's full 131,072, for two measured reasons.
+    #
+    # Chunk count: the imatrix gets `corpus_tokens / imatrix_ctx` samples, and
+    # per-channel importance is noisy when that number is small. Against the
+    # 15M-token e4b-v2 corpus: 457 chunks at 32K, 228 at 64K, 114 at 128K.
+    # Against the earlier 5M corpus 128K would have given 38 -- unusable.
+    #
+    # And gemma-4 cannot use much more. 35 of its 42 layers are
+    # `sliding_attention` over a 512-token window, so they attend within 512
+    # tokens whatever the context is; long-range structure reaches them only
+    # indirectly through the 7 full-attention layers. Past a few thousand
+    # tokens the benefit accrues to 7/42 layers while every layer pays the
+    # chunk-count cost. Raise it only alongside a bigger corpus.
+    imatrix_ctx: 32768
 
 quantize:
   type: Q4_0
