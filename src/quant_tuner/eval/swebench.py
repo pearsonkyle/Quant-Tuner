@@ -73,8 +73,18 @@ class SweSummary:
     mean_steps: float  # mean bash/tool calls per instance
     tool_error_rate: float  # tool errors ÷ tool calls (across all instances)
     mean_wall_sec: float
+    step_limit_rate: float = 0.0
+    """Fraction of instances that used the whole step budget without resolving.
+
+    The loop signature. An agent stuck alternating two commands, or re-reading
+    the same file, does not error and does not crash -- it spends every step and
+    submits nothing, which `pass_rate` reports identically to a model that tried
+    once and gave up. Separating them is the difference between "wrong" and
+    "wedged", and only the second is a serving problem you can fix with sampling.
+    """
     n_resolved: int = 0
     n_patched: int = 0
+    n_step_limited: int = 0
     per_instance: list[dict] = field(default_factory=list)
 
     def scalar_metrics(self) -> dict[str, float]:
@@ -85,6 +95,7 @@ class SweSummary:
             "mean_tokens": self.mean_tokens,
             "mean_steps": self.mean_steps,
             "tool_error_rate": self.tool_error_rate,
+            "step_limit_rate": self.step_limit_rate,
         }
 
 
@@ -329,7 +340,9 @@ def run_instance(
 # ---------------------------------------------------------------------------
 
 
-def _aggregate(model_label: str, records: list[dict]) -> SweSummary:
+def _aggregate(
+    model_label: str, records: list[dict], max_steps: int = DEFAULT_MAX_STEPS
+) -> SweSummary:
     n = len(records)
     n_resolved = sum(1 for r in records if r.get("resolved"))
     n_patched = sum(1 for r in records if r.get("patch_produced"))
@@ -337,6 +350,14 @@ def _aggregate(model_label: str, records: list[dict]) -> SweSummary:
     total_tools = sum(int(r.get("tools_used") or 0) for r in records)
     total_errors = sum(int(r.get("tool_errors") or 0) for r in records)
     total_wall = sum(float(r.get("wall_sec") or 0.0) for r in records)
+    # Used the whole budget AND resolved nothing: the agent never converged.
+    # Counting only unresolved ones keeps a genuinely long successful run from
+    # being scored as a loop.
+    n_step_limited = sum(
+        1
+        for r in records
+        if int(r.get("tools_used") or 0) >= max_steps and not r.get("resolved")
+    )
     denom = n or 1
     return SweSummary(
         model=model_label,
@@ -348,8 +369,10 @@ def _aggregate(model_label: str, records: list[dict]) -> SweSummary:
         mean_steps=total_tools / denom,
         tool_error_rate=(total_errors / total_tools) if total_tools else 0.0,
         mean_wall_sec=total_wall / denom,
+        step_limit_rate=n_step_limited / denom,
         n_resolved=n_resolved,
         n_patched=n_patched,
+        n_step_limited=n_step_limited,
         per_instance=records,
     )
 
@@ -466,7 +489,7 @@ def run_swebench_eval(
                 )
             )
 
-    return _aggregate(label, records)
+    return _aggregate(label, records, max_steps)
 
 
 def swebench_rep(holdout: Path, *, trajectory_dir: Path, **eval_kwargs):

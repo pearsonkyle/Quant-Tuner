@@ -1,6 +1,6 @@
-# Q4_0 (~4.5 bpw) for the pruned-vocabulary gemma-4-E4B.
+# IQ3_M (~3.7 bpw) for the pruned-vocabulary gemma-4-E4B.
 #
-# the QAT grid itself -- symmetric 4-bit, 32-element blocks, one fp16 scale.
+# below the QAT grid: pure compression, leaning entirely on the imatrix.
 #
 # THE LADDER STOPS AT 4 BITS ON PURPOSE. The base is the `-qat-q4_0-unquantized`
 # release, conditioned during training for the q4_0 grid, so spending 5 or 6 bits
@@ -22,11 +22,11 @@
 # vocabulary actually uses (<bos> 2, <|turn> 79, <|tool> 45, <tool|> 46) rather
 # than as literal BPE text. Tool schemas render as <|tool>declaration:...<tool|>
 # and reasoning as reasoning_content -- both verified present in the corpus.
-name: q4_0_e4b_v65536
+name: iq3_m_e4b_v65536
 
 model: PLACEHOLDER
 
-workspace: ./out/q4_0_e4b_v65536
+workspace: ./out/iq3_m_e4b_v65536
 
 data:
   logs: null
@@ -48,7 +48,7 @@ calibration:
     imatrix_ctx: 32768
 
 quantize:
-  type: Q4_0
+  type: IQ3_M
 
 bench:
   suite: full
