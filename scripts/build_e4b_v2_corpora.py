@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import math
 import json
 import random
 import sys
@@ -133,6 +134,11 @@ def main() -> int:
                          "general slice's budget buys only a handful of them and "
                          "the 'distribution' ends up being 8 conversations.")
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--emit-records", action="store_true",
+                    help="also write the selection as parquet shards, shaped like "
+                         "the pack's published tiers, for upload as a dataset split")
+    ap.add_argument("--shards", type=int, default=16)
+    ap.add_argument("--label", default="calibration-15m-v65536")
     args = ap.parse_args()
 
     from transformers import AutoTokenizer
@@ -164,6 +170,7 @@ def main() -> int:
     cursors = {s: 0 for s in order}
     used: dict[str, int] = collections.Counter()
     per_source_text: dict[str, list[str]] = collections.defaultdict(list)
+    per_source_rows: dict[str, list[int]] = collections.defaultdict(list)
     total = 0
 
     # Least-tokens-first, NOT round-robin over conversations. One conversation per
@@ -193,6 +200,7 @@ def main() -> int:
             continue
         ntok = len(tok.encode(text))
         per_source_text[s].append(text)
+        per_source_rows[s].append(i)
         used[s] += ntok
         total += ntok
 
@@ -257,6 +265,62 @@ def main() -> int:
         with open(out / f"corpus.eval.{name}.txt", "w") as f:
             for t in texts:
                 f.write(t + "\n")
+
+    # Records, not just rendered text: the .txt is what llama-imatrix and the PTQ
+    # path consume, but publishing the selection as parquet in the same shape as
+    # the pack's other tiers lets it be re-rendered against a different template
+    # or tokenizer, and audited row by row.
+    if args.emit_records:
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        rec_dir = out / "records"
+        rec_dir.mkdir(exist_ok=True)
+        chosen = [i for s_ in order for i in per_source_rows.get(s_, [])]
+        chosen.sort()
+        # Match the published tiers exactly -- list<string>, and an n_chars column
+        # equal to sum(len(m) for m in messages), verified against ctx-128k-v65536.
+        # large_string is unnecessary here: that exists for the full 5 GiB pack,
+        # whereas these shards are ~1 MB of messages each, far under Arrow's 2 GiB
+        # int32 offset cap.
+        schema = pa.schema([
+            ("messages", pa.list_(pa.string())),
+            ("tools", pa.string()),
+            ("source", pa.string()),
+            ("n_chars", pa.int64()),
+        ])
+        per_shard = max(1, math.ceil(len(chosen) / args.shards))
+        n_shards = math.ceil(len(chosen) / per_shard)
+        for sh in range(n_shards):
+            part = chosen[sh * per_shard : (sh + 1) * per_shard]
+            tbl = pa.Table.from_pydict(
+                {
+                    "messages": [rows[i]["messages"] for i in part],
+                    "tools": [rows[i].get("tools") for i in part],
+                    "source": [rows[i].get("source") for i in part],
+                    "n_chars": [
+                        sum(len(m) for m in rows[i]["messages"]) for i in part
+                    ],
+                },
+                schema=schema,
+            )
+            pq.write_table(
+                tbl,
+                rec_dir / f"train-{sh:05d}-of-{n_shards:05d}.parquet",
+                compression="zstd",
+            )
+        (rec_dir / "tier_meta.json").write_text(json.dumps({
+            "label": args.label,
+            "note": "Calibration selection for GPTQ / imatrix. Drawn ONLY from the "
+                    "train slice of the seeded split, so the test holdout stays "
+                    "clean for evaluation. Token-balanced across sources.",
+            "max_tokens": args.ctx,
+            "n": len(chosen),
+            "tokens": total,
+            "fit_pct": 100,
+            "tokenizer_note": f"{args.model} (65,536-token restricted vocabulary)",
+        }, indent=2))
+        print(f"records: {len(chosen):,} rows -> {n_shards} parquet shards in {rec_dir}")
 
     audit = {
         "pack": str(args.pack),
