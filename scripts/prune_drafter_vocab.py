@@ -76,7 +76,8 @@ def main() -> int:
     src, out = Path(args.drafter), Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
 
-    keep = json.load(open(args.keepset))
+    with open(args.keepset) as f:
+        keep = json.load(f)
     assert keep == sorted(keep), "keepset must be ascending (new id j == keepset[j])"
     keep_t = torch.tensor(keep, dtype=torch.long)
     new_vocab = len(keep)

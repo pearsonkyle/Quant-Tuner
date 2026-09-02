@@ -72,6 +72,22 @@ class PTQConfig:
     scheme: str = "W4A16"
     """llmcompressor quantization scheme (W4A16 = int4 weights / bf16 activations)."""
 
+    kv_cache_scheme: str | None = None
+    """Quantize the KV cache alongside the weights. ``"fp8_e4m3"`` emits calibrated
+    per-tensor ``k_scale``/``v_scale`` into the checkpoint, which vLLM consumes
+    under ``--kv-cache-dtype fp8_e4m3``; ``None`` leaves the cache at bf16.
+
+    This is ORTHOGONAL to ``scheme`` -- KV quantization is applied to the k/v
+    projections' outputs, not to weights, so W4A16 + fp8 KV is a normal pairing
+    and does not require quantized activations.
+
+    Worth sizing before reaching for it. On gemma-4-E4B it saves ~1.77 GiB at
+    131k context and ~0.46 GiB at 32k, because 35 of 42 layers are sliding
+    attention with a 512-token window (they hold 512 positions regardless of
+    context) and only 7 are full attention, over 2 KV heads. That is small
+    against the weights for a single stream -- but it scales linearly with
+    concurrency, so it earns its place on a server and not on a workstation."""
+
     group_size: int = 128
 
     ignore: tuple[str, ...] = field(default_factory=lambda: DEFAULT_IGNORE)
@@ -115,6 +131,11 @@ class PTQConfig:
             )
         if self.scheme not in ("W4A16", "W8A8", "W8A16", "FP8_DYNAMIC"):
             raise ValueError(f"unsupported scheme: {self.scheme}")
+        if self.kv_cache_scheme not in (None, "fp8_e4m3"):
+            raise ValueError(
+                f"unsupported kv_cache_scheme: {self.kv_cache_scheme} "
+                "(supported: fp8_e4m3, or None to leave the cache at bf16)"
+            )
         if self.pipeline not in ("sequential", "basic", "independent"):
             raise ValueError(f"unsupported pipeline: {self.pipeline}")
 
@@ -309,12 +330,53 @@ def run_ptq(cfg: PTQConfig) -> Path:
         )
     # Under the basic pipeline every module's Hessian accumulates at once —
     # offload them to CPU RAM or the largest layers OOM the GPU.
-    recipe = GPTQModifier(
+    recipe: Any = GPTQModifier(
         targets="Linear",
         scheme=cfg.scheme,
         ignore=list(cfg.ignore),
         offload_hessians=(cfg.pipeline == "basic"),
     )
+
+    if cfg.kv_cache_scheme is not None:
+        # compressed-tensors spells an fp8-e4m3 cache as a static, symmetric,
+        # per-tensor float8 scheme on the attention output. Calibration is what
+        # makes it worth doing: without scales vLLM falls back to a dynamic
+        # guess, which is exactly the accuracy that calibration buys back.
+        kv_spec = {
+            "num_bits": 8,
+            "type": "float",
+            "strategy": "tensor",
+            "dynamic": False,
+            "symmetric": True,
+        }
+        # Verified on llmcompressor 0.13.0: GPTQModifier takes kv_cache_scheme
+        # directly and resolves it to zp_dtype=torch.float8_e4m3fn, so W4A16 and
+        # the fp8 cache come out of one modifier. The extra runs because this
+        # package only floors llmcompressor at >=0.8 and the field lives on
+        # QuantizationMixin, which older GPTQModifiers do not inherit -- and a
+        # silently dropped kwarg would yield a checkpoint with no KV scales that
+        # still looks like a success.
+        import inspect
+
+        if "kv_cache_scheme" in inspect.signature(GPTQModifier).parameters:
+            recipe = GPTQModifier(
+                targets="Linear",
+                scheme=cfg.scheme,
+                ignore=list(cfg.ignore),
+                offload_hessians=(cfg.pipeline == "basic"),
+                kv_cache_scheme=kv_spec,
+            )
+        else:
+            from llmcompressor.modifiers.quantization import QuantizationModifier
+
+            recipe = [
+                recipe,
+                QuantizationModifier(
+                    targets="Linear",
+                    ignore=list(cfg.ignore),
+                    kv_cache_scheme=kv_spec,
+                ),
+            ]
 
     # `processor` must be passed explicitly: given a dataset, llmcompressor
     # otherwise auto-initializes one via AutoProcessor, which raises on a
@@ -340,6 +402,7 @@ def run_ptq(cfg: PTQConfig) -> Path:
         "tool": "quant_tuner.vllm_export.w4a16",
         "model_id": str(cfg.model_id),
         "scheme": cfg.scheme,
+        "kv_cache_scheme": cfg.kv_cache_scheme,
         "group_size": cfg.group_size,
         "ctx": cfg.ctx,
         "budget_tokens": cfg.budget_tokens,
@@ -364,5 +427,16 @@ def run_ptq(cfg: PTQConfig) -> Path:
     if "quantization_config" not in config:
         raise RuntimeError(
             "exported config.json has no quantization_config — PTQ did not apply"
+        )
+    # Same reasoning one level down: a KV scheme that was requested but did not
+    # survive into the config leaves a checkpoint vLLM serves with a bf16 cache,
+    # indistinguishable from success except for the memory it does not save.
+    if cfg.kv_cache_scheme is not None and not config["quantization_config"].get(
+        "kv_cache_scheme"
+    ):
+        raise RuntimeError(
+            f"kv_cache_scheme={cfg.kv_cache_scheme!r} was requested but the "
+            "exported quantization_config has none — the calibrated k/v "
+            "scales were not written"
         )
     return out

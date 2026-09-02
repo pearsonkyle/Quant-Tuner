@@ -25,6 +25,21 @@ cmake --build vendor/llama.cpp/build -j
 # Python env
 uv sync
 
+# vLLM PTQ export (llm-compressor). Kept in this repo's OWN venv on purpose:
+# llmcompressor pins torch>=2.10,<=2.13 / transformers<=5.14, which would drag a
+# co-located training env backwards (measured against LLM-Training-Kit's pinned
+# torch 2.9.1+cu128 / transformers 5.16.1: installing here would have downgraded
+# both).
+uv sync --extra vllm-ptq
+# THEN re-pin torch to a cu128 build, every time you sync. The resolver picks a
+# cu130 wheel, and on a host driver capped at CUDA 12.8 that yields
+# `torch.cuda.is_available() == False` -- GPTQ silently falls back to CPU rather
+# than failing. torch 2.11.0+cu128 is the build that satisfies llmcompressor's
+# range on such a host. Check `driver_max_cuda` before assuming yours differs.
+uv pip install --python .venv/bin/python torch==2.11.0 \
+    --index-url https://download.pytorch.org/whl/cu128
+python -c "import torch; assert torch.cuda.is_available(), 'cu130 wheel on a 12.x driver'"
+
 # Agentic SWE-rebench benchmark (optional): mini-swe-agent + a running Docker daemon.
 uv sync --extra swebench
 # SWE-rebench ships linux/amd64 instance images on Docker Hub (swerebench/sweb.eval.*).

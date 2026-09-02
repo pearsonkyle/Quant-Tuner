@@ -1,0 +1,42 @@
+# Hessian-based weight rounding (GPTQ) -> Q4_0 (~4.5 bpw).
+#
+# Q4_0 rather than IQ4_XS for one model-specific reason: the gemma-4-E4B base
+# used here is the **QAT** release (`-qat-q4_0-unquantized`), whose weights were
+# conditioned during training for the q4_0 grid -- symmetric 4-bit, 32-element
+# blocks, one fp16 scale per block. IQ4_XS is a non-uniform codebook with
+# imatrix weighting and is normally the better 4-bit format per bit, but the QAT
+# conditioning does not transfer to its grid. This recipe exists so the two can
+# be compared head to head on the same corpus rather than assumed.
+#
+# Pair with `iq4_xs_gptq` and read KLD on the held-out slices, not perplexity.
+name: q4_0_gptq
+
+model: PLACEHOLDER
+
+workspace: ./out/q4_0_gptq
+
+data:
+  logs: PLACEHOLDER
+  train_frac: 0.8
+  test_frac: 0.1
+  holdout_frac: 0.1
+  train_max_tokens: 250000
+  eval_max_tokens: 50000
+  supplement: ./calibration_supplement.txt
+  context_len: 16384
+
+calibration:
+  method: gptq
+  variant: default
+  params:
+    tokens: 32768
+    ctx: 2048
+    dampen: 0.01
+    actorder: true
+
+quantize:
+  type: Q4_0
+
+bench:
+  suite: full
+  eval_ctx: 8192

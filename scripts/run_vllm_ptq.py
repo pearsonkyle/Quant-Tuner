@@ -49,6 +49,15 @@ def main() -> None:
         default="W4A16",
         choices=["W4A16", "W8A8", "W8A16", "FP8_DYNAMIC"],
     )
+    ap.add_argument(
+        "--kv-cache-scheme",
+        choices=("fp8_e4m3",),
+        default=None,
+        help="also quantize the KV cache, emitting calibrated k_scale/v_scale. "
+             "Orthogonal to --scheme: W4A16 + fp8_e4m3 KV is a normal pairing "
+             "and needs no quantized activations. Serve with vLLM's "
+             "--kv-cache-dtype fp8_e4m3.",
+    )
     ap.add_argument("--group-size", type=int, default=128)
     ap.add_argument(
         "--ignore",
