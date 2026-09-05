@@ -635,6 +635,7 @@ def run_toolcall_eval(
     *,
     model_path: Path | None = None,
     base_url: str | None = None,
+    client: Any | None = None,
     sampling: Sampling | None = None,
     model_label: str | None = None,
     model_name: str = "local",
@@ -652,22 +653,31 @@ def run_toolcall_eval(
 ) -> EvalSummary:
     """Run the per-turn pass against one model and return aggregates.
 
-    Either ``model_path`` (spawn a server) **or** ``base_url`` (use a running
-    one) must be provided. The two are mutually exclusive: pass ``model_path``
-    for one-shot evals, ``base_url`` when an outer driver is reusing one server
-    across multiple reps.
+    Exactly one of three sources must be given: ``model_path`` (spawn a
+    llama-server), ``base_url`` (reuse a running one, e.g. when an outer driver
+    shares one server across reps), or ``client`` -- any object exposing
+    ``chat.completions.create``.
+
+    ``client`` exists for checkpoints that are not GGUF. A local HF checkpoint
+    can be driven in-process by ``quant_tuner.eval.local_gemma4``, which avoids
+    standing up a server just to talk to it, keeps prompt rendering on the
+    checkpoint's own chat template, and sidesteps the flash-attn/torch ABI pin
+    that makes a second venv lose FA2. Nothing about the scoring changes.
     """
-    if (model_path is None) == (base_url is None):
-        raise ValueError("provide exactly one of model_path or base_url")
+    n_sources = sum(x is not None for x in (model_path, base_url, client))
+    if n_sources != 1:
+        raise ValueError(
+            "provide exactly one of model_path, base_url or client "
+            f"(got {n_sources})")
 
     sampling = sampling or Sampling()
     sessions = _load_sessions(holdout)
-    label = model_label or (model_path.name if model_path else "remote")
+    label = model_label or (model_path.name if model_path
+                            else "remote" if base_url else "local")
 
     log_fh = per_turn_log.open("w") if per_turn_log is not None else None
 
-    def _run_against(url: str) -> EvalSummary:
-        client = OpenAI(base_url=url, api_key=api_key)
+    def _run_with(client: Any) -> EvalSummary:
         all_turns: list[dict] = []
         for i, sess in enumerate(sessions, 1):
             if progress:
@@ -691,7 +701,12 @@ def run_toolcall_eval(
             )
         return summary
 
+    def _run_against(url: str) -> EvalSummary:
+        return _run_with(OpenAI(base_url=url, api_key=api_key))
+
     try:
+        if client is not None:
+            return _run_with(client)
         if base_url is not None:
             return _run_against(base_url)
         with running_server(
