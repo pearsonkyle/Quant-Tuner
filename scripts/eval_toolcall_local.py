@@ -48,6 +48,15 @@ def main() -> int:
     p.add_argument("--max-len", type=int, default=65536)
     p.add_argument("--device", default="cuda")
     p.add_argument("--progress", action="store_true")
+    p.add_argument("--stop-on-fail", action="store_true",
+                   help="Halt a session at the model's first miss (the shared "
+                        "harness's default). OFF here by default, because it "
+                        "makes the arms unpaired: on the step-3000 run stage 0 "
+                        "failed immediately and scored 36 turns while "
+                        "checkpoint-3000 scored 89, so the two per-turn rates "
+                        "had different denominators and were not comparable. "
+                        "Scoring every turn costs more GPU time and buys a "
+                        "number you can actually difference.")
     a = p.parse_args()
 
     from quant_tuner.eval.local_gemma4 import LocalGemma4Client
@@ -61,7 +70,8 @@ def main() -> int:
 
     sampling = Sampling(temperature=a.temperature, max_tokens=a.max_tokens)
     out: dict = {"holdout": str(a.holdout),
-                 "max_turns_per_session": a.max_turns_per_session, "runs": []}
+                 "max_turns_per_session": a.max_turns_per_session,
+                 "stop_on_fail": a.stop_on_fail, "runs": []}
     a.out.parent.mkdir(parents=True, exist_ok=True)
 
     for label, base, adapter in arms:
@@ -72,6 +82,7 @@ def main() -> int:
         summary = run_toolcall_eval(
             a.holdout, client=client, sampling=sampling, model_label=label,
             max_turns_per_session=a.max_turns_per_session,
+            stop_on_fail=a.stop_on_fail,
             per_turn_log=a.out.with_suffix(f".{label.replace(' ', '_')}.turns.jsonl"),
             progress=a.progress,
         )

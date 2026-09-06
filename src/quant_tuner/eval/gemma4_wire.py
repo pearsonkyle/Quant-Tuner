@@ -199,19 +199,28 @@ def parse_generation(text: str) -> dict:
             text = text[:t0]
             truncated_thought = True
 
-    calls, out, i, n = [], [], 0, 0
+    calls, out, i, n, parse_error = [], [], 0, 0, None
     while True:
         c0 = text.find(CALL_OPEN, i)
         if c0 < 0:
             out.append(text[i:])
             break
         out.append(text[i:c0])
-        brace = text.find("{", c0 + len(CALL_OPEN))
-        if brace < 0:
-            raise WireError("tool call without an argument object")
-        name = text[c0 + len(CALL_OPEN):brace]
-        r = _Reader(text, brace)
-        args = r.value(bare_keys=True)
+        # A generation cut off by max_tokens leaves a half-written call. That
+        # is a model that failed to produce a call in its budget -- which
+        # scores zero -- and NOT an exceptional condition. Raising here took
+        # down a whole two-arm eval from inside a batch, so the failure is
+        # recorded and the well-formed calls before it are kept.
+        try:
+            brace = text.find("{", c0 + len(CALL_OPEN))
+            if brace < 0:
+                raise WireError("tool call without an argument object")
+            name = text[c0 + len(CALL_OPEN):brace]
+            r = _Reader(text, brace)
+            args = r.value(bare_keys=True)
+        except WireError as e:
+            parse_error = str(e)
+            break
         end = text.find(CALL_CLOSE, r.i)
         i = (end + len(CALL_CLOSE)) if end >= 0 else r.i
         calls.append({
@@ -226,4 +235,5 @@ def parse_generation(text: str) -> dict:
     return {"content": content or None,
             "reasoning_content": reasoning,
             "truncated_thought": truncated_thought,
+            "parse_error": parse_error,
             "tool_calls": calls}

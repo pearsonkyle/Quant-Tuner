@@ -101,8 +101,18 @@ def score(client, rows, max_tokens, temperature, label, batch_size) -> dict:
                    key=lambda i: -len(json.dumps(rows[i]["prefix"])))
     reqs = [{"messages": rows[i]["prefix"], "tools": rows[i]["tools"]}
             for i in order]
-    parsed = client.generate_batch(reqs, temperature=temperature,
-                                   max_tokens=max_tokens, batch_size=batch_size)
+    try:
+        parsed = client.generate_batch(reqs, temperature=temperature,
+                                       max_tokens=max_tokens,
+                                       batch_size=batch_size)
+    except Exception as e:  # noqa: BLE001
+        # Should be unreachable now that parse_generation degrades rather than
+        # raising, but a scoring run must never be able to lose finished arms
+        # to one malformed generation again.
+        print(f"  [{label}] batch generation failed: {type(e).__name__}: {e}",
+              flush=True)
+        parsed = [{"tool_calls": [], "truncated_thought": True,
+                   "parse_error": str(e), "_n_out": 0} for _ in reqs]
     by_row = dict(zip(order, parsed))
 
     per = []
@@ -204,6 +214,10 @@ def main() -> int:
                     a.batch_size)
         run["summary"] = summarise(run, rows)
         out["runs"].append(run)
+        # Persist immediately: an arm that finished has been paid for in GPU
+        # minutes and must survive whatever the next arm does.
+        a.out.parent.mkdir(parents=True, exist_ok=True)
+        a.out.write_text(json.dumps(out, indent=2))
         s = run["summary"]
         print(f"\n{label:>22}  acc {s['acc']:.3f} (chance {s['chance']:.3f})  "
               f"well_formed {s['well_formed']:.3f}  in_range {s['in_range']:.3f}",
