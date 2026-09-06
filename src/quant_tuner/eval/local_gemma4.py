@@ -58,8 +58,21 @@ class LocalGemma4Client:
         self.verbose = verbose
         t0 = time.time()
         self.tok = AutoTokenizer.from_pretrained(base)
-        self.model = AutoModelForCausalLM.from_pretrained(
-            base, dtype=getattr(torch, dtype), device_map=device)
+        # The vanilla Google checkpoint is Gemma4ForConditionalGeneration -- the
+        # multimodal wrapper -- while everything downstream of the prune is a
+        # bare Gemma4ForCausalLM. Both generate identically from text-only
+        # input_ids, but AutoModelForCausalLM cannot instantiate the wrapper, so
+        # fall back rather than forcing every caller to know which is which.
+        # This is what makes an unmodified-model baseline possible at all.
+        try:
+            self.model = AutoModelForCausalLM.from_pretrained(
+                base, dtype=getattr(torch, dtype), device_map=device)
+        except (ValueError, KeyError) as e:
+            from transformers import AutoModelForImageTextToText
+            print(f"[local_gemma4] not a causal-LM checkpoint ({type(e).__name__}); "
+                  "loading the multimodal wrapper", flush=True)
+            self.model = AutoModelForImageTextToText.from_pretrained(
+                base, dtype=getattr(torch, dtype), device_map=device)
         if adapter:
             from peft import PeftModel
             self.model = PeftModel.from_pretrained(self.model, adapter)
@@ -74,7 +87,10 @@ class LocalGemma4Client:
             try:
                 sys.path.insert(0, LLMTK)
                 from llmtk.llm import mixed_attn
-                self.routed = mixed_attn.apply(self.model)
+                # On the multimodal wrapper the decoder sits under
+                # .language_model; routing the wrapper itself finds no layers.
+                target = getattr(self.model, "language_model", self.model)
+                self.routed = mixed_attn.apply(target)
             except Exception as e:  # noqa: BLE001
                 print(f"[local_gemma4] attention routing unavailable ({e}); "
                       "using the model's default", flush=True)

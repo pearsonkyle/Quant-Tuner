@@ -32,6 +32,13 @@ from quant_tuner.eval.toolcall import Sampling, run_toolcall_eval  # noqa: E402
 
 STAGE0 = "/workspace/models/gemma4-e4b-stage0-32k-v65536/final"
 PRUNED = "/workspace/models/gemma4-e4b-qat-v65536-text"
+# The unmodified Google checkpoint this whole pipeline started from. Its chat
+# template is byte-identical to ours (sha1 82a71fd41798), so the tool-call wire
+# format is the same and the parser reads its output unchanged -- which is what
+# makes it a legitimate arm rather than a category error. It differs in two
+# ways the loader handles: Gemma4ForConditionalGeneration rather than
+# Gemma4ForCausalLM, and a 262,144-token vocabulary rather than 65,536.
+VANILLA = "google/gemma-4-E4B-it-qat-q4_0-unquantized"
 
 
 def main() -> int:
@@ -41,6 +48,11 @@ def main() -> int:
     p.add_argument("--base", default=STAGE0)
     p.add_argument("--adapters", nargs="*", default=[])
     p.add_argument("--include-pruned-base", action="store_true")
+    p.add_argument("--vanilla", default=VANILLA)
+    p.add_argument("--include-vanilla", action="store_true",
+                   help="Add the unmodified Google checkpoint as a baseline. "
+                        "This is the arm that says what the PIPELINE bought; "
+                        "stage 0 only says what stage 1 bought.")
     p.add_argument("--out", type=Path, required=True)
     p.add_argument("--max-turns-per-session", type=int, default=3)
     p.add_argument("--max-tokens", type=int, default=1536)
@@ -61,7 +73,10 @@ def main() -> int:
 
     from quant_tuner.eval.local_gemma4 import LocalGemma4Client
 
+    # Pipeline order: vanilla -> pruned -> repaired -> adapted.
     arms: list[tuple[str, str, str | None]] = []
+    if a.include_vanilla:
+        arms.append(("vanilla (unmodified)", a.vanilla, None))
     if a.include_pruned_base:
         arms.append(("pruned base", PRUNED, None))
     arms.append(("stage 0 final", a.base, None))

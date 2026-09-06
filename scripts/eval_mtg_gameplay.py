@@ -43,6 +43,7 @@ sys.path.insert(0, str(REPO / "src"))
 
 BASE = "/workspace/models/gemma4-e4b-qat-v65536-text"
 STAGE0 = "/workspace/models/gemma4-e4b-stage0-32k-v65536/final"
+VANILLA = "google/gemma-4-E4B-it-qat-q4_0-unquantized"
 
 # "Turn 5, main step of your turn." and the legal-move list, which is
 # ZERO-indexed with a colon ("0: Play Ghost Quarter") and sits at the very end
@@ -175,6 +176,8 @@ def main() -> int:
                    help="Frozen base the adapters sit on (default: stage 0 final)")
     p.add_argument("--pruned-base", default=BASE)
     p.add_argument("--include-pruned-base", action="store_true")
+    p.add_argument("--vanilla", default=VANILLA)
+    p.add_argument("--include-vanilla", action="store_true")
     p.add_argument("--adapters", nargs="*", default=[])
     p.add_argument("--out", type=Path, required=True)
     # Ground-truth reasoning + call on this slice is a median of 365 tokens and
@@ -200,6 +203,8 @@ def main() -> int:
           f"{sorted(r['n_opts'] for r in rows)[len(rows)//2]}", flush=True)
 
     arms = []
+    if a.include_vanilla:
+        arms.append(("vanilla (unmodified)", a.vanilla, None))
     if a.include_pruned_base:
         arms.append(("pruned base", a.pruned_base, None))
     arms.append(("stage 0 final", a.base, None))
