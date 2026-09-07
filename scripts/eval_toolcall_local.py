@@ -60,6 +60,13 @@ def main() -> int:
     p.add_argument("--max-len", type=int, default=65536)
     p.add_argument("--device", default="cuda")
     p.add_argument("--progress", action="store_true")
+    p.add_argument("--adapters-first", action="store_true",
+                   help="Score the checkpoints under test BEFORE the baselines. "
+                        "Arms run in series under one timeout, and the slowest "
+                        "arm is whichever model fails to terminate -- stage 0 "
+                        "generates to its cap on every turn and can take 3x as "
+                        "long as an adapter. Baseline-first therefore starves "
+                        "the arm you actually launched the run for.")
     p.add_argument("--stop-on-fail", action="store_true",
                    help="Halt a session at the model's first miss (the shared "
                         "harness's default). OFF here by default, because it "
@@ -74,14 +81,14 @@ def main() -> int:
     from quant_tuner.eval.local_gemma4 import LocalGemma4Client
 
     # Pipeline order: vanilla -> pruned -> repaired -> adapted.
-    arms: list[tuple[str, str, str | None]] = []
+    baselines: list[tuple[str, str, str | None]] = []
     if a.include_vanilla:
-        arms.append(("vanilla (unmodified)", a.vanilla, None))
+        baselines.append(("vanilla (unmodified)", a.vanilla, None))
     if a.include_pruned_base:
-        arms.append(("pruned base", PRUNED, None))
-    arms.append(("stage 0 final", a.base, None))
-    for ad in a.adapters:
-        arms.append((Path(ad.rstrip("/")).name, a.base, ad))
+        baselines.append(("pruned base", PRUNED, None))
+    baselines.append(("stage 0 final", a.base, None))
+    tested = [(Path(ad.rstrip("/")).name, a.base, ad) for ad in a.adapters]
+    arms = (tested + baselines) if a.adapters_first else (baselines + tested)
 
     sampling = Sampling(temperature=a.temperature, max_tokens=a.max_tokens)
     out: dict = {"holdout": str(a.holdout),
