@@ -91,9 +91,17 @@ def main() -> int:
     arms = (tested + baselines) if a.adapters_first else (baselines + tested)
 
     sampling = Sampling(temperature=a.temperature, max_tokens=a.max_tokens)
+    # Every setting that changes the DENOMINATOR or the budget goes in the
+    # header. Two runs that differ in any of these are not comparable, and
+    # build_eval_report.py refuses to put them in one table -- which it can only
+    # do for settings that were actually recorded. `max_tokens` was missing
+    # here, so runs at 256 and at 2,048 were indistinguishable after the fact.
     out: dict = {"holdout": str(a.holdout),
                  "max_turns_per_session": a.max_turns_per_session,
-                 "stop_on_fail": a.stop_on_fail, "runs": []}
+                 "stop_on_fail": a.stop_on_fail,
+                 "max_tokens": a.max_tokens,
+                 "max_len": getattr(a, "max_len", None),
+                 "temperature": a.temperature, "runs": []}
     a.out.parent.mkdir(parents=True, exist_ok=True)
 
     for label, base, adapter in arms:
