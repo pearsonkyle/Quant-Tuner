@@ -60,6 +60,23 @@ def main() -> int:
     p.add_argument("--max-len", type=int, default=65536)
     p.add_argument("--device", default="cuda")
     p.add_argument("--progress", action="store_true")
+    # Baselines are FROZEN: vanilla, the pruned base and stage 0 cannot change
+    # between windows, so scoring them once is scoring them for good.
+    # build_eval_report.py merges arms across files by label, so a baseline
+    # measured in an earlier run still appears in every later table.
+    #
+    # This is the single largest cost in the suite, not a rounding error. An arm
+    # that cannot emit a tool call never stops early -- it generates to the token
+    # cap on every one of the 107 turns -- so stage 0 costs 164 minutes against
+    # checkpoint-3500's 36 for exactly the same work. Re-measuring it each window
+    # spent ~3.5 GPU-hours to reproduce a row of zeros that was already known.
+    #
+    # Included automatically when no adapter is given, since the run would
+    # otherwise have no arms at all.
+    p.add_argument("--include-stage0", action="store_true",
+                   help="Re-score the frozen stage-0 baseline. Off by default: "
+                        "it costs ~2.7 h and cannot have changed since the last "
+                        "time it was measured.")
     p.add_argument("--adapters-first", action="store_true",
                    help="Score the checkpoints under test BEFORE the baselines. "
                         "Arms run in series under one timeout, and the slowest "
@@ -86,7 +103,8 @@ def main() -> int:
         baselines.append(("vanilla (unmodified)", a.vanilla, None))
     if a.include_pruned_base:
         baselines.append(("pruned base", PRUNED, None))
-    baselines.append(("stage 0 final", a.base, None))
+    if a.include_stage0 or not a.adapters:
+        baselines.append(("stage 0 final", a.base, None))
     tested = [(Path(ad.rstrip("/")).name, a.base, ad) for ad in a.adapters]
     arms = (tested + baselines) if a.adapters_first else (baselines + tested)
 

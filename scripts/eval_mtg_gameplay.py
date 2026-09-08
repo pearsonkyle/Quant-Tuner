@@ -178,6 +178,8 @@ def main() -> int:
     p.add_argument("--include-pruned-base", action="store_true")
     p.add_argument("--vanilla", default=VANILLA)
     p.add_argument("--include-vanilla", action="store_true")
+    p.add_argument("--include-stage0", action="store_true",
+                   help="Re-score the frozen stage-0 baseline (default off).")
     p.add_argument("--adapters", nargs="*", default=[])
     p.add_argument("--out", type=Path, required=True)
     # Ground-truth reasoning + call on this slice is a median of 365 tokens and
@@ -207,7 +209,10 @@ def main() -> int:
         arms.append(("vanilla (unmodified)", a.vanilla, None))
     if a.include_pruned_base:
         arms.append(("pruned base", a.pruned_base, None))
-    arms.append(("stage 0 final", a.base, None))
+    # Frozen baseline: see the note in eval_toolcall_local.py. Off by default,
+    # forced on when there is nothing else to score.
+    if a.include_stage0 or not a.adapters:
+        arms.append(("stage 0 final", a.base, None))
     for ad in a.adapters:
         arms.append((Path(ad.rstrip("/")).name, a.base, ad))
 

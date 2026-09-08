@@ -410,11 +410,28 @@ def eval_per_turn(
         prefix = strip_for_api(msgs[:i])
 
         try:
+            # Generation cost, recorded per turn. Decode dominates this eval --
+            # an arm that never emits a call runs to the token cap on every turn
+            # and costs 4.6x one that stops at its call -- so the only way to
+            # decide whether a cap or a reasoning budget is worth changing is to
+            # know where the tokens actually went. Guessing at it is what makes
+            # a cap change reintroduce truncation artifacts.
+            _t0 = time.time()
             resp = call_model(client, prefix, tools, sampling,
                               model_name=model_name)
+            _gen_secs = time.time() - _t0
             choice = resp.choices[0].message
             pred_tcs = choice.tool_calls or []
             pred_content = choice.content
+            _reasoning = getattr(choice, "reasoning_content", None) or ""
+            _cost = {
+                "gen_secs": round(_gen_secs, 2),
+                "n_out": getattr(resp.usage, "completion_tokens", None),
+                "n_in": getattr(resp.usage, "prompt_tokens", None),
+                "reasoning_chars": len(_reasoning),
+                "hit_cap": getattr(resp.usage, "completion_tokens", 0)
+                >= (sampling.max_tokens or 0) - 1,
+            }
         except Exception as e:
             rec = {
                 **base, "kind": "tool_call" if has_tool_calls else "post_result",
@@ -437,7 +454,7 @@ def eval_per_turn(
             ]
             scored = score_turn(pred_calls, truth_calls, tools)
             rec = {
-                **base, "kind": "tool_call",
+                **base, **_cost, "kind": "tool_call",
                 "truth_names": truth_names,
                 "pred_names": [n for n, _ in pred_calls],
                 "truth_malformed": truth_malformed,
@@ -454,7 +471,7 @@ def eval_per_turn(
 
         if prior is not None:
             post = _score_post_result(prior, m, pred_tcs, pred_content)
-            rec = {**base, "kind": "post_result", **post}
+            rec = {**base, **_cost, "kind": "post_result", **post}
             results.append(rec)
             if log_fh is not None:
                 log_fh.write(json.dumps(rec) + "\n")
