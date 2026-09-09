@@ -50,6 +50,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 import sys
 from collections import Counter
 from collections.abc import Iterable
@@ -75,6 +76,12 @@ BROAD_DATASET = "pearsonkyle/broad-domain-supplement"
 BROAD_SPLIT = "corpus"
 SWE_DATASET = "pearsonkyle/swe-agentic-trajectories"
 SWE_SPLIT = "resolved"
+# The 32K-context calibration slice of the SFT corpus: 15M tokens pre-packed at
+# 65 536 ctx, every conversation in chat shape, focused on agentic coding.
+# Consumed as plain text (already rendered with a generic chat template), so it
+# is packed like the broad supplement, not like the chat-templated sources.
+LLMTK_SFT_DATASET = "pearsonkyle/llmtk-sft-corpus-v2"
+LLMTK_SFT_SPLIT = "calibration-15m-v65536-ctx32k"
 
 SOURCE_LOGS = "logs"
 SOURCE_SWE = "swe-trajectories"
@@ -82,9 +89,10 @@ SOURCE_BROAD = "broad-supplement"
 SOURCE_REDTEAM = refusals.SOURCE_REDTEAM
 SOURCE_REASONING = "reasoning"
 SOURCE_WIKI = "wiki"
+SOURCE_LLMTK_SFT = "llmtk-sft"
 
 ALL_SOURCES = (SOURCE_LOGS, SOURCE_REASONING, SOURCE_SWE, SOURCE_BROAD, SOURCE_REDTEAM,
-               SOURCE_WIKI)
+               SOURCE_WIKI, SOURCE_LLMTK_SFT)
 
 
 # --------------------------------------------------------------------------------- config
@@ -104,6 +112,10 @@ class UniversalConfig:
     broad_instruct_jsonl: Path | None = None   # ditto, for the supplement's `instruct` split
     swe_jsonl: Path | None = None
     redteam_jsonl: Path | None = None     # local staging only (the splits are unpublished)
+    # llmtk-sft corpus: the 32K-ctx slice is plain rendered text (one record per
+    # conversation), so it arrives as a list of strings, not chat-shaped rows.
+    # None = pull from the Hub; a Path = local override (one string per line).
+    llmtk_sft: str | Path | None = None
 
     # Calibration budgets (tokens). ``cal_wiki_tokens=None`` uses ALL of wiki (what the
     # published two-source releases did); set it when the chat budgets are small, or wiki
@@ -122,6 +134,10 @@ class UniversalConfig:
     cal_logs_tokens: int | None = 2_000_000
     cal_swe_tokens: int | None = 1_000_000
     cal_broad_tokens: int | None = None
+    # The llmtk-sft slice is 15M tokens; by default take a quarter of it so it is a
+    # substantial but not dominant share of the calibration mix. Raise for a
+    # distribution that leans harder on agentic-coding text.
+    cal_llmtk_sft_tokens: int | None = 4_000_000
     # The refusal source is small by construction (348 short exchanges) and is meant to be a
     # *present minority*, not a big share: enough that refusal directions survive the
     # codebook, not so much that the quant learns to decline ordinary requests.
@@ -211,6 +227,37 @@ class UniversalConfig:
 
 
 # -------------------------------------------------------------------------------- loading
+def _hub_text(dataset: str, split_name: str, override: str | Path | None) -> list[str]:
+    """Rows of a *text* split (one plain-text conversation per record).
+
+    ``pearsonkyle/llmtk-sft-corpus-v2`` ships its calibration slice this way —
+    already rendered, no chat template, no tool schema — so it is consumed like
+    the broad supplement's raw rows rather than like the chat-shaped sources.
+    """
+    name = dataset.split("/")[-1]
+    candidates: list[Path] = []
+    if override:
+        candidates.append(Path(override))
+    candidates.append(REPO / "datasets" / name / "data" / f"{split_name}.txt")
+    for c in candidates:
+        if c and Path(c).exists():
+            path = Path(c)
+            break
+    else:
+        from huggingface_hub import hf_hub_download
+
+        print(f"  fetching {dataset}:{split_name} from the Hub ...", file=sys.stderr)
+        path = Path(hf_hub_download(
+            repo_id=dataset, filename=f"data/{split_name}.txt", repo_type="dataset",
+        ))
+    text = path.read_text()
+    # One conversation per record. The Hub slice is \n\n-delimited; a local
+    # override may be line-delimited — accept either, drop empties.
+    rows = [r.strip() for r in re.split(r"\n{2,}|\n", text) if r.strip()]
+    print(f"  {dataset}:{split_name} -> {len(rows)} records ({path})", file=sys.stderr)
+    return rows
+
+
 def _hub_jsonl(dataset: str, split_name: str, override: Path | None) -> list[dict]:
     """Rows of one published split: an explicit override, the local staging copy, or the Hub.
 
@@ -805,6 +852,7 @@ def build(cfg: UniversalConfig) -> dict:
             "cal_logs_tokens": _budget_label(cfg.cal_logs_tokens),
             "cal_swe_tokens": cfg.cal_swe_tokens,
             "cal_broad_tokens": cfg.cal_broad_tokens,
+            "cal_llmtk_sft_tokens": _budget_label(cfg.cal_llmtk_sft_tokens),
         },
     }
     pack_kwargs: dict[str, Any] = dict(
@@ -981,6 +1029,24 @@ def build(cfg: UniversalConfig) -> dict:
             "target_tokens": _budget_label(cfg.cal_broad_tokens),
             "note": "the mtp half is reserved for MTP draft-head training and is NOT in "
                     "calibration; only its eval slice is used here",
+        }))
+
+    # --- 3a) llmtk-sft corpus (32K-ctx slice, plain text) ---------------------------
+    # cal_llmtk_sft_tokens == 0 explicitly disables the source (0 is a falsy budget but
+    # means "skip", unlike None which means "all of it").
+    if cfg.enabled(SOURCE_LLMTK_SFT) and cfg.cal_llmtk_sft_tokens != 0:
+        rows = _hub_text(LLMTK_SFT_DATASET, LLMTK_SFT_SPLIT, cfg.llmtk_sft)
+        chunks, total = pack_raw_samples(
+            rows, tok, _budget(cfg.cal_llmtk_sft_tokens), cfg.window_cap, cfg.seed,
+        )
+        split.write_corpus(chunks, out / "corpus.cal.llmtk_sft.txt")
+        parts.append(_Part(SOURCE_LLMTK_SFT, chunks, total, {
+            "dataset": f"{LLMTK_SFT_DATASET}:{LLMTK_SFT_SPLIT}",
+            "records": len(rows), "chunks": len(chunks),
+            "target_tokens": _budget_label(cfg.cal_llmtk_sft_tokens),
+            "note": "plain rendered text (one record per conversation), packed like the "
+                    "broad supplement. Pre-packed at 65 536 ctx upstream; our window cap "
+                    "re-chunks it for the calibrator's ctx.",
         }))
 
     # --- 3b) red-team attacks, every response replaced by a generic refusal -----------

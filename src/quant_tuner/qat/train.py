@@ -1016,7 +1016,7 @@ def train_qat(cfg: QATConfig) -> int:
             #   Adafactor + beta1  +27.8 GiB -> ~98 GiB   OOM
             #   AdamW8bit  +13.9 GiB -> ~84 GiB    fits
             #   Lion8bit    +7.0 GiB -> ~78 GiB    fits
-            # NOTE the CLAUDE.md line "an 8-bit optimizer is a no-op here" is about
+            # NOTE the AGENTS.md line "an 8-bit optimizer is a no-op here" is about
             # 8-bit ADAFACTOR (whose state is already ~9 MB). Against AdamW it is the
             # difference between fitting and not.
             import bitsandbytes as bnb

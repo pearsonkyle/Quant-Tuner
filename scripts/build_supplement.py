@@ -16,7 +16,7 @@ The split is at **sample** granularity (blank-line-delimited blocks) and is
 proportion. It is seeded (default 42) and content-addressed: the manifest records a
 sha256 of each half, so a rebuild that produces different bytes is visible.
 
-Why disjoint halves matter: per CLAUDE.md the repo's standing invariant is that
+Why disjoint halves matter: per AGENTS.md the repo's standing invariant is that
 calibration and eval slices never overlap. The MTP half is training data for a draft
 head; the calibration half feeds imatrix/AWQ/GPTQ. Letting a sample appear in both
 would make any MTP acceptance number measured on calibrated quants partly a

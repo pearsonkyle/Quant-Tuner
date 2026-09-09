@@ -140,7 +140,7 @@ training on 24k tokens of preamble thousands of times teaches nothing. A repeate
 **kept** when it names a path or file this conversation actually touches, which is what
 separates "the repo layout" from "the harness". 6.4M → 0.4M characters; `--no-sft-scrub-system`
 disables it. Neither frequency nor keywords alone works here: the harness blocks are full of
-the words "repository" and "file paths", and generic filenames (`package.json`, `CLAUDE.md`)
+the words "repository" and "file paths", and generic filenames (`package.json`, `AGENTS.md`)
 plus library names (`Node.js`) ground nothing — they are filtered by document frequency.
 
 **What the quantizers actually sample** is now reported and gated. AWQ and GPTQ don't read
