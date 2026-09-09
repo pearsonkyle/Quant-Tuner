@@ -970,7 +970,7 @@ def train_qat(cfg: QATConfig) -> int:
         print(f"[qat] val corpus {val_ids.shape[0]} windows "
               f"(using {min(cfg.val_windows, val_ids.shape[0])})", flush=True)
 
-    model = AutoModelForCausalLM.from_pretrained(cfg.model_dir, dtype=dtype).to(dev)
+    model = AutoModelForCausalLM.from_pretrained(cfg.model_dir, dtype=dtype).to(dev)  # type: ignore[arg-type]
     model.config.use_cache = False
     model.gradient_checkpointing_enable()  # transformers>=5 defaults use_reentrant=False
     wrap_model(model, cfg.train_layers, layer_spec=cfg.layers,
@@ -981,7 +981,7 @@ def train_qat(cfg: QATConfig) -> int:
     teacher = None
     if cfg.kd_teacher:
         tdtype = backend.teacher_dtype
-        teacher = AutoModelForCausalLM.from_pretrained(cfg.kd_teacher, dtype=tdtype).to(dev)
+        teacher = AutoModelForCausalLM.from_pretrained(cfg.kd_teacher, dtype=tdtype).to(dev)  # type: ignore[arg-type]
         teacher.config.use_cache = False
         teacher.eval().requires_grad_(False)
         assert teacher.config.vocab_size == model.config.vocab_size, (

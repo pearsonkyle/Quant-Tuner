@@ -213,10 +213,10 @@ class AgenticTarget:
         self.stats.n_calls += 1
 
         for _ in range(self.max_steps):
-            resp = await self.client.chat.completions.create(
+            resp = await self.client.chat.completions.create(  # type: ignore[arg-type]
                 model=self.model,
-                messages=messages,
-                tools=[BASH_TOOL],
+                messages=messages,  # type: ignore[arg-type]
+                tools=[BASH_TOOL],  # type: ignore[list-item]
                 max_tokens=self.max_tokens,
                 temperature=self.temperature,
                 top_p=self.top_p,

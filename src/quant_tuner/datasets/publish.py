@@ -194,7 +194,7 @@ def render_card(spec: DatasetSpec, manifest: dict, *, include_withheld: bool = F
              for name, i in splits.items()],
             left=("contents",),
         )
-        ref = next((i for i in splits.values() if i.get("areas")), {})
+        ref: dict = next((i for i in splits.values() if i.get("areas")), {})
         areas, total_tok = ref.get("areas", {}), max(1, ref.get("est_tokens", 0))
         rows += ["", "### Topic distribution", ""]
         rows += _table(

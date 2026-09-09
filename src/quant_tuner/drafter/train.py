@@ -172,7 +172,7 @@ def train(cfg: TrainConfig) -> Path:
 
     assistant = Gemma4AssistantForCausalLM.from_pretrained(
         cfg.drafter_model, torch_dtype=torch.bfloat16
-    ).to(cfg.drafter_device)
+    ).to(cfg.drafter_device)  # type: ignore[arg-type]
     assistant.train()
 
     opt = torch.optim.AdamW(assistant.parameters(), lr=cfg.lr, betas=(0.9, 0.95))

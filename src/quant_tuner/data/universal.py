@@ -1035,14 +1035,14 @@ def build(cfg: UniversalConfig) -> dict:
     # cal_llmtk_sft_tokens == 0 explicitly disables the source (0 is a falsy budget but
     # means "skip", unlike None which means "all of it").
     if cfg.enabled(SOURCE_LLMTK_SFT) and cfg.cal_llmtk_sft_tokens != 0:
-        rows = _hub_text(LLMTK_SFT_DATASET, LLMTK_SFT_SPLIT, cfg.llmtk_sft)
+        llmtk_rows = _hub_text(LLMTK_SFT_DATASET, LLMTK_SFT_SPLIT, cfg.llmtk_sft)
         chunks, total = pack_raw_samples(
-            rows, tok, _budget(cfg.cal_llmtk_sft_tokens), cfg.window_cap, cfg.seed,
+            llmtk_rows, tok, _budget(cfg.cal_llmtk_sft_tokens), cfg.window_cap, cfg.seed,
         )
         split.write_corpus(chunks, out / "corpus.cal.llmtk_sft.txt")
         parts.append(_Part(SOURCE_LLMTK_SFT, chunks, total, {
             "dataset": f"{LLMTK_SFT_DATASET}:{LLMTK_SFT_SPLIT}",
-            "records": len(rows), "chunks": len(chunks),
+            "records": len(llmtk_rows), "chunks": len(chunks),
             "target_tokens": _budget_label(cfg.cal_llmtk_sft_tokens),
             "note": "plain rendered text (one record per conversation), packed like the "
                     "broad supplement. Pre-packed at 65 536 ctx upstream; our window cap "

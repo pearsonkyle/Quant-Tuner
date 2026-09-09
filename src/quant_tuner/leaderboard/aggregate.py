@@ -317,7 +317,7 @@ def sort_rows(
     sentinel = float("-inf") if order == "desc" else float("inf")
     return sorted(
         rows,
-        key=lambda r: _to_float(r.get(by), sentinel),
+        key=lambda r: _to_float(r.get(by), sentinel) or sentinel,
         reverse=(order == "desc"),
     )
 

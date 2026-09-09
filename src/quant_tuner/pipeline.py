@@ -109,6 +109,8 @@ def _build_corpora(cfg: RunConfig, ws: Workspace, train: Path, eval_: Path) -> N
     from transformers import AutoTokenizer
 
     tok = AutoTokenizer.from_pretrained(ws.model_extracted, fix_mistral_regex=True)
+    if cfg.data.logs is None:
+        raise ValueError("data.logs is required for the pipeline")
     sessions = ingest.load_sessions(cfg.data.logs)
     sessions = ingest.filter_sessions(sessions, min_score=0.3, require_tools=False)
     log(f"  {len(sessions)} sessions after filtering")
@@ -222,7 +224,7 @@ def _calibrate_imatrix(
 
     step(f"build imatrix variant '{variant}'", tuned,
          lambda: imatrix.calibrate(
-             variant=variant, f16_gguf=f16,
+             variant=cast(imatrix.Variant, variant), f16_gguf=f16,
              base_imatrix=base_imatrix, out_path=tuned,
              **params))
     return {"imatrix": tuned, "f16": f16}
@@ -370,9 +372,11 @@ def _calibrate_gptq(
     ppl_max_ratio = params.pop(
         "ppl_max_ratio", _GPTQ_PPL_MAX_RATIO.get(n_bits, 1.5))
 
-    step("GPTQ calibrate (Hessians)", hessians / "_done",
-         lambda: (gptq.calibrate(ws.model_extracted, train_corpus, hessians, **params)
-                  or (hessians / "_done").touch()))
+    def _calibrate_and_mark() -> None:
+        gptq.calibrate(ws.model_extracted, train_corpus, hessians, **params)
+        (hessians / "_done").touch()
+
+    step("GPTQ calibrate (Hessians)", hessians / "_done", _calibrate_and_mark)
 
     step("GPTQ apply (round + error-compensate)", model_gptq / "config.json",
          lambda: gptq.apply(ws.model_extracted, hessians, model_gptq, **apply_params))

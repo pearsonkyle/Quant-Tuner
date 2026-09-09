@@ -114,7 +114,7 @@ class RunDiff:
         for tid, ranks in self.pinned.items():
             arrays[f"pin_{tid}_run"] = ranks["rank_run"]
             arrays[f"pin_{tid}_ref"] = ranks["rank_ref"]
-        np.savez(out_dir / DIFF_ARRAYS, **arrays)
+        np.savez(out_dir / DIFF_ARRAYS, **arrays)  # type: ignore[arg-type]
         return out_dir
 
     @classmethod

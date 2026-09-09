@@ -249,6 +249,8 @@ def dedup_rows(rows: list[dict]) -> list[dict]:
     out: list[dict] = []
     for r in rows:
         rid = r.get("id")
+        if not rid:
+            continue
         if rid in seen:
             continue
         seen.add(rid)
@@ -271,7 +273,10 @@ def select_by_domain(records: list[dict], budgets: dict[str, int | None], *,
 
     by_dom: dict[str, list[dict]] = _c.defaultdict(list)
     for rec in records:
-        by_dom[(rec.get("meta") or {}).get("domain")].append(rec)
+        domain = (rec.get("meta") or {}).get("domain")
+        if domain is None:
+            continue
+        by_dom[domain].append(rec)
 
     kept: list[dict] = []
     audit: dict = {}

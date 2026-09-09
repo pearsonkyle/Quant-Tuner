@@ -76,18 +76,18 @@ def iter_windows(cfg: WindowConfig, tokenizer: Any) -> list[dict]:
             per_session_cap=cfg.per_session_cap,
             system_prose_budget=cfg.system_prose_budget,
         )
-        out: list[dict] = []
+        tooldense: list[dict] = []
         for ci, text in enumerate(chunks):
             ids = tokenizer.encode(text, add_special_tokens=False)
             for start in range(0, len(ids), cfg.max_len):
                 window = ids[start : start + cfg.max_len]
                 if len(window) < cfg.min_len:
                     break
-                out.append(
+                tooldense.append(
                     {"input_ids": window, "source": "logs-tooldense",
                      "chunk": ci, "n_tokens": len(window)}
                 )
-        return out
+        return tooldense
 
     out: list[dict] = []
     for s in chosen:

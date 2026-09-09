@@ -120,7 +120,7 @@ def load_teacher(teacher: str | Path, *, device: str, dtype: torch.dtype):
         cfg = AutoConfig.for_model(**_sanitize_config_dict(raw))
 
     model = AutoModelForCausalLM.from_pretrained(teacher, config=cfg, dtype=dtype)
-    model.to(device).eval().requires_grad_(False)
+    model.to(device).eval().requires_grad_(False)  # type: ignore[arg-type]
     return model
 
 

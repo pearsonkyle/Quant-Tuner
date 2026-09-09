@@ -58,7 +58,7 @@ class _StubTensor:
     def to_numpy(self, read_storage) -> np.ndarray:
         raw = read_storage(self.storage)
         dt = _DTYPES[self.storage.dtype_name]
-        flat = np.frombuffer(raw, dtype=dt)
+        flat = np.frombuffer(raw, dtype=dt)  # type: ignore[call-overload]
         if self.storage.dtype_name == "BFloat16Storage":
             flat = (flat.astype(np.uint32) << 16).view(np.float32)
         if not self.size:

@@ -134,6 +134,15 @@ module = [
 ]
 ignore_missing_imports = true
 
+# The SWE-rebench V2 log parsers are vendored VERBATIM from SWE-rebench (MIT) and
+# ruff-ignored (ALL) — reformatting them would break the recorded test-id parsing.
+# They pre-date our type conventions and carry two `var-annotated` mypy nits
+# (un-annotated empty containers). Silence that one module so the rest of the
+# package stays strict; never hand-edit the file itself.
+[[tool.mypy.overrides]]
+module = ["quant_tuner.eval._swerebench_v2_parsers"]
+ignore_errors = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # "src" for the package; "." so tests that import helper modules from

@@ -161,7 +161,7 @@ def train_online(cfg: OnlineConfig) -> Path:
     for p in target.parameters():
         p.requires_grad_(False)
     assistant = Gemma4AssistantForCausalLM.from_pretrained(
-        cfg.drafter_model, dtype=torch.bfloat16).to(cfg.device)
+        cfg.drafter_model, dtype=torch.bfloat16).to(cfg.device)  # type: ignore[arg-type]
     assistant.train()
     opt = torch.optim.AdamW(assistant.parameters(), lr=cfg.lr, betas=(0.9, 0.95))
 
