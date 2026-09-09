@@ -46,9 +46,4 @@ def test_parse_layers():
 def test_leaderboard_has_lens_csv_option():
     result = runner.invoke(app, ["leaderboard", "--help"])
     assert result.exit_code == 0
-    plain = _plain(result.output)
-    if "--lens-csv" not in plain:
-        print("\nDEBUG len(output)=", len(result.output),
-              "len(plain)=", len(plain))
-        print("repr(plain):", repr(plain[:800]))
-    assert "--lens-csv" in plain
+    assert "--lens-csv" in _plain(result.output)
