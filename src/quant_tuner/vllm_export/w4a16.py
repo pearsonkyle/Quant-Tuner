@@ -579,7 +579,7 @@ def run_ptq(cfg: PTQConfig) -> Path:
 
     from transformers import AutoTokenizer
 
-    from datasets import Dataset
+    from datasets import Dataset  # type: ignore[attr-defined]
 
     kv_cache_scheme = build_kv_cache_scheme(cfg)
     if kv_cache_scheme is not None and "kv_cache_scheme" not in GPTQModifier.model_fields:

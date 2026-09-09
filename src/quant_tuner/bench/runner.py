@@ -149,9 +149,9 @@ def append_row(csv_path: Path, row: BenchRow) -> None:
             existing = [r for r in reader if r["model"] != row.model]
 
     fieldnames = list(CSV_COLUMNS)
-    for f in existing_fields:
-        if f not in fieldnames:
-            fieldnames.append(f)
+    for col in existing_fields:
+        if col not in fieldnames:
+            fieldnames.append(col)
 
     with open(csv_path, "w", newline="") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)

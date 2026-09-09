@@ -102,10 +102,7 @@ def aggregate_metrics(reps: list[RepResult]) -> dict[str, dict[str, float]]:
     for metric, vals in by_metric.items():
         n = len(vals)
         mean = sum(vals) / n
-        if n > 1:
-            stdev = math.sqrt(sum((v - mean) ** 2 for v in vals) / (n - 1))
-        else:
-            stdev = 0.0
+        stdev = math.sqrt(sum((v - mean) ** 2 for v in vals) / (n - 1)) if n > 1 else 0.0
         out[metric] = {"mean": mean, "stdev": stdev, "n": n}
     return out
 

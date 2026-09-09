@@ -6,7 +6,7 @@ Disjoint by construction from both:
   - smoke eval (out/smoke/holdout.jsonl, test-slice sessions 1-3).
 
 Note: an earlier draft of this builder also pulled from project source files
-(CLAUDE.md, README.md) under the "different distribution" rationale. That
+(AGENTS.md, README.md) under the "different distribution" rationale. That
 turned out to be contaminated — some train-slice sessions in logtrain quote
 or discuss the project documentation verbatim, so those source files appear
 inside mixed8k. Using them as held-out would silently weaken the signal.

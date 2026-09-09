@@ -453,10 +453,8 @@ class GradOffload:
             b = self._bufs.get(id(q))
             if b is None:
                 b = torch.zeros(g.shape, dtype=g.dtype)
-                try:
-                    b = b.pin_memory()
-                except RuntimeError:
-                    pass  # pinning is an optimization, never a requirement
+                with contextlib.suppress(RuntimeError):
+                    b = b.pin_memory()  # pinning is an optimization, never a requirement
                 self._bufs[id(q)] = b
             b.add_(g.detach().cpu())
             q.grad = None
@@ -972,7 +970,7 @@ def train_qat(cfg: QATConfig) -> int:
         print(f"[qat] val corpus {val_ids.shape[0]} windows "
               f"(using {min(cfg.val_windows, val_ids.shape[0])})", flush=True)
 
-    model = AutoModelForCausalLM.from_pretrained(cfg.model_dir, dtype=dtype).to(dev)
+    model = AutoModelForCausalLM.from_pretrained(cfg.model_dir, dtype=dtype).to(dev)  # type: ignore[arg-type]
     model.config.use_cache = False
     model.gradient_checkpointing_enable()  # transformers>=5 defaults use_reentrant=False
     wrap_model(model, cfg.train_layers, layer_spec=cfg.layers,
@@ -983,7 +981,7 @@ def train_qat(cfg: QATConfig) -> int:
     teacher = None
     if cfg.kd_teacher:
         tdtype = backend.teacher_dtype
-        teacher = AutoModelForCausalLM.from_pretrained(cfg.kd_teacher, dtype=tdtype).to(dev)
+        teacher = AutoModelForCausalLM.from_pretrained(cfg.kd_teacher, dtype=tdtype).to(dev)  # type: ignore[arg-type]
         teacher.config.use_cache = False
         teacher.eval().requires_grad_(False)
         assert teacher.config.vocab_size == model.config.vocab_size, (
@@ -1016,7 +1014,7 @@ def train_qat(cfg: QATConfig) -> int:
             #   Adafactor + beta1  +27.8 GiB -> ~98 GiB   OOM
             #   AdamW8bit  +13.9 GiB -> ~84 GiB    fits
             #   Lion8bit    +7.0 GiB -> ~78 GiB    fits
-            # NOTE the CLAUDE.md line "an 8-bit optimizer is a no-op here" is about
+            # NOTE the AGENTS.md line "an 8-bit optimizer is a no-op here" is about
             # 8-bit ADAFACTOR (whose state is already ~9 MB). Against AdamW it is the
             # difference between fitting and not.
             import bitsandbytes as bnb

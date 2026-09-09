@@ -9,6 +9,8 @@ build/
 # Workspace artifacts
 workspace/
 out/
+# mkdocs build output (rebuilt by CI on every push to main)
+site/
 *.gguf
 *.kld
 *.imatrix
@@ -41,6 +43,13 @@ datasets/**/data/
 # Staged HF release packages: hundreds of GB of GGUFs, rebuildable from out/ + the exp
 # scripts, and published to the Hub rather than here.
 uploads/
+
+# Experiment workspaces and per-experiment notes are kept locally (the scripts
+# that regenerate them are tracked in scripts/; the published numbers live in
+# the README/docs). Untracked so a fresh clone stays lean.
+experiments/
+docs/runs/
+datasets/t/
 
 # Local clone of the prism llama.cpp fork (LLAMA_CPP_DIR for the Q2_0 ternary export).
 # Fetched separately, like vendor/llama.cpp; not vendored into this repo's history.

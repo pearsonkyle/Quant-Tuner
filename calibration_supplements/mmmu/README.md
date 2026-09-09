@@ -68,6 +68,6 @@ uv run quant-tuner bench \
 ### Calibration breadth (secondary)
 
 A file may be pointed at a recipe's `data.supplement`. **Disjointness caveat:** per the
-repo's invariant (CLAUDE.md), eval must not overlap calibration. Do not use the *same* MMMU
+repo's invariant (AGENTS.md), eval must not overlap calibration. Do not use the *same* MMMU
 file as both supplement and eval in one run — keep the root `calibration_supplement.txt` as
 the calibration-breadth file and reserve these for eval by default.

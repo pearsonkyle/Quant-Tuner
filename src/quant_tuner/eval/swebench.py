@@ -21,7 +21,7 @@ adapter for :mod:`quant_tuner.eval.reps`.
 
 Requires the ``swebench`` extra (``mini-swe-agent``) and a running Docker
 daemon. On Apple Silicon the SWE-rebench linux/amd64 images run under emulation
-(slow but correct) — see ``CLAUDE.md``.
+(slow but correct) — see ``AGENTS.md``.
 """
 
 from __future__ import annotations
@@ -402,7 +402,7 @@ def run_swebench_eval(
     os.environ.setdefault("MSWEA_COST_TRACKING", "ignore_errors")
 
     sampling = sampling or Sampling(temperature=DEFAULT_TEMPERATURE)
-    instances = list(holdout) if not isinstance(holdout, (str, Path)) else load_holdout(Path(holdout))
+    instances = list(holdout) if not isinstance(holdout, str | Path) else load_holdout(Path(holdout))
     trajectory_dir = Path(trajectory_dir)
     trajectory_dir.mkdir(parents=True, exist_ok=True)
     label = model_label or (Path(model_path).name if model_path else served_model)

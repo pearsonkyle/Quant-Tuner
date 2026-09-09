@@ -98,7 +98,7 @@ def chunk_corpus(
 
     ``add_special_tokens=False`` because the corpora are already chat-templated
     text; in-text control tokens encode to their single special ids by default
-    (never pass ``split_special_tokens=True`` — see CLAUDE.md).
+    (never pass ``split_special_tokens=True`` — see AGENTS.md).
     """
     ids = tokenizer.encode(Path(path).read_text(encoding="utf-8"), add_special_tokens=False)
     chunks = [ids[i : i + ctx] for i in range(0, len(ids), ctx)]

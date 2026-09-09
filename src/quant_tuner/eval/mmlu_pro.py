@@ -358,6 +358,8 @@ def run_mmlu_pro_eval(
     try:
         if base_url is not None:
             return _run_against(base_url)
+        if model_path is None:
+            raise ValueError("either model_path or base_url must be provided")
         with running_server(
             model_path, ctx=ctx, ngl=ngl,
             log_path=server_log_path,

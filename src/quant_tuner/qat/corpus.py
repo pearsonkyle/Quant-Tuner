@@ -511,7 +511,7 @@ def resolved_from_result_jsons(traj_dir: Path) -> set[str]:
     return ids
 
 
-def build_distill_corpus(*, traj_dirs: list[Path], results: list[Path] | None = None,
+def build_distill_corpus(*, traj_dirs: list[Path], results: list[Path | None] | None = None,
                          all_patched: bool = False, window: int = 4096,
                          max_tool_tokens: int = 1024, min_density: float = 0.0,
                          out: Path | None = None, tok=None) -> dict:

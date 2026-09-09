@@ -13,7 +13,7 @@ Two things worth knowing:
 
 # Post-hoc quant calibration does nothing here
 
-imatrix, AWQ, and GPTQ exist to recover "quantization rounding error," the gap between a full-precision original and a low-bit grid. A native-ternary model has no such gap: its checkpoint is already exactly `scale * {-1,0,+1}`, so the 2-bit GGUF is a lossless re-encode meaning these techniques don't work for this class of model. 
+imatrix, AWQ, and GPTQ exist to recover "quantization rounding error," the gap between a full-precision original and a low-bit grid. A native-ternary model has no such gap: its checkpoint is already exactly `scale * {-1,0,+1}`, so the 2-bit GGUF is a lossless re-encode meaning these techniques don't work for this class of model.
 
 # How to fine-tune it
 
@@ -104,5 +104,4 @@ So the reproducible headline is deliberately unglamorous: **you can fine-tune th
 
 Apple Silicon with enough unified memory is all you need (this work used a M4 Max with 128Gb). A 2-bit model can be trained on a Mac and matched to its base on generalization patch rate. It clearly learns (codes flip, in-distribution behavior changes); turning that into a repeatable pass on held-out repos is still unsolved and an on-going challenge. If you get there, I want to hear how. Maybe MLX has some better solutions?
 
-Thanks for making it this far. Stay tuned for the next iteration of the model once we find out if more data helps or if we need to distill the logits. 
-
+Thanks for making it this far. Stay tuned for the next iteration of the model once we find out if more data helps or if we need to distill the logits.

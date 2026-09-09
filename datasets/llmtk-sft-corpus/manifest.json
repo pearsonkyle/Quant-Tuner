@@ -1,0 +1,14 @@
+{
+  "name": "llmtk-sft-corpus",
+  "version": "0.1.0",
+  "splits": {
+    "calibration-15m-v65536-ctx32k": {
+      "file": "data/calibration-15m-v65536-ctx32k.txt",
+      "description": "15M-token agentic-coding SFT corpus, rendered plain text, pre-windowed at 65536; the 32K-ctx calibration slice",
+      "publish": false,
+      "hf_repo": "pearsonkyle/llmtk-sft-corpus-v2",
+      "note": "Payload lives on the Hub, not in this repo. The card documents what quant-tuner consumes from it."
+    }
+  },
+  "published": []
+}

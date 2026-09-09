@@ -115,7 +115,7 @@ class ForwardStats:
         for t in names:
             payload[f"{t}__e_a4"] = self.e_a4[t].astype(np.float32)
             payload[f"{t}__max_abs"] = self.max_abs[t].astype(np.float32)
-        np.savez(path, **payload)
+        np.savez(path, **payload)  # type: ignore[arg-type]
 
     @classmethod
     def load(cls, path: Path) -> ForwardStats:
@@ -159,7 +159,7 @@ def collect_forward_stats(
     tok = AutoTokenizer.from_pretrained(model_dir, fix_mistral_regex=True)
     model = AutoModelForCausalLM.from_pretrained(
         model_dir, torch_dtype=torch_dtype, trust_remote_code=True
-    ).to(device)
+    ).to(device)  # type: ignore[arg-type]
     model.eval()
     for p in model.parameters():
         p.requires_grad_(False)

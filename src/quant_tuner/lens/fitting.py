@@ -324,7 +324,7 @@ def _wikitext_prompts(n_prompts: int, *, min_chars: int = 400) -> list[str]:
     while len(prompts) < n_prompts and offset < 50000:
         r = requests.get(
             "https://datasets-server.huggingface.co/rows",
-            params={
+            params={  # type: ignore[arg-type]
                 "dataset": "Salesforce/wikitext",
                 "config": "wikitext-103-raw-v1",
                 "split": "train",

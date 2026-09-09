@@ -8,7 +8,7 @@ Why only a tie: this model is GQA 24/4 (ratio 6 ≥ 4), so llama-quantize bumps
 attn_v → Q4_K and first-eighth ffn_down up a tier even under IQ2_XS
 (proxy_for_member). exp-040d scored those with the iq2_xs codebook proxy — a
 FICTITIOUS 2-bit error on tensors that are really Q4_K/Q3_K, which drags the
-shared attention-group α down (the exact artifact CLAUDE.md cites for iq2_m_awq).
+shared attention-group α down (the exact artifact AGENTS.md cites for iq2_m_awq).
 
 Fix under test: proxy_mix="IQ2_XS" routes attn_v → int4_g128 (Q4_K) and
 first-eighth ffn_down → q2k_b16 during the α search, so the group α is chosen

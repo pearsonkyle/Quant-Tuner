@@ -58,7 +58,7 @@ class _StubTensor:
     def to_numpy(self, read_storage) -> np.ndarray:
         raw = read_storage(self.storage)
         dt = _DTYPES[self.storage.dtype_name]
-        flat = np.frombuffer(raw, dtype=dt)
+        flat = np.frombuffer(raw, dtype=dt)  # type: ignore[call-overload]
         if self.storage.dtype_name == "BFloat16Storage":
             flat = (flat.astype(np.uint32) << 16).view(np.float32)
         if not self.size:
@@ -126,7 +126,7 @@ def load_pt(path: str):
             return x.to_numpy(read_storage)
         if isinstance(x, dict):
             return {k: resolve(v) for k, v in x.items()}
-        if isinstance(x, (list, tuple)):
+        if isinstance(x, list | tuple):
             t = [resolve(v) for v in x]
             return t if isinstance(x, list) else tuple(t)
         return x
