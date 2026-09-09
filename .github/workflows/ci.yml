@@ -85,9 +85,8 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       pages: write
-      id-token: write
     steps:
       - uses: actions/checkout@v4
 
@@ -101,10 +100,22 @@ jobs:
       - name: Build the docs site
         run: mkdocs build --strict
 
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-
-      - name: Deploy to GitHub Pages
-        uses: actions/deploy-pages@v4
+      # Publish the built site to the `gh-pages` branch. GitHub Pages is
+      # configured (repo settings) with a branch source of `gh-pages`, so
+      # this is the deploy — no artifact/`deploy-pages` step (that needs the
+      # Pages source set to "Deploy Actions"; the branch source is simpler and
+      # doesn't depend on OIDC).
+      - name: Publish to gh-pages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout --orphan gh-pages
+          git rm -rf --quiet --cached . 2>/dev/null || true
+          find . -mindepth 1 -maxdepth 1 ! -name .git ! -name site -exec rm -rf {} +
+          cp -R site/. .
+          rm -rf site
+          git add -A
+          git commit --allow-empty -m "docs: publish $(git rev-parse --short origin/main)"
+          git push --force origin gh-pages
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
