@@ -182,7 +182,7 @@ def test_keep_chunking_leaves_qwen_windows_whole_and_splits_gemma():
     assert _chunk_positions(KEEP_CHUNK_BYTES, 262_144, 2) < 32_768
 
 
-def test_gqa_predicate_declines_past_the_flash_head_dim_cap():
+def test_gqa_predicate_declines_past_the_flash_head_dim_cap(requires_cuda):
     """FlashAttention caps head_dim at 256. Past it flash declines, and `enable_gqa=True`
     also rules out the memory-efficient kernel, so SDPA lands on math and materializes
     [batch, heads, S, S]. gemma-4's full-attention layers use global_head_dim 512 (its

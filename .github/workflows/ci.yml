@@ -5,11 +5,12 @@ on:
     branches: [main]
   pull_request:
 
-# Hard gates (must pass): ruff, mkdocs build.
-# Informational (failures are reported but do not block the PR): pytest, mypy.
-# The repo has pre-existing torch-3.x test failures and a mypy debt; those are
-# tracked separately and will be fixed in their own PRs. The PR gate is the
-# lint + docs build, which are both clean.
+# Hard gates (must pass): ruff, mkdocs build, pytest.
+# Informational (failures are reported but do not block the PR): mypy.
+# The CUDA-only SDPA tests (qat/attention.py use_gqa_in_sdpa / enable_gqa path)
+# are gated behind the `requires_cuda` fixture and skip on the CPU runner, so
+# pytest is green on any box. The mypy debt (68 pre-existing errors) is tracked
+# separately and demoted to informational for now.
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -43,7 +44,6 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    continue-on-error: true   # informational: pre-existing torch-3.x failures
     strategy:
       matrix:
         python-version: ["3.12"]
@@ -79,7 +79,7 @@ jobs:
         run: uv run mypy src
 
   pages:
-    needs: [lint, docs]
+    needs: [lint, docs, test]
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
