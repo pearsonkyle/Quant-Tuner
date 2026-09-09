@@ -261,7 +261,7 @@ requested KV scheme that produced **no** `k_scale`/`v_scale` tensors both fail
 loudly, because each otherwise yields a checkpoint that loads and serves
 perfectly while being wrong.
 
-See [`docs/vllm_w4a16_fp8kv.md`](docs/vllm_w4a16_fp8kv.md) for the full guide.
+See [`vllm_w4a16_fp8kv`](vllm_w4a16_fp8kv.md) for the full guide.
 
 ## Inspecting a quant (Jacobian lens)
 
