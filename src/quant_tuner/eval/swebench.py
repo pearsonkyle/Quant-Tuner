@@ -402,7 +402,7 @@ def run_swebench_eval(
     os.environ.setdefault("MSWEA_COST_TRACKING", "ignore_errors")
 
     sampling = sampling or Sampling(temperature=DEFAULT_TEMPERATURE)
-    instances = list(holdout) if not isinstance(holdout, (str, Path)) else load_holdout(Path(holdout))
+    instances = list(holdout) if not isinstance(holdout, str | Path) else load_holdout(Path(holdout))
     trajectory_dir = Path(trajectory_dir)
     trajectory_dir.mkdir(parents=True, exist_ok=True)
     label = model_label or (Path(model_path).name if model_path else served_model)

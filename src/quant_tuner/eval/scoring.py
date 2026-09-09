@@ -168,7 +168,7 @@ def compare_value(
     if sch_type == "boolean" or isinstance(truth, bool):
         exact = pred == truth
         return exact, exact, "boolean"
-    if sch_type in ("number", "integer") or isinstance(truth, (int, float)):
+    if sch_type in ("number", "integer") or isinstance(truth, int | float):
         e, s = _compare_number(pred, truth)
         return e, s, "numeric"
     if k in _PATH_ARG_KEYS or "path" in k:
@@ -177,7 +177,7 @@ def compare_value(
     if k in _COMMAND_ARG_KEYS:
         e, s = _compare_command(pred, truth)
         return e, s, "command"
-    if isinstance(truth, (list, dict)):
+    if isinstance(truth, list | dict):
         eq = json.dumps(pred, sort_keys=True) == json.dumps(truth, sort_keys=True)
         return eq, eq, "structural"
     e, s = _compare_generic_string(pred, truth)
@@ -218,7 +218,7 @@ def _check_value_against_schema(key: str, value: Any, prop: dict) -> str | None:
     enum = prop.get("enum")
     if enum is not None and value not in enum:
         return f"{key}: value not in enum {enum}"
-    if isinstance(value, (int, float)) and not isinstance(value, bool):
+    if isinstance(value, int | float) and not isinstance(value, bool):
         mn, mx = prop.get("minimum"), prop.get("maximum")
         if mn is not None and value < mn:
             return f"{key}: {value} < minimum {mn}"

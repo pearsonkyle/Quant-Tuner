@@ -453,10 +453,8 @@ class GradOffload:
             b = self._bufs.get(id(q))
             if b is None:
                 b = torch.zeros(g.shape, dtype=g.dtype)
-                try:
-                    b = b.pin_memory()
-                except RuntimeError:
-                    pass  # pinning is an optimization, never a requirement
+                with contextlib.suppress(RuntimeError):
+                    b = b.pin_memory()  # pinning is an optimization, never a requirement
                 self._bufs[id(q)] = b
             b.add_(g.detach().cpu())
             q.grad = None

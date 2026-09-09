@@ -120,7 +120,8 @@ def test_onpolicy_config_validate(tmp_path):
     import pytest
 
     from quant_tuner.drafter.onpolicy import OnPolicyConfig
-    w = tmp_path / "w.jsonl"; w.write_text('{"input_ids":[1,2,3]}\n')
+    w = tmp_path / "w.jsonl"
+    w.write_text('{"input_ids":[1,2,3]}\n')
     OnPolicyConfig(base_url="http://x/v1", model="m", out=tmp_path/"o", prompt_windows=w).validate()
     with pytest.raises(ValueError, match="not found"):
         OnPolicyConfig(base_url="http://x/v1", model="m", out=tmp_path/"o",

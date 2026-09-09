@@ -67,7 +67,7 @@ def as_test_list(value: Any) -> list[str]:
     """
     if value is None:
         return []
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, list | tuple):
         return [str(x) for x in value]
     if isinstance(value, str):
         s = value.strip()
@@ -77,7 +77,7 @@ def as_test_list(value: Any) -> list[str]:
             parsed = json.loads(s)
         except (json.JSONDecodeError, ValueError):
             return s.split()
-        if isinstance(parsed, (list, tuple)):
+        if isinstance(parsed, list | tuple):
             return [str(x) for x in parsed]
         return [str(parsed)]
     return [str(value)]

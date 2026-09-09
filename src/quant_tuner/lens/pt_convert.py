@@ -126,7 +126,7 @@ def load_pt(path: str):
             return x.to_numpy(read_storage)
         if isinstance(x, dict):
             return {k: resolve(v) for k, v in x.items()}
-        if isinstance(x, (list, tuple)):
+        if isinstance(x, list | tuple):
             t = [resolve(v) for v in x]
             return t if isinstance(x, list) else tuple(t)
         return x
