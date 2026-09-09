@@ -1,0 +1,43 @@
+# Pre-commit: auto-fix the cheap, mechanical CI failures before they reach a
+# push. Mirrors the CI hard gates (ruff, pytest) plus git hygiene.
+#
+# Install:  pre-commit install        (or: pre-commit install --install-hooks)
+# Run on everything:  pre-commit run --all-files
+# Bypass in an emergency:  git commit --no-verify
+#
+# Deliberately NOT included:
+#   - `ruff format`: the repo is not yet format-clean (144 files would be
+#     rewritten on first run). Adopt it deliberately once the tree is clean.
+#   - mypy: informational in CI (pre-existing debt); running it on every
+#     commit would just slow the hook down without gating anything.
+#   - pytest: a fast subset runs here as a smoke check, but the authoritative
+#     suite stays on the CI runner (needs the full extras + CUDA skips).
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-merge-conflict   # catches leftover <<<<<<< conflict markers
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.2
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        files: ^(src|tests|examples)/
+
+  - repo: local
+    hooks:
+      - id: pytest-smoke
+        name: pytest (fast subset)
+        # Quick catch for the module-level import failures that broke CI
+        # (scripts.* imports). The full suite is the CI job's job; this only
+        # needs to import the modules it touches, so it stays fast.
+        entry: python -m pytest tests/unit -q -x --no-header
+        language: system
+        pass_filenames: false
+        # Only when Python files under tests/src changed.
+        files: ^(src|tests)/
+        verbose: true
