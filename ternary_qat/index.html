@@ -1,0 +1,2613 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Calibrate your own GGUF quantizations and vLLM W4A16 checkpoints from real agentic-coding logs">
+      
+      
+        <meta name="author" content="K. Pearson">
+      
+      
+      
+        <link rel="prev" href="../lens/">
+      
+      
+        <link rel="next" href="../ternary_qat_reproduce/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Method & invariants - quant-tuner</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#continued-qat-for-native-ternary-158-bit-models" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="quant-tuner" class="md-header__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            quant-tuner
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Method & invariants
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18V6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-2.69L23.31 12 20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="quant-tuner" class="md-nav__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    quant-tuner
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methods
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Methods
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The three calibrators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipe reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calibration_datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calibration datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmarks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lens/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jacobian lens
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT for ternary models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    QAT for ternary models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method & invariants
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method & invariants
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-this-exists-and-when-post-hoc-calibration-wont-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why this exists (and when post-hoc calibration won't do)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-four-stages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The four stages
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quickstart-the-universal-sft-run-current-default" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quickstart — the universal-SFT run (current default)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Quickstart — the universal-SFT run (current default)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-long-window-run-32768-full-gradient" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The long-window run (32768, full gradient)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changing-the-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changing the data
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#choosing-the-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing the parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adapting-to-a-different-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adapting to a different model
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hard-constraints-on-metal-learned-the-hard-way-see-the-audit-doc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hard constraints on Metal (learned the hard way — see the audit doc)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#corpus-masking-rules-why-the-training-is-on-tool-properly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Corpus / masking rules (why the training is "on tool" properly)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-we-found-ternary-bonsai-8b-the-first-target" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What we found (Ternary-Bonsai-8B, the first target)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_curriculum/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curriculum
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_preprint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Preprint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary/HANDOFF/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B stage 1 (handoff)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run logs (Qwen 3.8 family)
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Run logs (Qwen 3.8 family)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_release/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 release
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_awq_2bit_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 AWQ 2-bit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_gptq_vllm_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 GPTQ vLLM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_exp062_rebuild/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 exp-062 rebuild
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Research notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_32k_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT 32K handoff
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_optimization_audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT optimization audit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_run_history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT run history
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_calibration_experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ternary calibration experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patch_gguf_chat_template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patch a GGUF chat template
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_feasibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary feasibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reddit_ternary_qat_post/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reddit: ternary QAT post
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-this-exists-and-when-post-hoc-calibration-wont-do" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why this exists (and when post-hoc calibration won't do)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-four-stages" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The four stages
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quickstart-the-universal-sft-run-current-default" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quickstart — the universal-SFT run (current default)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Quickstart — the universal-SFT run (current default)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-long-window-run-32768-full-gradient" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The long-window run (32768, full gradient)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#changing-the-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Changing the data
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#choosing-the-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing the parameters
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#adapting-to-a-different-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adapting to a different model
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#hard-constraints-on-metal-learned-the-hard-way-see-the-audit-doc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Hard constraints on Metal (learned the hard way — see the audit doc)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#corpus-masking-rules-why-the-training-is-on-tool-properly" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Corpus / masking rules (why the training is "on tool" properly)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-we-found-ternary-bonsai-8b-the-first-target" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What we found (Ternary-Bonsai-8B, the first target)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="continued-qat-for-native-ternary-158-bit-models">Continued QAT for native-ternary (1.58-bit) models<a class="headerlink" href="#continued-qat-for-native-ternary-158-bit-models" title="Permanent link">&para;</a></h1>
+<p>A reusable pipeline to <strong>fine-tune a natively-ternary GGUF model</strong> (e.g.
+<code>prism-ml/Ternary-Bonsai-8B</code>) on a task-specific corpus and re-export a runnable
+2-bit GGUF. Built for Metal (Apple Silicon); the same scripts run on CUDA.</p>
+<p><strong>Jump to:</strong> <a href="#why-this-exists-and-when-post-hoc-calibration-wont-do">why</a> ·
+<a href="#quickstart-adapting-to-a-new-model">quickstart for a new model</a> ·
+<a href="#hard-constraints-on-metal-learned-the-hard-way--see-the-audit-doc">Metal constraints</a> ·
+<a href="#reproducing-the-trajectory-runs-iter-5--iter-6"><strong>reproducing the trajectory + KD runs</strong></a></p>
+<h2 id="why-this-exists-and-when-post-hoc-calibration-wont-do">Why this exists (and when post-hoc calibration won't do)<a class="headerlink" href="#why-this-exists-and-when-post-hoc-calibration-wont-do" title="Permanent link">&para;</a></h2>
+<p>A native-ternary model stores <code>w = s·c</code> exactly (<code>c ∈ {−1,0,+1}</code>, one fp16 scale
+<code>s</code> per group). Its "F16" is a <em>lossless</em> container, so <strong>imatrix / AWQ / GPTQ are
+structural no-ops</strong> — there is no quantization error to recover (proof + measurements
+in <code>ternary_calibration_experiments.md</code>). The only lever is <strong>more training with the
+ternarization in the loop</strong> (BitNet/TWN-style QAT). This pipeline is that lever.</p>
+<h2 id="the-four-stages">The four stages<a class="headerlink" href="#the-four-stages" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Script</th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0. Get the trainable checkpoint</td>
+<td>(HF <code>snapshot_download</code> of the <code>*-unpacked</code> repo)</td>
+<td><code>out/&lt;exp&gt;/model/</code> (plain <code>*ForCausalLM</code>, ternary weights as fp16)</td>
+</tr>
+<tr>
+<td>1. Build the masked corpus</td>
+<td><code>scripts/build_qat_masked_corpus.py</code></td>
+<td><code>masked_corpus_&lt;win&gt;.pt</code> — turn-aware, <strong>loss masked to assistant/tool tokens</strong>, tool <strong>schemas rendered</strong></td>
+</tr>
+<tr>
+<td>2. Train (STE ternary QAT)</td>
+<td><code>scripts/exp058_qat_train_v2.py</code></td>
+<td><code>trained/trained_latents.pt</code> (checkpointed, signal-save)</td>
+</tr>
+<tr>
+<td>3. Export → GGUF</td>
+<td><code>scripts/exp057_qat_export.py</code></td>
+<td><code>*-Q2_0.gguf</code> (runs on the prism <code>llama.cpp</code> fork)</td>
+</tr>
+</tbody>
+</table>
+<p>All the logic lives in the package (<code>src/quant_tuner/qat/</code>); the <code>scripts/exp05*</code> entries are
+thin CLI shims over it, so the pipeline is importable and unit-tested rather than trapped in
+one-off scripts:</p>
+<table>
+<thead>
+<tr>
+<th>Module</th>
+<th>What it owns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>qat/ternary.py</code></td>
+<td>per-group TWN straight-through estimator — reproduces the shipped weights <strong>exactly</strong> at step 0, so the fine-tune starts from the real model with no drift</td>
+</tr>
+<tr>
+<td><code>qat/corpus.py</code></td>
+<td>masking + packing, shared by the log and trajectory corpora (<code>trajectory_to_messages</code> is also what the published dataset uses)</td>
+</tr>
+<tr>
+<td><code>qat/train.py</code></td>
+<td><code>QATConfig</code> + <code>train_qat()</code> — the training loop, flip telemetry, checkpoint/resume</td>
+</tr>
+<tr>
+<td><code>qat/master_opt.py</code></td>
+<td>fp32-master optimizer wrapper (per-tensor; never <code>foreach</code>)</td>
+</tr>
+<tr>
+<td><code>qat/export.py</code></td>
+<td>trained latents → Q2_0 GGUF via the prism fork</td>
+</tr>
+<tr>
+<td><code>qat/kd_precompute.py</code></td>
+<td>offline top-K teacher logits + <code>kd_loss_from_topk</code> (Method B, below)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="quickstart-the-universal-sft-run-current-default">Quickstart — the universal-SFT run (current default)<a class="headerlink" href="#quickstart-the-universal-sft-run-current-default" title="Permanent link">&para;</a></h2>
+<p>One command does train → export Q2_0 → agentic SWE-rebench eval:</p>
+<pre><code class="language-bash"># corpora (train + the disjoint `test` validation split), then the whole chain
+PYTHONPATH=src .venv/bin/python scripts/build_sft_qat_corpus.py \
+    --sft out/corpora/qwen3-universal/sft.jsonl.gz \
+    --window 8064 --max-tool-tokens 3072 --min-density 0.05 \
+    --out out/exp-058/sft_corpus_universal_8064.pt
+PYTHONPATH=src .venv/bin/python scripts/build_sft_qat_corpus.py \
+    --sft out/corpora/qwen3-universal/sft.jsonl.gz --split test \
+    --window 8064 --max-tool-tokens 3072 --min-density 0.05 \
+    --out out/exp-058/sft_val_universal_8064.pt
+
+bash scripts/run_sft_qat_pipeline.sh 5e-4 mytag 1.0        # LR / tag / epochs
+</code></pre>
+<h3 id="the-long-window-run-32768-full-gradient">The long-window run (32768, full gradient)<a class="headerlink" href="#the-long-window-run-32768-full-gradient" title="Permanent link">&para;</a></h3>
+<p>Preferred for anything agentic. 97% of SWE trajectories fit whole, every labeled target
+is trained, and it costs 2.5x per token vs 8064 (see the window table below for why a
+<em>prefix</em> is the wrong tool here).</p>
+<pre><code class="language-bash"># 1. corpora. --max-tool-tokens scales with the window; at 8192 nothing is truncated.
+PYTHONPATH=src .venv/bin/python scripts/build_sft_qat_corpus.py \
+    --sft out/corpora/qwen3-universal/sft.jsonl.gz --source swe-trajectories \
+    --window 32768 --max-tool-tokens 8192 --min-density 0.05 \
+    --out out/exp-058/sft_corpus_swe_32768.pt          # 26 windows, 878,010 tok
+PYTHONPATH=src .venv/bin/python scripts/build_sft_qat_corpus.py \
+    --sft out/corpora/qwen3-universal/sft.jsonl.gz --split test \
+    --window 32768 --max-tool-tokens 8192 --min-density 0.05 \
+    --out out/exp-058/sft_corpus_val_32768.pt          # 81 windows
+# NOTE: swe-trajectories has NO rows in the `test` split, so val is agentic-log
+# distribution, not held-out SWE. The real gate stays the SWE-rebench holdout.
+
+# 2. gate — run this BEFORE the long job, not after it fails
+PYTHONPATH=src .venv/bin/python scripts/validate_prefix_context.py \
+    --corpus out/exp-058/sft_corpus_universal_8064.pt --tail 4096 --windows 4
+
+# 3. train. accum 1 (not 2): 26 windows is a small corpus and accum 2 leaves only
+#    13 steps/epoch — too few for the cosine schedule or the grad-spike guard's
+#    20-step median window.
+PYTHONPATH=src .venv/bin/python -m quant_tuner.qat.train \
+    --corpus out/exp-058/sft_corpus_swe_32768.pt \
+    --val-corpus out/exp-058/sft_corpus_val_32768.pt \
+    --train-layers 36 --optim adafactor --dtype fp32 \
+    --grad-accum 1 --epochs 4.0 --lr 5e-4 --warmup-frac 0.05 \
+    --stop-weight 6.0 --val-every 10 --ckpt-every 15 --ckpt-keep 3 \
+    --out out/exp-058/swe32k
+</code></pre>
+<p>~900 s/step at accum 1, 26 steps/epoch → <strong>~26 h for 4 epochs</strong>. Healthy steady state:
+<code>mem=31.5GiB</code>, swap flat or declining. Watch <code>gnorm</code> and the flip telemetry, not the loss.</p>
+<p><code>--stop-weight 6.0</code> is the other half of the fix: the corpus has 1,915 terminating
+<code>&lt;|im_end|&gt;</code> targets against 267,392 labeled targets, so unweighted the run sees ~140
+"keep going" decisions per "stop" one.</p>
+<p><code>run_sft_qat_pipeline.sh LR TAG EPOCHS</code> reads these env overrides: <code>CORPUS</code>, <code>VAL</code>,
+<code>CKPT_EVERY</code> (default 10). Interrupted? The trainer signal-saves, and
+<code>--resume &lt;out&gt;/trained_latents.pt</code> continues with data order, step and Adafactor state
+(the corpus fingerprint must match).</p>
+<h3 id="changing-the-data">Changing the data<a class="headerlink" href="#changing-the-data" title="Permanent link">&para;</a></h3>
+<p>Point <code>--sft</code> at any <code>sft.jsonl</code> / <code>.jsonl.gz</code> with this row shape — it is what
+<code>data.universal</code> emits, and <code>scripts/build_universal_corpus.py</code> regenerates it for a new
+model or new sources:</p>
+<pre><code class="language-json">{&quot;id&quot;: &quot;...&quot;, &quot;source&quot;: &quot;logs-agents&quot;, &quot;split&quot;: &quot;train&quot;,
+ &quot;messages&quot;: [{&quot;role&quot;: &quot;...&quot;, &quot;content&quot;: &quot;...&quot;, &quot;tool_calls&quot;: [...],
+               &quot;reasoning_content&quot;: &quot;...&quot;}],
+ &quot;tools&quot;: [ {&quot;type&quot;: &quot;function&quot;, &quot;function&quot;: {...}} ]}
+</code></pre>
+<p>Only <code>source</code>, <code>split</code> and <code>messages</code> are required; <code>tools</code> is strongly recommended
+(without it the builder falls back to <code>reconstruct_tools</code> name→arg-key stubs, and the
+model trains on schemas it will never see at inference).</p>
+<ul>
+<li><strong>Subset</strong>: <code>--source logs-agents --source swe-trajectories</code> (repeatable).</li>
+<li><strong>Cap or drop a source</strong>: <code>--budget logs=2000000 --budget broad-instruct=0</code>
+  (<code>none</code> = uncapped, <code>0</code> = drop). Uncapped is the default — see below.</li>
+<li><strong>Different split</strong>: <code>--split test</code> for the val corpus; <code>--split all</code> only for a
+  throwaway diagnostic, since the eval holdouts live in the same file.</li>
+<li>Rows are shuffled per source with <code>--seed</code> before the budget is spent, so a cap is a
+  random sample, not the head of the file.</li>
+</ul>
+<h3 id="choosing-the-parameters">Choosing the parameters<a class="headerlink" href="#choosing-the-parameters" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Knob</th>
+<th>How to pick it</th>
+<th>Why</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--window</code></td>
+<td><strong>8064</strong> on a 128 GB M4 Max. Measure <code>s/step</code> for one candidate above and one below before committing.</td>
+<td>Not a free parameter — see the window table below. The fastest window is the largest one that does not swap, and that is <em>not</em> the largest one that runs.</td>
+</tr>
+<tr>
+<td><code>--max-tool-tokens</code></td>
+<td>≈ <strong>window / 2.6</strong> (3072 at 8064, 4096 at 12288)</td>
+<td>One tool result must never eat more than ~a third of a window. Too low silently deletes conversation history — 1024 at an 8064 window drops 28% of it.</td>
+</tr>
+<tr>
+<td><code>--min-density</code></td>
+<td><strong>0.05</strong></td>
+<td>0.10 negates any gain from keeping more tool history (the extra masked tokens just sink windows below the floor). 0.0 wastes a full forward/backward on near-empty windows. Read the printed density deciles.</td>
+</tr>
+<tr>
+<td><code>--budget</code></td>
+<td>uncapped</td>
+<td>QAT spends its budget in <em>fractional epochs</em>, so put everything on disk. This is the deliberate opposite of the calibration corpus.</td>
+</tr>
+<tr>
+<td><code>LR</code></td>
+<td><strong>5e-4</strong> for this model; probe it for a new one (below)</td>
+<td>The whole ballgame — a ternary model only learns by flipping codes.</td>
+</tr>
+<tr>
+<td><code>EPOCHS</code></td>
+<td>wall-clock ÷ <code>s/step</code>, then × <code>grad_accum / n_windows</code></td>
+<td>Fractional epochs are normal on a 19M-token corpus.</td>
+</tr>
+<tr>
+<td><code>--grad-accum</code></td>
+<td>4</td>
+<td>B≥2 does not fit; grad-accum is the equivalent lever.</td>
+</tr>
+<tr>
+<td><code>--optim</code></td>
+<td><code>adafactor</code></td>
+<td>The only optimizer that fits all 36 layers (~66-75 GB vs AdamW's ~116 GB).</td>
+</tr>
+<tr>
+<td><code>--dtype</code></td>
+<td><code>fp32</code></td>
+<td>bf16 latents underflow the ternary threshold → zero code flips.</td>
+</tr>
+<tr>
+<td><code>--ckpt-every</code></td>
+<td>~1 h of steps (10 at 370 s/step)</td>
+<td>Both historical OOM kills landed <em>on</em> a checkpoint boundary.</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Estimating wall-clock before committing.</strong> The step time is linear in the fixed cost:</p>
+<pre><code>s/step  ≈  grad_accum · fwd_bwd(window)  +  ~106 s
+</code></pre>
+<p>The ~106 s is Adafactor over 6.95B params + flip telemetry + val, and it is constant
+across window sizes. If a measured <code>s/step</code> exceeds that prediction, the excess is swap
+— that is exactly how 12288 was ruled out (800 s measured vs 570 s predicted).</p>
+<h3 id="adapting-to-a-different-model">Adapting to a different model<a class="headerlink" href="#adapting-to-a-different-model" title="Permanent link">&para;</a></h3>
+<p>Update <code>MODEL</code> / <code>CHAT_TEMPLATE</code> at the top of <code>qat/corpus.py</code> (currently
+<code>out/exp-057/model</code> + the chat template extracted from the shipped GGUF), then:</p>
+<ol>
+<li><strong>Verify the chat template first</strong> — <code>scripts/verify_chat_template.py</code>. A template
+   that drops <code>tools=</code>, or refuses a window, silently guts the corpus.</li>
+<li><strong>Re-check the window ceiling.</strong> It is <code>n_heads · S² &lt; 2³¹</code> <em>without</em> chunked
+   attention, and pure memory with it — both depend on the model's head count and size.</li>
+<li><strong>Re-probe the LR</strong> (three ~40-step runs) and read the <strong>flip telemetry</strong>, not the
+   loss: at too low an LR the loss falls while ~0% of codes move, i.e. the run only
+   drifted fp16 scales and changed nothing.</li>
+</ol>
+<pre><code class="language-bash">for LR in 1e-4 3e-4 5e-4 1e-3; do
+  PYTORCH_ENABLE_MPS_FALLBACK=1 PYTHONPATH=src .venv/bin/python scripts/exp058_qat_train_v2.py \
+    --corpus &lt;train&gt;.pt --val-corpus &lt;val&gt;.pt \
+    --layers 0-35 --optim adafactor --epochs 0.08 --grad-accum 4 --lr $LR \
+    --ckpt-every 20 --out out/&lt;exp&gt;/probe_$LR
+done
+</code></pre>
+<p>Other levers: <code>--train-norms</code>; <code>--compute-dtype bf16</code> (a <em>pessimization</em> at all-36);
+<code>--kd-teacher</code> for in-loop KD (does not fit at all-36 — prefer the offline top-K path,
+Method B below); <code>--no-chunked-attention</code> to restore the stock SDPA kernel and its
+8191-token cap.</p>
+<h2 id="hard-constraints-on-metal-learned-the-hard-way-see-the-audit-doc">Hard constraints on Metal (learned the hard way — see the audit doc)<a class="headerlink" href="#hard-constraints-on-metal-learned-the-hard-way-see-the-audit-doc" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong><code>foreach=False</code> is mandatory.</strong> MPS multi-tensor (foreach) kernels <em>deadlock</em> at
+  full-model scale — the "step-5 hang." AdamW, Adafactor (per-tensor by construction),
+  <code>clip_grad_norm_</code>, and the fp32-master wrapper all stay per-tensor.</li>
+<li><strong>The window ceiling is memory, not INT_MAX. It is ~12288 — but the FASTEST window is 8064.</strong> torch 2.12
+  has <strong>no MPS training kernel for SDPA</strong> (fused paths are inference-only), so training
+  materializes the full <code>[B, heads, S, S]</code> scores tensor and MPSGraph refuses a tensor
+  with &gt; INT_MAX elements. That gives <strong><code>n_heads · S² &lt; 2³¹</code></strong> → <code>S ≤ 8191</code> at 32 heads;
+  seq 8192 fails by <em>exactly one element</em> (32·8192² = 2³¹), which is why it read as
+  "8k is impossible". Measured: 4096 / 6144 / 7168 / 8064 / 8128 / 8191 all pass, 8192 is
+  the sole failure.</li>
+</ul>
+<p><strong><code>qat.attention.enable_chunked_sdpa()</code> removes that cap outright</strong> (on by default;
+  <code>--no-chunked-attention</code> opts out). It computes causal SDPA in query blocks, so the
+  score tensor is <code>[heads, chunk, kv_len]</code> and never <code>[heads, S, S]</code>. Output is
+  <strong>mathematically identical</strong> to <code>is_causal=True</code>, and bit-identical wherever the SDPA
+  kernel's reduction order allows (single block, and the MPS training path); a multi-block
+  call on an x86 CPU flash kernel lands 1-2 ULP away. What makes long-window results
+  comparable with everything produced below 8191 is that the error is <strong>flat in the window
+  length</strong> — the same 2.1e-07 at 4 blocks and at 256 — so it does not accumulate. It patches
+  the registered <code>"sdpa"</code> entry <em>in place</em> rather than adding a name, so transformers'
+  mask fast path still returns <code>attention_mask=None</code> for a plain causal decoder (a custom
+  name gets an eager <code>[1,1,S,S]</code> float mask — 1 GB at S=16128).</p>
+<p>With chunking on the wall is unified memory. <strong>Size a run from the TRAINING LOOP, not
+  from a single-window probe</strong> — the probe excludes the optimizer step and runs before
+  swap builds, and following it led straight to a window that could not train at all.</p>
+<table>
+<thead>
+<tr>
+<th>window</th>
+<th>probe fwd+bwd</th>
+<th>probe ms/tok</th>
+<th><strong>real s/step</strong> (accum 4)</th>
+<th><strong>real ms/tok</strong></th>
+<th>driver alloc</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>8064</strong></td>
+<td>66 s</td>
+<td>8.16</td>
+<td><strong>370 s</strong></td>
+<td><strong>11.47</strong></td>
+<td>93 GiB</td>
+</tr>
+<tr>
+<td>12288</td>
+<td>116 s</td>
+<td>9.47</td>
+<td>800 s</td>
+<td>16.28</td>
+<td>125 GiB</td>
+</tr>
+<tr>
+<td>16128</td>
+<td>227 s</td>
+<td>14.09</td>
+<td><strong>no step in 31 min</strong></td>
+<td>—</td>
+<td>137 GiB</td>
+</tr>
+<tr>
+<td>20480</td>
+<td>499 s</td>
+<td>24.36</td>
+<td>—</td>
+<td>—</td>
+<td>137 GiB</td>
+</tr>
+<tr>
+<td>24576</td>
+<td>hard OOM</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>(tried 170 GiB)</td>
+</tr>
+</tbody>
+</table>
+<p>The decomposition is the useful part. Fixed per-step cost (Adafactor over 6.95B params,
+  flip telemetry, val) is <strong>~106 s at every window size</strong>; at 8064 the step is
+  <code>4·66 + 106 = 370 s</code>, exactly as predicted, so 8064 runs <strong>clean</strong>. At 12288 the step is
+  800 s against a predicted <code>4·116 + 106 = 570 s</code> — the missing 230 s is <strong>swap</strong>, and at
+  16128 swap hits 99% (54.7 of 55.3 GB) and the loop never completes a step even though
+  the probe finished that window in 227 s.</p>
+<p><strong>8064 is the right window on a 128 GB M4 Max</strong>: 11.47 ms/token vs 12288's 16.28, i.e.
+  <strong>42% more tokens for the same wall-clock</strong> (a 20 h budget buys 6.27M tokens at 8064 vs
+  4.42M at 12288). Going longer trades tokens-seen for whole-session context; see the
+  distribution below for what that actually buys. Same math rules out B≥2; grad-accum is
+  the equivalent lever.</p>
+<p><strong>Conversation-length distribution</strong> (universal SFT train split, <code>--max-tool-tokens
+  4096</code>) is strongly bimodal: 83% of <em>conversations</em> are short broad-instruct/refusal
+  rows under 2k tokens but only 2.6% of <em>tokens</em>; <strong>81% of tokens live in conversations
+  longer than 20k</strong> (median CLI-log session 32k, agent-log 16k, SWE trajectory 11.5k;
+  longest 256k). Share of conversations that fit whole in one window:</p>
+<table>
+<thead>
+<tr>
+<th>source</th>
+<th>4096</th>
+<th>8064</th>
+<th>12288</th>
+<th>16128</th>
+<th>20480</th>
+<th>32768</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>logs</td>
+<td>3%</td>
+<td>5%</td>
+<td>9%</td>
+<td>19%</td>
+<td>24%</td>
+<td>51%</td>
+</tr>
+<tr>
+<td>logs-agents</td>
+<td>2%</td>
+<td>22%</td>
+<td>37%</td>
+<td>49%</td>
+<td>58%</td>
+<td>76%</td>
+</tr>
+<tr>
+<td>swe-trajectories</td>
+<td>8%</td>
+<td>27%</td>
+<td>52%</td>
+<td>68%</td>
+<td>81%</td>
+<td>97%</td>
+</tr>
+<tr>
+<td><em>all tokens in fitting convs</em></td>
+<td>2.9%</td>
+<td>5.7%</td>
+<td>9.5%</td>
+<td>14.6%</td>
+<td>19.2%</td>
+<td>35.9%</td>
+</tr>
+</tbody>
+</table>
+<p>There is no cliff — it is a long tail, and even 32k only reaches 36% of tokens.
+  Nothing is <em>lost</em> at a smaller window (sessions pack contiguously across boundaries);
+  what a longer window buys is the model seeing the far end of a trajectory conditioned
+  on its start. The strongest case is <code>swe-trajectories</code>, the source the SWE-rebench
+  eval actually grades: 52% → 68% → 81% whole at 12288 → 16128 → 20480.
+- <strong>The attention block must be budgeted in BYTES, not elements.</strong> <code>safe_chunk</code> caps the
+  query block by <code>n_heads · chunk · kv_len &lt; 2³¹</code> (the MPSGraph limit) <em>and</em> by
+  <code>DEFAULT_SCORE_BYTES</code> (2 GiB). The element cap alone is not enough: the score tensor
+  grows with <code>kv_len</code>, so a fixed 2048 block costs 1.97 GiB at kv 8064 and <strong>8 GiB at kv
+  32768</strong> — roughly double that with the softmax alive. A 32768 run with the fixed block
+  drove swap up 26 GB and completed no step; the same code at 8064 sat flat, which is why
+  the constant looked fine for two runs. 2 GiB reproduces the 8064 behavior exactly
+  (chunk stays 2048 there) and shrinks the block automatically as context grows.
+- <strong><code>--trained-tail N</code> is how a 32K window becomes affordable.</strong> Activation memory under
+  gradient checkpointing is <code>n_layers · S · hidden</code> — 19.3 GB fp32 at S=32768, stacked on
+  32.8 GB of params and 27.8 GB of grads. Prefix-context encodes all but the last N tokens
+  under <code>no_grad</code> and backprops only through the tail, so activations track N while the
+  prefix costs <code>n_layers · 2 · n_kv · head_dim</code> = <strong>288 KB/token fp32</strong> (7.2 GB for a
+  24576-token prefix) and carries no autograd graph.</p>
+<p>Two implementation facts, both of which fail <em>silently</em> if got wrong:</p>
+<ol>
+<li>The prefix does <strong>not</strong> ride in a transformers <code>Cache</code>.
+     <code>GradientCheckpointingLayer.__call__</code> sets <code>past_key_values = None</code> whenever
+     <code>gradient_checkpointing and training</code>, so a checkpointed tail handed a real cache
+     attends to nothing — and the loss still falls. The K/V ride in <code>qat.attention</code>'s
+     prefix store, captured per attention module on the <code>no_grad</code> pass.</li>
+<li>The <code>prefix_window</code> block must span the <strong>backward</strong>, not just the forward.
+     Checkpoint recompute re-runs each layer inside <code>.backward()</code>; a recompute that cannot
+     see the prefix produces a differently-shaped attention and torch raises
+     <code>CheckpointError</code>.</li>
+</ol>
+<p>Gradients do not reach the prefix, so the model learns to <em>use</em> long context, not to
+  <em>build</em> it. For termination — whose signal is the trajectory's final <code>&lt;|im_end|&gt;</code> — the
+  gradient lives in the tail anyway.
+- <strong>An 8-bit optimizer buys nothing here; that lever was already pulled.</strong> Adafactor's
+  factored second moment is <code>exp_avg_sq_row</code> + <code>exp_avg_sq_col</code>, i.e. <code>rows + cols</code> floats
+  per tensor: <strong>65 KB of state for a 201 MB tensor, 0.03%</strong>. Across all 6.95 B trainable
+  params the optimizer state is ~9 MB. Quantizing it to 8 bits would save ~7 MB against a
+  ~90 GB working set. The memory is in params (32.8 GB) + grads (27.8 GB) + activations —
+  which is what <code>--trained-tail</code> and the byte-budgeted attention block address.
+- <strong>32K prefix-context RUNS, but the frozen prefix is quadratic — measured, and it is the
+  reason to use it selectively.</strong> Real training loop, all-36 / fp32 / adafactor, M4 Max
+  128 GB, <code>scripts/probe_window_budget.py</code>:</p>
+<p>All rows: real training loop, all-36 / fp32 / adafactor, accum 2, idle box after a 150 s
+  cooldown, <strong>scores recomputed</strong> unless italicised.</p>
+<table>
+<thead>
+<tr>
+<th>config</th>
+<th>s/step</th>
+<th>ms / <strong>trained</strong> token</th>
+<th>vs 8064</th>
+<th>targets trained</th>
+<th>SWE convs whole</th>
+<th>swap Δ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>8064 full-gradient</td>
+<td>178</td>
+<td>11.1</td>
+<td>1.0x</td>
+<td>100%</td>
+<td>27%</td>
+<td>flat</td>
+</tr>
+<tr>
+<td>16128 full-gradient</td>
+<td>626</td>
+<td>19.4</td>
+<td>1.8x</td>
+<td>100%</td>
+<td>68%</td>
+<td>+2.6 GB</td>
+</tr>
+<tr>
+<td>20480 full-gradient</td>
+<td>1061</td>
+<td>25.9</td>
+<td>2.3x</td>
+<td>100%</td>
+<td>81%</td>
+<td>+1.5 GB</td>
+</tr>
+<tr>
+<td>24576 full-gradient</td>
+<td>1372</td>
+<td>27.9</td>
+<td>2.5x</td>
+<td>100%</td>
+<td>88%</td>
+<td>+2.1 GB</td>
+</tr>
+<tr>
+<td><strong>32768 full-gradient</strong></td>
+<td><strong>1792</strong></td>
+<td><strong>27.3</strong></td>
+<td><strong>2.5x</strong></td>
+<td><strong>100%</strong></td>
+<td><strong>97%</strong></td>
+<td><strong>−3.9 GB</strong></td>
+</tr>
+<tr>
+<td>32768, tail 16384</td>
+<td>1490</td>
+<td>45.5</td>
+<td>4.1x</td>
+<td>54%</td>
+<td>97%</td>
+<td>−0.2 GB</td>
+</tr>
+<tr>
+<td>32768, tail 8192</td>
+<td>1790</td>
+<td>109</td>
+<td>9.9x</td>
+<td>26%</td>
+<td>97%</td>
+<td>+1.0 GB</td>
+</tr>
+<tr>
+<td>32768, tail 24576</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td><strong>OOM 133.8 GiB</strong></td>
+</tr>
+<tr>
+<td><em>32768, tail 8192, scores SAVED</em></td>
+<td><em>2230</em></td>
+<td><em>136</em></td>
+<td><em>12.3x</em></td>
+<td><em>26%</em></td>
+<td><em>97%</em></td>
+<td><em>+29 GB</em></td>
+</tr>
+<tr>
+<td><em>32768, tail 16384, scores SAVED</em></td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td><em>OOM 142.6 GiB</em></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Train the full window; do not use a prefix at 32768.</strong> Recomputing the attention
+  scores is the whole unlock — every "impossible" long window in the old table was really
+  N GiB of <em>saved attention weights</em> (31 GiB at 16128, 128 GiB at 32768) and nothing else.
+  With that fixed, <strong>32768 full-gradient runs at 2.5x the per-token cost of 8064 with swap
+  DECLINING</strong>, trains 100% of the labeled targets, and keeps 97% of SWE trajectories whole.</p>
+<p>Cost per trained token is essentially flat from 20480 to 32768 (25.9 / 27.9 / 27.3 ms) —
+  the quadratic attention term is still small next to the linear layers at this model size,
+  so the extra context is nearly free. Take the longest window that fits.</p>
+<p><code>--trained-tail</code> is now a fallback, not the plan. A prefix does not merely cost compute,
+  it <strong>discards training signal</strong>: targets are spread evenly through a window, so a tail of
+  T out of W trains ~T/W of them (measured on the 32768 SWE corpus, 26 windows / 267,392
+  labeled targets: tail 8192 → 25.9%, tail 16384 → 53.7%). At 32768 the prefix version is
+  both slower per trained token <em>and</em> trains half the data. Reach for it only past the
+  full-gradient activation ceiling — a longer window, or a bigger model.</p>
+<ul>
+<li><strong>fp32 latents, not bf16.</strong> bf16 either destabilizes (high lr) or <em>underflows</em> the
+  ternary threshold so no codes flip (low lr) — a ~lr update is below one bf16 ulp of
+  a ~1e-2 latent. <code>--compute-dtype bf16</code> is the supported middle path: fp32 masters
+  own the latents (updates accumulate exactly), only forward/backward run in bf16.</li>
+<li><strong>Fitting all 36 layers</strong>: fp32 AdamW needs ≈ 116 GB (model 32.8 + grads 27.8 +
+  2 fp32 states 55.6) → swaps. <strong><code>--optim adafactor</code> fits all-36 at ≈ 66-75 GB</strong>
+  (factored second moment is ~MBs). Real budget is the MPS working-set cap
+  (~75-80% of unified memory ≈ 96-102 GB on 128 GB), not the nominal 128;
+  <code>PYTORCH_MPS_HIGH_WATERMARK_RATIO=0.0</code> lifts the allocator cap in a pinch.
+  Partial-layer training remains available (<code>--layers</code> + the grad probe) and is now
+  cheaper: frozen layers whose weights are provably on-grid are left unwrapped.</li>
+</ul>
+<h2 id="corpus-masking-rules-why-the-training-is-on-tool-properly">Corpus / masking rules (why the training is "on tool" properly)<a class="headerlink" href="#corpus-masking-rules-why-the-training-is-on-tool-properly" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Loss is masked to assistant/tool-call tokens</strong> (<code>&lt;|im_start|&gt;assistant … &lt;|im_end|&gt;</code>
+  spans, tool_calls included) <strong>plus the terminating <code>&lt;|im_end|&gt;</code></strong> — the stop/EOS
+  decision. (Before this fix no position in the corpus had <code>&lt;|im_end|&gt;</code> as a CE
+  target, so the model was never trained to end its turn — the mechanistic cause of
+  the iter-2/3 looping. The builder now asserts labeled stop-token targets exist.)
+  Everything else is <code>-100</code>.</li>
+<li><strong>The session's REAL tool schemas are rendered</strong> (<code>tools=</code> → the <code># Tools</code> block) so
+  the model trains <em>schema-conditioned</em>, matching inference. logtrain stores them on
+  the system message; <code>reconstruct_tools</code> name→arg-key stubs are only the fallback for
+  schema-less log formats.</li>
+<li><strong>All-masked windows are dropped</strong> (a 4096 chunk landing in a long tool output has 0
+  trainable tokens → NaN CE); windows keep ≥8 trainable tokens, plus an optional
+  <code>--min-density</code> floor. <code>--max-tool-tokens</code> head+tail-truncates giant tool outputs —
+  density is the wall-time lever (attention is only ~17% of FLOPs at 4096, so shorter
+  windows barely help; fewer masked tokens do).</li>
+<li><strong>Train slice only</strong> (seed-42 split), disjoint from the eval/holdout slices;
+  <code>--split test</code> builds the validation corpus for <code>--val-corpus</code> from the disjoint
+  test slice.</li>
+<li>Known limitation: windows can straddle session boundaries (a window may start
+  mid-conversation under the previous session's residual context). Accepted packing
+  noise; a session-aligned packer is a possible follow-up.</li>
+<li>⚠️ Corpus rebuilds change the content fingerprint; <code>--resume</code> refuses a checkpoint
+  from a different corpus, and loss values across corpus versions are NOT comparable
+  (the stop-token class and real schemas shift both loss level and density).</li>
+</ul>
+<h2 id="what-we-found-ternary-bonsai-8b-the-first-target">What we found (Ternary-Bonsai-8B, the first target)<a class="headerlink" href="#what-we-found-ternary-bonsai-8b-the-first-target" title="Permanent link">&para;</a></h2>
+<p>The pipeline <strong>works end to end and measurably moves the model</strong> (masked loss
+2.26→1.0, tool-error 79→68%), but a light (0.5-epoch, partial-layer) fine-tune did
+<strong>not</strong> raise SWE-rebench patch/pass at 2-bit — the resolution floor is a capability
+wall. The follow-up audit (<code>docs/qat_optimization_audit.md</code>) found this outcome
+over-determined: the corpus never trained the stop token (hence the looping), real
+tool schemas were discarded for stubs, AdamW's default weight decay eroded latents,
+and at lr 5e-5 the flip-distance math predicts ~zero ternary code flips — the loss
+drop was likely scale drift, not capacity re-allocation. The infrastructure for the
+fuller attempt is now in place: all-36 layers via <code>--optim adafactor</code> (~66-75 GB),
+<code>--resume</code> for multi-day runs, code-flip telemetry + an LR probe, KD from the dense
+parent (<code>--kd-teacher</code>), bf16 compute over fp32 masters (<code>--compute-dtype bf16</code>), and
+the corrected corpus. Historical loss numbers are not comparable to post-fix runs.
+Full write-up: <code>ternary_calibration_experiments.md</code>.</p>
+<hr />
+<h1 id="reproducing-the-trajectory-runs-iter-5-iter-6">Reproducing the trajectory runs (iter-5 / iter-6)<a class="headerlink" href="#reproducing-the-trajectory-runs-iter-5-iter-6" title="Permanent link">&para;</a></h1>
+<p>Two ways to teach the ternary student, sharing every stage except the loss:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th><strong>Method A — verified-trajectory SFT</strong></th>
+<th><strong>Method B — teacher-logit KD</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Signal</td>
+<td>the solver's <em>sampled tokens</em> (hard labels)</td>
+<td>the teacher's <em>full next-token distribution</em></td>
+</tr>
+<tr>
+<td>Loss</td>
+<td>masked cross-entropy on assistant/tool tokens</td>
+<td>KL to the teacher's top-K + CE, blended by <code>kd_alpha</code></td>
+</tr>
+<tr>
+<td>Teacher at train time</td>
+<td>none (data is pre-generated)</td>
+<td>none either — logits are <strong>precomputed offline</strong></td>
+</tr>
+<tr>
+<td>Needs</td>
+<td>verified trajectories</td>
+<td>verified trajectories <strong>+</strong> a same-tokenizer dense teacher</td>
+</tr>
+<tr>
+<td>Status</td>
+<td>run end-to-end (iter-5, results below)</td>
+<td>precompute + loss validated; trainer wiring is the open step</td>
+</tr>
+</tbody>
+</table>
+<p>Both consume the same masked corpus and the same export/bench tail, so switching methods
+changes one training flag, not the pipeline.</p>
+<pre><code>   SWE-rebench split ──► instance pools (train pool ⟂ eval holdout)
+                              │
+                              ▼
+              Ornith-9B solver in Docker, graded by the hidden tests
+                              │   (keep only resolved=true)
+                              ▼
+                    masked corpus (.pt, student tokenizer)
+                         │                    │
+             Method A ◄──┘                    └──► kd_precompute.py ──► top-K table
+             masked CE                                  │
+                         └──────────► Method B: CE + KL ◄┘
+                                          │
+                                          ▼
+                       export Q2_0 GGUF ──► dual SWE-rebench bench
+</code></pre>
+<h2 id="stage-0-instance-pools-disjoint-by-construction">Stage 0 — instance pools (disjoint by construction)<a class="headerlink" href="#stage-0-instance-pools-disjoint-by-construction" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash"># full split to disk once: the datasets-server /rows preview API rate-limits (429)
+.venv/bin/python scripts/download_swebench_dataset.py   # -&gt; out/external/swe-rebench/all_test.jsonl
+
+# what we GRADE on
+PYTHONPATH=src .venv/bin/python scripts/build_swebench_holdout.py --n 10 \
+    --from-local out/external/swe-rebench/all_test.jsonl \
+    --out out/external/swe-rebench/holdout.jsonl
+
+# what we TRAIN on — --exclude keeps the eval holdout out of the pool
+PYTHONPATH=src .venv/bin/python scripts/build_swebench_holdout.py --n 150 \
+    --from-local out/external/swe-rebench/all_test.jsonl \
+    --exclude out/external/swe-rebench/holdout.jsonl \
+    --out out/external/swe-rebench/distill_train.jsonl
+</code></pre>
+<p><code>--exclude</code> is the invariant that makes the headline number meaningful: the student is never
+graded on an issue whose solution it was trained on. The in-distribution eval (below) is the
+deliberate <em>violation</em> of that, run separately as a diagnostic.</p>
+<h2 id="stage-1-generate-verified-trajectories">Stage 1 — generate verified trajectories<a class="headerlink" href="#stage-1-generate-verified-trajectories" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">bash scripts/run_ornith_distill_gen.sh          # --resume safe; kill and restart freely
+</code></pre>
+<p>Drives <strong>Ornith-1.0-9B (Q5_K_M)</strong> — 100% patch / 60% resolved on the eval holdout — through
+<code>run_swebench_eval.py --agent openai-agents --temperature 0.25 --max-steps 100</code>, one clean
+Docker container per instance. Every trajectory is graded by <strong>actually running the gold
+<code>FAIL_TO_PASS</code>/<code>PASS_TO_PASS</code> tests</strong>, so <code>resolved=true</code> means verified, not plausible.</p>
+<p>Artifacts land at
+<code>out/swe-rebench/ornith-distill-gen/trajectories/Ornith-1.0-9B-Q5_K_M/&lt;instance&gt;.{traj,result}.json</code>.</p>
+<p>Practicalities, all learned the hard way:
+- <strong>Budget ~10-14 h per 100 instances</strong> on Apple Silicon: the SWE-rebench images are
+  <code>linux/amd64</code> and run under emulation.
+- <code>--resume</code> skips anything already graded; <code>--cleanup-images</code> removes each instance's SWE
+  image after grading. That <em>untags</em> rather than deletes, leaving <code>&lt;none&gt;</code> dangling layers, so
+  run <code>bash scripts/docker_housekeep.sh</code> alongside long generations or the disk fills
+  (78 GB of dangling images once stalled a run with a bare <code>exit 125</code>).
+- Docker Desktop's VM disk is the real cap, and it is shared with everything else you run.</p>
+<h3 id="stage-1b-going-multi-language-swe-rebench-v2">Stage 1b — going multi-language (SWE-rebench-V2)<a class="headerlink" href="#stage-1b-going-multi-language-swe-rebench-v2" title="Permanent link">&para;</a></h3>
+<p>Stage 1 as written harvests <strong>Python only</strong> — SWE-rebench V1 is a Python/pytest dataset.
+To stop the student overfitting to one language, generate from
+<a href="https://huggingface.co/datasets/nebius/SWE-rebench-V2"><strong>SWE-rebench-V2</strong></a>: 32,079
+instances across 20 languages, same instance schema plus a <code>language</code> field.</p>
+<pre><code class="language-bash"># 0. full V2 split to disk (defaults follow the dataset: split=train, v2_all.jsonl)
+.venv/bin/python scripts/download_swebench_dataset.py --dataset nebius/SWE-rebench-V2
+
+# 1. a language-BALANCED eval holdout, then a training pool disjoint from it
+LANGS=python,go,ts,js,rust,java,php,kotlin
+PYTHONPATH=src .venv/bin/python scripts/build_swebench_holdout.py \
+    --from-local out/external/swe-rebench/v2_all.jsonl \
+    --languages $LANGS --difficulty medium --max-f2p 25 --n 24 --seed 42 \
+    --out out/external/swe-rebench/holdout_multilang.jsonl
+PYTHONPATH=src .venv/bin/python scripts/build_swebench_holdout.py \
+    --from-local out/external/swe-rebench/v2_all.jsonl \
+    --languages $LANGS --difficulty medium --max-f2p 25 --n 240 --seed 7 \
+    --exclude out/external/swe-rebench/holdout_multilang.jsonl \
+    --out out/external/swe-rebench/distill_train_multilang.jsonl
+
+# 2. PROVE THE GRADER WORKS before burning hours (gold patches must resolve)
+PYTHONPATH=src .venv/bin/python scripts/validate_swebench_v2_grading.py \
+    --holdout out/external/swe-rebench/holdout_multilang.jsonl --per-language 1
+
+# 3. generate — against a server you already have running (LM Studio etc.)
+BASE_URL=http://localhost:1234/v1 MODEL=ornith-1.0-35b \
+    bash scripts/run_multilang_distill_gen.sh
+</code></pre>
+<p><strong>Selection knobs that matter.</strong> <code>--balanced</code> (auto-on with <code>--languages</code>) samples
+round-robin, so Python/Go/JS — the three biggest buckets — can't crowd out the rest.
+<code>--clean-only</code> (default) keeps only annotator-code <code>A</code> tasks; the <code>B1..B6</code> codes flag
+underspecified issues and tests keyed to implementation details, which yield trajectories
+that are either garbage or accidentally-correct. <code>--max-f2p 25</code> drops rows whose
+FAIL_TO_PASS lists the <strong>whole suite</strong> (some have 16,000+ ids), where "resolved" would
+demand every test in the repo pass.</p>
+<p><strong>Three things differ per instance, and getting any of them wrong is silent:</strong></p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>V1 (Python)</th>
+<th>V2 (20 languages)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>checkout dir</td>
+<td><code>/testbed</code></td>
+<td><code>/&lt;repo-name&gt;</code></td>
+</tr>
+<tr>
+<td>test command</td>
+<td>pytest + node ids, wrapped in <code>conda run -n testbed</code></td>
+<td>the instance's own <code>install_config.test_cmd</code>, no conda</td>
+</tr>
+<tr>
+<td>log → statuses</td>
+<td>our pytest <code>-rA</code> parser</td>
+<td>the parser the instance names in <code>install_config.log_parser</code></td>
+</tr>
+</tbody>
+</table>
+<p>The parsers are <strong>vendored verbatim</strong> from SWE-rebench-V2 (MIT) into
+<code>src/quant_tuner/eval/_swerebench_v2_parsers.py</code> — 76 of them — because the recorded
+FAIL_TO_PASS ids are literally whatever <em>that exact function</em> emitted at dataset-build
+time. A near-miss reimplementation parses zero matching ids and marks every trajectory
+unresolved, which reads exactly like "the model failed." Re-vendor with
+<code>scripts/vendor_swerebench_parsers.py</code> (<code>--check</code> for drift), then re-run the golden
+check. Some runners embed timings in the test name (<code>… [20.82 ms]</code>), so both the recorded
+and the freshly-parsed ids are timing-normalized before comparison.</p>
+<p><strong>Always run the golden-patch check first.</strong> It applies each instance's own gold patch and
+requires <code>resolved=True</code>; a failure there means the <em>harness</em> is wrong, not the model.
+It also distinguishes the recurring <code>docker run</code> exit-125 (registry unreachable vs. full
+Docker VM disk) instead of leaving an opaque <code>CalledProcessError</code>.</p>
+<h2 id="stage-2-masked-corpus-from-the-resolved-trajectories">Stage 2 — masked corpus from the resolved trajectories<a class="headerlink" href="#stage-2-masked-corpus-from-the-resolved-trajectories" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">PYTHONPATH=src .venv/bin/python scripts/build_ornith_distill_corpus.py \
+    --traj-dir out/swe-rebench/ornith-distill-gen/trajectories/Ornith-1.0-9B-Q5_K_M \
+    --max-tool-tokens 1024 --out out/exp-058/distill_corpus.pt
+</code></pre>
+<p>Keeps <code>resolved=true</code> sessions only, re-renders them through the <strong>student's</strong> tokenizer and
+chat template, and masks the loss to assistant/tool-call tokens <strong>plus the terminating
+<code>&lt;|im_end|&gt;</code></strong> (see the masking rules above — omitting the stop token is what caused the
+iter-2/3 looping). Flattening is <code>quant_tuner.qat.corpus.trajectory_to_messages</code>, shared with
+the published dataset builder so the two cannot drift.</p>
+<h3 id="stage-2b-the-universal-sft-corpus-preferred-for-a-new-run">Stage 2b — the universal SFT corpus (preferred for a new run)<a class="headerlink" href="#stage-2b-the-universal-sft-corpus-preferred-for-a-new-run" title="Permanent link">&para;</a></h3>
+<p><code>data.universal</code> writes an <code>sft.jsonl.gz</code> next to the calibration corpus: <strong>full</strong>
+conversations (no windowing, no clipping, no stubbing, no chat template applied), real
+tool schemas, system prompts already boilerplate-scrubbed, and a <code>split</code> field that
+matches the calibration corpus — so training on <code>split=="train"</code> keeps every eval holdout
+held out. <code>build_sft_qat_corpus.py</code> masks and packs it exactly like the other two corpora:</p>
+<pre><code class="language-bash">PYTHONPATH=src .venv/bin/python scripts/build_sft_qat_corpus.py \
+    --sft out/corpora/qwen3-universal/sft.jsonl.gz \
+    --window 8064 --max-tool-tokens 3072 --min-density 0.05 \
+    --out out/exp-058/sft_corpus_universal_8064.pt
+# and the disjoint validation corpus for --val-corpus:
+PYTHONPATH=src .venv/bin/python scripts/build_sft_qat_corpus.py \
+    --sft out/corpora/qwen3-universal/sft.jsonl.gz --split test \
+    --window 8064 --max-tool-tokens 3072 --min-density 0.05 \
+    --out out/exp-058/sft_val_universal_8064.pt
+</code></pre>
+<p><strong>Every source is taken whole</strong> (<code>SFT_DEFAULT_BUDGETS = {}</code>). This is the deliberate
+difference from the calibration corpus, which <em>is</em> token-budgeted (~4.4M) because
+llama-imatrix/AWQ/GPTQ each sample a fixed slice of it and an unbalanced mix skews
+<code>E[a²]</code>. QAT spends its budget in <strong>epochs</strong>, not in tokens on disk — so put everything on
+disk and use fractional <code>--epochs</code>. Cap a source with <code>--budget SOURCE=N</code> (<code>0</code> drops it).</p>
+<p>Sources are packed <strong>separately</strong>, so a window never glues two of them together.</p>
+<h4 id="what-the-preprocessing-costs-audited-printed-on-every-build">What the preprocessing costs (audited, printed on every build)<a class="headerlink" href="#what-the-preprocessing-costs-audited-printed-on-every-build" title="Permanent link">&para;</a></h4>
+<p>The builder prints per source, and stores in the blob's <code>per_source</code>: tool-calls
+rendered / in source, reasoning turns rendered / in source, tokens dropped by tool-output
+truncation as a <strong>share of that source's conversation content</strong>, and windows dropped by
+the density floor. Measured on the Qwen3-universal SFT file:</p>
+<ul>
+<li><strong>Tool calls survive 1:1.</strong> Nothing in the chain drops a <code>tool_calls</code> field.</li>
+<li><strong>Reasoning survives for agentic trajectories, not for chat logs.</strong> The template keeps
+  <code>reasoning_content</code> only on assistant turns <em>after the last user turn</em>. An agent
+  trajectory is one task turn followed by dozens of assistant/tool turns, so <strong>all</strong> of it
+  is kept (measured 74/74 on an agent-log sample); a multi-turn CLI chat log keeps only
+  its tail segment. That is also what the model sees at inference, so it is the right
+  distribution — but it means the ~383 reasoning turns in the CLI logs mostly don't reach
+  the corpus, while the ~3,900 in the agent logs do.</li>
+<li><strong>Tool-output truncation is by far the biggest cut, and <code>--max-tool-tokens</code> is the
+  knob.</strong> At an 8064 window, measured over a 24-conversation sample:</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th><code>--max-tool-tokens</code></th>
+<th>conversation content dropped</th>
+<th>windows kept (<code>--min-density</code> 0 / .05 / .10)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1024</td>
+<td><strong>28%</strong></td>
+<td>74 / 74 / 69</td>
+</tr>
+<tr>
+<td>2048</td>
+<td>20%</td>
+<td>83 / 78 / 74</td>
+</tr>
+<tr>
+<td>3072</td>
+<td>15%</td>
+<td>87 / 81 / 74</td>
+</tr>
+<tr>
+<td><strong>4096</strong></td>
+<td><strong>13%</strong></td>
+<td><strong>89 / 79 / 75</strong></td>
+</tr>
+<tr>
+<td>0 (off)</td>
+<td>0%</td>
+<td>93 / 82 / 75</td>
+</tr>
+</tbody>
+</table>
+<p>1024 was right at a 4096 window and is far too aggressive above it. Scale it with the
+  window so one tool result can never eat more than ~a third of it: <strong>3072 at window 8064</strong>
+  (drops 15% of conversation content, down from 28% at 1024), 4096 at 12288 (13%). Note the interaction with <code>--min-density</code>: at 0.10 the
+  extra tool context just pushes windows below the floor and they get dropped anyway, so
+  keeping more history buys nothing there. <strong>0.05</strong> is the setting that actually keeps it.</p>
+<h2 id="stage-3a-method-a-masked-ce-training">Stage 3A — Method A: masked-CE training<a class="headerlink" href="#stage-3a-method-a-masked-ce-training" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">bash scripts/run_iter5_pipeline.sh 5e-4 myrun 2.2      # LR / tag / epochs -&gt; train, export, bench
+</code></pre>
+<p>which is <code>quant_tuner.qat.train</code> (CLI shim <code>scripts/exp058_qat_train_v2.py</code>) at:</p>
+<pre><code class="language-bash">PYTORCH_ENABLE_MPS_FALLBACK=1 PYTHONPATH=src .venv/bin/python scripts/exp058_qat_train_v2.py \
+    --corpus out/exp-058/distill_corpus.pt \
+    --layers 0-35 --optim adafactor --dtype fp32 \
+    --epochs 2.2 --grad-accum 2 --lr 5e-4 \
+    --ckpt-every 20 --flip-sample 12 --out out/exp-058/trained_myrun
+</code></pre>
+<p><strong>The LR is the whole ballgame</strong>, because a ternary model only learns by <em>flipping codes</em>:</p>
+<table>
+<thead>
+<tr>
+<th>LR</th>
+<th>what actually happens</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>3e-4</td>
+<td>~0% code flips — the run only drifts fp16 scales. Loss falls; the model is unchanged.</td>
+</tr>
+<tr>
+<td><strong>5e-4</strong></td>
+<td><strong>~0.7% flips, loss ~0.5 at ~2.2 epochs — the measured sweet spot</strong></td>
+</tr>
+<tr>
+<td>1e-3</td>
+<td>real flips, but tool-calling degrades on small corpora</td>
+</tr>
+</tbody>
+</table>
+<p>Watch the <strong>flip telemetry</strong> (every 20 steps, and again at export vs the shipped weights).
+A run reporting ~0% flips has learned nothing structural — fix that before spending 10 h on a
+SWE-rebench eval. Also don't over-train: 8 epochs drove loss to 0.01, i.e. memorization.</p>
+<h2 id="stage-3b-method-b-teacher-logit-kd-iter-6">Stage 3B — Method B: teacher-logit KD (iter-6)<a class="headerlink" href="#stage-3b-method-b-teacher-logit-kd-iter-6" title="Permanent link">&para;</a></h2>
+<p>Hard labels waste most of what a teacher knows: only the sampled token is supervised. KD
+supervises the whole distribution, which matters at 2 bits where the student cannot match the
+teacher exactly and should at least be <em>wrong in the same direction</em>.</p>
+<p><code>train.py --kd-teacher</code> runs the teacher in-loop, but that holds ~16 GB resident next to a
+student already at the MPS ceiling. So run the teacher <strong>once, offline</strong>, and keep only the
+top-K:</p>
+<pre><code class="language-bash">.venv/bin/python scripts/kd_precompute.py \
+    --teacher SWE-Lego/SWE-Lego-Qwen3-8B \
+    --corpus out/exp-058/distill_corpus.pt \
+    --topk 64 --out out/exp-058/kd_topk.pt
+#   --max-windows 4   smoke test first: validates tokenizer + arch before the full pass
+</code></pre>
+<p>Measured on SWE-Lego-Qwen3-8B over the iter-5 corpus: <strong>top-64 captures 99.8% of the teacher's
+mass</strong> (median 100%), teacher top-1 == gold label 83.7% of the time, gold inside the stored
+top-64 at 98.9% of positions. Cost: ~0.4 KB per labeled position (<strong>125 MB</strong> for a 217-window
+corpus vs ~16 GB resident), and training gets <em>cheaper</em> than plain CE since the teacher never
+runs. The table stores <code>win/pos/idx(int32)/logp(fp16)/tail</code>, where <code>tail</code> is the log-mass
+outside the top-K so the renormalization is exact.</p>
+<p><strong>Choosing a teacher — the tokenizer, not the vocab size, is the constraint.</strong> Per-token KD
+across different tokenizers is silently wrong, so <code>tokenizer_compatibility()</code> compares actual
+id→token <em>strings</em> and refuses divergent pairs. A padded embedding matrix is fine and common:
+SWE-Lego-Qwen3-8B reports <code>vocab_size</code> 151936 vs Bonsai's 151669, but the tokenizers are
+byte-identical over all 151669 ids, so logits are sliced to the shared prefix.</p>
+<p>The precompute is deliberately <strong>architecture-agnostic</strong>, so switching to a newer/larger-vocab
+teacher needs no format change:
+- <code>resolve_vocab_size()</code> walks nested configs (<code>text_config</code> / <code>llm_config</code> / <code>decoder</code>), so
+  multimodal wrappers (e.g. <code>BeeForConditionalGeneration</code>) resolve to their LM vocab.
+- <code>load_teacher()</code> tolerates published-config quirks — SWE-Lego really does ship
+  <code>max_position_embeddings: 163840.0</code> as a float, which strict validation rejects.
+- The forward uses <code>logits_to_keep</code> where supported, with a full-logits gather fallback.
+- Top-K storage is ids + values, so it is vocab-size independent.</p>
+<p><code>kd_loss_from_topk()</code> consumes the table. It renormalizes <strong>both</strong> sides over the stored top-K
+— an early version normalized only the teacher, which left a constant offset and scored a
+<em>identical</em> student at 0.89 instead of 0; <code>tests/unit/test_kd_precompute.py</code> pins that
+identity-is-zero property.</p>
+<blockquote>
+<p><strong>Status</strong>: precompute and loss are validated (unit tests + a real-weights smoke run);
+<code>train.py</code> still consumes only the in-loop <code>--kd-teacher</code>. Wiring the offline table into the
+training step is the remaining iter-6 task.</p>
+</blockquote>
+<h2 id="stage-4-export-and-dual-bench">Stage 4 — export and dual bench<a class="headerlink" href="#stage-4-export-and-dual-bench" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">LLAMA_CPP_DIR=vendor/llama.cpp-prism PYTHONPATH=src .venv/bin/python \
+    scripts/exp057_qat_export.py --latents out/exp-058/trained_myrun/trained_latents.pt --tag myrun
+
+# generalization: the disjoint 10-instance holdout (the number that counts)
+PYTHONPATH=src .venv/bin/python scripts/run_swebench_eval.py \
+    --models out/exp-057/Ternary-Bonsai-8B-myrun-Q2_0.gguf \
+    --holdout out/external/swe-rebench/holdout.jsonl \
+    --workspace out/swe-rebench/ternary-myrun-swe \
+    --agent openai-agents --temperature 0.25 --max-steps 100 --resume --cleanup-images
+
+# in-distribution: the instances it TRAINED on (diagnostic, expected inflated)
+bash scripts/run_iter5_indist_eval.sh myrun
+</code></pre>
+<p>Read them together: in-dist up + generalization flat = it learned but overfit (get more data);
+both up = real learning; both flat = the run was scale-drift, check the flip telemetry.</p>
+<h3 id="quantifying-what-actually-changed">Quantifying what actually changed<a class="headerlink" href="#quantifying-what-actually-changed" title="Permanent link">&para;</a></h3>
+<p>Three numbers, in the order you should read them — the first one gates the other two:</p>
+<ol>
+<li><strong>Code flips vs the shipped weights</strong>, printed by <code>exp057_qat_export.py</code> over the whole
+   artifact (the trainer's per-20-step <code>--flip-sample</code> telemetry is the live version). This
+   is the only direct measure that the ternary <em>codes</em> moved rather than the fp16 scales
+   drifting under them. <strong>~0% flips means the run changed nothing structural</strong> — the loss
+   falling is not evidence otherwise, and there is no point spending ~10 h of agentic eval
+   on it. On this model, lr 3e-4 flipped ~0% and lr 5e-4 flipped ~0.7%.</li>
+<li><strong>Validation masked-CE</strong> (<code>--val-corpus</code>, every <code>--val-every</code> steps) on the disjoint
+   <code>test</code> split. Falling val CE with non-zero flips is the healthy signature; falling
+   train loss with flat val CE at 8 epochs was memorization.</li>
+<li><strong>Agentic <code>patch_rate</code> / <code>pass_rate</code></strong> on the 10-instance holdout, printed by the
+   pipeline's last line. <code>patch_rate</code> (produced a non-empty diff at all) is the capability
+   floor and moves first; <code>pass_rate</code> (gold tests pass) is the real target. Check
+   <code>tool_error_rate</code> and <code>mean_steps</code> alongside — a model that stops tool-calling scores a
+   deceptively clean-looking run. Full trajectories land in
+   <code>&lt;workspace&gt;/trajectories/&lt;model&gt;/*.traj.json</code> for reading the failures directly.</li>
+</ol>
+<p>Q2_0 (ftype 41) requires the <strong>prism llama.cpp fork</strong> — hence <code>LLAMA_CPP_DIR=vendor/llama.cpp-prism</code>.
+It is <strong>not</strong> a tracked submodule (seven scripts export that path and none of them said where
+it comes from, which cost a session's worth of rediscovery on a fresh box). Clone and build
+it before the export stage:</p>
+<pre><code class="language-bash">git clone https://github.com/PrismML-Eng/llama.cpp vendor/llama.cpp-prism   # `prism` is the default branch
+cmake -S vendor/llama.cpp-prism -B vendor/llama.cpp-prism/build -DGGML_CUDA=ON  # -DGGML_METAL=ON on a Mac
+cmake --build vendor/llama.cpp-prism/build -j --target llama-quantize llama-cli llama-perplexity
+</code></pre>
+<p>The URL is recorded in the <code>prism-ml/Ternary-Bonsai-8B-gguf</code> model card. Note the sibling
+GGUF repo <code>prism-ml/Ternary-Bonsai-8B</code> <strong>404s</strong> — the weights live under
+<code>…-8B-gguf</code> (packed) and <code>…-8B-unpacked</code> (the trainable fp16 safetensors this pipeline
+starts from), so <code>out/exp-057/model</code> is a snapshot of the <em>unpacked</em> repo and its
+<code>chat_template.jinja</code> is the authoritative template to restore at export.</p>
+<h2 id="unattended-grow-data-until-it-generalizes">Unattended: grow data until it generalizes<a class="headerlink" href="#unattended-grow-data-until-it-generalizes" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">bash scripts/run_iter5_autoloop.sh
+</code></pre>
+<p>Per round: source a fresh batch of instances disjoint from both the eval holdout and everything
+already tried → generate → rebuild corpus + in-dist holdout from <em>all</em> resolved trajectories →
+retrain at the fixed sweet spot → export → dual-bench. <strong>Stops</strong> when generalization
+<code>pass_rate &gt; 0</code> or <code>patch_rate &gt;= 0.60</code>, or at <code>MAX_ROUNDS</code>. Round artifacts are tagged
+<code>iter5-rN</code>. It self-manages the dangling-image guard for the whole lifetime and auto-salvages
+from the last checkpoint if a training run dies.</p>
+<h2 id="what-this-produced">What this produced<a class="headerlink" href="#what-this-produced" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">verified trajectories</th>
+<th style="text-align: right;">generalization patch</th>
+<th style="text-align: right;">generalization pass</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">12</td>
+<td style="text-align: right;">40%</td>
+<td style="text-align: right;">0%</td>
+</tr>
+<tr>
+<td style="text-align: right;">30</td>
+<td style="text-align: right;">50%</td>
+<td style="text-align: right;">0%</td>
+</tr>
+<tr>
+<td style="text-align: right;">60</td>
+<td style="text-align: right;">50%</td>
+<td style="text-align: right;">0%</td>
+</tr>
+</tbody>
+</table>
+<p>More verified data recovers the model's <em>ability to produce a patch</em> but has so far produced
+<strong>zero passes on unseen issues</strong> — the 2-bit resolution floor looks like a capability wall,
+not a data-quantity wall, which is the motivation for Method B. (A single 8% in-distribution
+solve at 12 trajectories did <strong>not</strong> replicate at 30; treat it as noise.)</p>
+<h2 id="memory-the-ooms-you-will-otherwise-hit">Memory: the OOMs you will otherwise hit<a class="headerlink" href="#memory-the-ooms-you-will-otherwise-hit" title="Permanent link">&para;</a></h2>
+<p>macOS sends <strong>SIGKILL</strong>, so there is no traceback — the log just ends in <code>Killed: 9</code>. Diagnose
+these by watching <code>sysctl vm.swapusage</code> alongside the step log, not by reading the crash.
+Note that swap <code>used</code> is a poor live gauge on its own: it counts stale pages from dead
+processes and does not shrink eagerly, so read the <em>trend</em> while a run is up, not the absolute.</p>
+<p>Four distinct causes, all now fixed — the first three cost three killed runs on a 128 GB M4 Max
+at all-36 / window 8064:</p>
+<ol>
+<li><strong><code>--resume</code> leaked the entire checkpoint.</strong> <code>torch.load(resume, map_location="cpu")</code> is
+   function-scoped and was never freed, so ~28 GB of latents sat resident next to the 30 GB
+   model <em>for the whole run</em>; <code>[latents[n] for n in t_names]</code> also pinned every tensor while
+   applying them. Now loaded with <code>mmap=True</code> (file-backed pages the kernel can evict, not
+   anonymous memory that can only go to swap), consumed tensor-by-tensor with <code>.pop()</code>, then
+   cleared and gc'd. Resume peak went 70 GB → flat.</li>
+<li><strong>The lm_head ran on all labeled positions at once.</strong> <code>[1, K, vocab]</code> fp32 where <strong>K is the
+   window's trainable-token count</strong>, which varies per window (density 0.05–1.00): 1.55 GiB at
+   the mean K, <strong>4.56 GiB at K=8064</strong>, ~3× that with softmax and backward. This is why runs
+   died at step ~12 and ~14 rather than at a fixed point, and why a single-window probe never
+   reproduced it. The plain masked-CE path now passes <code>need_logits=False</code> and chunks the
+   lm_head + CE into <code>LOGIT_CHUNK</code> (1024) blocks recomputed in the backward — peak ~0.6 GiB
+   regardless of K, at no measurable speed cost. Only KD needs the logits themselves.</li>
+<li><strong>The MPS cache release was too sparse.</strong> Every 25 steps let the allocator working set creep
+   into swap between releases. Now <code>--empty-cache-every</code>, default 5; it costs ~1 s against a
+   ~355 s step.</li>
+<li><strong><code>save_ckpt</code>'s ~28 GB whole-dict <code>.cpu()</code> transient</strong> on a <code>--ckpt-every</code> boundary. It
+   releases the MPS cache <em>before</em> the copy. <strong>Do not lower <code>--ckpt-every</code> to "be safer"</strong> —
+   that was tried and made things worse, since each save is itself an OOM risk. 25 (~2.5 h of
+   work at risk) is the right side of the trade.</li>
+</ol>
+<p>Healthy steady state after all four, for comparison: MPS resident <strong>30.8 GiB</strong>, swap <strong>flat or
+declining</strong>, 356 s/step. If swap climbs monotonically while a run is up, something above has
+regressed.</p>
+<p>Stay in <strong>fp32</strong>: <code>--compute-dtype bf16</code> is a <em>pessimization</em> at all-36 (measured 54.5 GiB vs
+31 GiB), because <code>MasterOptimizer</code> keeps a full fp32 master copy on top of the bf16 model+grads.</p>
+<h2 id="publishing-the-trajectories-as-a-dataset">Publishing the trajectories as a dataset<a class="headerlink" href="#publishing-the-trajectories-as-a-dataset" title="Permanent link">&para;</a></h2>
+<p>Datasets are staged under <code>datasets/&lt;name&gt;/</code> and versioned independently of the code. The
+payloads are gitignored (regenerable, and they live on the Hub); the card, <code>manifest.json</code> and
+<code>CHANGELOG.md</code> are tracked so the repo records exactly what was published.</p>
+<pre><code class="language-bash">.venv/bin/python scripts/dataset.py list
+.venv/bin/python scripts/dataset.py build swe-agentic-trajectories
+.venv/bin/python scripts/dataset.py push  swe-agentic-trajectories --dry-run          # verify first
+.venv/bin/python scripts/dataset.py push  swe-agentic-trajectories --bump minor -m &quot;add round-3&quot;
+</code></pre>
+<p><code>push</code> rebuilds, bumps the version, uploads, and tags the Hub repo <code>v&lt;version&gt;</code> so earlier
+releases stay pinnable via <code>load_dataset(..., revision="v0.1.0")</code>. The manifest records a
+release <strong>only after</strong> a successful upload, so a failed push cannot claim one.</p>
+<p>A split with <code>publish=False</code> is built locally but withheld from the Hub <em>and</em> from the card —
+that is how the <code>all</code> split (including failures) stays available for failure analysis while
+only verified solutions ship. Published: <strong><a href="https://huggingface.co/datasets/pearsonkyle/swe-agentic-trajectories">pearsonkyle/swe-agentic-trajectories</a></strong>.</p>
+<p><strong>Adding a new dataset is a one-entry change</strong>: write a builder that yields dicts, then append
+a <code>DatasetSpec</code> to <code>REGISTRY</code> in <code>src/quant_tuner/datasets/registry.py</code>. Staging layout, card
+rendering, versioning, changelog and push are shared.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "content.code.copy", "search.highlight", "search.suggest", "search.preview"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

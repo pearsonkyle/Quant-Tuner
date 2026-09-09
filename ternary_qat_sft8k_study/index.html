@@ -1,0 +1,2023 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Calibrate your own GGUF quantizations and vLLM W4A16 checkpoints from real agentic-coding logs">
+      
+      
+        <meta name="author" content="K. Pearson">
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Continued QAT of a natively-ternary model: the sft8k-full run - quant-tuner</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#continued-qat-of-a-natively-ternary-model-the-sft8k-full-run" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="quant-tuner" class="md-header__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            quant-tuner
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Continued QAT of a natively-ternary model: the sft8k-full run
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18V6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-2.69L23.31 12 20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="quant-tuner" class="md-nav__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    quant-tuner
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methods
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Methods
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The three calibrators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipe reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calibration_datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calibration datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmarks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lens/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jacobian lens
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT for ternary models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    QAT for ternary models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method & invariants
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_curriculum/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curriculum
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_preprint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Preprint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary/HANDOFF/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B stage 1 (handoff)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run logs (Qwen 3.8 family)
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Run logs (Qwen 3.8 family)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_release/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 release
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_awq_2bit_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 AWQ 2-bit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_gptq_vllm_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 GPTQ vLLM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_exp062_rebuild/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 exp-062 rebuild
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Research notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_32k_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT 32K handoff
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_optimization_audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT optimization audit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_run_history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT run history
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_calibration_experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ternary calibration experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patch_gguf_chat_template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patch a GGUF chat template
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_feasibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary feasibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reddit_ternary_qat_post/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reddit: ternary QAT post
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-this-run-is-interesting" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why this run is interesting
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#observation-1-the-run-diverged-at-peak-lr-then-fully-recovered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observation 1 — the run diverged at peak LR, then fully recovered
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#observation-2-the-shipped-model-is-3442-zeros-and-it-is-exactly-symmetric" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observation 2 — the shipped model is ~34–42% zeros, and it is exactly ±symmetric
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#observation-3-codes-move-through-zero-they-essentially-never-cross-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observation 3 — codes move through zero; they essentially never cross it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#observation-4-flip-velocity-peaks-and-decays-in-depth-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observation 4 — flip velocity peaks and decays, in depth order
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#observation-5-training-efficiency-peaked-at-step-200-and-has-halved-since" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observation 5 — training efficiency peaked at step 200 and has halved since
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#observation-6-cost-and-the-memory-regime" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Observation 6 — cost, and the memory regime
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-we-could-not-measure-and-now-can" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What we could not measure (and now can)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#figure-audit-what-rendering-them-actually-caught" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Figure audit — what rendering them actually caught
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-the-audit-changed-in-the-trainer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What the audit changed in the trainer
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#outcome-behaviour-changed-capability-did-not" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Outcome — behaviour changed, capability did not
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Outcome — behaviour changed, capability did not">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-it-loops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why it loops
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-32k-hypothesis-and-what-blocks-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The 32K hypothesis, and what blocks it
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#measurement-caveat" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measurement caveat
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#open-questions-for-the-next-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Open questions for the next run
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="continued-qat-of-a-natively-ternary-model-the-sft8k-full-run">Continued QAT of a natively-ternary model: the <code>sft8k-full</code> run<a class="headerlink" href="#continued-qat-of-a-natively-ternary-model-the-sft8k-full-run" title="Permanent link">&para;</a></h1>
+<p><strong>Status: complete</strong> (522/522, exported, benchmarked). This is the running record of
+what the run's telemetry shows, and the source document for a write-up. Numbers here are
+extracted from the training log by <code>scripts/parse_qat_log.py</code>; raw series live in
+<code>out/exp-058/telemetry/{steps,val,flips}.csv</code>.</p>
+<p>Method, hyperparameters and the reproduction command are in <code>docs/ternary_qat.md</code> — this
+document is the <em>observations</em>, not the how-to.</p>
+<h2 id="why-this-run-is-interesting">Why this run is interesting<a class="headerlink" href="#why-this-run-is-interesting" title="Permanent link">&para;</a></h2>
+<p>A natively-ternary model stores <code>w = s·c</code>, <code>c ∈ {−1,0,+1}</code>. Post-hoc quantization
+calibration (imatrix/AWQ/GPTQ) is a structural no-op on it: the "F16" checkpoint is a
+lossless container for weights that are already ternary, so there is no quantization error
+to recover. The only lever is continued training with the ternarization in the loop.</p>
+<p>That makes the interesting quantity not the loss but <strong>which codes change</strong>, because a
+ternary model can lower its loss two ways:</p>
+<ul>
+<li><strong>scale drift</strong> — the per-group scale <code>s</code> moves, every code stays put. Cheap, and mostly
+  cosmetic: it rescales what the model already computes.</li>
+<li><strong>code flips</strong> — <code>c</code> actually changes. This is the only way the model's <em>function</em> changes
+  in a way that survives export to a 2-bit GGUF.</li>
+</ul>
+<p>A run can show a falling loss with ~0% flips (measured previously at lr 3e-4 on a smaller
+corpus). That looks like learning and isn't. So every observation below is reported against
+flip telemetry, not loss.</p>
+<h2 id="setup">Setup<a class="headerlink" href="#setup" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>base</td>
+<td><code>prism-ml/Ternary-Bonsai-8B</code> (native ternary, 36 layers)</td>
+</tr>
+<tr>
+<td>corpus</td>
+<td>universal SFT export, all 5 sources, uncapped — 2088 windows × 8064 tok = 19.4M tok</td>
+</tr>
+<tr>
+<td>sources</td>
+<td>CLI logs (931 win), agent logs (989), SWE trajectories (106), broad-instruct (52), red-team refusals (10)</td>
+</tr>
+<tr>
+<td>objective</td>
+<td>masked CE on assistant/tool-call spans + the terminating <code>&lt;\|im_end\|&gt;</code></td>
+</tr>
+<tr>
+<td>schedule</td>
+<td>1.0 epoch = 522 steps, lr 5e-4 cosine, 5% warmup, grad-accum 4</td>
+</tr>
+<tr>
+<td>hardware</td>
+<td>M4 Max 128 GB, all-36 layers, fp32 latents, Adafactor, ~375 s/step</td>
+</tr>
+</tbody>
+</table>
+<h2 id="observation-1-the-run-diverged-at-peak-lr-then-fully-recovered">Observation 1 — the run diverged at peak LR, then fully recovered<a class="headerlink" href="#observation-1-the-run-diverged-at-peak-lr-then-fully-recovered" title="Permanent link">&para;</a></h2>
+<pre><code>step  25   loss 1.06   lr 4.62e-4     last healthy step of warmup
+step  30   loss 5.49   lr 5.00e-4     peak LR reached
+step  35   loss 9.80   lr 5.00e-4     peak loss
+step  40   loss 9.11              VAL 8.67
+step  80   loss 5.91              VAL 6.06
+step 120   loss 1.34              VAL 1.10     recovered
+step 160                          VAL 0.96     best
+step 305   loss 1.01              VAL 1.06
+</code></pre>
+<p>The lr 5e-4 "sweet spot" came from a prior run on 12 Python SWE trajectories at window
+4096. This corpus is ~150× larger with 5 heterogeneous sources at window 8064. <strong>The LR did
+not transfer</strong>, and the failure mode was not a gentle plateau — it was a 9× loss excursion
+that took 90 steps (~9 h) to unwind.</p>
+<p>Two things make this worth reporting rather than hiding:</p>
+<ol>
+<li><strong>It recovered completely</strong> under nothing but cosine decay — no intervention, no restart.
+   Val ended <em>below</em> where it started the excursion. A ternary model's discrete codes appear
+   to give it somewhere to fall back to; the excursion did not destroy the model.</li>
+<li><strong>The flips it produced during the excursion were not wasted.</strong> Flip velocity kept rising
+   through and after the recovery (Observation 4), so the codes disturbed at high loss were
+   re-settled rather than frozen in a damaged state.</li>
+</ol>
+<p>The honest caveat: we cannot prove the run would not have been <em>better</em> without the
+excursion, because there is no lower-LR control at this corpus size. That control is the
+obvious next experiment.</p>
+<p><strong>We could not diagnose the divergence in flight, because gradient norm was never
+recorded.</strong> The trainer clips to 1.0 but never reported the pre-clip value — the single
+number that would have said whether this was a bad batch or a systemically too-high LR.
+That gap is now fixed (see "Instrumentation added").</p>
+<h2 id="observation-2-the-shipped-model-is-3442-zeros-and-it-is-exactly-symmetric">Observation 2 — the shipped model is ~34–42% zeros, and it is exactly ±symmetric<a class="headerlink" href="#observation-2-the-shipped-model-is-3442-zeros-and-it-is-exactly-symmetric" title="Permanent link">&para;</a></h2>
+<p>Baseline census of the shipped weights (<code>scripts/ternary_distribution.py census</code>):</p>
+<table>
+<thead>
+<tr>
+<th>tensor</th>
+<th>−1</th>
+<th>0</th>
+<th>+1</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>35.mlp.down_proj</code></td>
+<td>33.0%</td>
+<td><strong>34.1%</strong></td>
+<td>33.0%</td>
+</tr>
+<tr>
+<td><code>0.self_attn.q_proj</code></td>
+<td>32.7%</td>
+<td>34.5%</td>
+<td>32.7%</td>
+</tr>
+<tr>
+<td><code>3.self_attn.v_proj</code></td>
+<td>32.6%</td>
+<td>34.9%</td>
+<td>32.6%</td>
+</tr>
+<tr>
+<td><code>9.mlp.up_proj</code></td>
+<td>31.5%</td>
+<td>37.1%</td>
+<td>31.5%</td>
+</tr>
+<tr>
+<td><code>19.mlp.gate_proj</code></td>
+<td>29.5%</td>
+<td>40.9%</td>
+<td>29.6%</td>
+</tr>
+<tr>
+<td><code>26.self_attn.k_proj</code></td>
+<td>29.3%</td>
+<td>41.4%</td>
+<td>29.3%</td>
+</tr>
+<tr>
+<td><code>29.self_attn.v_proj</code></td>
+<td>29.0%</td>
+<td><strong>42.0%</strong></td>
+<td>29.0%</td>
+</tr>
+</tbody>
+</table>
+<p>Two facts fall out immediately. The −1 and +1 populations match to within 0.1pp in every
+tensor — the code distribution is symmetric to a degree that is clearly structural, not
+incidental. And <strong>the zero fraction is not uniform</strong>: the first and last layers are the
+densest (34%) while the mid-stack sits near 42%. About 38% of this model's weights
+contribute nothing, and how much varies systematically with depth.</p>
+<p>That zero band is the capacity training has to work with, which makes its movement — not
+the loss — the thing to watch.</p>
+<h2 id="observation-3-codes-move-through-zero-they-essentially-never-cross-it">Observation 3 — codes move <em>through</em> zero; they essentially never cross it<a class="headerlink" href="#observation-3-codes-move-through-zero-they-essentially-never-cross-it" title="Permanent link">&para;</a></h2>
+<p>Decomposing every code change over 300 steps into recruitment (<code>0→±</code>), pruning (<code>±→0</code>) and
+direct sign crossing (<code>+1→−1</code> or <code>−1→+1</code>):</p>
+<table>
+<thead>
+<tr>
+<th>tensor</th>
+<th>zero-frac start → now</th>
+<th>Δpp</th>
+<th>recruited</th>
+<th>pruned</th>
+<th><strong>sign-crossed</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>26.self_attn.k_proj</code></td>
+<td>41.38 → 40.68%</td>
+<td>−0.703</td>
+<td>44,650</td>
+<td>15,151</td>
+<td><strong>1</strong></td>
+</tr>
+<tr>
+<td><code>22.mlp.down_proj</code></td>
+<td>39.37 → 38.89%</td>
+<td>−0.486</td>
+<td>357,672</td>
+<td>113,092</td>
+<td><strong>0</strong></td>
+</tr>
+<tr>
+<td><code>19.mlp.gate_proj</code></td>
+<td>40.90 → 40.58%</td>
+<td>−0.316</td>
+<td>212,225</td>
+<td>53,319</td>
+<td><strong>6</strong></td>
+</tr>
+<tr>
+<td><code>32.mlp.gate_proj</code></td>
+<td>39.36 → 39.09%</td>
+<td>−0.265</td>
+<td>192,386</td>
+<td>59,006</td>
+<td><strong>15</strong></td>
+</tr>
+<tr>
+<td><code>9.mlp.up_proj</code></td>
+<td>37.05 → 36.92%</td>
+<td>−0.131</td>
+<td>115,024</td>
+<td>48,921</td>
+<td><strong>0</strong></td>
+</tr>
+<tr>
+<td><code>6.mlp.gate_proj</code></td>
+<td>35.24 → 35.17%</td>
+<td>−0.062</td>
+<td>85,543</td>
+<td>54,538</td>
+<td><strong>0</strong></td>
+</tr>
+<tr>
+<td><code>13.self_attn.q_proj</code></td>
+<td>36.91 → 36.92%</td>
+<td>+0.002</td>
+<td>245,673</td>
+<td>246,024</td>
+<td><strong>932</strong></td>
+</tr>
+<tr>
+<td><code>35.mlp.down_proj</code></td>
+<td>34.05 → 34.16%</td>
+<td>+0.102</td>
+<td>478,498</td>
+<td>530,039</td>
+<td><strong>9</strong></td>
+</tr>
+<tr>
+<td><code>0.self_attn.q_proj</code></td>
+<td>34.52 → 35.04%</td>
+<td>+0.526</td>
+<td>266,330</td>
+<td>354,620</td>
+<td><strong>965</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Direct sign crossings are ~0.</strong> Against hundreds of thousands of recruit/prune events,
+the largest sign-crossing count is 965 (0.15% of that tensor's changes) and six tensors
+record literally zero. This is a cumulative comparison against step 0 — a weight that
+started at +1 and now sits at −1 <em>would</em> be counted — so this is not an artifact of the
+sampling interval. In 300 steps of training, a ternary weight that wants to change polarity
+does not go <code>+1 → −1</code>; it parks at zero and stays there.</p>
+<p>That reframes what "1.86% of codes flipped" means. It is not the model rewiring signs; it
+is the model <strong>opening and closing gates</strong>, with zero as the resting state in between.</p>
+<p>The second split is net direction, and it tracks tensor role:</p>
+<ul>
+<li><strong>MLP and k/v projections densify</strong> — recruitment outruns pruning 2–7×, so the zero band
+  shrinks. The model is switching on capacity that shipped dead.</li>
+<li><strong><code>q_proj</code> churns at constant-or-rising sparsity</strong> — layer 0 recruits 266k and prunes
+  355k, a net <em>increase</em> in zeros, and layer 13 is within 0.002pp of break-even on 246k
+  events in each direction. Query projections are the one place the model is doing
+  wholesale substitution rather than accumulation.</li>
+</ul>
+<p>A single flip-percentage would have shown <code>q_proj</code> at 28× <code>v_proj</code> and implied v_proj was
+idle, when in fact the two are doing categorically different things.</p>
+<p>Figures live in one document, <code>out/exp-058/telemetry/report.html</code> — seven panels plus
+the step-0/step-N distribution tables. Regenerate with:</p>
+<pre><code class="language-bash">python scripts/parse_qat_log.py TRAIN.log --out out/exp-058/telemetry
+python scripts/ternary_distribution.py census --model out/exp-057/model \
+    --tensors out/exp-058/telemetry/flips.csv --out out/exp-058/telemetry/census.csv
+python scripts/ternary_distribution.py census --latents .../trained_latents.pt \
+    --tensors out/exp-058/telemetry/flips.csv --out out/exp-058/telemetry/census_latest.csv
+PYTHONPATH=scripts python scripts/qat_report.py --telemetry out/exp-058/telemetry \
+    --census out/exp-058/telemetry/census.csv \
+    --latest out/exp-058/telemetry/census_latest.csv --latest-step 325 \
+    --model-config out/exp-057/model/config.json \
+    --window 8064 --grad-accum 4 --out out/exp-058/telemetry/report.html
+</code></pre>
+<p>The report opens with an <strong>Architecture</strong> section: a shape table read from the model's own
+<code>config.json</code>, plus the hfviewer graph (inlined when available, so the page stays
+self-contained). Worth recording — <strong><code>Ternary-Bonsai-8B</code> is stock <code>Qwen3ForCausalLM</code></strong>:
+diffed against <code>Qwen/Qwen3-8B</code>'s config, every dimension is identical except
+<code>vocab_size</code> (151,936 → 151,669) and <code>max_position_embeddings</code> (40,960 → 65,536). The
+ternarization is a weight format, not an architecture change, which is why nothing in the
+flip analysis needs a bespoke model definition.</p>
+<p><code>ternary_distribution.py</code> is data only (census + trajectory); all plotting is in
+<code>qat_report.py</code>.</p>
+<h2 id="observation-4-flip-velocity-peaks-and-decays-in-depth-order">Observation 4 — flip velocity peaks and decays, in depth order<a class="headerlink" href="#observation-4-flip-velocity-peaks-and-decays-in-depth-order" title="Permanent link">&para;</a></h2>
+<p>Cumulative flip % cannot distinguish a tensor that settled early from one still
+oscillating. The per-checkpoint <em>delta</em> can. Velocity (flip-% added per 25 steps):</p>
+<pre><code>0.self_attn.q_proj    .00 .01 .24 .51 .56 .54 .43 .50 .31 .28 .20 .14   peak @125
+35.mlp.down_proj      .00 .01 .07 .07 .12 .33 .34 .28 .28 .20 .18 .13   peak @175
+22.mlp.down_proj      .00 .00 .00 .01 .03 .09 .13 .14 .16 .14 .12 .10   peak @225
+3.self_attn.v_proj    .00 .00 .00 .00 .00 .02 .03 .04 .04 .04 .04 .03   peak @250
+</code></pre>
+<p>Every tracked tensor has passed its velocity peak and is decaying — the run is
+<strong>converging, not thrashing</strong>. And the peak is ordered:</p>
+<table>
+<thead>
+<tr>
+<th>peak step</th>
+<th>tensors</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>125</td>
+<td><code>0.q_proj</code></td>
+</tr>
+<tr>
+<td>175</td>
+<td><code>35.down_proj</code></td>
+</tr>
+<tr>
+<td>200</td>
+<td><code>13.q_proj</code>, <code>29.v_proj</code></td>
+</tr>
+<tr>
+<td>225</td>
+<td>six tensors (mid-stack MLP + <code>26.k_proj</code>)</td>
+</tr>
+<tr>
+<td>250</td>
+<td><code>3.v_proj</code></td>
+</tr>
+</tbody>
+</table>
+<p>The first attention layer moves first and settles first; the mid-stack MLPs peak ~100 steps
+later; the low-velocity v_projs are the last to move at all. Learning appears to propagate
+from the input-side attention outward, with each tensor's activity switching on only after
+the ones before it stabilize. Whether that is a general property of ternary QAT or an
+artifact of this LR schedule is exactly what a second run at a different LR would settle.</p>
+<p>Scale drift rises monotonically alongside (1.2%–3.0% by step 300) and does <strong>not</strong> peak,
+consistent with it being the continuous background process against which flips are the
+discrete events.</p>
+<h2 id="observation-5-training-efficiency-peaked-at-step-200-and-has-halved-since">Observation 5 — training efficiency peaked at step 200 and has halved since<a class="headerlink" href="#observation-5-training-efficiency-peaked-at-step-200-and-has-halved-since" title="Permanent link">&para;</a></h2>
+<p>Codes changed per GPU-hour across the tracked sample — the ternary analogue of a
+learning-rate-of-return curve, and the one number that says when to stop. Loss cannot
+answer this, because loss keeps drifting down on scale drift alone.</p>
+<table>
+<thead>
+<tr>
+<th>step</th>
+<th>GPU-h</th>
+<th>cumulative codes changed</th>
+<th><strong>codes / GPU-hour</strong></th>
+<th>codes / 1M tokens</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>50</td>
+<td>5.0</td>
+<td>9,186</td>
+<td>3,398</td>
+<td>10,559</td>
+</tr>
+<tr>
+<td>100</td>
+<td>10.0</td>
+<td>248,815</td>
+<td>61,470</td>
+<td>197,981</td>
+</tr>
+<tr>
+<td>150</td>
+<td>15.5</td>
+<td>936,555</td>
+<td>162,286</td>
+<td>548,120</td>
+</tr>
+<tr>
+<td><strong>200</strong></td>
+<td>20.9</td>
+<td>1,948,208</td>
+<td><strong>195,716</strong> ← peak</td>
+<td>642,154</td>
+</tr>
+<tr>
+<td>250</td>
+<td>26.1</td>
+<td>2,870,024</td>
+<td>160,225</td>
+<td>514,114</td>
+</tr>
+<tr>
+<td>300</td>
+<td>31.2</td>
+<td>3,498,570</td>
+<td>104,390</td>
+<td>330,910</td>
+</tr>
+<tr>
+<td>325</td>
+<td>33.9</td>
+<td>3,720,046</td>
+<td>83,097</td>
+<td>274,648</td>
+</tr>
+</tbody>
+</table>
+<p>Efficiency peaked at <strong>step 200 / 21 GPU-hours</strong> and is now at <strong>42% of peak</strong>. Over the
+whole run so far, 1.056% of the tracked 352M parameters have changed code.</p>
+<p>Read against Observation 1, this is the run's actual shape: the first 25 steps did almost
+nothing (warmup), steps 30–120 were spent recovering from the LR excursion, steps 120–250
+were the productive core, and the tail is annealing. The remaining ~200 steps (≈20
+GPU-hours) will, on this trend, produce roughly a third of the change per hour that the
+peak did.</p>
+<p>That is <em>expected</em> under cosine decay — the schedule is designed to anneal — so this is not
+evidence the run is broken. It is evidence about <strong>where the budget went</strong>: over half the
+wall-clock bought either warmup or divergence recovery. A run at a LR that doesn't diverge
+should reach the same flip count in materially fewer GPU-hours, which is the concrete
+argument for the 2.5e-4 control.</p>
+<h2 id="observation-6-cost-and-the-memory-regime">Observation 6 — cost, and the memory regime<a class="headerlink" href="#observation-6-cost-and-the-memory-regime" title="Permanent link">&para;</a></h2>
+<p>Sustained <strong>375 s/step</strong> (11.5 ms/token) at window 8064, MPS resident flat at 30.8 GiB. An
+earlier s/step creep (356 → 372 over 100 steps) reversed on its own as allocator
+fragmentation settled; swap receded from 24.6 to 23.6 GB. Full run ≈ 54 h.</p>
+<p>Getting here took fixing four separate OOM causes, all of which produce an identical bare
+<code>Killed: 9</code> with no traceback; they are catalogued in <code>docs/ternary_qat.md</code>. The one worth
+repeating as a <em>methodological</em> point: the lm_head spike scaled with each window's
+trainable-token count, which varies 0.05–1.00 in density, so the process died at a
+<strong>random</strong> step and no single-window probe ever reproduced it.</p>
+<h2 id="what-we-could-not-measure-and-now-can">What we could not measure (and now can)<a class="headerlink" href="#what-we-could-not-measure-and-now-can" title="Permanent link">&para;</a></h2>
+<p>These were unrecoverable for this run — the write-up will have to say so.</p>
+<table>
+<thead>
+<tr>
+<th>gap</th>
+<th>why it matters</th>
+<th>status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>gradient norm</strong> (pre-clip)</td>
+<td>the one number that explains Observation 1</td>
+<td><strong>added</strong></td>
+</tr>
+<tr>
+<td><strong>per-source loss</strong></td>
+<td>5 sources, wildly different <code>assistant_frac</code> (0.08–0.79); we cannot say which data drove learning</td>
+<td><strong>added</strong> (needs <code>window_source</code>, also added to the builder)</td>
+</tr>
+<tr>
+<td>flip <strong>velocity</strong></td>
+<td>had to be reconstructed by differencing; no absolute density</td>
+<td><strong>added</strong> (logged directly, plus absolute nonzero density)</td>
+</tr>
+<tr>
+<td>machine-readable metrics</td>
+<td>everything came from parsing stdout</td>
+<td><strong>added</strong> (<code>metrics.jsonl</code>)</td>
+</tr>
+<tr>
+<td>signed scale drift</td>
+<td>mean <code>\|Δs\|/s</code> hides whether scales grow or shrink</td>
+<td><strong>added</strong></td>
+</tr>
+<tr>
+<td>val resolution</td>
+<td>8 windows → a noisy 0.96–1.12 band; the 240→280 "uptick" is probably nothing</td>
+<td>raise <code>--val-windows</code>; per-source val</td>
+</tr>
+<tr>
+<td>rotating checkpoints</td>
+<td>single overwritten file — could not roll back to the pre-divergence step</td>
+<td><strong>added</strong> (<code>--ckpt-keep</code>)</td>
+</tr>
+<tr>
+<td>full-model −1/0/+1 census</td>
+<td>only the 12 sampled tensors have a trajectory; the per-layer composition figure covers those</td>
+<td>deferred — the census reads the whole 15 GB model, which is not safe to do beside a memory-tight run. Run <code>ternary_distribution.py census --all</code> after the run finishes.</td>
+</tr>
+<tr>
+<td>tokens seen</td>
+<td>throughput reported in steps, not tokens</td>
+<td><strong>added</strong></td>
+</tr>
+</tbody>
+</table>
+<h2 id="figure-audit-what-rendering-them-actually-caught">Figure audit — what rendering them actually caught<a class="headerlink" href="#figure-audit-what-rendering-them-actually-caught" title="Permanent link">&para;</a></h2>
+<p>The figures were rendered to PNG (<code>qlmanage -t</code>, WebKit) and inspected. Three defects were
+only visible once looked at, and two of them were wrong, not merely ugly:</p>
+<ol>
+<li><strong>The LR panel had a 10px plot area.</strong> A flat <code>pad=60</code> on a 130px-tall panel left no
+   drawable height: the cosine schedule rendered as a straight line and every y-tick label
+   stacked on one row. Vertical padding now scales with panel height.</li>
+<li><strong>The recruit-vs-prune scatter was not square.</strong> It compares two like quantities against
+   a 45° balance diagonal — at 900×300 that diagonal renders as a shallow slope, so
+   "distance below the line" was visually distorted. Now square, and the reading changes:
+   most tensors sit clearly <em>below</em> the line.</li>
+<li><strong>The depth profile connected different tensor kinds.</strong> A line joined layer 0 <code>q_proj</code> →
+   layer 3 <code>v_proj</code> → layer 6 <code>gate_proj</code>, implying a continuous series that does not
+   exist — there is one sampled tensor per layer. Replaced with lollipop stems.</li>
+</ol>
+<p>A structural check (well-formed SVG, marks in bounds, label spacing) passed on all three.
+Geometry validation does not catch a chart that is drawing the wrong thing.</p>
+<h2 id="what-the-audit-changed-in-the-trainer">What the audit changed in the trainer<a class="headerlink" href="#what-the-audit-changed-in-the-trainer" title="Permanent link">&para;</a></h2>
+<p>Two findings from the figures turned into code:</p>
+<ul>
+<li><strong>The divergence starts 4 steps after warmup ends</strong> (figure 1, LR panel). Warmup is 5%
+  of total steps = 26 here; the loss leaves 1.06 at step 30. <code>--warmup-frac</code> is now a flag.</li>
+<li><strong>Clipping did not prevent it, and hid it.</strong> <code>clip_grad_norm_</code> rescales the update
+  direction but still takes a full-size step along it. <code>GradSpikeGuard</code> (<code>--grad-spike-factor</code>,
+  default 4.0) skips any optimizer step whose <em>pre-clip</em> norm exceeds 4× the trailing
+  median, after a 20-step history has built. Skipped norms deliberately do not enter the
+  history — otherwise a sustained excursion drags the median up until the guard stops
+  firing, which is the exact case it exists to catch. Requires splitting
+  <code>MasterOptimizer.clip_and_step</code> into <code>stage_grads_and_norm</code> + <code>step_staged</code>, since the
+  decision needs the norm before the step is committed.</li>
+</ul>
+<p>A third finding is <strong>not</strong> yet acted on: figure 4 shows flips concentrating in <code>q_proj</code>
+(3.7% at layer 0, 2.9% at layer 13) while <code>v_proj</code> and <code>up_proj</code> barely move (0.13–0.33%) —
+a ~30× spread. Every tensor is being trained at the same LR and costing the same memory.
+Whether the low-movers are <em>unimportant</em> or merely <em>slow</em> is untested, and freezing them
+would be a real efficiency win if the former. That needs an ablation, not a guess.</p>
+<h2 id="outcome-behaviour-changed-capability-did-not">Outcome — behaviour changed, capability did not<a class="headerlink" href="#outcome-behaviour-changed-capability-did-not" title="Permanent link">&para;</a></h2>
+<p>Clean A/B on the 10-instance SWE-rebench holdout, same code, same instances:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>vanilla Q2_0</th>
+<th>sft8k-full Q2_0</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>resolved</strong></td>
+<td><strong>0/10</strong></td>
+<td><strong>0/10</strong></td>
+</tr>
+<tr>
+<td>patch produced</td>
+<td>5/10</td>
+<td>4/10 (Fisher p = 1.00)</td>
+</tr>
+<tr>
+<td>tool-error rate</td>
+<td>0.65</td>
+<td><strong>0.33</strong></td>
+</tr>
+<tr>
+<td>steps / instance</td>
+<td>6.9</td>
+<td>97.3</td>
+</tr>
+<tr>
+<td>tokens / instance</td>
+<td>26,363</td>
+<td>2,196,318</td>
+</tr>
+<tr>
+<td>exit <code>max_turns</code></td>
+<td>0/10</td>
+<td><strong>7/10</strong></td>
+</tr>
+<tr>
+<td>loop fraction</td>
+<td>0.25</td>
+<td><strong>0.97</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>No capability gain.</strong> One real win: tool-error rate halved — the tool-use half of the
+corpus transferred. One serious regression: <strong>the model can no longer terminate</strong>, with up
+to 97 of 100 assistant turns being a single repeated message.</p>
+<h3 id="why-it-loops">Why it loops<a class="headerlink" href="#why-it-loops" title="Permanent link">&para;</a></h3>
+<p>Masked CE labels 5,740,167 trainable tokens but only <strong>32,448 terminating <code>&lt;|im_end|&gt;</code>
+targets — one stop decision per 176 tokens of "keep going"</strong>. At an 8064 window only 27%
+of SWE trajectories fit whole, so the model rarely saw a complete task→completion arc. It
+learned what the corpus overwhelmingly showed it: continue.</p>
+<h3 id="the-32k-hypothesis-and-what-blocks-it">The 32K hypothesis, and what blocks it<a class="headerlink" href="#the-32k-hypothesis-and-what-blocks-it" title="Permanent link">&para;</a></h3>
+<p>A 32K window would hold <strong>97% of SWE trajectories whole</strong> (27% at 8064, 52% at 12288, 68%
+at 16128) — the model would see the ending, which is where the stop decision lives. That is
+the right fix in principle.</p>
+<p><strong>It is not reachable in the current config.</strong> Measured in the real loop on this M4 Max
+128 GB at all-36 layers / fp32 latents / adafactor: 8064 = 370 s/step clean, 12288 =
+800 s/step (230 s of it swap), 16128 = <strong>no step completed in 31 minutes</strong> at 99% swap,
+24576 = hard OOM. 32K needs fewer trainable layers, a smaller optimizer state, or different
+hardware — not a flag change.</p>
+<p>Cheaper routes to the same signal, in order of effort:
+1. <strong>Upweight the terminating <code>&lt;|im_end|&gt;</code> targets</strong> in the masked CE. 0.57% of labels
+   carry the entire stop decision; a loss weight is a one-line change and directly targets
+   the observed failure.
+2. <strong>Pack so every window ends at a conversation boundary</strong>, so the terminal turn is never
+   the part that gets dropped by the density floor.
+3. <strong>Long-window only where it matters</strong>: the SWE trajectories are 106 of 2088 windows.
+   Training just those at 16–32K (with the rest at 8k) is a fraction of the memory cost.</p>
+<h3 id="measurement-caveat">Measurement caveat<a class="headerlink" href="#measurement-caveat" title="Permanent link">&para;</a></h3>
+<p>At n=10 with 0/10 resolved both ways, the 95% upper bound on the true resolve rate is
+~31%. This holdout <strong>cannot detect a small real improvement</strong> — a bigger holdout is needed
+before any negative result is conclusive.</p>
+<h2 id="open-questions-for-the-next-run">Open questions for the next run<a class="headerlink" href="#open-questions-for-the-next-run" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Does a lower LR reach the same flip count without the excursion?</strong> The single most
+   valuable control. 2.5e-4, same corpus, same seed.</li>
+<li><strong>Is the depth-ordered velocity peak real</strong> or an artifact of the cosine schedule?
+   A constant-LR run separates them.</li>
+<li><strong>Which source drives the flips?</strong> With per-source loss and <code>window_source</code>, attributable
+   for the first time.</li>
+<li><strong>Does the reorganize/densify split predict export quality?</strong> If v_proj densification is
+   what matters, a run could weight it.</li>
+<li><strong>Does the excursion cost anything measurable at export?</strong> Only the SWE-rebench number
+   answers this.</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "content.code.copy", "search.highlight", "search.suggest", "search.preview"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

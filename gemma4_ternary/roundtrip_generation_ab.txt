@@ -1,0 +1,16 @@
+# Round-trip A/B: same F16 GGUF, same fork, same greedy prompt, only trunk type differs.
+# prism llama.cpp 9ca265a; llama-cli -ngl 99 -st -n 40 --temp 0 --no-warmup
+
+## trunk Q2_0 (ternary) + embeddings Q4_0  — 2,926 MiB, 3.29 BPW
+> What is the capital of France?
+
+|  земeling บ GUNኝነት वइसटू गोवा porn memungkinkan kistick விளையாப்MethodeltoжныеPos翰ﻩageddon нев বিকਹਾ எ земли فيها tShirounselfek Asimismo issues L Aussഷ toc sā주id
+
+[ Prompt: 38.3 t/s | Generation: 9.8 t/s ]
+
+## trunk Q4_0 + embeddings Q4_0 (CONTROL)  — 4,043 MiB, 4.54 BPW
+> What is the capital of France?
+
+| The capital of France is Paris.
+
+[ Prompt: 32.8 t/s | Generation: 8.2 t/s ]

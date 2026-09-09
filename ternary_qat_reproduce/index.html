@@ -1,0 +1,2217 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Calibrate your own GGUF quantizations and vLLM W4A16 checkpoints from real agentic-coding logs">
+      
+      
+        <meta name="author" content="K. Pearson">
+      
+      
+      
+        <link rel="prev" href="../ternary_qat/">
+      
+      
+        <link rel="next" href="../ternary_qat_curriculum/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Reproduce - quant-tuner</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#reproducing-the-ternary-qat-pipeline-end-to-end" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="quant-tuner" class="md-header__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            quant-tuner
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Reproduce
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18V6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-2.69L23.31 12 20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="quant-tuner" class="md-nav__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    quant-tuner
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methods
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Methods
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The three calibrators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipe reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calibration_datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calibration datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmarks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lens/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jacobian lens
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT for ternary models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    QAT for ternary models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method & invariants
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reproduce
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#0-prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0. Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-build-the-sft-source-sftjsonlgz" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Build the SFT source (sft.jsonl.gz)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-pack-to-training-windows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Pack to training windows
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Pack to training windows">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#check-the-pack-before-training-on-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Check the pack before training on it
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-verify-the-corpus-before-a-long-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Verify the corpus BEFORE a long run
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-train" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Train
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Train">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-to-watch-in-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What to watch, in order
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#disk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Disk
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-report" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Report
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-export-probe-benchmark" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Export, probe, benchmark
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-the-staged-curriculum" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. The staged curriculum
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-the-run-ledger" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. The run ledger
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-short-version" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The short version
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-offline-kd-method-b-when-plain-ce-trades-learning-against-termination" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Offline KD (Method B) — when plain CE trades learning against termination
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="9. Offline KD (Method B) — when plain CE trades learning against termination">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-teacher-requirement-which-silently-ruins-a-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The teacher requirement, which silently ruins a run
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-offline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why offline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-to-check-at-startup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What to check at startup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#two-guards-that-exist-because-the-failures-are-silent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two guards that exist because the failures are silent
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-kls-blind-spot-and-the-two-fixes-in-escalation-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The KL's blind spot, and the two fixes (in escalation order)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stop-the-run-when-the-probe-says-stop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stop the run when the probe says stop
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#prune-a-dead-runs-checkpoints-after-extracting-always" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prune a dead run's checkpoints — after extracting, always
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-the-anchor-ladder-reproducing-the-full-schedule-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. The anchor ladder — reproducing the full-schedule runs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-the-working-recipe-anchor6-and-its-serving-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. The working recipe (anchor6) and its serving parameters
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_curriculum/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curriculum
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_preprint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Preprint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary/HANDOFF/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B stage 1 (handoff)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run logs (Qwen 3.8 family)
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Run logs (Qwen 3.8 family)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_release/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 release
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_awq_2bit_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 AWQ 2-bit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_gptq_vllm_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 GPTQ vLLM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_exp062_rebuild/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 exp-062 rebuild
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Research notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_32k_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT 32K handoff
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_optimization_audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT optimization audit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_run_history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT run history
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_calibration_experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ternary calibration experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patch_gguf_chat_template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patch a GGUF chat template
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_feasibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary feasibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reddit_ternary_qat_post/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reddit: ternary QAT post
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#0-prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0. Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-build-the-sft-source-sftjsonlgz" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Build the SFT source (sft.jsonl.gz)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-pack-to-training-windows" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Pack to training windows
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Pack to training windows">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#check-the-pack-before-training-on-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Check the pack before training on it
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-verify-the-corpus-before-a-long-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Verify the corpus BEFORE a long run
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-train" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Train
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="4. Train">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#what-to-watch-in-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What to watch, in order
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#disk" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Disk
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-report" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Report
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-export-probe-benchmark" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Export, probe, benchmark
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-the-staged-curriculum" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. The staged curriculum
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-the-run-ledger" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. The run ledger
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-short-version" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The short version
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-offline-kd-method-b-when-plain-ce-trades-learning-against-termination" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Offline KD (Method B) — when plain CE trades learning against termination
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="9. Offline KD (Method B) — when plain CE trades learning against termination">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-teacher-requirement-which-silently-ruins-a-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The teacher requirement, which silently ruins a run
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#why-offline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why offline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-to-check-at-startup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What to check at startup
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#two-guards-that-exist-because-the-failures-are-silent" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two guards that exist because the failures are silent
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-kls-blind-spot-and-the-two-fixes-in-escalation-order" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The KL's blind spot, and the two fixes (in escalation order)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stop-the-run-when-the-probe-says-stop" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stop the run when the probe says stop
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#prune-a-dead-runs-checkpoints-after-extracting-always" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prune a dead run's checkpoints — after extracting, always
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-the-anchor-ladder-reproducing-the-full-schedule-runs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. The anchor ladder — reproducing the full-schedule runs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-the-working-recipe-anchor6-and-its-serving-parameters" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        11. The working recipe (anchor6) and its serving parameters
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="reproducing-the-ternary-qat-pipeline-end-to-end">Reproducing the ternary QAT pipeline, end to end<a class="headerlink" href="#reproducing-the-ternary-qat-pipeline-end-to-end" title="Permanent link">&para;</a></h1>
+<p>Every command needed to go from raw logs to a benchmarked Q2_0 GGUF, in order, with the
+check that must pass at each step. Companion to <code>docs/ternary_qat.md</code> (method),
+<code>docs/ternary_qat_curriculum.md</code> (the staged curriculum and the corpus defect) and
+<code>docs/ternary_qat_sft32k_study.md</code> (the observations that set the hyper-parameters).</p>
+<p>Written after the termination collapse, so it front-loads the checks that would have
+caught it: an 11 h run once produced a single number that a 60-step run now produces.</p>
+<p>Paths assume the repo root. <code>PY=.venv/bin/python</code>, <code>PYTHONPATH=src</code>.</p>
+<hr />
+<h2 id="0-prerequisites">0. Prerequisites<a class="headerlink" href="#0-prerequisites" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">uv sync
+git submodule update --init --recursive
+# Q2_0 is ftype 41 and exists ONLY in the prism fork. Mainline llama.cpp cannot read
+# these GGUFs at all — not to quantize, not to serve.
+cmake -S vendor/llama.cpp-prism -B vendor/llama.cpp-prism/build -DGGML_CUDA=ON
+cmake --build vendor/llama.cpp-prism/build -j
+</code></pre>
+<p>The base model lives at <code>out/exp-057/model</code> (HF dir, shipped ternary weights) with its
+chat template at <code>out/exp-057/chat_template.jinja</code>. Everything downstream reads the
+tokenizer and template from there — never from a finetune's copy.</p>
+<hr />
+<h2 id="1-build-the-sft-source-sftjsonlgz">1. Build the SFT source (<code>sft.jsonl.gz</code>)<a class="headerlink" href="#1-build-the-sft-source-sftjsonlgz" title="Permanent link">&para;</a></h2>
+<p>One file per corpus, all in the same schema (<code>messages</code>, <code>tools</code>, <code>source</code>, <code>split</code>).</p>
+<pre><code class="language-bash"># OURS — CLI logs + agent trajectories + SWE trajectories + breadth + refusals.
+# Also writes the calibration corpora; the QAT path only needs sft.jsonl.gz.
+PYTHONPATH=src $PY scripts/build_universal_corpus.py \
+    --out out/corpora/qwen3-universal-v2 --model out/exp-057/model --ctx 8192
+
+# ROUND 1 — ultrachat_200k, broad conversational grounding (no tools, no reasoning)
+PYTHONPATH=src $PY scripts/build_external_sft.py ultrachat \
+    --out out/corpora/round1-ultrachat
+
+# ROUND 2 — the distillation mix. Use `distill-mix`, NOT `distill`: the repo's 24
+# configs are overlapping VIEWS (sft_reasoning contains 99.3% of sft_tools, and
+# sft_agent is byte-identical to sft_tools), so combining configs double-counts.
+PYTHONPATH=src $PY scripts/build_external_sft.py distill-mix \
+    --out out/corpora/round2-distill
+</code></pre>
+<p><code>build_external_sft.py</code> drops public-benchmark rows by default (SciQ, ARC, CommonsenseQA,
+QASC, OpenBookQA, HumanEval, MBPP). <code>--keep-benchmarks</code> opts back in and costs you
+MMLU-Pro/HumanEval/MBPP as quotable numbers for the model.</p>
+<hr />
+<h2 id="2-pack-to-training-windows">2. Pack to training windows<a class="headerlink" href="#2-pack-to-training-windows" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">FIXED=out/exp-058/fixed; mkdir -p $FIXED
+pack() {  # sft split budget out
+  local ba=(); [ -n &quot;$3&quot; ] &amp;&amp; ba=(--budget &quot;$3&quot;)
+  PYTHONPATH=src $PY scripts/build_sft_qat_corpus.py --sft &quot;$1&quot; --split &quot;$2&quot; \
+      --window 32768 --max-tool-tokens 8192 --min-density 0.05 &quot;${ba[@]}&quot; --out &quot;$4&quot;
+}
+pack out/corpora/qwen3-universal-v2/sft.jsonl.gz train &quot;&quot;                  $FIXED/corpus_ourssft_32768.pt
+pack out/corpora/qwen3-universal-v2/sft.jsonl.gz test  &quot;&quot;                  $FIXED/corpus_ourssft_val_32768.pt
+pack out/corpora/round1-ultrachat/sft.jsonl.gz   train ultrachat=20000000  $FIXED/corpus_ultrachat_32768.pt
+pack out/corpora/round1-ultrachat/sft.jsonl.gz   test  ultrachat=2000000   $FIXED/corpus_ultrachat_val_32768.pt
+pack out/corpora/round2-distill/sft.jsonl.gz     train &quot;&quot;                  $FIXED/corpus_distill_32768.pt
+pack out/corpora/round2-distill/sft.jsonl.gz     test  distill=2000000     $FIXED/corpus_distill_val_32768.pt
+</code></pre>
+<p><strong>Budget the val corpora.</strong> The trainer reads only <code>--val-windows</code> (4) of them, but an
+unbudgeted test split builds a tensor LARGER than the training corpus and loads all of it:
+ultrachat's test split packs to 754 windows against its own 610 training windows.</p>
+<p><strong><code>--max-tool-tokens</code> scales with the window</strong> — 3072 at 8064, 8192 at 32768. At 1024 it
+drops 28% of all conversation content.</p>
+<p>The packer applies the corpus hygiene automatically (<code>qat/corpus.py</code>):</p>
+<table>
+<thead>
+<tr>
+<th>fix</th>
+<th>what it prevents</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>merge_consecutive_assistant</code></td>
+<td>prose and its tool call rendering as two turns, teaching "preamble → <code>&lt;|im_end|&gt;</code>"</td>
+</tr>
+<tr>
+<td><code>drop_empty_assistant</code></td>
+<td>a turn whose only supervised token IS the stop token</td>
+</tr>
+<tr>
+<td><code>has_inline_control_tokens</code></td>
+<td>a log that QUOTES <code>&lt;\|im_end\|&gt;</code> becoming a real stop token in supervised prose</td>
+</tr>
+</tbody>
+</table>
+<p>The build prints all three counts per source. On our corpus expect ~4,726 merges, 5 empty
+turns dropped, 10 conversations dropped.</p>
+<h3 id="check-the-pack-before-training-on-it">Check the pack before training on it<a class="headerlink" href="#check-the-pack-before-training-on-it" title="Permanent link">&para;</a></h3>
+<pre><code class="language-bash">PYTHONPATH=src $PY scripts/inspect_corpus_window.py $FIXED/corpus_ourssft_32768.pt \
+    --audit --max-windows 40
+</code></pre>
+<p>Must report: all control tokens single ids · only <code>user</code>/<code>assistant</code>/<code>system</code> roles ·
+<strong>0 supervised tokens in NON-assistant turns</strong> · <strong>0 stray <code>&lt;|im_end|&gt;</code></strong>. A non-zero
+"carry-over from the previous window" is expected — packed windows start mid-turn.</p>
+<p>Read a window as the model sees it, supervised targets bracketed:</p>
+<pre><code class="language-bash">PYTHONPATH=src $PY scripts/inspect_corpus_window.py $FIXED/corpus_ourssft_32768.pt \
+    --window 5 --tokens 700
+</code></pre>
+<p>And confirm the corpus is not teaching the pathology:</p>
+<pre><code class="language-bash">PYTHONPATH=src $PY scripts/analyze_stop_context.py $FIXED/corpus_*_32768.pt --max-windows 60
+</code></pre>
+<p><code>P(stop | sentence end, &lt;32 tok into turn)</code> should be ~0.05 or below on every corpus.</p>
+<hr />
+<h2 id="3-verify-the-corpus-before-a-long-run">3. Verify the corpus BEFORE a long run<a class="headerlink" href="#3-verify-the-corpus-before-a-long-run" title="Permanent link">&para;</a></h2>
+<p>Two ~60-step runs from the same shipped weights, identical hyper-parameters, differing
+only in the corpus, compared on the in-training stop probe:</p>
+<pre><code class="language-bash">bash scripts/verify_corpus_fix.sh 60
+</code></pre>
+<p>~45 min per arm. The endpoint is <code>P(&lt;|im_end|&gt; | completed sentence)</code>, which starts at
+<strong>0.0017</strong> on the shipped weights (torch fp32) and reached <strong>0.95</strong> in every run trained
+on the pre-fix corpus. This is the check that replaces discovering the answer 23 h into a
+curriculum.</p>
+<hr />
+<h2 id="4-train">4. Train<a class="headerlink" href="#4-train" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">PYTHONPATH=src PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True \
+$PY -m quant_tuner.qat.train \
+    --corpus $FIXED/corpus_ourssft_32768.pt \
+    --val-corpus $FIXED/corpus_ourssft_val_32768.pt \
+    --train-layers 36 --optim adafactor --dtype fp32 \
+    --compute-dtype fp32 --matmul-precision high \
+    --grad-accum 1 --epochs 1.0 --lr 5e-4 --warmup-frac 0.05 \
+    --stop-weight 1.0 --grad-spike-factor 0 \
+    --val-every 25 --val-windows 4 --probe-every 25 \
+    --ckpt-every 50 --ckpt-keep 2 \
+    --out out/exp-058/trained_myrun &gt; out/exp-058/trained_myrun/train.log 2&gt;&amp;1
+</code></pre>
+<p>Non-negotiable settings, all measured:</p>
+<ul>
+<li><strong>fp32, never <code>--compute-dtype bf16</code>.</strong> bf16 is 5.15x faster and diverged twice,
+  non-reproducibly, with no anomalous gradient beforehand. <code>GradSpikeGuard</code> cannot catch
+  it and this is not a knob to retry.</li>
+<li><strong><code>--matmul-precision high</code> (TF32) IS safe</strong> and worth ~1.38x: latents, the TWN
+  threshold and <code>ternarize_group</code> are elementwise fp32 and stay bit-exact, so the codes a
+  step produces are unperturbed.</li>
+<li><strong><code>--optim adafactor</code></strong> to fit all 36 layers (~70 GB vs AdamW's ~116 GB).</li>
+<li><strong><code>--probe-every 25</code></strong> — the termination telemetry. Five short forwards, 0.7 s.</li>
+</ul>
+<p>The trainer writes <code>run_config.json</code> before step 0 (full config, corpus fingerprint,
+argv, git commit), so the run directory can always say what produced it.</p>
+<h3 id="what-to-watch-in-order">What to watch, in order<a class="headerlink" href="#what-to-watch-in-order" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong><code>STOPPROBE</code> lines.</strong> <code>sentence_period</code> must stay near 0.002; <code>after_tool_call</code> near
+   1.0. Losing either is a failure and it shows up within ~25 steps.</li>
+<li><strong>Code flips</strong>, printed at every checkpoint. A ternary model only learns by flipping
+   codes — at lr 3e-4 the loss falls on scale drift alone with ~0% flipped.</li>
+<li><strong>Not the loss, and not masked-CE validation.</strong> sft32k's validation went FLAT for 225
+   steps while its <code>sentence_period</code> went to 0.97.</li>
+<li><strong>gnorm magnitude is not the failure signal</strong>: 90.96 at step 55 was survived; 15.80 at
+   step 265 diverged. NaN/Inf is the unambiguous one.</li>
+</ol>
+<h3 id="disk">Disk<a class="headerlink" href="#disk" title="Permanent link">&para;</a></h3>
+<p>A checkpoint is <strong>27.8 GB</strong> and the trainer writes the new one BEFORE pruning the oldest,
+so a run needs <code>(ckpt_keep + 1) x 27.8 GB</code> free however many it keeps. Watch it — this is
+the constraint that actually kills runs, and nothing in the metrics stream hints at it.</p>
+<hr />
+<h2 id="5-report">5. Report<a class="headerlink" href="#5-report" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">bash scripts/qat_report_refresh.sh out/exp-058/trained_myrun &quot;myrun — ternary QAT&quot;
+</code></pre>
+<p>Chains parse-log → cached step-0 census → latest census → HTML. Safe beside training and
+idempotent. The "Termination policy over training" panel is the one to read first.</p>
+<hr />
+<h2 id="6-export-probe-benchmark">6. Export, probe, benchmark<a class="headerlink" href="#6-export-probe-benchmark" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">TAG=myrun
+# Q2_0 export — needs the prism fork (ftype 41)
+LLAMA_CPP_DIR=vendor/llama.cpp-prism PYTHONPATH=src $PY scripts/exp057_qat_export.py \
+    --latents out/exp-058/trained_myrun/trained_latents.pt --tag $TAG
+
+# ~50 GB of intermediates (HF checkpoint + F16) for a 2.1 GB deliverable
+bash scripts/prune_export_intermediates.sh $TAG
+
+# Termination endpoint on the exported GGUF (CPU, --ngl 0)
+LLAMA_CPP_DIR=vendor/llama.cpp-prism PYTHONPATH=src $PY scripts/probe_stop_prob.py \
+    --model out/exp-057/Ternary-Bonsai-8B-$TAG-Q2_0.gguf --label $TAG \
+    --out out/exp-058/eval/stop_prob.csv --ngl 0
+
+# Agentic smoke test: can it patch a real repo? (needs a free GPU)
+bash scripts/run_swe_mimic.sh $TAG
+PYTHONPATH=src $PY scripts/analyze_swe_anomalies.py --all
+</code></pre>
+<p><strong>Read the probe and the trajectory together.</strong> Each is blind in one direction: the probe
+scores a single token at a fixed position and cannot see a multi-turn loop, while the
+trajectory cannot tell early stopping from plain incapacity. The shipped model proves the
+gap — its probe is textbook healthy (0.0092 / 0.99995) and its trajectory loops.</p>
+<p><code>analyze_swe_anomalies.py</code> names the failure mode, because <code>resolved=0</code> is the same number
+for a model that never emitted a token (<strong>mute</strong>), one that repeated a command 58 times
+(<strong>loop</strong>), and one that genuinely tried (<strong>worked, unresolved</strong>) — and only the last is
+about capability.</p>
+<hr />
+<h2 id="7-the-staged-curriculum">7. The staged curriculum<a class="headerlink" href="#7-the-staged-curriculum" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">bash scripts/run_curriculum_qat.sh curriculum 5e-4 1.0
+</code></pre>
+<p>Three rounds, each <code>--resume</code> from the previous round's latents: ultrachat → distillation
+→ ours. Reads <code>CORPUS_DIR</code> (default <code>out/exp-058/fixed</code>), exports + probes + reports after
+every round, prunes checkpoints and export intermediates as it goes, and refuses to start
+a round without disk headroom.</p>
+<p>Fully unattended, including the evaluation either side:</p>
+<pre><code class="language-bash">bash scripts/run_full_chain.sh              # postflight -&gt; agent bench -&gt; curriculum -&gt; agent bench
+FROM=curriculum bash scripts/run_full_chain.sh    # resume at a stage
+</code></pre>
+<hr />
+<h2 id="8-the-run-ledger">8. The run ledger<a class="headerlink" href="#8-the-run-ledger" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">$PY scripts/qat_registry.py --print
+</code></pre>
+<p>Joins <code>run_config.json</code>, <code>train.log</code>, the probe CSV, the tool-call CSV and swe-mimic's
+results into <code>docs/qat_run_history.md</code>. A run is modelled as a SEQUENCE of legs (one per
+<code>train*.log</code>), because <code>trained_sft32k</code> is three — two bf16 attempts that diverged and an
+fp32 leg resumed from step 350 — and reading only the surviving log reports a resumed
+leg's mid-run loss as the run's starting loss.</p>
+<hr />
+<h2 id="the-short-version">The short version<a class="headerlink" href="#the-short-version" title="Permanent link">&para;</a></h2>
+<p>If you do nothing else from this document:</p>
+<ol>
+<li><code>inspect_corpus_window.py --audit</code> before training on a corpus.</li>
+<li><code>--probe-every 25</code> on every run.</li>
+<li>Read <code>sentence_period</code> and the agent trajectory together, never the loss alone.</li>
+</ol>
+<hr />
+<h2 id="9-offline-kd-method-b-when-plain-ce-trades-learning-against-termination">9. Offline KD (Method B) — when plain CE trades learning against termination<a class="headerlink" href="#9-offline-kd-method-b-when-plain-ce-trades-learning-against-termination" title="Permanent link">&para;</a></h2>
+<p>Four levers were tested against the termination collapse and all four failed or traded
+against learning (<code>docs/ternary_qat_curriculum.md</code>): <code>--stop-weight</code>, the corpus defect,
+the optimizer, and the lr. Hard CE supplies one target per position and says nothing about
+the SHAPE of the distribution, so the model is free to collapse P(stop) anywhere the argmax
+survives. A KL term against a teacher that terminates correctly constrains exactly that.</p>
+<pre><code class="language-bash">bash scripts/run_kd_qat.sh                                    # 8B teacher, 60-step A/B
+STEPS=613 bash scripts/run_kd_qat.sh                          # full run
+TEACHER=SWE-Lego/SWE-Lego-Qwen3-32B TAG=kd32b STEPS=613 bash scripts/run_kd_qat.sh
+</code></pre>
+<h3 id="the-teacher-requirement-which-silently-ruins-a-run">The teacher requirement, which silently ruins a run<a class="headerlink" href="#the-teacher-requirement-which-silently-ruins-a-run" title="Permanent link">&para;</a></h3>
+<p>Per-token KD needs the teacher and student to share a tokenizer <strong>id -&gt; string</strong> map.
+<code>kd_precompute.tokenizer_compatibility</code> compares the strings, not <code>vocab_size</code>, and refuses
+a mismatch — per-token KL across different tokenizers is <em>wrong</em>, not approximate.</p>
+<table>
+<thead>
+<tr>
+<th>teacher</th>
+<th>verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>SWE-Lego/SWE-Lego-Qwen3-8B</code></td>
+<td><strong>OK</strong> — agrees on all 151,669 ids; hidden 4096, 36 layers (identical to the student)</td>
+</tr>
+<tr>
+<td><code>SWE-Lego/SWE-Lego-Qwen3-32B</code></td>
+<td><strong>OK</strong> — agrees on all 151,669 ids; hidden 5120, 64 layers</td>
+</tr>
+<tr>
+<td><code>Qwen/Qwen3.8-27B</code></td>
+<td><strong>NO</strong> — vocab 248,320, a different tokenizer family</td>
+</tr>
+</tbody>
+</table>
+<p>The 27B is the obvious teacher to reach for (it solves our SWE instance at IQ2_M) and it is
+the one that cannot be used. A vocab_size difference alone is fine: the SWE-Lego models
+declare 151,936 against the student's 151,669 and the extra rows are embedding padding,
+which the checker slices away.</p>
+<p>Both teachers need <code>load_tokenizer_tolerant</code> — their configs carry
+<code>max_position_embeddings: 163840.0</code>, a float where transformers demands an int, and stock
+<code>AutoTokenizer.from_pretrained</code> refuses outright.</p>
+<h3 id="why-offline">Why offline<a class="headerlink" href="#why-offline" title="Permanent link">&para;</a></h3>
+<p><code>--kd-teacher</code> loads a DENSE teacher alongside the student and cannot fit an all-36 run.
+<code>--kd-table</code> reads a precomputed top-K table, so KD costs <strong>no GPU memory at all</strong> — the
+table lives on CPU (~1.7 GB at top-64 over our corpus) and a window's slice is ~3.6 MB.</p>
+<p>Precompute is cheap: <strong>2.8 s/window</strong> for the 8B, so 592 windows is ~28 minutes.</p>
+<h3 id="what-to-check-at-startup">What to check at startup<a class="headerlink" href="#what-to-check-at-startup" title="Permanent link">&para;</a></h3>
+<pre><code>[qat] KD KDTable(teacher=..., topk=64, positions=..., windows=592, coverage=0.998)
+[qat] KD alpha=0.5 T=1.0; loss = 0.5*CE + 0.5*T^2*KL
+[qat] step 1/59 loss=0.9086 kl=0.5443 ...
+</code></pre>
+<p><strong><code>coverage</code> is the number that de-risks the whole approach.</strong> It is the teacher
+probability mass captured by the stored top-K; at 0.998 the KL constrains essentially the
+full distribution rather than a truncated shadow of it. Below 0.8 the trainer warns —
+a low-coverage table makes the KL a far weaker constraint than it looks, and that is a
+property of the teacher's entropy on this corpus that nothing later can detect.</p>
+<h3 id="two-guards-that-exist-because-the-failures-are-silent">Two guards that exist because the failures are silent<a class="headerlink" href="#two-guards-that-exist-because-the-failures-are-silent" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Corpus fingerprint.</strong> A table built from a different pack still resolves — same window
+  count, same position range — and would distil every position against the wrong
+  distribution without erroring anywhere.</li>
+<li><strong>Position alignment.</strong> The stored positions must equal the <code>keep_idx</code> the trainer
+  recomputes from the labels. The dangerous case is <em>equal counts, different positions</em>,
+  which misaligns every row; the error names it.</li>
+<li><strong>Full coverage.</strong> A partial table (e.g. one built with <code>--max-windows</code> for a smoke test)
+  would let uncovered windows train on plain CE while the rest train on CE+KL — the
+  objective changing from window to window. Refused at startup.</li>
+</ul>
+<h3 id="the-kls-blind-spot-and-the-two-fixes-in-escalation-order">The KL's blind spot, and the two fixes (in escalation order)<a class="headerlink" href="#the-kls-blind-spot-and-the-two-fixes-in-escalation-order" title="Permanent link">&para;</a></h3>
+<p>The first A/B (renormalized-over-support KL) landed <em>between</em> the CE-only arms: it slowed
+the diagnostic's drift ~35% and did not stop it. Mechanism, measured: <code>&lt;|im_end|&gt;</code> is in
+the teacher's top-64 at only <strong>1.8%</strong> of positions, and a support-renormalized KL is
+mathematically blind to student mass outside the support — the collapse was invisible to
+it at 98.2% of positions.</p>
+<ol>
+<li><strong>Tail bucket (default, no re-precompute).</strong> <code>kd_loss_from_topk</code> now takes the KL over
+   K+1 buckets — the stored top-K at true probabilities plus a tail bucket (student side
+   <code>1 − Σ support</code>). Caps the student's total out-of-support mass at the teacher's
+   (~0.006 mean). Automatic at T=1; T≠1 falls back to the old renormalized form.</li>
+<li><strong>Force the stop id into the support</strong> (<code>scripts/kd_precompute.py --include-ids
+   151645</code>): every stored row then carries the teacher's true P(stop), making the KL an
+   exact per-position constraint on exactly the quantity that collapses. Costs one
+   re-precompute; fold it into any 32B table build, which is built once and reused.</li>
+</ol>
+<h3 id="stop-the-run-when-the-probe-says-stop">Stop the run when the probe says stop<a class="headerlink" href="#stop-the-run-when-the-probe-says-stop" title="Permanent link">&para;</a></h3>
+<p><code>--probe-abort 0.09</code> (10x the vanilla 0.0092) aborts with exit 3 and a saved checkpoint
+the moment the diagnostic crosses the threshold. Every observed collapse was visible by
+~step 50 and monotone afterwards; this converts an 11-hour post-mortem into a 40-minute
+one. Leave it OFF for short A/B arms (their whole point is recording the trajectory) and
+ON for full runs.</p>
+<h3 id="prune-a-dead-runs-checkpoints-after-extracting-always">Prune a dead run's checkpoints — after extracting, always<a class="headerlink" href="#prune-a-dead-runs-checkpoints-after-extracting-always" title="Permanent link">&para;</a></h3>
+<p>A run's latents are only needed to RESUME it or RE-EXPORT it; for a run that failed
+(collapse, abort, divergence) neither applies, and each one holds ~52 GB (two 26 GB
+checkpoints — note <code>trained_latents.pt</code> is a HARDLINK to the newest step file, so <code>du</code>
+under-reports and deleting one name may free nothing). Before deleting, confirm the
+record is extracted: train.log + metrics.jsonl in place, telemetry parsed
+(<code>parse_qat_log.py</code>), the final census taken if the report wants a distribution-shift
+column, and the exported GGUF kept if one was benchmarked. Then <code>rm</code> every
+<code>trained_latents*.pt</code> in the run dir. Measured 2026-08-18: four dead runs held 207 GB.</p>
+<h2 id="10-the-anchor-ladder-reproducing-the-full-schedule-runs">10. The anchor ladder — reproducing the full-schedule runs<a class="headerlink" href="#10-the-anchor-ladder-reproducing-the-full-schedule-runs" title="Permanent link">&para;</a></h2>
+<p>Every full-schedule KD run is one invocation of <code>scripts/run_kd_anchor_qat.sh</code> (dual
+probe guards on, so a collapsing config self-terminates in ~2 h with a checkpoint):</p>
+<pre><code class="language-bash">TAG=a05      BETA=0 ALPHA=0.5              bash scripts/run_kd_anchor_qat.sh  # abort @125
+TAG=a075     BETA=0 ALPHA=0.75             bash scripts/run_kd_anchor_qat.sh  # stop  @150
+# (the symmetric-L1 and single-margin variants are code states, not flags: commits
+#  c8d407d and aa74309 — margins landed in 4933a1d)
+TAG=anchor3                                bash scripts/run_kd_anchor_qat.sh  # abort @175
+TAG=anchor4 LR=4e-4                        bash scripts/run_kd_anchor_qat.sh
+</code></pre>
+<p>Then the evaluation chain for any tagged checkpoint:</p>
+<pre><code class="language-bash">bash scripts/run_kd_export_bench.sh anchor3
+</code></pre>
+<p>which runs export -&gt; GGUF stop probe -&gt; <code>measure_indist_stop.py</code> (real corpus stop
+positions; this is what exposed the bimodal weak tail the probe medians hide) -&gt; the
+Docker-free SWE mimic, and prunes the ~50 GB of export intermediates.</p>
+<h2 id="11-the-working-recipe-anchor6-and-its-serving-parameters">11. The working recipe (anchor6) and its serving parameters<a class="headerlink" href="#11-the-working-recipe-anchor6-and-its-serving-parameters" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">TAG=anchor6 LR=5e-4 STEER=0.1 CLIP=0.25 bash scripts/run_kd_anchor_qat.sh
+bash scripts/run_kd_export_bench.sh anchor6
+</code></pre>
+<p>Loss = 0.5·CE + 0.5·(tail-bucket KL, forced-stop table) + 0.2·(one-sided anchor,
+margins 1.0/0.1) + 0.1·(termination steering) with clip-norm 0.25, group-scale lr, and
+patience-2 dual probe guards. First full-schedule completion; perfect probe record.</p>
+<p><strong>Serving (superseded 2026-08-21 by the anchor10 result): temperature 0.7, top_p
+0.95, NO repeat/presence penalties.</strong> The anchor6-era penalties above are kept for
+the historical record only — they under/over-shoot per model (muted anchor7 to zero
+tool calls with presence 0.8; collapsed anchor10 to a 1-step episode). The measured
+2x2 that settled it (bare model, dask episode):</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>T=0.25</th>
+<th>T=0.7</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>anchor9 (P_real ~0.96)</td>
+<td>loop 29x</td>
+<td>loop 11x + 31/48 malformed</td>
+</tr>
+<tr>
+<td>anchor10 (P_real ≤0.6)</td>
+<td>loop 43x</td>
+<td>CLEAN — streak 1, 0 malformed, self-term</td>
+</tr>
+</tbody>
+</table>
+<p>Both levers are necessary: the harvested-state hinge (<code>REP_BANK</code> + <code>REP_TRAJ</code>) caps
+P(verbatim repeat) in real episode states — verified on an episode outside its
+harvest (0.96 → 0.53–0.59 flat) — and T=0.7 keeps low-temperature sharpening from
+collapsing onto the argmax anyway. An uncapped model cannot take the temperature
+(anchor9's 65% malformed at 0.7: it needs low T for command syntax, which is exactly
+the regime that loops). Do not add a rep teacher-KL: the dense teacher itself assigns
+0.79–0.99 to the verbatim repeat under forcing (in-context pattern continuation), so
+distilling those states teaches copying.</p>
+<p>The state-dependence ladder that forced this design, in one sweep of
+<code>scripts/measure_repeat_prob.py</code> / <code>scripts/measure_traj_repeat.py</code> (P(verbatim
+repeat), anchor9 weights): constructed contexts 0.08–0.15 at ANY depth (k≤25);
+reconstructed real episode 0.96 at the FIRST re-issue; the same real prefix truncated
+to 3k tokens 0.06 — the loop state IS the full self-generated history, so training
+contexts must be harvested episode prefixes (<code>gen_harvest.sh</code> on training-pool
+instances; the eval instance is refused by the harvester).</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "content.code.copy", "search.highlight", "search.suggest", "search.preview"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

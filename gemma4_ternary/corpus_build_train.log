@@ -1,0 +1,19 @@
+[sft] broad-instruct     5258/5258 convs     790,588 tok    80% masked  -> 24 windows (-0 low-density)
+[sft]                    tool-calls 0/0 kept · reasoning 0/0 kept · tool-output truncation dropped 0 tok (0% of this source's conversation content)
+[sft] logs               205/205 convs  10,622,080 tok    29% masked  -> 299 windows (-24 low-density)
+[sft]                    tool-calls 57/10014 kept · reasoning 0/343 kept · tool-output truncation dropped 471,292 tok (4% of this source's conversation content)
+[sft]                    merged 1,030 split assistant messages into their turn · dropped 0 empty assistant turn(s) (pure stop-token targets) · dropped 0 conversation(s) quoting a control token
+[sft] logs-agents        339/339 convs  10,161,915 tok    21% masked  -> 297 windows (-13 low-density)
+[sft]                    tool-calls 0/14234 kept · reasoning 0/3141 kept · tool-output truncation dropped 1,364,662 tok (12% of this source's conversation content)
+[sft]                    merged 3,770 split assistant messages into their turn · dropped 5 empty assistant turn(s) (pure stop-token targets) · dropped 0 conversation(s) quoting a control token
+[sft] redteam-refusals   305/305 convs      89,559 tok     7% masked  -> 2 windows (-0 low-density)
+[sft]                    tool-calls 0/0 kept · reasoning 0/0 kept · tool-output truncation dropped 0 tok (0% of this source's conversation content)
+[sft] swe-trajectories   63/63 convs     978,089 tok    28% masked  -> 29 windows (-0 low-density)
+[sft]                    tool-calls 0/2141 kept · reasoning 0/1 kept · tool-output truncation dropped 0 tok (0% of this source's conversation content)
+[sft]                    merged 43 split assistant messages into their turn · dropped 0 empty assistant turn(s) (pure stop-token targets) · dropped 0 conversation(s) quoting a control token
+[sft] TOTAL 22,642,231 tokens (27% assistant-masked) -> 651 windows of 32768
+[sft] tool-calls 57/26389 · reasoning 0/3485 · tool-output truncation dropped 1,835,954 tok (8% of conversation content) at --max-tool-tokens 8192
+[corpus] window trainable-density deciles: 0.05 0.11 0.15 0.18 0.21 0.25 0.28 0.33 0.39 0.51 0.98
+[corpus] dialect=gemma4 labeled <turn|> targets: 6300
+[corpus] saved 651 windows [(651, 32768)] fingerprint=0c70d992882d29a7 -> out/gemma4-ternary/corpus_sft_gemma4_32768.pt
+[corpus] masked-token share overall: 28.7%

@@ -1,0 +1,3373 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Calibrate your own GGUF quantizations and vLLM W4A16 checkpoints from real agentic-coding logs">
+      
+      
+        <meta name="author" content="K. Pearson">
+      
+      
+      
+        <link rel="prev" href="../ternary_qat_reproduce/">
+      
+      
+        <link rel="next" href="../ternary_qat_preprint/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Curriculum - quant-tuner</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#the-three-round-ternary-qat-curriculum" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="quant-tuner" class="md-header__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            quant-tuner
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Curriculum
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18V6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-2.69L23.31 12 20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="quant-tuner" class="md-nav__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    quant-tuner
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methods
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Methods
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The three calibrators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipe reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calibration_datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calibration datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmarks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lens/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jacobian lens
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT for ternary models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    QAT for ternary models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method & invariants
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curriculum
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curriculum
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-three-rounds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The three rounds
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-each-round-is-budgeted-not-epoch-capped" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why each round is budgeted, not epoch-capped
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-settled-and-what-this-curriculum-does-not-decide" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is settled, and what this curriculum does not decide
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-dataset-traps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The dataset traps
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#measured-compatibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measured compatibility
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-much-is-there-and-what-we-take" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How much is there, and what we take
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How much is there, and what we take">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-round-2-domain-mix-52-agentic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The round-2 domain mix (52% agentic)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-configs-are-overlapping-views-not-disjoint-slices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The configs are overlapping views, not disjoint slices
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#two-schemas-in-one-repo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two schemas in one repo
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#contamination-worse-than-just-sft_science" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Contamination: worse than just sft_science
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-two-termination-failures-and-why-one-number-cannot-see-both" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The two termination failures, and why one number cannot see both
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-stop-signal-ratio-per-round" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The stop-signal ratio, per round
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-proposed-super-dataset-sized-not-built" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The proposed super-dataset: sized, not built
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-stop-weight-ablation-failed-and-so-did-the-corpus-hypothesis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The stop-weight ablation failed, and so did the corpus hypothesis
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The stop-weight ablation failed, and so did the corpus hypothesis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-corpus-does-not-teach-this-either" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The corpus does not teach this either
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-is-still-open" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is still open
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-corpus-defect-found-and-fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The corpus defect, found and fixed
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The corpus defect, found and fixed">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-fix-and-what-it-costs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The fix, and what it costs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#did-the-corpus-fix-work-ab-verification-verify_corpus_fixsh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Did the corpus fix work? A/B verification (verify_corpus_fix.sh)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#is-the-optimizer-the-cause-no-and-the-direction-is-informative" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Is the OPTIMIZER the cause? No — and the direction is informative
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Is the OPTIMIZER the cause? No — and the direction is informative">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#where-the-diagnosis-stands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where the diagnosis stands
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#is-the-lr-the-lever-no-there-is-no-window" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Is the LR the lever? No — there is no window
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Is the LR the lever? No — there is no window">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#four-candidates-four-eliminated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Four candidates, four eliminated
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#kd-round-one-the-renormalized-kl-had-a-measured-blind-spot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KD round one: the renormalized KL had a measured blind spot
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#kd-round-two-the-smoke-ladder-that-produced-the-full-run-config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KD round two: the smoke ladder that produced the full-run config
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-sustained-lr-regime-what-the-smoke-ladder-could-not-see" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The sustained-lr regime: what the smoke ladder could not see
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#alpha-is-not-the-lever-and-the-collapse-has-a-second-face" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alpha is not the lever — and the collapse has a second face
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-anchor-works-and-its-first-version-worked-too-hard-in-one-direction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The anchor works — and its first version worked too hard in one direction
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#anchor-iteration-2-the-margin-means-opposite-things-on-the-two-sides" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Anchor iteration 2: the margin means opposite things on the two sides
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#anchor-iteration-3-the-first-benchmark-the-failure-narrowed-to-a-weak-tail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Anchor iteration 3 + the first benchmark: the failure narrowed to a weak TAIL
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-dense-control-ternarys-lr-is-past-the-continuous-stability-boundary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The dense control: ternary's lr is past the continuous stability boundary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dense-control-v2-lr-2e-5-the-decomposition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dense control v2 (lr 2e-5): the decomposition
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#anchor6-the-first-complete-artifact-and-the-frontier-moves" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        anchor6: the first complete artifact — and the frontier moves
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#anchor7anchor10-the-repetition-arc-2026-08-2021" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        anchor7–anchor10: the repetition arc (2026-08-20/21)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_preprint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Preprint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary/HANDOFF/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B stage 1 (handoff)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run logs (Qwen 3.8 family)
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Run logs (Qwen 3.8 family)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_release/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 release
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_awq_2bit_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 AWQ 2-bit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_gptq_vllm_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 GPTQ vLLM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_exp062_rebuild/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 exp-062 rebuild
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Research notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_32k_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT 32K handoff
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_optimization_audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT optimization audit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_run_history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT run history
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_calibration_experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ternary calibration experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patch_gguf_chat_template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patch a GGUF chat template
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_feasibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary feasibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reddit_ternary_qat_post/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reddit: ternary QAT post
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-three-rounds" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The three rounds
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-each-round-is-budgeted-not-epoch-capped" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why each round is budgeted, not epoch-capped
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-settled-and-what-this-curriculum-does-not-decide" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is settled, and what this curriculum does not decide
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-dataset-traps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The dataset traps
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#measured-compatibility" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measured compatibility
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#how-much-is-there-and-what-we-take" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How much is there, and what we take
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="How much is there, and what we take">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-round-2-domain-mix-52-agentic" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The round-2 domain mix (52% agentic)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-configs-are-overlapping-views-not-disjoint-slices" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The configs are overlapping views, not disjoint slices
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#two-schemas-in-one-repo" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two schemas in one repo
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#contamination-worse-than-just-sft_science" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Contamination: worse than just sft_science
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-two-termination-failures-and-why-one-number-cannot-see-both" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The two termination failures, and why one number cannot see both
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-stop-signal-ratio-per-round" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The stop-signal ratio, per round
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-proposed-super-dataset-sized-not-built" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The proposed super-dataset: sized, not built
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-stop-weight-ablation-failed-and-so-did-the-corpus-hypothesis" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The stop-weight ablation failed, and so did the corpus hypothesis
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The stop-weight ablation failed, and so did the corpus hypothesis">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-corpus-does-not-teach-this-either" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The corpus does not teach this either
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-is-still-open" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is still open
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-corpus-defect-found-and-fixed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The corpus defect, found and fixed
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The corpus defect, found and fixed">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#the-fix-and-what-it-costs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The fix, and what it costs
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#did-the-corpus-fix-work-ab-verification-verify_corpus_fixsh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Did the corpus fix work? A/B verification (verify_corpus_fix.sh)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#is-the-optimizer-the-cause-no-and-the-direction-is-informative" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Is the OPTIMIZER the cause? No — and the direction is informative
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Is the OPTIMIZER the cause? No — and the direction is informative">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#where-the-diagnosis-stands" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Where the diagnosis stands
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#is-the-lr-the-lever-no-there-is-no-window" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Is the LR the lever? No — there is no window
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Is the LR the lever? No — there is no window">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#four-candidates-four-eliminated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Four candidates, four eliminated
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#kd-round-one-the-renormalized-kl-had-a-measured-blind-spot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KD round one: the renormalized KL had a measured blind spot
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#kd-round-two-the-smoke-ladder-that-produced-the-full-run-config" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KD round two: the smoke ladder that produced the full-run config
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-sustained-lr-regime-what-the-smoke-ladder-could-not-see" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The sustained-lr regime: what the smoke ladder could not see
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#alpha-is-not-the-lever-and-the-collapse-has-a-second-face" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Alpha is not the lever — and the collapse has a second face
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-anchor-works-and-its-first-version-worked-too-hard-in-one-direction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The anchor works — and its first version worked too hard in one direction
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#anchor-iteration-2-the-margin-means-opposite-things-on-the-two-sides" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Anchor iteration 2: the margin means opposite things on the two sides
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#anchor-iteration-3-the-first-benchmark-the-failure-narrowed-to-a-weak-tail" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Anchor iteration 3 + the first benchmark: the failure narrowed to a weak TAIL
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-dense-control-ternarys-lr-is-past-the-continuous-stability-boundary" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The dense control: ternary's lr is past the continuous stability boundary
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#dense-control-v2-lr-2e-5-the-decomposition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Dense control v2 (lr 2e-5): the decomposition
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#anchor6-the-first-complete-artifact-and-the-frontier-moves" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        anchor6: the first complete artifact — and the frontier moves
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#anchor7anchor10-the-repetition-arc-2026-08-2021" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        anchor7–anchor10: the repetition arc (2026-08-20/21)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="the-three-round-ternary-qat-curriculum">The three-round ternary-QAT curriculum<a class="headerlink" href="#the-three-round-ternary-qat-curriculum" title="Permanent link">&para;</a></h1>
+<p>A staged continued-QAT run for <code>prism-ml/Ternary-Bonsai-8B</code>, replacing the single-corpus
+runs (<code>sft8k-full</code>, <code>sft32k</code>, <code>sft32k_sw1</code>) with an ordered curriculum. Companion to
+<code>docs/ternary_qat.md</code> (method), <code>docs/ternary_qat_sft32k_study.md</code> (the observations that
+set the hyper-parameters) and <code>docs/qat_32k_handoff.md</code> §10 (the CUDA port).</p>
+<h2 id="the-three-rounds">The three rounds<a class="headerlink" href="#the-three-rounds" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>round</th>
+<th>corpus</th>
+<th>what it teaches</th>
+<th>tokens</th>
+<th>windows @32768</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>HuggingFaceH4/ultrachat_200k</code></td>
+<td>broad conversational grounding</td>
+<td>20.0M</td>
+<td>610</td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>r0b0tlab/qwen3.8-max-…-distillation</code></td>
+<td>tools, agents, reasoning-in-context</td>
+<td>20.2M</td>
+<td>604</td>
+</tr>
+<tr>
+<td>3</td>
+<td>our universal SFT</td>
+<td>CLI logs + trajectories that resolve real issues</td>
+<td>~20M</td>
+<td>613</td>
+</tr>
+</tbody>
+</table>
+<p>All three rounds are sized to ~20M tokens / ~610 windows, which is exactly the <code>sft32k</code>
+run's shape — so each round is ~11 h and the curriculum is ~33 h.</p>
+<p>Each round <strong>continues from the previous round's latents</strong>, so this is one long fine-tune
+over a changing distribution, not three independent runs. The ordering is
+general → capability → in-domain, so the last thing the model sees is the distribution it
+is graded on. Catastrophic forgetting runs the other way, and that is the point.</p>
+<p>Build and run:</p>
+<pre><code class="language-bash">python scripts/build_external_sft.py ultrachat   --out out/corpora/round1-ultrachat
+python scripts/build_external_sft.py distill-mix --out out/corpora/round2-distill
+bash scripts/run_curriculum_qat.sh curriculum 5e-4 1.0
+</code></pre>
+<p>Use <code>distill-mix</code>, not <code>distill</code>. See "the configs are overlapping views" below.</p>
+<p>Round 3's corpus is the existing <code>scripts/build_universal_corpus.py</code> output; nothing new
+is needed for it.</p>
+<h2 id="why-each-round-is-budgeted-not-epoch-capped">Why each round is budgeted, not epoch-capped<a class="headerlink" href="#why-each-round-is-budgeted-not-epoch-capped" title="Permanent link">&para;</a></h2>
+<p>ultrachat is ~300M tokens. At a 32768 window that is ~5,500 steps — <strong>~96 h on its own</strong>,
+against the ~11 h the whole <code>sft32k</code> run took. Rounds are therefore capped by token budget
+(<code>BUDGET_R1=ultrachat=20000000</code>), sized so each round is a comparable slice of wall-clock
+and the full curriculum lands near ~33 h. Round 2 is capped at build time instead — its
+domain budgets already sum to ~20M — and round 3 is ~20M as built.</p>
+<p>Budgets are per-source <code>SOURCE=TOKENS</code> pairs — there is no global cap, because
+<code>build_sft_qat_corpus.py</code> budgets each source separately so one source cannot crowd out
+another.</p>
+<h2 id="what-is-settled-and-what-this-curriculum-does-not-decide">What is settled, and what this curriculum does not decide<a class="headerlink" href="#what-is-settled-and-what-this-curriculum-does-not-decide" title="Permanent link">&para;</a></h2>
+<p>Carried forward from the sft32k study, not re-litigated here:</p>
+<ul>
+<li><strong>fp32, never <code>--compute-dtype bf16</code>.</strong> bf16 is 5.15× faster and diverged twice,
+  non-reproducibly, at different steps, with every corpus source spiking at once and no
+  anomalous gradient beforehand (Obs. 8). <code>GradSpikeGuard</code> cannot catch it: the weights are
+  already broken by an update whose norm was <em>below</em> threshold, and the huge norms that
+  follow are a symptom. <code>run_curriculum_qat.sh</code> does not expose the flag.</li>
+<li><strong><code>--matmul-precision high</code> (TF32) IS safe and is the default here.</strong> A different knob:
+  latents, the TWN threshold and <code>ternarize_group</code> are elementwise fp32 and stay bit-exact,
+  so the codes a step produces are unperturbed. Only matmul accumulation is reduced, and
+  TF32 keeps 10 mantissa bits against bf16's 8. Worth ~1.38× at this window.</li>
+<li><strong>Read the code flips, not the loss.</strong> A ternary model only learns by flipping codes; at
+  lr 3e-4 the loss falls on scale drift alone with ~0% flipped.</li>
+<li><strong>gnorm magnitude is not the failure signal.</strong> 90.96 at step 55 was survived without
+  incident while 15.80 at step 265 diverged. NaN/Inf is the unambiguous one.</li>
+</ul>
+<p>Still open, and this curriculum does <strong>not</strong> answer them:</p>
+<ul>
+<li>the lr 2.5e-4 control, which would separate "bf16 is causal" from "a 32K window at
+  lr 5e-4 is simply fragile";</li>
+<li>whether the stop weight needs to be &gt;1.0 — that is what <code>sft32k_sw1</code> measures, and its
+  answer should set <code>STOP_WEIGHT</code> here before round 1 starts.</li>
+</ul>
+<h2 id="the-dataset-traps">The dataset traps<a class="headerlink" href="#the-dataset-traps" title="Permanent link">&para;</a></h2>
+<p>Encoded in <code>data/external_sft.py</code> and unit-tested in <code>tests/unit/test_external_sft.py</code>.
+Each one produces a corpus that builds, trains and exports without error while teaching the
+model something wrong.</p>
+<p><strong>1. <code>sft_tools</code> and <code>sft_agent</code> are the same rows.</strong> Byte-identical parquet (4,226,831
+bytes) and an identical id-set hash over all 5,337 rows. The Hub's <code>/size</code> API reports every
+one of the 24 configs with the same row count and byte size, which makes them look distinct
+— they are not. Taking both double-weights the agentic half of round 2. <code>DISTILL_ALIASES</code>
+records it; the builder skips the alias and says so.</p>
+<p><strong>2. Tool schemas nest <code>parameters_json</code> as a JSON <em>string</em>.</strong> The Qwen3 chat template
+renders tools with <code>tool | tojson</code>, so an unconverted row emits the whole parameter schema
+as one escaped blob inside <code>&lt;tools&gt;</code>. It templates cleanly, tokenizes cleanly, and teaches
+a doubly-encoded format that no inference-time caller produces. <code>normalize_tool</code> converts
+it; verified by rendering a raw row and confirming <code>parameters_json</code> leaks verbatim without
+it.</p>
+<p><strong>3. The per-row <code>split</code> field is <code>"train"</code> in every file</strong>, including the validation and
+test parquet. Trusting it puts graded rows into training. The <em>file</em> the rows came from is
+the real split, so <code>convert_distill_rows</code> takes it as an argument: <code>UPSTREAM_SPLIT_MAP</code>
+sends their <code>validation</code> → our <code>test</code> (the trainer's val corpus) and their <code>test</code> → our
+<code>holdout</code>.</p>
+<p><strong>4. The configs are overlapping views, not disjoint slices</strong> — see the table below.
+A mix assembled by combining configs double-counts heavily.</p>
+<p><strong>5. Two schemas in one repo.</strong> Per-config files carry <code>messages</code>/<code>tools</code> as lists;
+<code>canonical</code> carries <code>messages_json</code>/<code>tools_json</code> as strings. Reading one drops the other
+silently.</p>
+<p><strong>6. Reasoning is inline <code>&lt;think&gt;</code> in content, never <code>reasoning_content</code></strong> — despite that
+field existing on every message. <code>data.reasoning</code> normalizes both forms, so this works, but
+<em>counting</em> it needs the non-empty check: the Qwen3 template emits a bare <code>&lt;think&gt;&lt;/think&gt;</code>
+on the final assistant turn when no reasoning is supplied, which reported <strong>200 reasoning
+blocks on ultrachat, a corpus with exactly zero</strong>.</p>
+<h2 id="measured-compatibility">Measured compatibility<a class="headerlink" href="#measured-compatibility" title="Permanent link">&para;</a></h2>
+<p>Both rounds through the real builder at the training window
+(<code>--window 32768 --max-tool-tokens 12288 --min-density 0.05</code>):</p>
+<pre><code>round 1  ultrachat  16,857/166,341 convs  20,000,736 tok  77% masked -&gt; 610 windows
+         tool-calls 0 · reasoning 0 · labeled &lt;|im_end|&gt; 53,301
+         density deciles 0.64 0.72 0.74 0.75 0.76 0.77 0.78 0.79 0.80 0.82 0.87
+
+round 2  distill    10,867/10,867  convs  20,209,609 tok  49% masked -&gt; 604 windows
+         tool-calls 38,753 · reasoning 26,315/29,511 kept (89%) · labeled &lt;|im_end|&gt; 33,288
+         density deciles 0.08 0.32 0.41 0.47 0.49 0.52 0.55 0.58 0.60 0.65 0.74
+</code></pre>
+<p>Reasoning survives at 89% because these are agentic trajectories — the template keeps
+reasoning only on assistant turns <em>after the last user turn</em>, which is nearly the whole
+conversation when there is one task turn followed by many tool turns. Round 1's much higher
+density (0.77 vs 0.49) is the absence of tool outputs: nothing in an ultrachat window is
+masked except the user turns.</p>
+<h2 id="how-much-is-there-and-what-we-take">How much is there, and what we take<a class="headerlink" href="#how-much-is-there-and-what-we-take" title="Permanent link">&para;</a></h2>
+<p>Measured with the student's tokenizer over each source's train split:</p>
+<table>
+<thead>
+<tr>
+<th>source</th>
+<th>available</th>
+<th>taken</th>
+<th>share</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ultrachat <code>train_sft</code></td>
+<td>166,341 convs / <strong>202.6M tok</strong></td>
+<td>16,857 convs / 20.0M</td>
+<td>9.9%</td>
+</tr>
+<tr>
+<td>distillation (canonical, deduped, benchmark-free)</td>
+<td>56,773 convs / <strong>56.9M tok</strong></td>
+<td>10,867 convs / 20.2M</td>
+<td>36%</td>
+</tr>
+</tbody>
+</table>
+<p>So ultrachat is ~3.6x the distillation set by tokens, and the distillation set is the
+scarcer resource — we take a third of it against a tenth of ultrachat. The agentic part is
+scarcer still: <strong>10.6M tokens is ALL of it</strong>, so round 2 takes 100% of both agentic domains
+and fills the remaining ~9.6M around them.</p>
+<h3 id="the-round-2-domain-mix-52-agentic">The round-2 domain mix (52% agentic)<a class="headerlink" href="#the-round-2-domain-mix-52-agentic" title="Permanent link">&para;</a></h3>
+<pre><code>agent_tool                     5,445/5,445    10,058,226 tok   (agentic, taken whole)
+executed_tool_recovery           395/395         520,692 tok   (agentic, taken whole)
+grounded_long_context            447/1,140     3,999,405 tok
+code                           3,263/13,566    3,999,942 tok
+executable_code                  513/513         591,542 tok
+stateful_dialogue                471/471         805,103 tok
+verified_analysis_code_review    130/130         102,884 tok
+iterative_instruction            203/203         131,815 tok
+TOTAL                         10,867           20,209,609 tok  (52% agentic)
+</code></pre>
+<p><code>reasoning</code>, <code>math</code> and <code>instruction</code> are deliberately absent — see contamination below.
+Reasoning is still taught: the agentic trajectories are ~40% <code>&lt;think&gt;</code> by message, so the
+round teaches reasoning <em>in the agentic context</em> rather than as multiple-choice.</p>
+<h3 id="the-configs-are-overlapping-views-not-disjoint-slices">The configs are overlapping views, not disjoint slices<a class="headerlink" href="#the-configs-are-overlapping-views-not-disjoint-slices" title="Permanent link">&para;</a></h3>
+<p>This is the trap that makes a hand-assembled config mix wrong. Measured id-set overlaps:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>overlap</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>sft_agent</code> vs <code>sft_tools</code></td>
+<td><strong>identical</strong> (5,337/5,337)</td>
+</tr>
+<tr>
+<td><code>sft_glm_agent</code> ⊂ <code>sft_tools</code></td>
+<td>4,791/4,791 (100%)</td>
+</tr>
+<tr>
+<td><code>sft_tools</code> ⊂ <code>sft_reasoning</code></td>
+<td>5,300/5,337 (99.3%)</td>
+</tr>
+<tr>
+<td><code>sft_reasoning_specialist</code> ⊂ <code>sft_reasoning</code></td>
+<td>44,151/44,151 (100%)</td>
+</tr>
+<tr>
+<td><code>sft_code</code> ∩ <code>sft_reasoning</code></td>
+<td>11,138 (83.6% of <code>sft_code</code>)</td>
+</tr>
+<tr>
+<td><code>sft_math</code> ∩ <code>sft_reasoning</code></td>
+<td>12,672 (93.6% of <code>sft_math</code>)</td>
+</tr>
+<tr>
+<td><code>sft_long_context</code> ∩ <code>sft_reasoning</code></td>
+<td>996 (86.5%)</td>
+</tr>
+</tbody>
+</table>
+<p><code>canonical</code>, <code>openai_messages</code>, <code>sft</code> and <code>sft_final</code> are all the same 98,455-row full set,
+which itself holds only 56,773 distinct ids. So <code>build_external_sft.py distill-mix</code> builds
+from the <strong>deduped canonical set and selects by <code>domain</code></strong>, which is the only way to get a
+mix whose weights mean what they say.</p>
+<h3 id="two-schemas-in-one-repo">Two schemas in one repo<a class="headerlink" href="#two-schemas-in-one-repo" title="Permanent link">&para;</a></h3>
+<p>The per-config files carry <code>messages</code>/<code>tools</code> as real lists; <code>canonical</code> and the other
+full-set views carry <code>messages_json</code>/<code>tools_json</code> as <strong>strings</strong>. Reading only one drops
+every row of the other silently — the conversation comes back empty and fails the
+length check, so a 56,773-row build reports zero without raising. Unit-tested.</p>
+<h2 id="contamination-worse-than-just-sft_science">Contamination: worse than just <code>sft_science</code><a class="headerlink" href="#contamination-worse-than-just-sft_science" title="Permanent link">&para;</a></h2>
+<p>The whole <code>reasoning</code> domain (10,366 rows) is public benchmark material and nothing else:
+SciQ 3,905, CommonsenseQA 2,792, QASC 1,667, ARC-Easy 962, OpenBookQA 572,
+ARC-Challenge 468. And the <code>code</code> domain carries <strong>HumanEval (126) and MBPP (180)</strong> — the
+two standard code benchmarks — mixed in with synthetic Evol-Code and CodeAlpaca.</p>
+<p><code>distill-mix</code> drops all eight sources by default (<code>BENCHMARK_SOURCES</code>); <code>--keep-benchmarks</code>
+opts back in. Keeping them means MMLU-Pro, HumanEval and MBPP stop being quotable for this
+model, and this repo's leaderboard runs MMLU-Pro.</p>
+<h2 id="the-two-termination-failures-and-why-one-number-cannot-see-both">The two termination failures, and why one number cannot see both<a class="headerlink" href="#the-two-termination-failures-and-why-one-number-cannot-see-both" title="Permanent link">&para;</a></h2>
+<p><code>scripts/analyze_swe_anomalies.py</code> re-reads the saved agent trajectories and names the
+failure mode. Run over what exists today it separates the two ternary results into
+<em>opposite</em> failures:</p>
+<table>
+<thead>
+<tr>
+<th>model</th>
+<th>mode</th>
+<th>evidence</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>vanilla Q2_0</td>
+<td><strong>loop</strong></td>
+<td>19 tool calls, 4 distinct commands (21%); alternates <code>cat utils.py</code> with <code>cat utils.py#L437</code> — a GitHub line-anchor pasted into a shell path — failing 8 times and never adapting</td>
+</tr>
+<tr>
+<td>sft32k (sw 6.0)</td>
+<td><strong>mute</strong></td>
+<td>1 output token, 0 tool calls: emits its stop token immediately</td>
+</tr>
+</tbody>
+</table>
+<p>Every non-ternary rung resolves the same instance (F16, IQ2_M, IQ3_M, IQ4_XS, Q5_K_M,
+W4A16), so the instance is solvable at 2 bits and this is the ternary model's problem,
+not the harness's.</p>
+<p><strong>The probe and the trajectory measure different things, and vanilla proves it.</strong> Vanilla's
+P(im_end) probe is textbook healthy — 0.0092 after a sentence, 0.99995 after a tool call —
+and its trajectory still loops. A single-token probe at a fixed position cannot see a
+multi-turn loop; conversely the trajectory cannot distinguish early stopping from plain
+incapacity. <code>scripts/choose_stop_weight.py</code> therefore reads both, and when they disagree
+it returns the natural rate and says so rather than picking a side.</p>
+<h2 id="the-stop-signal-ratio-per-round">The stop-signal ratio, per round<a class="headerlink" href="#the-stop-signal-ratio-per-round" title="Permanent link">&para;</a></h2>
+<p>Relevant to <code>--stop-weight</code>, since that is what <code>sft32k_sw1</code> is measuring:</p>
+<table>
+<thead>
+<tr>
+<th>round</th>
+<th>trainable tokens</th>
+<th>labeled <code>&lt;|im_end|&gt;</code></th>
+<th>1 stop per</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1 ultrachat</td>
+<td>15.4M (77% density)</td>
+<td>53,301</td>
+<td>289 tokens</td>
+</tr>
+<tr>
+<td>2 distill</td>
+<td>9.9M (49% density)</td>
+<td>33,288</td>
+<td>297 tokens</td>
+</tr>
+<tr>
+<td>sft8k reference</td>
+<td>5.7M</td>
+<td>32,448</td>
+<td>176 tokens</td>
+</tr>
+</tbody>
+</table>
+<p>Both new rounds are ~1.7x SPARSER in stop signal than the corpus whose stop sparsity was
+diagnosed as the cause of sft8k-full's 97% loop rate. If <code>sft32k_sw1</code> shows the 32K window
+alone did not fix termination, that is the number to act on — and it argues for carrying
+the chosen stop weight into every round, not just round 3.</p>
+<h2 id="the-proposed-super-dataset-sized-not-built">The proposed super-dataset: sized, not built<a class="headerlink" href="#the-proposed-super-dataset-sized-not-built" title="Permanent link">&para;</a></h2>
+<p>The follow-on idea is one big run instead of three rounds — 75K ultrachat conversations,
+50K distillation conversations, and all of our SFT — released as a <code>qwen3-coder</code> model.
+<code>scripts/size_super_dataset.py</code> measures it against the local parquet caches:</p>
+<table>
+<thead>
+<tr>
+<th>source</th>
+<th>take</th>
+<th>available</th>
+<th>tok/conv</th>
+<th>tokens</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ultrachat</td>
+<td>75,000</td>
+<td>166,341</td>
+<td>1,170</td>
+<td>87.7M</td>
+</tr>
+<tr>
+<td>distillation</td>
+<td><strong>46,101</strong></td>
+<td>46,101</td>
+<td>1,132</td>
+<td>52.2M</td>
+</tr>
+<tr>
+<td>our SFT (all)</td>
+<td>6,170</td>
+<td>6,170</td>
+<td>2,749</td>
+<td>17.0M</td>
+</tr>
+<tr>
+<td><strong>TOTAL</strong></td>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>156.9M</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Three things this changes about the proposal:</p>
+<p><strong>1. "50K from distillation" is more than exists.</strong> The benchmark-free deduped train pool
+is <strong>46,101</strong> conversations. The ask silently becomes "all of it" — which is fine, but it
+means the distillation half cannot be scaled up further without re-admitting the
+benchmark rows (SciQ/ARC/CommonsenseQA/QASC/OpenBookQA, HumanEval, MBPP) and giving up
+MMLU-Pro, HumanEval and MBPP as quotable numbers for this model.</p>
+<p><strong>2. It costs ~86 h fp32 for ONE epoch</strong> — 4,692 windows at 32768, at the measured 66
+s/step. TF32 (<code>--matmul-precision high</code>, safe here) brings it to <strong>~62 h</strong>. For scale,
+each curriculum round is ~610 windows / ~11 h, and the whole three-round curriculum is
+~33 h. So the super-dataset is roughly <strong>two curricula</strong> of wall-clock.</p>
+<p><strong>3. It DILUTES the agentic content, which is the scarce thing.</strong> The agentic domains
+total 10.6M tokens and that is all of them — the same 10.6M whether the run is 20M tokens
+or 157M. So agentic share falls from <strong>52% in round 2</strong> to <strong>~7% of the super-dataset</strong>.
+Per hour of training, the super-dataset teaches agentic behaviour ~7x less than round 2
+does. If the agent benchmark is the target, that is the wrong direction, and the honest
+alternative is to keep the staged curriculum and spend extra budget on more <em>epochs of
+round 2</em>, or on harvesting more trajectories, rather than on more ultrachat.</p>
+<p>Worth building only if the curriculum's agent benchmark shows the model is limited by
+general fluency rather than by agentic exposure.</p>
+<h2 id="the-stop-weight-ablation-failed-and-so-did-the-corpus-hypothesis">The stop-weight ablation failed, and so did the corpus hypothesis<a class="headerlink" href="#the-stop-weight-ablation-failed-and-so-did-the-corpus-hypothesis" title="Permanent link">&para;</a></h2>
+<p><code>sft32k_sw1</code> set <code>--stop-weight</code> back to 1.0 with the 32768 window as the only
+intervention. Result, against the two controls:</p>
+<table>
+<thead>
+<tr>
+<th>probe</th>
+<th>vanilla</th>
+<th>sft32k (sw 6.0)</th>
+<th><strong>sft32k_sw1 (sw 1.0)</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>start</td>
+<td>0.00002</td>
+<td>0.12194</td>
+<td>0.01105</td>
+</tr>
+<tr>
+<td>mid_sentence</td>
+<td>&lt;6.2e-06</td>
+<td>0.00002</td>
+<td>&lt;2.9e-05</td>
+</tr>
+<tr>
+<td><strong>sentence_period</strong></td>
+<td><strong>0.00919</strong></td>
+<td><strong>0.97435</strong></td>
+<td><strong>0.95310</strong></td>
+</tr>
+<tr>
+<td>sentence_newline</td>
+<td>0.00000</td>
+<td>0.89579</td>
+<td>0.12922</td>
+</tr>
+<tr>
+<td>after_tool_call</td>
+<td>0.99995</td>
+<td>0.95285</td>
+<td>0.81426</td>
+</tr>
+</tbody>
+</table>
+<p><strong>A 6x change in the stop weight moved the diagnostic by 0.02.</strong> The weight is not the
+mechanism. It is not inert either — it fixed the model's ability to start (0.122 → 0.011)
+and the newline case (0.896 → 0.129) — but the sentence-end collapse is untouched, and
+<code>after_tool_call</code>, the control where stopping is CORRECT, got <em>worse</em> (0.953 → 0.814).</p>
+<p>The agent benchmark says the same thing behaviourally: sw1 <strong>loops harder than vanilla</strong> —
+60 tool calls, hitting max turns, the same command repeated <strong>58 times in a row</strong>. So the
+three ternary models fail three different ways (vanilla loops mildly, sft32k goes mute,
+sw1 loops severely), and <code>choose_stop_weight.py</code> classified it as CONTRADICTORY: stops too
+early at a sentence <em>and</em> fails to stop after a tool call. <strong>The model has not learned to
+stop too much or too little — it has lost the position-dependence of the stop decision.</strong></p>
+<h3 id="the-corpus-does-not-teach-this-either">The corpus does not teach this either<a class="headerlink" href="#the-corpus-does-not-teach-this-either" title="Permanent link">&para;</a></h3>
+<p><code>scripts/analyze_stop_context.py</code> measures the conditional directly, in the probe's exact
+situation — a sentence end within the first 32 tokens of a fresh assistant turn:</p>
+<table>
+<thead>
+<tr>
+<th>corpus</th>
+<th>marginal</th>
+<th>P(stop | sentence end)</th>
+<th><strong>P(stop | sentence end, &lt;32 tok into turn)</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ours (SFT)</td>
+<td>0.0062</td>
+<td>0.0697</td>
+<td><strong>0.0555</strong></td>
+</tr>
+<tr>
+<td>ultrachat</td>
+<td>0.0034</td>
+<td>0.0665</td>
+<td><strong>0.0166</strong></td>
+</tr>
+<tr>
+<td>distillation</td>
+<td>0.0033</td>
+<td>0.0280</td>
+<td><strong>0.0025</strong></td>
+</tr>
+</tbody>
+</table>
+<p>The corpus teaches at most <strong>0.055</strong>; the trained model emits <strong>0.95</strong>. A <strong>17x
+over-shoot</strong>, so this is not the model learning its data — it is the model collapsing a
+mild positional tendency into a near-deterministic rule. Note the ordering also
+contradicts a simple data explanation: the distillation corpus has the <em>lowest</em> rate at
+the probe position (0.0025), 22x below ours.</p>
+<p>What follows a sentence end when it is NOT a stop is the tell: in our corpus it is
+<code>Let</code> (25%), <code>The</code> (20%), <code>&lt;tool_call&gt;</code> (10%) — the continuations the agent needs and
+the model no longer produces.</p>
+<h3 id="what-is-still-open">What is still open<a class="headerlink" href="#what-is-still-open" title="Permanent link">&para;</a></h3>
+<p>Neither the objective nor the data explains a 17x over-shoot, which leaves the <em>training</em>
+itself: lr 5e-4 flips 4.2% of codes in the leading tensor (sft32k managed 1.8% and is
+equally broken, vanilla flips 0% and is fine). A ternary model has three values per weight
+and no room for a finely-conditioned decision boundary, so the working hypothesis is that
+continued QAT at this lr coarsens the stop decision into a positional rule regardless of
+what the corpus says. The curriculum tests it for free: three rounds, three corpora whose
+probe-position rates span 22x, each probed straight after its export.</p>
+<h2 id="the-corpus-defect-found-and-fixed">The corpus defect, found and fixed<a class="headerlink" href="#the-corpus-defect-found-and-fixed" title="Permanent link">&para;</a></h2>
+<p>The 17x gap between what the corpus taught (0.055) and what the model emitted (0.95) sent
+me to read the actual training windows rather than more statistics. <code>scripts/inspect_corpus_window.py</code>
+prints a packed window with supervised targets bracketed, and the first one showed this:</p>
+<pre><code>&lt;|im_start|&gt;assistant
+[[That's not right - I accidentally removed too much. Let me check the current state:&lt;|im_end|&gt;]]
+&lt;|im_start|&gt;assistant
+[[I made a mistake. Let me restore the file from git and redo this properly:&lt;|im_end|&gt;]]
+&lt;|im_start|&gt;assistant
+[[&lt;tool_call&gt;...&lt;/tool_call&gt;&lt;|im_end|&gt;]]
+</code></pre>
+<p>Three consecutive assistant turns with nothing between them. In the real session that was
+ONE assistant message — prose followed by a tool call — but the log records an assistant
+response's content blocks as separate messages, and each fragment rendered as its own
+<code>&lt;|im_start|&gt;assistant … &lt;|im_end|&gt;</code> turn. So the corpus explicitly taught that a short
+prose preamble is followed by the STOP token rather than by the tool call that came next.</p>
+<p>Two defects, both specific to our ingestion:</p>
+<table>
+<thead>
+<tr>
+<th>defect</th>
+<th>ours</th>
+<th>ultrachat</th>
+<th>distillation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>assistant msgs preceded by another assistant msg</td>
+<td><strong>21.2%</strong> (logs-agents), 9.0% (logs)</td>
+<td>0.0%</td>
+<td>0.0%</td>
+</tr>
+<tr>
+<td>"Let me…" turns ending at their first sentence</td>
+<td><strong>18.5%</strong></td>
+<td>0.0%</td>
+<td>0.0%</td>
+</tr>
+<tr>
+<td>empty assistant turns (<code>&lt;|im_start|&gt;assistant\n&lt;|im_end|&gt;</code>)</td>
+<td><strong>2,155</strong></td>
+<td>0</td>
+<td>0</td>
+</tr>
+</tbody>
+</table>
+<p>The empty turns are the sharper of the two: a supervised span whose ONLY trained token is
+the stop token — the purest possible lesson in "emit <code>&lt;|im_end|&gt;</code> immediately". That is
+what the <code>start</code> probe measures, and it moved 0.00002 → 0.12194 in the run trained on this
+corpus.</p>
+<h3 id="the-fix-and-what-it-costs">The fix, and what it costs<a class="headerlink" href="#the-fix-and-what-it-costs" title="Permanent link">&para;</a></h3>
+<p><code>merge_consecutive_assistant</code> + <code>drop_empty_assistant</code> in <code>qat/corpus.py</code>, applied before
+truncation and before rendering. Merging LOSES NOTHING — verified by accounting over the
+whole corpus:</p>
+<pre><code>tool_calls      33,572 -&gt; 33,572   (zero delta)
+content chars   79,090,289 -&gt; 79,090,795   (+506: the &quot;\n\n&quot; paragraph joins)
+reasoning chars  1,966,416 -&gt;  1,966,468   (+52)
+messages           85,643 -&gt;     79,499    (-6,144 merged into their turn)
+</code></pre>
+<p>Only <strong>assistant</strong> messages merge. Tool results arrive as <code>user</code>-role messages under this
+template, so merging consecutive user messages would fuse a real user turn with a tool
+response — a different and worse corruption.</p>
+<p>Ten conversations are dropped outright: they QUOTE a chat control token in their content
+(our own past sessions debugging chat templates, where the assistant wrote
+<code>rendered.find('&lt;|im_end|&gt;')</code> in a code block and special-token parsing turned it into a
+real stop token inside supervised prose). Dropped rather than repaired — rewriting the
+token would corrupt the code the message is about.</p>
+<p>Rebuilt result, our SFT corpus at a 32768 window:</p>
+<table>
+<thead>
+<tr>
+<th>metric</th>
+<th>before</th>
+<th>after</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>consecutive assistant turns</td>
+<td>511</td>
+<td><strong>0</strong></td>
+</tr>
+<tr>
+<td>turns ending at their first sentence</td>
+<td>3.7%</td>
+<td><strong>0.5%</strong></td>
+</tr>
+<tr>
+<td>"Let me…" turns ending there</td>
+<td>18.5%</td>
+<td><strong>0.0%</strong></td>
+</tr>
+<tr>
+<td>empty assistant turns</td>
+<td>2,155</td>
+<td><strong>0</strong></td>
+</tr>
+<tr>
+<td>labeled <code>&lt;|im_end|&gt;</code> targets</td>
+<td>35,359</td>
+<td><strong>29,843</strong></td>
+</tr>
+<tr>
+<td>real supervised leakage</td>
+<td>—</td>
+<td><strong>0</strong></td>
+</tr>
+</tbody>
+</table>
+<p>The distillation corpus rebuilt to fingerprint <code>b36696c8ce45c1ca</code>, <strong>byte-identical</strong> to
+before — the fix is provably a no-op where the defect was absent, which is the check that
+makes the merge trustworthy on the corpus where it does fire.</p>
+<p><code>CORPUS_DIR</code> in <code>run_curriculum_qat.sh</code> now defaults to <code>out/exp-058/fixed</code>. Round 3 no
+longer symlinks sw1's corpus, so <strong>curriculum-r3 vs sft32k_sw1 is no longer a clean A/B</strong> —
+it differs in both training history and corpus. That is deliberate: preserving the A/B
+would mean deliberately re-teaching the defect. The per-round probes separate the causes.</p>
+<h2 id="did-the-corpus-fix-work-ab-verification-verify_corpus_fixsh">Did the corpus fix work? A/B verification (<code>verify_corpus_fix.sh</code>)<a class="headerlink" href="#did-the-corpus-fix-work-ab-verification-verify_corpus_fixsh" title="Permanent link">&para;</a></h2>
+<p>Two 59-step runs from the same shipped weights, identical hyper-parameters, corpus the
+only difference. Endpoint is the in-training stop probe.</p>
+<table>
+<thead>
+<tr>
+<th>step</th>
+<th>OLD <code>sentence_period</code></th>
+<th>NEW <code>sentence_period</code></th>
+<th>ratio</th>
+<th>OLD <code>after_tool</code></th>
+<th>NEW <code>after_tool</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>shipped</td>
+<td>0.0017</td>
+<td>0.0017</td>
+<td>—</td>
+<td>0.99996</td>
+<td>0.99996</td>
+</tr>
+<tr>
+<td>10</td>
+<td>0.01250</td>
+<td>0.00430</td>
+<td>2.9x</td>
+<td>0.9998</td>
+<td>0.9998</td>
+</tr>
+<tr>
+<td>20</td>
+<td>0.01670</td>
+<td>0.00530</td>
+<td>3.2x</td>
+<td>0.9946</td>
+<td>0.9997</td>
+</tr>
+<tr>
+<td>30</td>
+<td>0.03240</td>
+<td>0.00950</td>
+<td>3.4x</td>
+<td>0.9995</td>
+<td>0.9995</td>
+</tr>
+<tr>
+<td>40</td>
+<td>0.06260</td>
+<td>0.00920</td>
+<td>6.8x</td>
+<td>0.9993</td>
+<td>0.9998</td>
+</tr>
+<tr>
+<td>50</td>
+<td><strong>0.06660</strong></td>
+<td><strong>0.01020</strong></td>
+<td><strong>6.5x</strong></td>
+<td>0.9993</td>
+<td>0.9995</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Read this as a PARTIAL pass, against the criterion set before the data existed.</strong> The
+script's own pre-registered test was "the fix works if NEW stays near 0.002 while OLD
+climbs". NEW reached 0.0102 — 6x the shipped model's 0.0017 — so it did not stay near
+0.002, and moving that goalpost after the fact would make the test worthless.</p>
+<p>What the data does support:</p>
+<ul>
+<li>The OLD corpus rose <strong>39x above baseline in 50 steps and was still accelerating</strong>
+  (+93% over steps 30-40). It is on the trajectory that ended at 0.95.</li>
+<li>The NEW corpus rose <strong>6x and flattened</strong>: 0.0095 → 0.0092 → 0.0102 across the last 30
+  steps is a plateau, not a climb.</li>
+<li><code>after_tool_call</code>, the control where stopping is CORRECT, held ≥ 0.9993 on both arms —
+  so neither short run reproduced the <em>second</em> half of the failure (sw1 ended at 0.81),
+  and this test is only sensitive to the early-stopping half.</li>
+</ul>
+<p>Two readings remain open and 59 steps cannot separate them: the residual is an early-
+training transient that stays bounded near 0.01, or it resumes climbing later. Do not
+claim the first without a longer run. What is settled is the comparison: the pre-fix
+corpus was at 0.0666 and accelerating where the fixed corpus is at 0.0102 and flat.</p>
+<p><strong>Operational consequence:</strong> run every round with <code>--probe-every 25</code>. If the residual does
+resume climbing it now surfaces within 25 steps rather than 11 hours, and the per-round
+probes attribute it to a corpus.</p>
+<h2 id="is-the-optimizer-the-cause-no-and-the-direction-is-informative">Is the OPTIMIZER the cause? No — and the direction is informative<a class="headerlink" href="#is-the-optimizer-the-cause-no-and-the-direction-is-informative" title="Permanent link">&para;</a></h2>
+<p>Adafactor here runs <code>scale_parameter=False, relative_step=False</code> with <code>beta1=None</code>, i.e.
+"Adam with a rank-1 second moment and NO MOMENTUM". A ternary latent only changes anything
+when it crosses the ternarization threshold, and crossing needs pressure accumulated over
+many steps — so no-momentum training was a plausible reason fine, context-dependent
+structure would fail to form while a coarse always-on signal formed anyway.</p>
+<p>Tested with <code>scripts/verify_optimizer.sh adamw8bit 60</code>: same corpus, same lr, 8-bit state
+so real per-parameter moments + momentum fit (84.1 GiB peak measured, against
+Adafactor's 70.6; full-precision AdamW would need ~126 GiB and Adafactor+beta1 ~98 GiB,
+both OOM on a 95 GiB card).</p>
+<table>
+<thead>
+<tr>
+<th>step</th>
+<th>adafactor (no momentum)</th>
+<th>adamw8bit (β1=0.9)</th>
+<th>adafactor <code>after_tool_call</code></th>
+<th>adamw8bit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>10</td>
+<td>0.0043</td>
+<td>0.0043</td>
+<td>0.9998</td>
+<td>0.9999</td>
+</tr>
+<tr>
+<td>20</td>
+<td>0.0053</td>
+<td>0.0089</td>
+<td>0.9997</td>
+<td>0.9980</td>
+</tr>
+<tr>
+<td>30</td>
+<td>0.0095</td>
+<td>0.0318</td>
+<td>0.9995</td>
+<td>0.9980</td>
+</tr>
+<tr>
+<td>40</td>
+<td>0.0092</td>
+<td>0.0192</td>
+<td>0.9998</td>
+<td>0.9987</td>
+</tr>
+<tr>
+<td>50</td>
+<td><strong>0.0102</strong></td>
+<td><strong>0.0326</strong></td>
+<td><strong>0.9995</strong></td>
+<td><strong>0.9985</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Momentum makes it worse on both measures</strong> — 3.2x on the diagnostic, and 3x the
+deviation from 1.0 on the control. Adafactor's factored state was not losing anything that
+mattered; its lack of momentum was accidentally protective. Keep <code>--optim adafactor</code>.</p>
+<p>The direction is the useful part. Momentum accumulates signals that are CONSISTENT across
+batches. Had the stop decision needed fine per-weight discrimination, momentum would have
+helped it; instead momentum amplified the drift. So what is being learned is a coarse
+signal present in nearly every batch, not a subtle one the optimizer failed to resolve.</p>
+<h3 id="where-the-diagnosis-stands">Where the diagnosis stands<a class="headerlink" href="#where-the-diagnosis-stands" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>candidate</th>
+<th>verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--stop-weight</code></td>
+<td>ruled out — a 6x change moved the diagnostic by 0.02</td>
+</tr>
+<tr>
+<td>corpus defect</td>
+<td>REAL, worth 3-6x on our data, but not sufficient (clean ultrachat drifts to 0.0265 by step 25)</td>
+</tr>
+<tr>
+<td>optimizer state / momentum</td>
+<td>ruled out — momentum is 3.2x worse</td>
+</tr>
+</tbody>
+</table>
+<p>What all three share is <strong>lr 5e-4 against a ternary weight space</strong>, and that is not a free
+knob: below ~3e-4 the codes do not flip at all (the run drifts fp16 scales, the loss falls
+from 2.26 to ~1.0, and the exported GGUF is the shipped model unchanged). So the choice is
+between two failure modes, not between "works" and "works better".</p>
+<p>The 2.5e-4 arm is now a sharper experiment than it was, because flips and termination can
+be read simultaneously — flips at each checkpoint, <code>sentence_period</code> every 25 steps:</p>
+<ul>
+<li><strong>flips ≈ 0, termination stable</strong> → the floor is confirmed, 5e-4 is forced, and the fix
+  has to come from data mix / KD rather than lr.</li>
+<li><strong>flips &gt; 0, termination stable</strong> → the window exists; take it.</li>
+<li><strong>flips ≈ 0, termination still drifts</strong> → the drift is not code-flip-driven at all, which
+  would point at scale drift and reframe the problem. No previous run could tell this apart.</li>
+</ul>
+<h2 id="is-the-lr-the-lever-no-there-is-no-window">Is the LR the lever? No — there is no window<a class="headerlink" href="#is-the-lr-the-lever-no-there-is-no-window" title="Permanent link">&para;</a></h2>
+<p><code>LR=2.5e-4 bash scripts/verify_optimizer.sh adafactor 60</code>, same corpus, adafactor with
+<code>beta1=None</code> exactly as the baseline. Both halves measured together for the first time.</p>
+<p><strong>Termination holds — it is the only arm that never moved:</strong></p>
+<table>
+<thead>
+<tr>
+<th>step</th>
+<th>lr 5e-4</th>
+<th><strong>lr 2.5e-4</strong></th>
+<th>adamw8bit</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>10</td>
+<td>0.0043</td>
+<td>0.0029</td>
+<td>0.0043</td>
+</tr>
+<tr>
+<td>20</td>
+<td>0.0053</td>
+<td>0.0028</td>
+<td>0.0089</td>
+</tr>
+<tr>
+<td>30</td>
+<td>0.0095</td>
+<td>0.0030</td>
+<td>0.0318</td>
+</tr>
+<tr>
+<td>40</td>
+<td>0.0092</td>
+<td>0.0031</td>
+<td>0.0192</td>
+</tr>
+<tr>
+<td>50</td>
+<td><strong>0.0102</strong></td>
+<td><strong>0.0033</strong></td>
+<td><strong>0.0326</strong></td>
+</tr>
+</tbody>
+</table>
+<p><code>after_tool_call</code> sat at <strong>0.99990 at every single step</strong> on the 2.5e-4 arm.</p>
+<p><strong>But it does not learn.</strong> Code flips at the final checkpoint, same 59 steps:</p>
+<table>
+<thead>
+<tr>
+<th>tensor</th>
+<th>lr 5e-4</th>
+<th>lr 2.5e-4</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0.q_proj</code></td>
+<td>0.0194%</td>
+<td><strong>0.0024%</strong></td>
+</tr>
+<tr>
+<td><code>5.k_proj</code></td>
+<td>0.0011%</td>
+<td>0.0000% (1 weight)</td>
+</tr>
+<tr>
+<td><code>15.o_proj</code></td>
+<td>0.0029%</td>
+<td>0.0000% (2 weights)</td>
+</tr>
+<tr>
+<td><code>20.o_proj</code></td>
+<td>0.0053%</td>
+<td>0.0000% (5 weights)</td>
+</tr>
+<tr>
+<td><code>35.down_proj</code></td>
+<td>0.0039%</td>
+<td>0.0000% (4 weights)</td>
+</tr>
+<tr>
+<td><code>10.v_proj</code>, <code>25.gate_proj</code>, <code>30.up_proj</code></td>
+<td>non-zero</td>
+<td><strong>0.0000% (zero weights)</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Seven of eight tracked tensors flipped literally nothing, while scale drift ran 0.33-0.58%
+and the loss fell to 0.7623. That is the documented trap verbatim: <em>the run only drifts
+fp16 scales, the loss falls, and the exported model is unchanged.</em></p>
+<p><strong>Do not extrapolate the 8x flip ratio forward.</strong> Flipping is a THRESHOLD phenomenon, not a
+linear one: below some lr the latents equilibrate before ever crossing, which is why the
+reference study measured ~0% flips at 3e-4 over a FULL run. 2.5e-4 would not train over
+613 steps either.</p>
+<h3 id="four-candidates-four-eliminated">Four candidates, four eliminated<a class="headerlink" href="#four-candidates-four-eliminated" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>candidate</th>
+<th>verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--stop-weight</code></td>
+<td>ruled out — a 6x change moved the diagnostic by 0.02</td>
+</tr>
+<tr>
+<td>corpus defect</td>
+<td>REAL, worth 3-6x, but insufficient (clean ultrachat drifts to 0.0265)</td>
+</tr>
+<tr>
+<td>optimizer / momentum</td>
+<td>ruled out — momentum is 3.2x worse on the diagnostic AND the control</td>
+</tr>
+<tr>
+<td>learning rate</td>
+<td><strong>no window</strong> — 5e-4 learns and breaks termination, 2.5e-4 preserves it and learns nothing</td>
+</tr>
+</tbody>
+</table>
+<p>The trade looks structural to plain masked-CE on this model: it only learns by flipping
+codes, and flipping codes at any useful rate destroys the stop decision. Every lever tried
+so far moves along that trade rather than off it.</p>
+<p><strong>That is the argument for KD</strong> (Method B, already scaffolded in <code>qat/kd_precompute.py</code>).
+Hard CE supplies one target per position and says nothing about the SHAPE of the
+distribution, so the model is free to collapse P(stop) anywhere the argmax survives. A KL
+term against a teacher with correct termination constrains exactly the quantity that
+drifts, while leaving the argmax free to move where the data demands — i.e. it attacks the
+mechanism instead of trading against it.</p>
+<h2 id="kd-round-one-the-renormalized-kl-had-a-measured-blind-spot">KD round one: the renormalized KL had a measured blind spot<a class="headerlink" href="#kd-round-one-the-renormalized-kl-had-a-measured-blind-spot" title="Permanent link">&para;</a></h2>
+<p>The first KD A/B (60 steps, <code>SWE-Lego/SWE-Lego-Qwen3-8B</code> top-64, α=0.5, T=1, lr 5e-4 —
+<code>out/exp-058/verify-opt-kd8b-a0.5</code>) landed <em>between</em> the two CE-only arms: diagnostic
+0.0029 → 0.0065 by step 40, roughly 35% below CE-only at the same lr but clearly rising,
+where lr 2.5e-4 stays flat at ~0.0030. KD slowed the drift; it did not pin it.</p>
+<p>The mechanism was in the loss, and it is measurable, not speculative.
+<code>kd_loss_from_topk</code> renormalized BOTH distributions over the teacher's stored top-K.
+Inflating a logit <em>outside</em> that support shifts every support logprob by the same
+logsumexp constant, which renormalization cancels <strong>exactly</strong> — the KL is mathematically
+blind to any student mass placed outside the teacher's top-K. And on our corpus:</p>
+<ul>
+<li><code>&lt;|im_end|&gt;</code> is in the teacher's top-64 at only <strong>1.8%</strong> of supervised positions
+  (400k-position sample of the 5.80M-row table);</li>
+<li>so at <strong>98.2%</strong> of positions, the collapsing P(stop) was invisible to the KL — the one
+  quantity KD was brought in to constrain, at almost every position where it drifts;</li>
+<li>the teacher's mean tail mass is 0.0062, i.e. the teacher itself keeps stop (and
+  everything else outside its top-64) at well under a percent.</li>
+</ul>
+<p>The fix costs nothing and needs no re-precompute: the KL is now taken over <strong>K+1
+buckets</strong> — the stored top-K at their TRUE probabilities plus one tail bucket (teacher
+side already stored per position; student side <code>1 − Σ support</code>, exact from the same
+logits). A student pushing P(stop) toward 0.95 against a teacher tail of ~0.006 now pays
+~0.95·log(0.95/0.006) ≈ 4.8 nats of KL at that position, where before it paid zero.
+Identical-student-scores-0 still holds exactly. Pinned by
+<code>test_tail_bucket_sees_out_of_support_mass</code>, which asserts the drifted student is
+penalized by the new form AND scored ~0 by the old one.</p>
+<p>Two escalations if the tail bucket is not enough, in order:
+1. <strong>Force the stop id into the stored support at precompute</strong> (union top-K ∪
+   {151645}), converting the aggregate tail cap into an exact per-position constraint on
+   P(stop) specifically. Requires a re-precompute (~30 min for the 8B, hours for the
+   32B) — worth folding into the 32B table build regardless, since that table is built
+   once and reused.
+2. <strong>Raise α</strong> (0.5 → 0.75). Only meaningful after the blind spot is closed; before it,
+   a higher α just amplified a term that could not see the failure.</p>
+<p>Also fixed while auditing: <code>--trained-tail</code> + <code>--kd-table</code> silently misaligned every KD
+row (the table is validated against the FULL keep set, then <code>masked_forward</code> drops
+prefix targets without dropping their teacher rows). No affected runs — <code>trained_tail=0</code>
+everywhere so far — and the row count is now asserted at the point of use.</p>
+<h2 id="kd-round-two-the-smoke-ladder-that-produced-the-full-run-config">KD round two: the smoke ladder that produced the full-run config<a class="headerlink" href="#kd-round-two-the-smoke-ladder-that-produced-the-full-run-config" title="Permanent link">&para;</a></h2>
+<p>Six 59-step arms on the identical corpus/schedule (plus the teacher's own reading, which
+defines the asymptote — measured on CPU with the student's chat template, i.e. exactly the
+rendering KD feeds the teacher):</p>
+<table>
+<thead>
+<tr>
+<th>arm</th>
+<th>diagnostic @50</th>
+<th>control @50</th>
+<th>verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>teacher (SWE-Lego-8B)</td>
+<td>0.0000</td>
+<td>0.99999</td>
+<td>the target: textbook termination</td>
+</tr>
+<tr>
+<td>CE only lr 5e-4</td>
+<td>0.0102 rising</td>
+<td>0.9995</td>
+<td>learns, drifts</td>
+</tr>
+<tr>
+<td>CE only lr 2.5e-4</td>
+<td>0.0033 flat</td>
+<td>0.9999</td>
+<td>preserves, cannot learn</td>
+</tr>
+<tr>
+<td>KD renormalized</td>
+<td>0.0073 rising</td>
+<td>0.9977</td>
+<td>blind spot: slowed, not stopped</td>
+</tr>
+<tr>
+<td>KD tail-bucket</td>
+<td>0.0044 oscillating</td>
+<td><strong>0.9867 falling</strong></td>
+<td>diagnostic fixed, control traded</td>
+</tr>
+<tr>
+<td>KD forced-stop</td>
+<td>0.0058 flat</td>
+<td>0.9991 flat</td>
+<td>both held</td>
+</tr>
+<tr>
+<td>KD tail-bucket + lr-scale</td>
+<td>0.0047 flat</td>
+<td>0.9995 flat</td>
+<td>flattest of all; flips redistribute</td>
+</tr>
+<tr>
+<td><strong>KD forced-stop + lr-scale</strong></td>
+<td><strong>0.0048 flat</strong></td>
+<td><strong>0.9995 flat</strong></td>
+<td><strong>launch config</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Findings that came out of the ladder, in causal order:</p>
+<ol>
+<li><strong>The teacher's stopping policy is stricter than the student's</strong> (0.0000 vs 0.0092 at
+   the diagnostic), so KD arms converging BELOW vanilla is convergence, not anomaly.</li>
+<li><strong>The tail bucket's control slide is support-composition-specific.</strong> The tb arm's
+   after_tool_call fell 0.9997 -&gt; 0.9867 (accelerating); the fs arm — same loss, stop id
+   forced into every support row — held 0.9990-0.9999 throughout. No separate tail-weight
+   knob was needed.</li>
+<li><strong>Scale-aware lr redistributes flips exactly as the scale analysis predicted</strong> (tb vs
+   tbls, same table and loss): v_proj 1 -&gt; 23 flips, up_proj x14, gate x7, while q/down
+   slow to match their 0.5x multipliers. Loss unchanged (0.680 vs 0.684). And it
+   <em>stabilized</em> the probe — the tensors driving the drift were the small-scale ones the
+   rule slows down.</li>
+<li><strong>Every KD arm's KL fell ~0.63 -&gt; 0.35</strong> and flips matched CE-only arms — the
+   constraint costs nothing measurable in learning at this horizon.</li>
+</ol>
+<p>Full run launched with: forced-stop table + tail-bucket KL (alpha 0.5, T 1.0) +
+<code>--lr-scale group-scale</code> + <code>--probe-abort 0.09</code>, 613 steps (1.0355 epochs), lr 5e-4.
+Output: <code>out/exp-058/kd8b-full/</code>. The open question a 59-step arm cannot answer — does it
+still LEARN at full depth (4.22% flips over 613 steps on the CE-only reference) — is what
+the full run measures, followed by Q2_0 export, the GGUF probe, and SWE-rebench.</p>
+<h2 id="the-sustained-lr-regime-what-the-smoke-ladder-could-not-see">The sustained-lr regime: what the smoke ladder could not see<a class="headerlink" href="#the-sustained-lr-regime-what-the-smoke-ladder-could-not-see" title="Permanent link">&para;</a></h2>
+<p>The alpha-0.5 full run aborted at step 125 (diagnostic 0.0973, the pre-set threshold).
+Two structural findings:</p>
+<ol>
+<li><strong>A 59-step arm validates a config under a DECAYING lr, not the full run's.</strong> The
+   arms complete their whole cosine inside 59 steps — most of their life is below
+   3e-4 — while the full 613-step schedule holds ~5e-4 for hundreds of steps. Under
+   sustained peak lr the alpha-0.5 KL only <em>slowed</em> the collapse: diagnostic tripling
+   per 25 steps (0.0020 → 0.0973), control 0.9998 → 0.8952. Both failure directions at
+   once, i.e. position-dependence itself eroding.</li>
+<li><strong>The probe-abort guard replaces the smoke protocol for full-schedule questions.</strong>
+   No short arm can reproduce sustained peak lr; the abort makes the full run its own
+   gate — failure costs ~2 h and a saved checkpoint, survival is the finished artifact.</li>
+</ol>
+<p>The trade is now measured on one run: at abort, learning was ON the CE-only reference's
+pace (mean tracked flips ~0.084% at step 100; lr-scale redistribution holding — v_proj
+0.049%, gate 0.105%) while termination drifted unbounded. KD at alpha 0.5 changes the
+collapse's <em>rate</em>, not its boundedness, once lr stays at peak.</p>
+<p>Escalation now running: <strong>alpha 0.75</strong> (KL:CE 3:1), everything else identical
+(<code>out/exp-058/kd8b-full-a0.75</code>). If it aborts too: stop-aware KL weighting (the table
+stores every position's teacher P(stop) — weight the KL harder where it is extreme),
+then peak lr 4e-4.</p>
+<h2 id="alpha-is-not-the-lever-and-the-collapse-has-a-second-face">Alpha is not the lever — and the collapse has a second face<a class="headerlink" href="#alpha-is-not-the-lever-and-the-collapse-has-a-second-face" title="Permanent link">&para;</a></h2>
+<p>The alpha-0.75 run (<code>kd8b-full-a0.75</code>) was stopped by hand at step ~150. Its two series,
+against alpha-0.5 at the same steps:</p>
+<table>
+<thead>
+<tr>
+<th>step</th>
+<th>diag a0.5</th>
+<th>diag a0.75</th>
+<th>ctrl a0.5</th>
+<th>ctrl a0.75</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>75</td>
+<td>0.0109</td>
+<td>0.0111</td>
+<td>0.9934</td>
+<td>0.9931</td>
+</tr>
+<tr>
+<td>100</td>
+<td>0.0435</td>
+<td>0.0206</td>
+<td>0.9500</td>
+<td>0.9737</td>
+</tr>
+<tr>
+<td>125</td>
+<td>0.0973 (abort)</td>
+<td>0.0842</td>
+<td>0.8952</td>
+<td>0.9688</td>
+</tr>
+<tr>
+<td>150</td>
+<td>—</td>
+<td>0.0435</td>
+<td>—</td>
+<td><strong>0.8876</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Three findings:
+1. <strong>Alpha delays, does not change, the collapse</strong> (~25 steps for +0.25 alpha). Mechanism:
+   the KL's restoring force on the stop logit is <code>P_s − P_t</code> — proportional to the drift
+   itself, ~0.01 while the student drifts through 1e-2 against a ~1e-6 teacher. Tripling
+   a vanishing force still vanishes. Same signature as the stop-weight null result.
+2. <strong>The collapse has a second face the diagnostic-only abort cannot see.</strong> At step 150
+   the diagnostic RETREATED below threshold (0.0842 → 0.0435) while the control fell
+   monotonically 0.9998 → 0.8876 — the sft32k loop failure. <code>--probe-abort-control</code>
+   (0.95) now guards that direction; both guards ride every run.
+3. The oscillating diagnostic + monotone control decay = the model is losing
+   position-DEPENDENCE of the stop decision, not just moving one number.</p>
+<p>Now running: <code>--stop-anchor 0.2</code> (margin 1 nat) at alpha 0.5 — a per-position hinge on
+|log P_s(stop) − log P_t(stop)| whose gradient is O(1) in log space at any drift
+magnitude, computed from the forced-stop table inside the existing logit chunks. It
+pushes DOWN at sentence boundaries and UP after tool calls with the same constant force,
+i.e. it targets both faces at once. <code>out/exp-058/kd8b-full-anchor</code>.</p>
+<h2 id="the-anchor-works-and-its-first-version-worked-too-hard-in-one-direction">The anchor works — and its first version worked too hard in one direction<a class="headerlink" href="#the-anchor-works-and-its-first-version-worked-too-hard-in-one-direction" title="Permanent link">&para;</a></h2>
+<p><code>kd8b-full-anchor</code> (symmetric L1 hinge, beta 0.2, margin 1 nat): the diagnostic was
+PINNED at 0.0000-0.0002 through step 175 — through the entire zone that killed both
+alpha runs — while learning ran ABOVE reference (mean tracked flips 0.099% at step 100
+vs 0.084% for a0.5; the anchor's stop-policy work visibly concentrated in
+35.down_proj at 0.334%). The O(1) log-space restoring force does what the KL's
+vanishing P_s−P_t force cannot. At init the student sits ~7 nats from the teacher's
+stop policy on-corpus (an=6.4) — a gap the KL literally could not see.</p>
+<p>Then the control collapsed alone: 0.9987 → 0.9356 → 0.6974, with every no-stop probe
+point still at 0.000x. Diagnosis: the symmetric hinge exerts O(1) force at EVERY
+position in BOTH directions, and continue-positions outnumber stop-positions 176:1 —
+the same ratio that broke stop-weight — so the aggregate trunk-level pressure on
+P(stop) is massively net-downward. The anchor crushed early-stopping perfectly and
+dragged the ability to stop down with it.</p>
+<p>Fix (running as <code>kd8b-full-anchor2</code>): ONE-SIDED per position type — at
+continue-positions only stopping MORE than the teacher is penalized, at stop-positions
+only stopping LESS, zero force on the safe side — so the 176:1 imbalance has nothing
+to push with.</p>
+<p>Also caught here: commit 380984a <em>claimed</em> the control-abort guard while its
+str.replace silently no-op'd (the target block had been refactored; str.replace does
+not error). run_config recorded the threshold, ruff and --help passed, and nothing
+enforced it. Guards must be verified by grep of the LOGIC, not the flag.</p>
+<h2 id="anchor-iteration-2-the-margin-means-opposite-things-on-the-two-sides">Anchor iteration 2: the margin means opposite things on the two sides<a class="headerlink" href="#anchor-iteration-2-the-margin-means-opposite-things-on-the-two-sides" title="Permanent link">&para;</a></h2>
+<p><code>kd8b-full-anchor2</code> (one-sided hinge, single 1-nat margin): diagnostic 0.0000 at every
+probe, learning the best yet (mean tracked flips 0.126% at step 100), anchor nearly
+silent (an ≤ 0.03 from step 30 on) — and the control STILL collapsed
+(1.0000 → 0.9930 → 0.9753 → 0.8431; control guard fired at 150, correctly this time).</p>
+<p>The hole: <code>an</code> stayed ~0.01 through the whole collapse, i.e. the student never left
+the anchor's legal band ON-CORPUS. A 1-nat margin at continue-positions is 1e-6 →
+2.7e-6 (harmless); at stop-positions it is P(stop) 0.99999 → 0.37 — the control can
+fall to uselessness entirely inside it. Iteration 3 (<code>kd8b-full-anchor3</code>, running):
+<code>--stop-anchor-margin-hi 0.1</code> — stop-positions held to ≥ ~0.905·teacher, engaged 25x
+earlier along the sag.</p>
+<p>Open question from this run: val spiked 0.8234 → 1.4672 between steps 100 and 150
+while train loss stayed 0.62-0.74 — a broad held-out regression not attributable to
+stop positions (0.57% of labels). Watch anchor3's val at 150.</p>
+<p>If anchor3 holds on-corpus but the PROBE control still collapses, the drift is
+genuinely off-distribution and the next tool is anchor prompts: mix a small batch of
+synthetic stop-discipline contexts (the probe family, varied) into training as extra
+supervised stop-positions.</p>
+<h2 id="anchor-iteration-3-the-first-benchmark-the-failure-narrowed-to-a-weak-tail">Anchor iteration 3 + the first benchmark: the failure narrowed to a weak TAIL<a class="headerlink" href="#anchor-iteration-3-the-first-benchmark-the-failure-narrowed-to-a-weak-tail" title="Permanent link">&para;</a></h2>
+<p><code>kd8b-full-anchor3</code> (per-side margins 1.0/0.1): diagnostic 0.0000 at every probe,
+learning best-yet (0.142% mean flips at step 100), val stable — control OSCILLATING
+with growing amplitude (0.99 -&gt; 0.97 -&gt; 0.99 -&gt; 0.93), guard abort at step 175.</p>
+<p>The in-distribution measurement (scripts/measure_indist_stop.py — P(stop) at REAL
+im_end targets in held-out windows, ternarized forward) resolved the probe-vs-reality
+question: the model did NOT uniformly lose stopping. At after-tool-call stop positions
+(n=273) the MEDIAN is unchanged (0.9912 vs vanilla 0.9932) while the p10 collapsed
+(0.9801 -&gt; 0.0787) — a bimodal weak tail covering ~10-15% of positions. Prose-end
+stops moved TOWARD the labels (0.08 -&gt; 0.58 mean).</p>
+<p>Exported (step-175) to Q2_0 and benchmarked (Docker-free mimic, dask__dask-11393):
+- GGUF probe: diagnostic &lt; 8e-5 at all no-stop points, control 0.9203 (rank 1).
+- Agent: LOOPED — same find command 9x in a row, died at 20 steps
+  (error:InternalServerError). 8% non-yield per call compounds to loop entry over an
+  episode. Milder than sft32k_sw1 (60-step hard loop) but the same mode.
+- No generation of this model has ever patched this instance (vanilla included) —
+  the benchmark metric here is behavioral integrity, and the weak tail fails it.</p>
+<p>Verdict: the anchor solved the early-stop face completely and improved learning; the
+remaining defect is a CONTEXT-DEPENDENT weak tail on the stopping side that grows with
+time at peak lr. Ladder: anchor4 (same config, peak lr 4e-4, running) -&gt; anchor
+prompts (train the failing context family directly) -&gt; gemma pivot.</p>
+<h2 id="the-dense-control-ternarys-lr-is-past-the-continuous-stability-boundary">The dense control: ternary's lr is past the continuous stability boundary<a class="headerlink" href="#the-dense-control-ternarys-lr-is-past-the-continuous-stability-boundary" title="Permanent link">&para;</a></h2>
+<p>Question posed: is the ~step-150 control collapse a property of ternary discreteness,
+the objective, or the implementation? The dense control (identical objective — KD +
+one-sided anchor, per-side margins — with every projection trained as an ordinary fp32
+Linear) answered in TEN STEPS at the ternary lr 5e-4: outright divergence (loss 2.16 -&gt;
+8.62, KL -&gt; 7.27, gnorm -&gt; 47). Not a subtle stop-face drift — the whole optimization
+explodes, as plain dense SFT at 25x its normal lr should.</p>
+<p>Reading: ternary training NEEDS 5e-4 to cross thresholds, and 5e-4 is far beyond the
+stability boundary of the underlying continuous dynamics. The quantizer acts as a
+low-pass filter — the function only moves at threshold crossings — which is why ternary
+runs are stable for hundreds of steps at an lr that destroys the dense model in ten.
+The recurring ~150-step control collapse is best read as the filtered echo of that same
+instability, leaking through in threshold-crossing waves and surfacing first in the
+least parameter-supported behavior (short-context stopping). This also disposes of the
+kernel/driver hypothesis: the same failure at 5e-4 dense, with no ternary code in the
+loop at all.</p>
+<p>Running next: dense control v2 at lr 2e-5 (a stable dense lr) — does the OBJECTIVE
+harm the stopping face at all when dynamics are stable? Then the decision, with the
+new levers this diagnosis suggests for ternary: tighter grad clipping (the control
+waves co-occur with gnorm spikes 2.5-4.8; clip is currently 1.0), the steering loss
+(--steer-weight) giving the fragile class every-step support, and grad-accum &gt; 1 to
+average the too-hot per-step direction.</p>
+<h2 id="dense-control-v2-lr-2e-5-the-decomposition">Dense control v2 (lr 2e-5): the decomposition<a class="headerlink" href="#dense-control-v2-lr-2e-5-the-decomposition" title="Permanent link">&para;</a></h2>
+<p>274 steps, stable dynamics, guards off, probe every 10. The control face's full story:
+slow erosion from 0.9999 to a ~0.97 plateau, two excursions (0.885 @160, 0.936 @180)
+that RECOVER and dampen, then stability 0.966-0.977 through the end. Diagnostic 0.0000
+throughout; val monotone to 0.744 (project best); loss 2.30 -&gt; 0.57.</p>
+<p>The decomposition of the ternary failure, now measured:
+1. <strong>A slow objective-driven leak</strong> (present in dense): the KD+anchor objective erodes
+   the short-context control face ~0.03 over 274 stable steps, plateauing ~0.97.
+2. <strong>Waves</strong> (present in dense at 3-5x smaller amplitude, recovering): a property of
+   the training process (objective x fixed data order), NOT of ternarization. Window
+   stats at the wave steps are unremarkable (no poisoned block).
+3. <strong>Ternary amplification</strong> (the killer): at the lr ternary needs (5e-4 — which
+   diverges a dense model in 10 steps, loss 15), the quantizer low-pass filters the
+   too-hot dynamics; the waves leak through at threshold-crossing bursts, deepen
+   instead of recovering, and take the control face to 0.55-0.75.</p>
+<p>Synthesis run (anchor6): anchor5's config + --steer-weight 0.1 (every-step gradient
+support for the fragile context class, against #1) + --clip-norm 0.25 (damping what
+leaks through the filter, against #3) + patience-2 guards.</p>
+<h2 id="anchor6-the-first-complete-artifact-and-the-frontier-moves">anchor6: the first complete artifact — and the frontier moves<a class="headerlink" href="#anchor6-the-first-complete-artifact-and-the-frontier-moves" title="Permanent link">&para;</a></h2>
+<p>The synthesis config (KD forced-stop table + one-sided per-side-margin anchor +
+--steer-weight 0.1 + --clip-norm 0.25 + lr-scale + lr 5e-4 + patience guards) ran the
+FULL 613 steps with a perfect probe record: all 24 probes at exactly 0.0000 diagnostic /
+1.0000 control. Final flips 1.07-2.37% across every tracked tensor (v_proj alive at
+1.07%); val 0.745 = the dense control's endpoint; guards never fired.</p>
+<p>The three-tier evaluation of the Q2_0 export:
+- GGUF probe: diagnostic &lt; 5e-5 everywhere; control 0.9999975 (above vanilla's own).
+- In-distribution (273 real stop positions): median 0.9950 (&gt; vanilla 0.9932), mean
+  0.9414, p10 0.8197 — the anchor3 weak tail improved 10x (0.079 -&gt; 0.820), not fully
+  closed (vanilla 0.980).
+- Agent episode: 60 clean turns, zero tool errors — and the identical command repeated
+  49x. NOT a termination failure: the model stopped correctly after every call, then
+  chose the same action again. The frontier is now REPETITION (state-tracking), a
+  different pathology that vanilla shares in gentler form.</p>
+<p><strong>Serving-side mitigation works today</strong>: llama-server <code>--repeat-penalty 1.3
+--repeat-last-n 2048 --presence-penalty 0.8</code> (CLI defaults apply because the agents SDK
+sends only temperature/top_p) turned the same model's episode into 10 clean steps,
+self-terminated, zero loops — anomaly class <strong>"worked, unresolved"</strong>, the first trained
+ternary model ever to earn it. No 2-bit variant (vanilla included) has ever resolved
+this instance; capability at 2 bits is the remaining gap, not behavior.</p>
+<p><strong>Training-side counterpart implemented</strong> (<code>--steer-rep-weight</code>, qat/steer.py
+RepBatch/repetition_loss): contexts of (command -&gt; unhelpful result -&gt; assistant
+header) with the VERBATIM previous command teacher-forced; a one-sided hinge penalizes
+its mean per-token log-prob above <code>--steer-rep-cap</code> (default 0.5) — only
+near-deterministic copying is suppressed; re-running a command stays available.</p>
+<h2 id="anchor7anchor10-the-repetition-arc-2026-08-2021">anchor7–anchor10: the repetition arc (2026-08-20/21)<a class="headerlink" href="#anchor7anchor10-the-repetition-arc-2026-08-2021" title="Permanent link">&para;</a></h2>
+<p>Full detail in the runbook §11 and <code>out/exp-058/kd32b-full-anchor10/notes.md</code>; the
+compressed findings, in the order they were forced:</p>
+<ul>
+<li><strong>anchor7</strong> (32B teacher + rep hinge v1 at k=1): termination best-ever (in-dist p10
+  0.8916) but rp= read 0.0000 all run — the hinge was defined where the pathology is
+  not (P≈0.33 at k=1, under the 0.5 cap) — and the mimic looped 59x.</li>
+<li><strong>Escalation measurement</strong>: trained models escalate P(repeat) with identical rounds
+  (vanilla flat). anchor8 (hinge at k=2–5, synthetic) inverted its own curve below
+  vanilla and moved real-material states by ~0.02: <strong>synthetic states don't transfer</strong>.</li>
+<li><strong>Real-material bank</strong> (<code>build_rep_bank.py</code>): trained models read 0.78→0.98 there —
+  the 56x-loop regime exposed. <strong>anchor9</strong> (bank hinge, cap 0.6 = vanilla's level)
+  suppressed it to 0.08 held-out — and still looped 29x.</li>
+<li><strong>State-dependence nailed</strong> (<code>measure_traj_repeat.py</code>): same anchor9 weights,
+  reconstructed real episode = 0.96 at the FIRST re-issue (the looped command already
+  appeared ~11x non-consecutively earlier — induction primed); truncating the real
+  prefix to 3k tokens collapses it to 0.06. The loop state IS the full history.</li>
+<li><strong>The teacher endorses the repeat</strong> (0.79–0.99 under forcing at every k, 0.80 mean
+  even at k=1): rep teacher-KL withdrawn before it trained — it would teach copying.</li>
+<li><strong>anchor10</strong> (bank + harvested full-prefix episode contexts, hinge-only): real-state
+  P on an UNSEEN episode 0.96 → 0.53–0.59 flat; best val of the ladder (0.7411);
+  24/24 probes. Still looped bare at T=0.25 — <strong>sharpening rescues the loop from any
+  state where repeat is merely the argmax</strong>.</li>
+<li><strong>The 2x2 verdict</strong>: anchor9@0.7 loops (11x) with 31/48 malformed; anchor10@0.25
+  loops (43x); <strong>anchor10@0.7 is clean</strong> — streak 1, 0 malformed, self-terminated.
+  Both levers necessary. Serving: T=0.7, top_p 0.95, no penalties.</li>
+<li><strong>Ops</strong>: mid-run benching = CPU sidecar per checkpoint (GPU peak 91.4/95 GiB forbids
+  concurrent GPU eval); three OOM classes fixed in the rep losses (full-vocab logits,
+  whole-tensor fp32 softmax, float-mask math-path SDPA — span-only lm_head + unpadded
+  per-row forwards); runner now propagates the trainer's rc.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "content.code.copy", "search.highlight", "search.suggest", "search.preview"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

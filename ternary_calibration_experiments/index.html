@@ -1,0 +1,2334 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Calibrate your own GGUF quantizations and vLLM W4A16 checkpoints from real agentic-coding logs">
+      
+      
+        <meta name="author" content="K. Pearson">
+      
+      
+      
+        <link rel="prev" href="../qat_run_history/">
+      
+      
+        <link rel="next" href="../patch_gguf_chat_template/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Ternary calibration experiments - quant-tuner</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#can-our-calibration-improve-the-native-ternary-ternary-bonsai-8b" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="quant-tuner" class="md-header__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            quant-tuner
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Ternary calibration experiments
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18V6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-2.69L23.31 12 20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="quant-tuner" class="md-nav__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    quant-tuner
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methods
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Methods
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The three calibrators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipe reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calibration_datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calibration datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmarks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lens/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jacobian lens
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT for ternary models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    QAT for ternary models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method & invariants
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_curriculum/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curriculum
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_preprint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Preprint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary/HANDOFF/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B stage 1 (handoff)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run logs (Qwen 3.8 family)
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Run logs (Qwen 3.8 family)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_release/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 release
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_awq_2bit_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 AWQ 2-bit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_gptq_vllm_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 GPTQ vLLM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_exp062_rebuild/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 exp-062 rebuild
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Research notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_32k_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT 32K handoff
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_optimization_audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT optimization audit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_run_history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT run history
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ternary calibration experiments
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ternary calibration experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-structural-fact-why-imatrix-awq-scale-refit-are-all-no-ops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The structural fact (why imatrix / AWQ / scale-refit are all no-ops)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-prompt-scaffolding-opt-in-no-test-name-leakage-result-cheaper-not-better" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        #3 — prompt scaffolding (opt-in, no test-name leakage). Result: cheaper, not better.
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-q2_0-per-group-scale-refit-verdict-not-built-proven-no-op-see-structural-fact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        #2 — Q2_0 per-group scale refit. Verdict: not built — proven no-op (see structural fact).
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gptq-verdict-not-appropriate-demonstrated-on-our-own-framework" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GPTQ — verdict: not appropriate (demonstrated on our own framework)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-real-path-continued-ternary-qat-on-the-logs-feasible-method-is-public" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The real path: continued ternary QAT on the logs (feasible; method is public)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The real path: continued ternary QAT on the logs (feasible; method is public)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#iter-2-result-exp-058-masked-loss-qat-changed-behavior-did-not-improve-outcomes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        iter-2 RESULT (exp-058): masked-loss QAT changed behavior, did NOT improve outcomes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exp-057-the-qat-pipeline-is-built-and-validated-on-metal-m4-max-128-gb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        exp-057: the QAT pipeline is BUILT and VALIDATED on Metal (M4 Max, 128 GB)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-would-actually-improve-it-the-real-levers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What would actually improve it (the real levers)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What would actually improve it (the real levers)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#penalty-sweep-4-way-the-layer-selection-pivot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Penalty sweep (4-way) + the layer-selection pivot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#iter-3-train-the-grad-influential-layers-0-14323435-error-feedback-harness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        iter-3: train the grad-INFLUENTIAL layers (0-14,32,34,35) + error-feedback harness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#final-no-samplingpenalty-on-the-influential-layer-model-beats-baseline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Final: no sampling/penalty on the influential-layer model beats baseline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#iter-4-all-36-layers-adafactor-lowest-loss-worst-patch-rate-the-lever-is-data-quality" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        iter-4: ALL 36 layers (Adafactor). Lowest loss, WORST patch rate. The lever is DATA QUALITY.
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#iter-4-prep-the-optimization-audit-why-the-wall-verdict-was-premature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        iter-4 prep: the optimization audit (why the wall verdict was premature)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#iter-5-verified-solution-distillation-from-a-strong-solver-ornith-9b-lr-is-the-crux" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        iter-5: VERIFIED-solution distillation from a strong solver (Ornith-9B). LR is the crux.
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#iter-5-continued-the-lr-sweet-spot-first-pass0-5e-4-2-epochs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        iter-5 continued: the LR sweet-spot + first pass&gt;0 (5e-4, ~2 epochs)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patch_gguf_chat_template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patch a GGUF chat template
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_feasibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary feasibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reddit_ternary_qat_post/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reddit: ternary QAT post
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#the-structural-fact-why-imatrix-awq-scale-refit-are-all-no-ops" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The structural fact (why imatrix / AWQ / scale-refit are all no-ops)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-prompt-scaffolding-opt-in-no-test-name-leakage-result-cheaper-not-better" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        #3 — prompt scaffolding (opt-in, no test-name leakage). Result: cheaper, not better.
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-q2_0-per-group-scale-refit-verdict-not-built-proven-no-op-see-structural-fact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        #2 — Q2_0 per-group scale refit. Verdict: not built — proven no-op (see structural fact).
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gptq-verdict-not-appropriate-demonstrated-on-our-own-framework" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GPTQ — verdict: not appropriate (demonstrated on our own framework)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-real-path-continued-ternary-qat-on-the-logs-feasible-method-is-public" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The real path: continued ternary QAT on the logs (feasible; method is public)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The real path: continued ternary QAT on the logs (feasible; method is public)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#iter-2-result-exp-058-masked-loss-qat-changed-behavior-did-not-improve-outcomes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        iter-2 RESULT (exp-058): masked-loss QAT changed behavior, did NOT improve outcomes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#exp-057-the-qat-pipeline-is-built-and-validated-on-metal-m4-max-128-gb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        exp-057: the QAT pipeline is BUILT and VALIDATED on Metal (M4 Max, 128 GB)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-would-actually-improve-it-the-real-levers" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What would actually improve it (the real levers)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="What would actually improve it (the real levers)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#penalty-sweep-4-way-the-layer-selection-pivot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Penalty sweep (4-way) + the layer-selection pivot
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#iter-3-train-the-grad-influential-layers-0-14323435-error-feedback-harness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        iter-3: train the grad-INFLUENTIAL layers (0-14,32,34,35) + error-feedback harness
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#final-no-samplingpenalty-on-the-influential-layer-model-beats-baseline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Final: no sampling/penalty on the influential-layer model beats baseline
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#iter-4-all-36-layers-adafactor-lowest-loss-worst-patch-rate-the-lever-is-data-quality" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        iter-4: ALL 36 layers (Adafactor). Lowest loss, WORST patch rate. The lever is DATA QUALITY.
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#iter-4-prep-the-optimization-audit-why-the-wall-verdict-was-premature" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        iter-4 prep: the optimization audit (why the wall verdict was premature)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#iter-5-verified-solution-distillation-from-a-strong-solver-ornith-9b-lr-is-the-crux" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        iter-5: VERIFIED-solution distillation from a strong solver (Ornith-9B). LR is the crux.
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#iter-5-continued-the-lr-sweet-spot-first-pass0-5e-4-2-epochs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        iter-5 continued: the LR sweet-spot + first pass&gt;0 (5e-4, ~2 epochs)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="can-our-calibration-improve-the-native-ternary-ternary-bonsai-8b">Can our calibration improve the native-ternary Ternary-Bonsai-8B?<a class="headerlink" href="#can-our-calibration-improve-the-native-ternary-ternary-bonsai-8b" title="Permanent link">&para;</a></h1>
+<p>Short answer: <strong>post-hoc calibration cannot</strong> (proven below), a prompt-scaffolding
+probe made it cheaper but not better, and the only real lever is continued QAT
+training on the logs (or an added higher-precision adapter, which changes the
+2-bit artifact).</p>
+<h2 id="the-structural-fact-why-imatrix-awq-scale-refit-are-all-no-ops">The structural fact (why imatrix / AWQ / scale-refit are all no-ops)<a class="headerlink" href="#the-structural-fact-why-imatrix-awq-scale-refit-are-all-no-ops" title="Permanent link">&para;</a></h2>
+<p>Ternary-Bonsai-8B is <em>trained</em> natively ternary. We verified at the weight level:
+in every 128-weight group of the shipped F16, all nonzero weights share one
+magnitude (max/min = 1.0000; ~37% are exactly 0). So <code>w = s·c</code> exactly, with
+<code>c ∈ {−1, 0, +1}</code> and one fp16 scale <code>s</code> per group. Q2_0 is a <strong>lossless</strong>
+re-encode (measured KLD ≈ 0, top_p 99.99%).</p>
+<p>Every post-hoc calibration method we have recovers <strong>quantization rounding error</strong> —
+the gap between a higher-precision original and the low-bit grid. Here that gap is
+<strong>zero</strong>:
+- <strong>imatrix</strong> steers rounding decisions → no rounding freedom (weights already on grid).
+- <strong>AWQ</strong> folds a per-channel scale and re-quantizes → perturbs QAT-optimal weights
+  and forces re-rounding → strictly <em>adds</em> error.
+- <strong>Per-group scale refit (the "imatrix-for-ternary" idea):</strong> minimizing
+  <code>‖Wx − ŝ·c·x‖²</code> has its optimum at <code>ŝ = s</code> (error 0, for any activation <code>x</code>),
+  because <code>w = s·c</code> exactly. Any deviation increases output error. <strong>No-op.</strong></p>
+<p>There is no higher-precision target to fit toward — the ternary weights <em>are</em> the
+model. Changing the codes to beat the trained weights is not calibration; it is
+training (→ QAT, below).</p>
+<h2 id="3-prompt-scaffolding-opt-in-no-test-name-leakage-result-cheaper-not-better">#3 — prompt scaffolding (opt-in, no test-name leakage). Result: cheaper, not better.<a class="headerlink" href="#3-prompt-scaffolding-opt-in-no-test-name-leakage-result-cheaper-not-better" title="Permanent link">&para;</a></h2>
+<p>Added <code>QT_SWE_EXTRA_INSTRUCTIONS=scaffold</code> to the openai-agents backend (default
+prompt unchanged, so published Ornith/Qwythos/gemma numbers are untouched). The
+guidance targets the observed failure modes: don't invent pytest flags, discover
+the project's test runner, don't run library modules as scripts, and treat a
+reproducing test's non-zero exit as expected signal (not an error). Same 10-instance
+holdout, same sampling.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Ternary Q2_0</th>
+<th style="text-align: right;">steps</th>
+<th style="text-align: right;">tokens</th>
+<th style="text-align: right;">tool-err</th>
+<th style="text-align: right;">patch</th>
+<th style="text-align: right;">pass</th>
+<th style="text-align: left;">exits</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">baseline</td>
+<td style="text-align: right;">15.3</td>
+<td style="text-align: right;">258K</td>
+<td style="text-align: right;">79%</td>
+<td style="text-align: right;">50%</td>
+<td style="text-align: right;"><strong>0%</strong></td>
+<td style="text-align: left;">9 completed, 1 max_turns</td>
+</tr>
+<tr>
+<td style="text-align: left;">+ scaffold</td>
+<td style="text-align: right;">7.4</td>
+<td style="text-align: right;"><strong>26K</strong></td>
+<td style="text-align: right;">62%</td>
+<td style="text-align: right;">30%</td>
+<td style="text-align: right;"><strong>0%</strong></td>
+<td style="text-align: left;">10 completed</td>
+</tr>
+</tbody>
+</table>
+<p>The scaffolding made the model disciplined — <strong>10× fewer tokens</strong>, no runaway loops,
+fewer bad commands (79%→62%) — but the discipline meant it <em>did less</em>: patch rate
+fell 50%→30% (within n=10 noise, ±~15%) and pass stayed <strong>0%</strong> despite <em>more</em>
+empty-patch nudges (14 vs 12). The high tool-error rate was never the bottleneck —
+it was a noisy metric (a reproducing test failing counts as a non-zero "error") plus
+a symptom of flailing. Removing the flailing didn't add the missing capability:
+producing a <em>correct</em> source fix. <strong>Capability is the wall; prompt text can't move it.</strong></p>
+<p>Shippable takeaway: if the goal were cost/latency, <code>scaffold</code> is a real 10× token
+win at no resolution cost. It is not a quality lever.</p>
+<h2 id="2-q2_0-per-group-scale-refit-verdict-not-built-proven-no-op-see-structural-fact">#2 — Q2_0 per-group scale refit. Verdict: <strong>not built — proven no-op</strong> (see structural fact).<a class="headerlink" href="#2-q2_0-per-group-scale-refit-verdict-not-built-proven-no-op-see-structural-fact" title="Permanent link">&para;</a></h2>
+<h2 id="gptq-verdict-not-appropriate-demonstrated-on-our-own-framework">GPTQ — verdict: <strong>not appropriate</strong> (demonstrated on our own framework)<a class="headerlink" href="#gptq-verdict-not-appropriate-demonstrated-on-our-own-framework" title="Permanent link">&para;</a></h2>
+<p>GPTQ <em>reconstructs</em> quantized weights toward a reference <code>W</code> by minimizing
+<code>‖(W − Ŵ)X‖²</code> over calibration activations <code>X</code>. Two reference choices, both dead:</p>
+<ol>
+<li><strong>Reference = Bonsai's own ternary weights, grid = ternary.</strong> We ran our real
+   <code>gptq_round_tensor(sym=True, n_bits=2, group_size=128)</code> — whose grid <code>qmax=1</code>,
+   <code>scale=max|w|</code> is <em>exactly</em> Q2_0's <code>{−s, 0, +s}</code> — on <code>blk.0.ffn_gate.weight</code>:
+   relative reconstruction error = <strong>0.000</strong>, <code>max|W − Ŵ| = 0</code>. GPTQ changes
+   nothing, because the weights already sit exactly on that grid.
+   The only way it "acts" is by targeting a <em>different</em> grid (asymmetric 2-bit,
+   <code>sym=False</code>): rel error jumps to <strong>0.333</strong> — a lateral re-quant that is worse and
+   can't be packed as Q2_0.</li>
+<li><strong>Reference = a dense teacher (original Qwen3-8B fp16), grid = ternary.</strong> This is
+   the symmetric 3-level grid our own <code>gptq.py</code> (lines 152-157) documents as one that
+   <em>"has only three usable levels {−s, 0, +s} … and destroys the weight
+   distribution."</em> Post-hoc ternary rounding of dense weights is catastrophic —
+   precisely why native-ternary models are QAT'd, not post-hoc quantized.</li>
+</ol>
+<p><strong>Why every post-hoc method fails, in one sentence:</strong> the model is not badly
+<em>quantized</em> (it is a perfect, lossless quant of itself), it is badly <em>allocated</em> —
+its ternary capacity was spent on general pretraining, not tool/agent use. Post-hoc
+calibration reduces <em>quantization error</em>; there is none. Re-allocating capacity for
+our task needs a training signal, which no calibrator has.</p>
+<h2 id="the-real-path-continued-ternary-qat-on-the-logs-feasible-method-is-public">The real path: continued ternary QAT on the logs (feasible; method is public)<a class="headerlink" href="#the-real-path-continued-ternary-qat-on-the-logs-feasible-method-is-public" title="Permanent link">&para;</a></h2>
+<p>Correction to "no published pipeline": prism's exact <em>data/hparams</em> are proprietary,
+but the <em>method</em> is <strong>published — BitNet b1.58</strong> (Microsoft, 2024): straight-through
+estimator + absmean ternarization, a ~20-line PyTorch module. So this is not
+inventing a secret recipe; it is applying a known one as a short <em>continued</em> fine-tune.</p>
+<p>Base is ready: <code>prism-ml/Ternary-Bonsai-8B-unpacked</code> is a <strong>plain, trainable
+<code>Qwen3ForCausalLM</code></strong> (36 layers, hidden 4096, GQA 32/8; ternary weights stored as
+fp16, no quant_config) — standard HF/PyTorch training.</p>
+<p>Sketch:
+1. Wrap each linear's forward with STE ternarization: <code>s = mean(|W|)</code> per group,
+   <code>Ŵ = s · clip(round(W/s), −1, 1)</code>; forward uses <code>Ŵ</code>, backward flows to the fp16
+   latent <code>W</code> (STE). Initializing latents from the shipped fp16 reproduces the
+   current model exactly at step 0.
+2. Continue-train on <code>corpus.cal.txt</code> (our tool-call logs) with LM cross-entropy,
+   low LR, a few hundred–thousand steps (fine-tune, not from scratch).
+3. Re-ternarize final latents → pack to Q2_0 (prism format) → bench + SWE-rebench.</p>
+<h3 id="iter-2-result-exp-058-masked-loss-qat-changed-behavior-did-not-improve-outcomes">iter-2 RESULT (exp-058): masked-loss QAT changed behavior, did NOT improve outcomes<a class="headerlink" href="#iter-2-result-exp-058-masked-loss-qat-changed-behavior-did-not-improve-outcomes" title="Permanent link">&para;</a></h3>
+<p>Ran it end to end — masked-loss (tool-call tokens only) + rendered tool schemas +
+turn-aware 4096 windows, fp32 last-18, 261 steps (~0.5 epoch). Masked training loss
+fell <strong>2.26 → ~1.0</strong>. Exported to Q2_0 (2.03 GiB), tool-calling verified. Full
+10-instance SWE-rebench vs the untrained baseline:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">SWE-rebench (n=10)</th>
+<th style="text-align: right;">Baseline Ternary Q2_0</th>
+<th style="text-align: right;"><strong>iter-2 QAT</strong></th>
+<th style="text-align: right;">Δ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Pass rate</td>
+<td style="text-align: right;">0%</td>
+<td style="text-align: right;"><strong>0%</strong></td>
+<td style="text-align: right;">—</td>
+</tr>
+<tr>
+<td style="text-align: left;">Patch rate</td>
+<td style="text-align: right;">50% (5/10)</td>
+<td style="text-align: right;">40% (4/10)</td>
+<td style="text-align: right;">−1 (within n=10 noise)</td>
+</tr>
+<tr>
+<td style="text-align: left;">Tool-error rate</td>
+<td style="text-align: right;">79.1%</td>
+<td style="text-align: right;"><strong>67.8%</strong></td>
+<td style="text-align: right;"><strong>−11 pp</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">Mean tool steps</td>
+<td style="text-align: right;">15.3</td>
+<td style="text-align: right;"><strong>95.4</strong></td>
+<td style="text-align: right;"><strong>6.2×</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">Mean tokens</td>
+<td style="text-align: right;">258K</td>
+<td style="text-align: right;">556K</td>
+<td style="text-align: right;">2.2×</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Verdict: the QAT taught tool-call <em>style</em>, not issue-resolution <em>capability</em>.</strong>
+- ✅ Tool-error rate dropped 11 pp — the masked training genuinely produced cleaner,
+  better-formed tool calls (the signal was real and correctly targeted).
+- ✅ Engagement rose sharply (6× steps, 2× tokens) — training on the agentic logs
+  made the model far more persistent about calling tools.
+- ❌ <strong>Patch rate did not improve</strong> (40 vs 50%, statistically indistinguishable; iter-2
+  patched a strict <em>subset</em> — gained NONE of the 5 instances the baseline failed, and
+  lost the hardest one it had, durable-python-494 / 14 F2P tests). The extra
+  engagement did not convert to diffs.
+- ❌ <strong>Pass rate stayed 0%</strong> — no instance resolved, same as every 2-bit model.</p>
+<p><strong>Follow-up — the looping cause + a repetition-penalty A/B.</strong> The 6× step count was
+pathological looping: the QAT model repeated whole commands (up to <strong>553/556 duplicate
+tool calls</strong> on one instance, several hitting max_turns / crashing the server). The
+masked training on long agentic sessions taught <em>persistence</em> but not <em>when to stop</em>,
+and at 2-bit that degraded into repetition. A stronger server-side penalty
+(<code>--repeat-penalty 1.25 --repeat-last-n 1024 --frequency-penalty 0.4</code>, now env-tunable)
+<strong>killed the loops</strong> (mean steps 95→2.9, tokens 556K→11K, dup_cmds→~0) — but
+<strong>over-corrected</strong>: the model now quits after ~3 calls and patches even fewer (30%).</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">SWE-rebench (n=10)</th>
+<th style="text-align: right;">patch</th>
+<th style="text-align: right;">tool-err</th>
+<th style="text-align: right;">mean steps</th>
+<th style="text-align: right;">mean tok</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">baseline (no QAT)</td>
+<td style="text-align: right;"><strong>50%</strong></td>
+<td style="text-align: right;">79%</td>
+<td style="text-align: right;">15.3</td>
+<td style="text-align: right;">258K</td>
+</tr>
+<tr>
+<td style="text-align: left;">iter-2 QAT (pen 1.1)</td>
+<td style="text-align: right;">40%</td>
+<td style="text-align: right;">68%</td>
+<td style="text-align: right;">95.4 (loops)</td>
+<td style="text-align: right;">556K</td>
+</tr>
+<tr>
+<td style="text-align: left;">iter-2 QAT (pen 1.25+freq)</td>
+<td style="text-align: right;">30%</td>
+<td style="text-align: right;">76%</td>
+<td style="text-align: right;">2.9 (gives up)</td>
+<td style="text-align: right;">11K</td>
+</tr>
+</tbody>
+</table>
+<p>So there's a Goldilocks band (an intermediate penalty might land ~40%), but <strong>no
+setting beat the plain baseline's 50% patch, and pass stayed 0% everywhere.</strong></p>
+<p>The 2-bit ternary <strong>resolution floor is a capability wall a light (0.5-epoch, last-18)
+fine-tune does not break</strong> — consistent with the whole study's finding that ~zero
+issues resolve at 2 bits regardless of model or calibration. The tool-error drop
+shows QAT <em>is</em> doing something useful; scaling it (full epochs, all layers via the
+fp32-master trick, or a stronger base) is the next lever, but pass@2-bit may be
+fundamentally capped. What's proven: a <strong>working, reproducible Metal ternary-QAT
+pipeline</strong> that measurably moves the model — the infrastructure for that next attempt.</p>
+<p>Cost/risk: full 8B QAT needs a GPU with room for fp16 latents + AdamW states +
+activations (a CUDA box, or a memory-frugal LoRA-on-latent / partial-layer variant on
+Metal). This is real training infra quant-tuner doesn't have yet — the actual build.</p>
+<h3 id="exp-057-the-qat-pipeline-is-built-and-validated-on-metal-m4-max-128-gb">exp-057: the QAT pipeline is BUILT and VALIDATED on Metal (M4 Max, 128 GB)<a class="headerlink" href="#exp-057-the-qat-pipeline-is-built-and-validated-on-metal-m4-max-128-gb" title="Permanent link">&para;</a></h3>
+<p><code>src/quant_tuner/qat/ternary.py</code> (per-group TWN + STE) + three scripts
+(<code>exp057_qat_{step0,train,export}.py</code>). All green:</p>
+<ul>
+<li><strong>Step-0 reproduction is EXACT</strong> (fp32): wrapping all 252 linears with the STE
+  ternarizer changes the logits by <code>0.0000e+00</code> (100% top-1). The fine-tune
+  provably starts from the real model — TWN recovers each group's <code>s</code> exactly.</li>
+<li><strong>Training runs on MPS</strong>: fp32 8B, last-4-layers trainable, gradient
+  checkpointing → <strong>36.6 GiB</strong> peak (of 128), ~20 s/step, loss falling
+  (2.34 → 2.10 in a 20-step smoke run). Frozen layers carry no optimizer state.</li>
+<li><strong>Export round-trips</strong>: trained latents → ternarize every linear → F16 GGUF →
+  prism <code>llama-quantize</code> <strong>Q2_0</strong> (supported, type 41). The result runs on the
+  prism fork and generates coherent code; the trained layer (blk.35) changed,
+  the frozen layer (blk.0) is byte-identical.</li>
+</ul>
+<p>So Metal is sufficient — no CUDA needed. Remaining for a <em>real</em> run (not just a
+smoke test): (a) a tool-log-weighted training corpus (the cal corpus is wiki-heavy);
+(b) more trainable layers (128 GB fits all 36) + more steps; (c) match the original
+2.03 GiB packing (<code>--output-tensor-type</code>/<code>--token-embedding-type Q2_0</code>; our default
+left embed/output at higher precision → 2.53 GiB); then bench + SWE-rebench vs the
+0%-pass baseline.</p>
+<h2 id="what-would-actually-improve-it-the-real-levers">What would actually improve it (the real levers)<a class="headerlink" href="#what-would-actually-improve-it-the-real-levers" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Continued QAT fine-tune on the tool-call logs</strong> — the correct analog to
+   "calibrate on our distribution" for a QAT model. Continue-train the trainable
+   checkpoint (<code>prism-ml/Ternary-Bonsai-8B-unpacked</code>) on the logs with a
+   straight-through estimator so weights stay ternary. Real training (gradients +
+   STE), heavier than our post-hoc pipeline, but the only thing that raises
+   capability at 2 bits. This is what imatrix/AWQ <em>approximate</em> for post-hoc quants;
+   for a native-ternary model you do the real thing.</li>
+<li><strong>A small higher-precision adapter (fp16 low-rank correction) on top of the
+   ternary base</strong>, fit on the logs. Much cheaper than full QAT and can lift
+   capability — but it <em>adds</em> precision/params, so the artifact is no longer pure
+   2-bit Q2_0. A different point on the size/quality curve, offered honestly.</li>
+</ol>
+<p>The one-line lesson, which is also the "KLD isn't everything" thesis in its purest
+form: a model can be a <strong>perfect</strong> quantization of itself (KLD ≈ 0) and still resolve
+<strong>0%</strong> of real issues — and no amount of <em>quantization</em> calibration changes that,
+because there was never any quantization loss to recover.</p>
+<h3 id="penalty-sweep-4-way-the-layer-selection-pivot">Penalty sweep (4-way) + the layer-selection pivot<a class="headerlink" href="#penalty-sweep-4-way-the-layer-selection-pivot" title="Permanent link">&para;</a></h3>
+<p>Full A/B of sampling penalty on the iter-2 (last-18) QAT model:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">run</th>
+<th style="text-align: right;">patch</th>
+<th style="text-align: right;">tool-err</th>
+<th style="text-align: right;">mean steps</th>
+<th style="text-align: right;">dup/calls</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">baseline (no QAT)</td>
+<td style="text-align: right;"><strong>50%</strong></td>
+<td style="text-align: right;">79%</td>
+<td style="text-align: right;">15.3</td>
+<td style="text-align: right;">116/153</td>
+</tr>
+<tr>
+<td style="text-align: left;">QAT pen 1.1</td>
+<td style="text-align: right;">40%</td>
+<td style="text-align: right;">68%</td>
+<td style="text-align: right;">95.4</td>
+<td style="text-align: right;">912/953 (loops)</td>
+</tr>
+<tr>
+<td style="text-align: left;">QAT pen 1.25 + freq 0.4</td>
+<td style="text-align: right;">30%</td>
+<td style="text-align: right;">76%</td>
+<td style="text-align: right;">2.9</td>
+<td style="text-align: right;">3/29 (quits)</td>
+</tr>
+<tr>
+<td style="text-align: left;">QAT pen 1.15 / last-n 512</td>
+<td style="text-align: right;">30%</td>
+<td style="text-align: right;"><strong>61%</strong></td>
+<td style="text-align: right;">13.7</td>
+<td style="text-align: right;">56/137 (healthy)</td>
+</tr>
+</tbody>
+</table>
+<p>Penalty 1.15 restored <em>healthy behavior</em> (steps ≈ baseline, lowest tool-err) but
+patch rate did NOT recover — <strong>no penalty beats the plain baseline's 50%</strong>. The loop
+was a symptom; the last-18 QAT genuinely lowered patch capability. Combined with the
+<strong>layer-importance probe</strong> (grad signal on the masked tool-call loss: blk.0 dominates,
+early layers 0-14 carry the signal, layers 18-31 — exactly what iter-2 trained — are
+the WEAKEST, 32/34/35 spike), the likely cause is that iter-2 trained the wrong half.
+<strong>iter-3</strong> retrains the grad-influential set (0-14, 32, 34, 35) at the same budget to
+test whether smart layer selection beats naive last-18.</p>
+<h3 id="iter-3-train-the-grad-influential-layers-0-14323435-error-feedback-harness">iter-3: train the grad-INFLUENTIAL layers (0-14,32,34,35) + error-feedback harness<a class="headerlink" href="#iter-3-train-the-grad-influential-layers-0-14323435-error-feedback-harness" title="Permanent link">&para;</a></h3>
+<p>Retrained the layers the gradient probe ranked highest (early layers 0-14 dominate;
+naive last-18 trained the weakest, 18-31), same masked 4096 corpus + budget. Also made
+the openai-agents backend feed BadRequest-style errors back and restart instead of
+aborting the instance.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">SWE-rebench (n=10)</th>
+<th style="text-align: right;">pass</th>
+<th style="text-align: right;">patch</th>
+<th style="text-align: right;">tool-err</th>
+<th style="text-align: right;">mean steps</th>
+<th style="text-align: right;">dup/calls</th>
+<th style="text-align: left;">exits</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">baseline (no QAT)</td>
+<td style="text-align: right;">0%</td>
+<td style="text-align: right;"><strong>50%</strong></td>
+<td style="text-align: right;">79%</td>
+<td style="text-align: right;">15.3</td>
+<td style="text-align: right;">116/153</td>
+<td style="text-align: left;">—</td>
+</tr>
+<tr>
+<td style="text-align: left;">iter-2 (last-18)</td>
+<td style="text-align: right;">0%</td>
+<td style="text-align: right;">40%</td>
+<td style="text-align: right;">68%</td>
+<td style="text-align: right;">95.4</td>
+<td style="text-align: right;">912/953</td>
+<td style="text-align: left;">looped / crashed</td>
+</tr>
+<tr>
+<td style="text-align: left;">iter-3 (influential) + errfix</td>
+<td style="text-align: right;">0%</td>
+<td style="text-align: right;">40%</td>
+<td style="text-align: right;">60%</td>
+<td style="text-align: right;">22.6</td>
+<td style="text-align: right;">184/226</td>
+<td style="text-align: left;"><strong>10/10 completed</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>What the right layers + error-feedback fixed:</strong> the LOOPING (steps 95-&gt;22.6,
+dup-commands 912-&gt;184) and the instance CRASHES (10/10 completed, no BadRequest
+aborts). Training the influential early layers is clearly better-behaved than the naive
+last-18. <strong>What it did NOT fix:</strong> patch rate (still 40%, below baseline's 50%) and pass
+rate (still 0%). Layer selection + harness robustness recovered iter-2's behavior
+regressions but did not push capability past the untrained baseline. The 2-bit
+resolution wall holds; a light half-epoch fine-tune (any layer set, any sampling) does
+not beat it. The remaining levers are scale (full epochs / all layers via fp32-master /
+more data) or accepting the wall.</p>
+<h3 id="final-no-samplingpenalty-on-the-influential-layer-model-beats-baseline">Final: no sampling/penalty on the influential-layer model beats baseline<a class="headerlink" href="#final-no-samplingpenalty-on-the-influential-layer-model-beats-baseline" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">SWE-rebench (n=10)</th>
+<th style="text-align: right;">pass</th>
+<th style="text-align: right;">patch</th>
+<th style="text-align: right;">tool-err</th>
+<th style="text-align: right;">mean steps</th>
+<th style="text-align: right;">dup/calls</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">baseline (no QAT)</td>
+<td style="text-align: right;">0%</td>
+<td style="text-align: right;"><strong>50%</strong></td>
+<td style="text-align: right;">79%</td>
+<td style="text-align: right;">15.3</td>
+<td style="text-align: right;">116/153</td>
+</tr>
+<tr>
+<td style="text-align: left;">iter-3 influential + errfix (pen 1.1)</td>
+<td style="text-align: right;">0%</td>
+<td style="text-align: right;">40%</td>
+<td style="text-align: right;">60%</td>
+<td style="text-align: right;">22.6</td>
+<td style="text-align: right;">184/226</td>
+</tr>
+<tr>
+<td style="text-align: left;">iter-3 influential + pen 1.15 / T0.3</td>
+<td style="text-align: right;">0%</td>
+<td style="text-align: right;">30%</td>
+<td style="text-align: right;">72%</td>
+<td style="text-align: right;">7.2</td>
+<td style="text-align: right;">34/71</td>
+</tr>
+</tbody>
+</table>
+<p>Same Goldilocks curve as iter-2: more repetition penalty removes the looping but the
+model then under-engages and patches less (30%). The best-behaved QAT config
+(influential layers + error-feedback + pen 1.1) reaches 40% patch with clean 10/10
+completion and no loops — a real fix of iter-2's regressions — but still below the
+untrained baseline's 50%, and pass stays 0% throughout.</p>
+<p><strong>Bottom line for Ternary-Bonsai-8B at 2-bit:</strong> a light (0.5-epoch) continued-QAT
+fine-tune, even on the gradient-influential layers with a robust harness and tuned
+sampling, fixes <em>behavior</em> (looping, crashes, tool-errors) but does not raise
+issue-resolution <em>capability</em> past the base model. The 2-bit resolution floor (pass 0%)
+is a capability wall this class of fine-tune does not break. Next real lever = scale
+(full epochs + all 36 layers via fp32-master + more/curated data), or accept the wall.
+The pipeline (docs/ternary_qat.md) is ready for that scaled attempt and for other models.</p>
+<h3 id="iter-4-all-36-layers-adafactor-lowest-loss-worst-patch-rate-the-lever-is-data-quality">iter-4: ALL 36 layers (Adafactor). Lowest loss, WORST patch rate. The lever is DATA QUALITY.<a class="headerlink" href="#iter-4-all-36-layers-adafactor-lowest-loss-worst-patch-rate-the-lever-is-data-quality" title="Permanent link">&para;</a></h3>
+<p>Trained all 36 layers (Adafactor factored state fits fp32 at ~33GB where AdamW swaps).
+It drove the masked loss lower than any prior run (2.26 -&gt; 0.91 vs iter-3's ~1.0 floor).</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">SWE-rebench (n=10)</th>
+<th style="text-align: right;">pass</th>
+<th style="text-align: right;">patch</th>
+<th style="text-align: right;">tool-err</th>
+<th style="text-align: right;">mean steps</th>
+<th style="text-align: right;">dup/calls</th>
+<th style="text-align: right;">train loss</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">baseline (no QAT)</td>
+<td style="text-align: right;">0%</td>
+<td style="text-align: right;"><strong>50%</strong></td>
+<td style="text-align: right;">79%</td>
+<td style="text-align: right;">15.3</td>
+<td style="text-align: right;">116/153</td>
+<td style="text-align: right;">-</td>
+</tr>
+<tr>
+<td style="text-align: left;">iter-3 influential-18</td>
+<td style="text-align: right;">0%</td>
+<td style="text-align: right;">40%</td>
+<td style="text-align: right;">60%</td>
+<td style="text-align: right;">22.6</td>
+<td style="text-align: right;">184/226</td>
+<td style="text-align: right;">~1.0</td>
+</tr>
+<tr>
+<td style="text-align: left;">iter-4 all-36</td>
+<td style="text-align: right;">0%</td>
+<td style="text-align: right;"><strong>30%</strong></td>
+<td style="text-align: right;">55%</td>
+<td style="text-align: right;"><strong>9.5</strong></td>
+<td style="text-align: right;">33/70</td>
+<td style="text-align: right;"><strong>0.91</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>The lowest training loss gave the worst patch rate.</strong> iter-4 is the best-BEHAVED run
+(fewest steps, least looping, all 10 completed, lowest tool-error) but produces the
+fewest patches. This kills the "just under-trained" hypothesis: training the full
+network to a lower loss did not raise capability, it <em>lowered</em> patch rate.</p>
+<p>The reason is what the loss actually measures. The masked loss rewards mimicking the
+tool-call TEXT in our corpus, which is scraped Claude-Code / Gemini-CLI agent logs, NOT
+verified successful problem solutions. So fitting it better teaches the model to imitate
+the <em>style</em> of those logs (be terse, emit clean tool calls, stop early) rather than to
+<em>solve</em> issues. Lower loss = better log-mimicry = a tidier agent that does less. The
+metric and the goal are misaligned.</p>
+<p><strong>Corrected conclusion.</strong> The lever is not more training or more layers on this data; it
+is BETTER data. The corpus is noisy imitation data, not outcome data. The paths that
+should actually move issue-resolution:
+- Distill from a strong solver (generate verified successful trajectories with a
+  capable model and train on those) - i.e. outcome-quality data, not log-style data.
+- A stronger base: PrismML's own paper says this 8B was never built for reasoning or
+  reliable tool use; the new capable base is the 27B.
+- RL / reward on actual test-pass, not next-token imitation of logs.</p>
+<p>What is proven and shippable: a working, reproducible Metal ternary-QAT pipeline, and a
+clean negative result - imitation-fine-tuning a 2-bit agent on scraped logs tidies its
+behavior but does not add problem-solving ability. Loss went down; the thing we cared
+about did not.</p>
+<blockquote>
+<p>⚠️ <strong>Caveat discovered after the fact (see the audit below):</strong> this all-36 run trained
+on the <em>pre-fix</em> corpus, which (a) never labeled the <code>&lt;|im_end|&gt;</code> stop token and (b)
+fed fabricated tool schemas. So "lowest loss / worst patch" was partly a broken-target
+artifact, not only a data-quality signal. The data-quality conclusion still holds — but
+the specific numbers must be re-taken on the corrected corpus before the "2-bit wall"
+is called real. The audit's fixes + the Ornith-distillation plan are exactly that redo.</p>
+</blockquote>
+<h3 id="iter-4-prep-the-optimization-audit-why-the-wall-verdict-was-premature">iter-4 prep: the optimization audit (why the wall verdict was premature)<a class="headerlink" href="#iter-4-prep-the-optimization-audit-why-the-wall-verdict-was-premature" title="Permanent link">&para;</a></h3>
+<p>A full memory/technique/speed audit of the pipeline (<code>docs/qat_optimization_audit.md</code>)
+found the iter-2/3 null result <strong>over-determined by fixable defects</strong> — the "capability
+wall" conclusion should be re-tested only after the corrected re-run:</p>
+<ol>
+<li><strong>The corpus never trained the stop token.</strong> The assistant-span regex labeled
+   content only (regex group 1 ends before <code>&lt;|im_end|&gt;</code>), so under HF's label shift no
+   position in the whole corpus had <code>&lt;|im_end|&gt;</code> as a CE target. The looping pathology
+   (912/953 dup tool calls) wasn't just "training taught persistence" — the model was
+   <em>structurally never trained to end its turn</em>. Fixed in
+   <code>build_qat_masked_corpus.py</code>; the builder now asserts labeled stop-token targets.</li>
+<li><strong>Real tool schemas were discarded.</strong> logtrain stores full schemas on
+   <code>messages[0]["tools"]</code> (types, required lists, the whole tool set);
+   <code>reconstruct_tools</code> claimed none existed and fabricated all-string stubs for only
+   the called tools. The QAT model trained schema-conditioned on fake schemas. Fixed
+   (real schemas via <code>data.split.session_tools</code>; stubs are now the fallback).</li>
+<li><strong>AdamW default weight decay (0.01) was active on the latents</strong> — systematic
+   shrinkage toward the TWN threshold (code erosion). Now defaults to 0.</li>
+<li><strong>lr 5e-5 flips ~zero codes.</strong> Latents sit at |w| ∈ {0, s}; the nearest flip
+   boundary is 0.3-0.5·s ≈ 1e-2 away; Adam-normalized steps move ~lr per step → a flip
+   needs O(10²-10³) consistently-signed steps, and the runs were 261 steps total. The
+   2.26→1.0 loss drop is consistent with pure <em>scale</em> drift — i.e. iter-2/3 likely
+   never re-allocated ternary capacity at all. The trainer now prints code-flip
+   telemetry each checkpoint and the export prints artifact-level flips vs shipped;
+   the runbook's first step is a 3-point LR probe (5e-5 / 3e-4 / 1e-3).</li>
+<li><strong>All-36 now fits without swap</strong>: <code>--optim adafactor</code> (factored second moment,
+   per-tensor loop, MPS-safe) ≈ 66-75 GB vs AdamW's ~116; plus <code>--resume</code>,
+   atomic checkpoints, a masked-CE loss head (lm_head only at labeled positions),
+   <code>--train-norms</code>, online KD from the dense parent (<code>--kd-teacher</code>), and a bf16-
+   compute/fp32-master path (<code>--compute-dtype bf16</code>) for ~1.5-2× step speed.</li>
+</ol>
+<p>⚠️ Comparability: the corpus fixes change the training distribution on purpose —
+masked-loss values from iter-2/3 (2.26→1.0) are <strong>not comparable</strong> to post-fix runs
+(new supervised token class + real schemas), and <code>--resume</code> refuses checkpoints across
+corpus rebuilds by fingerprint. The scaled iter-4 run (all-36, ≥1 epoch, probed LR,
+KD) is what actually tests whether the 2-bit wall is real.</p>
+<h3 id="iter-5-verified-solution-distillation-from-a-strong-solver-ornith-9b-lr-is-the-crux">iter-5: VERIFIED-solution distillation from a strong solver (Ornith-9B). LR is the crux.<a class="headerlink" href="#iter-5-verified-solution-distillation-from-a-strong-solver-ornith-9b-lr-is-the-crux" title="Permanent link">&para;</a></h3>
+<p>Replaced the scraped agent logs with <strong>12 verified SWE-rebench trajectories</strong> (Ornith-1.0-9B
+Q5_K_M solved them and the hidden FAIL_TO_PASS/PASS_TO_PASS tests actually passed), re-rendered
+through the corrected corpus (stop token labeled, real bash schema), all-36 Adafactor. The
+instances are disjoint from the eval holdout, so a gain would be generalization.</p>
+<p>The <strong>LR probe (folded into the run via flip telemetry) was the whole story</strong>:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">lr</th>
+<th style="text-align: left;">code flips @ step 20</th>
+<th style="text-align: left;">loss</th>
+<th style="text-align: left;">verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">3e-4</td>
+<td style="text-align: left;">~0% (max 0.003%)</td>
+<td style="text-align: left;">smooth 1.49→0.64</td>
+<td style="text-align: left;"><strong>scale-only</strong> — the model rescaled groups, never re-allocated ternary codes (the iter-2/3/4 dead regime)</td>
+</tr>
+<tr>
+<td style="text-align: left;">1e-3</td>
+<td style="text-align: left;">REAL (layer0 q_proj 3.8%, layer35 1.1%, millions of codes)</td>
+<td style="text-align: left;">noisy 1.4–2.4, never converged</td>
+<td style="text-align: left;"><strong>over-hot on 12 windows</strong> — flipped codes aggressively but damaged tool-calling</td>
+</tr>
+</tbody>
+</table>
+<p>iter-5 (1e-3) SWE-rebench, 10-instance holdout:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">run</th>
+<th style="text-align: right;">pass</th>
+<th style="text-align: right;">patch</th>
+<th style="text-align: right;">tool-err</th>
+<th style="text-align: right;">mean steps</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">baseline (no QAT)</td>
+<td style="text-align: right;">0%</td>
+<td style="text-align: right;"><strong>50%</strong></td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">15.3</td>
+</tr>
+<tr>
+<td style="text-align: left;">iter-4 (log data, scale-only)</td>
+<td style="text-align: right;">0%</td>
+<td style="text-align: right;">30%</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">9.5</td>
+</tr>
+<tr>
+<td style="text-align: left;">iter-5 (verified data, 1e-3)</td>
+<td style="text-align: right;">0%</td>
+<td style="text-align: right;"><strong>20%</strong></td>
+<td style="text-align: right;"><strong>73%</strong></td>
+<td style="text-align: right;">5.2</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Findings.</strong> (1) The ternary model CAN be taught — 1e-3 flips real codes (the audit was
+right; 3e-4 was too low). (2) But 12 trajectories × an aggressive LR = the model overwrites
+its tool-calling competence to memorize a dozen trajectories (tool_err 73%, bails at 5.2
+steps, patch 50%→20%). The binding constraints are <strong>data quantity</strong> and <strong>LR</strong>, not the data
+<em>quality</em> (which is now good). Next: a <strong>5e-4 sweet-spot</strong> trial on the same 12 (between
+no-learn 3e-4 and damaging 1e-3); if it still regresses, data quantity is confirmed as the
+blocker → <strong>iter-5b</strong> expands the verified set (the <code>--resume</code> retry recovers the ~57
+docker-125 instances) before retraining.</p>
+<h3 id="iter-5-continued-the-lr-sweet-spot-first-pass0-5e-4-2-epochs">iter-5 continued: the LR sweet-spot + first pass&gt;0 (5e-4, ~2 epochs)<a class="headerlink" href="#iter-5-continued-the-lr-sweet-spot-first-pass0-5e-4-2-epochs" title="Permanent link">&para;</a></h3>
+<p>After iter-5 @1e-3 damaged the model (over-hot on 12 windows), swept the LR / repeat count:</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">lr / epochs</th>
+<th style="text-align: left;">code flips</th>
+<th style="text-align: left;">loss</th>
+<th style="text-align: left;">verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">3e-4 / 8ep</td>
+<td style="text-align: left;">~0%</td>
+<td style="text-align: left;">smooth →0.64</td>
+<td style="text-align: left;">scale-only, no learning</td>
+</tr>
+<tr>
+<td style="text-align: left;">1e-3 / 8ep</td>
+<td style="text-align: left;">3.8% (layer0)</td>
+<td style="text-align: left;">noisy 1.4–2.4</td>
+<td style="text-align: left;">flips but damages tool-use</td>
+</tr>
+<tr>
+<td style="text-align: left;">5e-4 / 8ep</td>
+<td style="text-align: left;">—</td>
+<td style="text-align: left;">→0.01</td>
+<td style="text-align: left;">MEMORIZED (killed before eval)</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>5e-4 / 2.2ep (36 steps)</strong></td>
+<td style="text-align: left;"><strong>0.7% total</strong></td>
+<td style="text-align: left;">settled ~0.5</td>
+<td style="text-align: left;"><strong>the sweet spot</strong></td>
+</tr>
+</tbody>
+</table>
+<p>The 8-epoch runs saw the 12 trajectories 8× → memorization (loss 0.01). Dropping to ~2.2
+epochs (36 steps) fits without memorizing (loss ~0.5) while still flipping 0.7% of codes.</p>
+<p><strong>Dual eval of the 5e-4/36-step model</strong> (generalization = disjoint 10-holdout; in-distribution
+= the 12 trained-on instances, built as indist_trained12.jsonl):</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">eval</th>
+<th style="text-align: right;">patch</th>
+<th style="text-align: right;">pass</th>
+<th style="text-align: right;">tool_err</th>
+<th style="text-align: right;">steps</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">baseline (no QAT), generalization</td>
+<td style="text-align: right;">50%</td>
+<td style="text-align: right;">0%</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">15.3</td>
+</tr>
+<tr>
+<td style="text-align: left;">iter-5 5e-4, <strong>generalization</strong></td>
+<td style="text-align: right;">40%</td>
+<td style="text-align: right;"><strong>0%</strong></td>
+<td style="text-align: right;">0.58</td>
+<td style="text-align: right;">30.2</td>
+</tr>
+<tr>
+<td style="text-align: left;">iter-5 5e-4, <strong>in-distribution</strong></td>
+<td style="text-align: right;">25%</td>
+<td style="text-align: right;"><strong>8%</strong></td>
+<td style="text-align: right;">0.53</td>
+<td style="text-align: right;">46.3</td>
+</tr>
+</tbody>
+</table>
+<p><strong>FIRST pass&gt;0 in the project</strong>: solved <code>EmilStenstrom__conllu-64</code>, an issue it trained on.
+The training signal is real (learns to solve a trained-on problem) but does NOT yet transfer
+(0% generalization pass, patch at baseline). Textbook "learns but needs more data." The
+recipe (5e-4, ~2 epochs, all-36) is now fixed; the lever is <strong>data quantity</strong>.</p>
+<p>→ <strong>iter-5b</strong>: <code>--resume</code> retry over the 60 docker-errored instances to grow the verified set
+from 12 toward 50–100, then retrain at the same recipe and re-bench generalization.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "content.code.copy", "search.highlight", "search.suggest", "search.preview"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

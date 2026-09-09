@@ -1,0 +1,2107 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Calibrate your own GGUF quantizations and vLLM W4A16 checkpoints from real agentic-coding logs">
+      
+      
+        <meta name="author" content="K. Pearson">
+      
+      
+      
+        <link rel="prev" href="..">
+      
+      
+        <link rel="next" href="../recipes/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>The three calibrators - quant-tuner</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#calibration-methods" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="quant-tuner" class="md-header__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            quant-tuner
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              The three calibrators
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18V6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-2.69L23.31 12 20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="quant-tuner" class="md-nav__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    quant-tuner
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methods
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Methods
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The three calibrators
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The three calibrators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-calibration-means-in-this-context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What "calibration" means in this context
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#imatrix-output-aware" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        imatrix (output-aware)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="imatrix (output-aware)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#corpus-format-and-parse-special" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Corpus format and --parse-special
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#combining-wiki-logs-scriptsbuild_mixed_corpuspy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Combining wiki + logs (scripts/build_mixed_corpus.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#awq-activation-aware-weight-scaling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AWQ (activation-aware weight scaling)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gptq-hessian-based-rounding-with-error-compensation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GPTQ (Hessian-based rounding with error compensation)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#choosing-a-method" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing a method
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#switching-the-target-quant-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Switching the target quant type
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mtp-head-training" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MTP head training
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MTP head training">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-fine-tune-the-mtp-head" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why fine-tune the MTP head?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#training-pipeline-scriptstrain_mtp_headpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Training pipeline (scripts/train_mtp_head.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#measuring-quantization-noise-scriptsmeasure_quant_noisepy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measuring quantization noise (scripts/measure_quant_noise.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#installing-trained-weights-and-rebuilding-the-gguf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installing trained weights and rebuilding the GGUF
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#evaluating-mtp-acceptance-rate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluating MTP acceptance rate
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipe reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calibration_datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calibration datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmarks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lens/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jacobian lens
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT for ternary models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    QAT for ternary models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method & invariants
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_curriculum/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curriculum
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_preprint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Preprint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary/HANDOFF/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B stage 1 (handoff)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run logs (Qwen 3.8 family)
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Run logs (Qwen 3.8 family)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_release/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 release
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_awq_2bit_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 AWQ 2-bit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_gptq_vllm_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 GPTQ vLLM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_exp062_rebuild/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 exp-062 rebuild
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Research notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_32k_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT 32K handoff
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_optimization_audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT optimization audit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_run_history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT run history
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_calibration_experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ternary calibration experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patch_gguf_chat_template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patch a GGUF chat template
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_feasibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary feasibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reddit_ternary_qat_post/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reddit: ternary QAT post
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#what-calibration-means-in-this-context" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What "calibration" means in this context
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#imatrix-output-aware" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        imatrix (output-aware)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="imatrix (output-aware)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#corpus-format-and-parse-special" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Corpus format and --parse-special
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#combining-wiki-logs-scriptsbuild_mixed_corpuspy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Combining wiki + logs (scripts/build_mixed_corpus.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#awq-activation-aware-weight-scaling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        AWQ (activation-aware weight scaling)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#gptq-hessian-based-rounding-with-error-compensation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GPTQ (Hessian-based rounding with error compensation)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#choosing-a-method" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Choosing a method
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#switching-the-target-quant-type" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Switching the target quant type
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#mtp-head-training" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MTP head training
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MTP head training">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-fine-tune-the-mtp-head" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why fine-tune the MTP head?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#training-pipeline-scriptstrain_mtp_headpy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Training pipeline (scripts/train_mtp_head.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#measuring-quantization-noise-scriptsmeasure_quant_noisepy" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measuring quantization noise (scripts/measure_quant_noise.py)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#installing-trained-weights-and-rebuilding-the-gguf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Installing trained weights and rebuilding the GGUF
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#evaluating-mtp-acceptance-rate" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluating MTP acceptance rate
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="calibration-methods">Calibration methods<a class="headerlink" href="#calibration-methods" title="Permanent link">&para;</a></h1>
+<p>All three methods produce a standard GGUF that runs on unmodified <code>llama.cpp</code>.
+None changes the inference graph — they differ only in <em>how</em> they choose
+which weights get more of the quantizer's precision budget.</p>
+<h2 id="what-calibration-means-in-this-context">What "calibration" means in this context<a class="headerlink" href="#what-calibration-means-in-this-context" title="Permanent link">&para;</a></h2>
+<p>When you quantize an FP16 weight matrix <code>W</code> to (say) Q4_K_M, llama.cpp splits
+each row into 32-element blocks and picks one INT4 scale per block. That scale
+must cover the largest |w| in the block — so a single outlier weight forces
+neighbours into a coarse grid.</p>
+<p>Calibration uses your real-data activations to decide <em>which</em> weights matter.
+The three methods do this differently:</p>
+<ul>
+<li><strong>imatrix</strong> tells the quantizer "channel <code>c</code> is important — keep its
+  precision". The weights are unchanged; only the per-block grouping decision
+  shifts.</li>
+<li><strong>AWQ</strong> physically scales channels of <code>W</code> so that important columns get
+  smaller magnitudes (and thus finer relative precision). The math is folded
+  into the preceding RMSNorm so the F16 forward pass is unchanged.</li>
+<li><strong>GPTQ</strong> rounds <code>W</code> itself toward an INT-N grid, while <em>compensating</em> for
+  each column's rounding error in the columns that come after it. The result
+  is then converted back to F16 (where it sits very close to the grid) and
+  re-quantized by llama.cpp.</li>
+</ul>
+<h2 id="imatrix-output-aware">imatrix (output-aware)<a class="headerlink" href="#imatrix-output-aware" title="Permanent link">&para;</a></h2>
+<p><strong>Entry point:</strong> <code>quant_tuner.calibrate.imatrix.calibrate(variant=..., ...)</code></p>
+<p>llama.cpp's standard imatrix file stores <code>E[a_c²]</code> — the mean squared
+activation per input channel — and the quantizer uses it as a per-channel
+priority weighting. <code>quant-tuner</code> produces five variants that combine that
+signal with other priors:</p>
+<table>
+<thead>
+<tr>
+<th>Variant</th>
+<th>Formula</th>
+<th>Needs forward pass?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>analytic</code></td>
+<td><code>‖W[:,c]‖² · E[a_c²]</code></td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>mix_50</code></td>
+<td>√(L1-norm(<code>E[a²]</code>) · L1-norm(analytic))</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>hybrid_custom</code></td>
+<td>max(L1-norm(<code>E[a²]</code>), L1-norm(analytic))</td>
+<td>No</td>
+</tr>
+<tr>
+<td><code>outlier_l4</code></td>
+<td>√<code>E[a_c⁴]</code> — L4 norm of channel activation</td>
+<td>Yes (HF model)</td>
+</tr>
+<tr>
+<td><code>outlier_max</code></td>
+<td><code>E[a_c²] · max|a_c|²</code></td>
+<td>Yes (HF model)</td>
+</tr>
+</tbody>
+</table>
+<p>The <code>analytic</code> family combines the weight column norm with the activation
+energy — channel <code>c</code>'s expected contribution to <code>‖y‖²</code> for <code>y = W a</code>. It needs
+no model load; given an existing imatrix from <code>llama-imatrix</code> and the F16
+GGUF, the calculation is closed-form and runs in seconds.</p>
+<p>The <code>outlier_*</code> variants require an actual forward pass to capture
+heavy-tail statistics (<code>E[a⁴]</code>, <code>max|a|</code>). They write a <code>ForwardStats</code> npz on
+first run and reuse it on subsequent calls.</p>
+<p><strong>SSM tensors are always passed through unchanged.</strong> Mamba-style state-space
+blocks (<code>blk.*.ssm_*</code>) don't have the <code>y = W a</code> linear-projection structure,
+so the output-aware re-ranking is invalid for them. They keep their raw
+<code>E[a²]</code> weighting.</p>
+<h3 id="corpus-format-and-parse-special">Corpus format and <code>--parse-special</code><a class="headerlink" href="#corpus-format-and-parse-special" title="Permanent link">&para;</a></h3>
+<p>The base <code>E[a²]</code> signal comes from running <code>llama-imatrix</code> over the calibration
+corpus. Our corpus is <strong>chat-templated</strong>: <code>split.write_corpus</code> renders each
+session through the model's <code>apply_chat_template</code>, so the text is full of
+control markers like <code>&lt;|im_start|&gt;</code>, <code>&lt;|im_end|&gt;</code>, and tool-call delimiters.</p>
+<p><code>llama-imatrix</code> reads the <code>-f</code> file as one flat string and tokenizes it once.
+By default (<code>parse_special=false</code> in llama.cpp) it tokenizes those control
+markers as <strong>literal text</strong> — e.g. <code>&lt;|im_start|&gt;</code> becomes the 6 BPE pieces
+<code>['&lt;', '|', 'im', '_start', '|', '&gt;']</code> instead of its single special-token ID.
+The activation statistics would then reflect a token distribution the model
+never sees at inference, corrupting the importance weights for exactly the
+structural tokens we calibrate our own logs to capture.</p>
+<p><code>models.llama_cpp.imatrix</code> therefore passes <code>--parse-special</code> by default
+(<code>parse_special=True</code>). On raw-text corpora (e.g. <code>wiki.test.raw</code>) the flag is
+a no-op — there are no special tokens to parse — so it's safe to leave on for
+mixed wiki+log corpora. If you add a code path that invokes <code>llama-imatrix</code>
+directly instead of going through the wrapper, pass <code>--parse-special</code> yourself.</p>
+<p><strong>Tool schemas must be rendered too.</strong> In <code>logtrain.jsonl</code> the tool/function
+schemas are attached to the system message (<code>messages[0]["tools"]</code>), not the
+top-level session. <code>split.session_tools()</code> resolves them and <code>template_session</code>
+passes them to <code>apply_chat_template</code>, so the corpus contains the <code>&lt;tools&gt;{…}</code>
+schema block the model conditions on at inference. Without this the imatrix
+calibrates tool-calling sessions with no schema context at all.</p>
+<h3 id="combining-wiki-logs-scriptsbuild_mixed_corpuspy">Combining wiki + logs (<code>scripts/build_mixed_corpus.py</code>)<a class="headerlink" href="#combining-wiki-logs-scriptsbuild_mixed_corpuspy" title="Permanent link">&para;</a></h3>
+<p>For a domain-calibrated-but-grounded imatrix, combine your logs with general
+text. The builder concatenates <strong>raw</strong> wiki (general-English anchor, as the
+model saw it in pretraining) with an N-token stratified, chat-templated log
+sample (domain + chat/tool structure with correct special tokens). Defaults to
+500k log tokens + full wiki (~300k) ≈ a 63/37 log/wiki mix.</p>
+<p>Two design facts that keep this simple:
+  * <strong>Order is irrelevant — for <code>llama-imatrix</code> only.</strong> It accumulates <code>E[a²]</code>
+    as a running average over fixed-size chunks of the WHOLE file, so
+    block-concatenation and interleaving yield the same imatrix. It is NOT
+    irrelevant for the HF-side calibrators (AWQ / GPTQ / outlier stats): they
+    sample a token budget from the file, and a monolithic wiki head used to
+    eat that entire budget — AWQ calibrated on pure wiki and never saw a
+    tool-call window. <code>scripts/build_corpora.py</code> therefore <strong>interleaves</strong>
+    window-sized wiki chunks with the log windows, and the calibrators
+    stride their budget across the file (<code>calibrate/_ingest.sample_chunks</code>).
+  * <strong>Don't chat-wrap the wiki.</strong> Wrapping encyclopedia prose in fake
+    user/assistant turns injects role-token activations that don't belong to
+    general-language calibration and mislabels prose as assistant output. Raw
+    wiki + templated logs is the faithful two-mode distribution.</p>
+<p>The builder also writes an 80/20 <code>train.jsonl</code>/<code>test.jsonl</code> split (calibration
+draws from <code>train</code> only) and a <code>mixed_audit.json</code> with measured token counts.
+Runs are reproducible for a fixed <code>--seed</code> (see the determinism note in the
+split section above).</p>
+<h2 id="awq-activation-aware-weight-scaling">AWQ (activation-aware weight scaling)<a class="headerlink" href="#awq-activation-aware-weight-scaling" title="Permanent link">&para;</a></h2>
+<p><strong>Entry points:</strong> <code>quant_tuner.calibrate.awq.calibrate(...)</code>, <code>awq.apply(...)</code></p>
+<p>For each <strong>scale group</strong> (attention <code>q/k/v[/gate_proj]</code> sharing one
+<code>input_layernorm</code>; MLP <code>gate_proj/up_proj</code> sharing
+<code>post_attention_layernorm</code>), AWQ:</p>
+<ol>
+<li>Captures <code>s_c = mean(|x_c|)</code> per input channel via forward pre-hooks on the
+   group anchor. The forward pass runs over <code>ceil(tokens/ctx)</code> chunks strided
+   <strong>evenly across the whole calibration corpus</strong> (<code>tokens</code> default 65536,
+   <code>ctx</code> 4096) — not the head of the file.</li>
+<li>Picks an exponent <code>α</code> (either fixed <code>0.5</code> per the AWQ paper, or grid-searched)
+   that minimises a proxy loss using fake INT4 g128 round-to-nearest. The
+   proxy activations <code>X</code> accumulate <code>proxy_tokens</code> evenly-spaced rows drawn
+   from <strong>every</strong> forwarded chunk, so the α decision reflects the corpus
+   distribution instead of the first window's system prompt.</li>
+<li>Sets <code>scale_c = s_c^α / geomean(s^α)</code> (normalized so the per-row quantizer
+   scale isn't dominated by any one channel).</li>
+</ol>
+<p>In <code>apply</code>, the scales are folded into the model in F32:</p>
+<pre><code>W'[:, c] = W[:, c] · scale_c                   for every member weight
+γ'_c     = (1 + γ_c) / scale_c - 1             Qwen3.5 RMSNorm (plus_one=True)
+γ'_c     = γ_c / scale_c                       Llama / Mistral / Qwen3
+</code></pre>
+<p>The F16 forward pass is mathematically unchanged: multiplying input channels
+of <code>W</code> by <code>s</code> and pre-dividing the RMSNorm gain by <code>s</code> cancel exactly.
+Only the <em>quantized</em> forward differs — and the channels AWQ has emphasized
+land in finer per-block scales.</p>
+<p>A sanity check after application rejects the run if F16 logits drift by more
+than 3% (the bf16 noise floor sits at ~2%); a larger drift means the RMSNorm
+fold has the wrong form (<code>plus_one</code> flag for Qwen3.5 vs everything else).</p>
+<p>The leaderboard variants <code>awq_a050</code> (force <code>α=0.5</code>) and <code>awq_best</code>
+(grid-searched) are reproduced by setting <code>force_alpha=0.5</code> vs leaving it
+<code>None</code>.</p>
+<h2 id="gptq-hessian-based-rounding-with-error-compensation">GPTQ (Hessian-based rounding with error compensation)<a class="headerlink" href="#gptq-hessian-based-rounding-with-error-compensation" title="Permanent link">&para;</a></h2>
+<p><strong>Entry points:</strong> <code>quant_tuner.calibrate.gptq.calibrate(...)</code>,
+<code>gptq.apply(...)</code>, <code>gptq.verify_perplexity(...)</code></p>
+<p>GPTQ is structurally different from the other two: it actually <strong>rewrites</strong>
+the weights, replacing each column with the nearest INT-N value while
+compensating for that error in the columns that haven't been quantized yet.</p>
+<ol>
+<li>
+<p><strong>Calibrate.</strong> For each target Linear (attention <code>q/k/v/o_proj</code>, MLP
+   <code>gate/up/down_proj</code>), accumulate <code>H = Σ_t x_t x_t^T</code> over <code>tokens</code> (default
+   32768) of the calibration corpus, chunked at <code>ctx</code> (2048) and strided
+   evenly across the whole file. One file per tensor is snapshot-saved to disk every N chunks (atomic
+   tmp + rename), so a crash mid-calibration is resumable. Memory: this stores
+   one <code>[in × in]</code> FP32 Hessian per Linear — <code>down_proj</code> Hessians dominate at
+   roughly <code>in_size² · 4 B</code>.</p>
+</li>
+<li>
+<p><strong>Apply.</strong> For each tensor, run the canonical Frantar 2023 algorithm:</p>
+</li>
+<li>Damp <code>H</code> by <code>dampen · mean(diag(H))</code> (Tikhonov regularisation).</li>
+<li>Permute columns by descending <code>diag(H)</code> (act-order): round the
+      high-importance columns first so the low-importance tail has more
+      compensation budget left.</li>
+<li>Compute the upper-Cholesky <code>U</code> of <code>H⁻¹</code>. <code>U[j,j]</code> is the per-column
+      step size that scales each column's residual before it spreads onward.</li>
+<li>
+<p>Sweep columns left-to-right in groups of <code>group_size</code> (default 32, to
+      match Q4_K_M's block structure). Inside each group: pick a symmetric
+      INT-N scale per row, round each column, propagate the residual to
+      later columns within the group and across to later groups.</p>
+</li>
+<li>
+<p><strong>Save.</strong> Write the rounded weights back into a new HF checkpoint. After
+   HF → F16 GGUF conversion, the rounded values land close to llama.cpp's
+   own K-quant grid; running <code>llama-quantize</code> then re-snaps them slightly,
+   but the <em>inter-column</em> error compensation (which lives in the values of
+   adjacent columns, not in the rounding of one column in isolation) survives.</p>
+</li>
+</ol>
+<p><strong>Two sanity gates</strong> catch the failure mode where GPTQ produces unusable
+weights (the source experiment's <code>gptq__IQ3_S</code> row hit PPL=3.6M):</p>
+<ul>
+<li><code>apply()</code> runs a forward pass and raises if logit drift exceeds 50% by default.</li>
+<li><code>verify_perplexity(f16_gptq, eval_ds, reference_ppl, max_ratio=1.5)</code> runs
+  <code>llama-perplexity</code> on the F16 GGUF <em>before</em> calling <code>llama-quantize</code> and
+  raises if PPL is more than 1.5× the baseline. Recommended before any final
+  quantize.</li>
+</ul>
+<p>GPTQ shines at higher bit budgets (Q4_K_M, Q5_K_M, IQ4_XS); at IQ3 and below
+the rounding error per column outpaces the compensation capacity and the
+result is unstable.</p>
+<h2 id="choosing-a-method">Choosing a method<a class="headerlink" href="#choosing-a-method" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>Start with imatrix.</strong> It's the cheapest, requires no extra disk space, and
+  often captures most of the recoverable gap on its own. Try
+  <code>variant="hybrid_custom"</code> first.</li>
+<li><strong>AWQ adds gains when activation distributions are heavy-tailed</strong> — coding
+  models, instruction-tuned chat models, etc. Use <code>force_alpha=0.5</code> for the
+  AWQ paper default; switch to grid search if you're chasing the last 1-2%.</li>
+<li><strong>GPTQ is the strongest method but the slowest and the most fragile.</strong>
+  Pair it with <code>verify_perplexity</code> and don't run it at low bit budgets without
+  inspecting the result.</li>
+</ul>
+<h2 id="switching-the-target-quant-type">Switching the target quant type<a class="headerlink" href="#switching-the-target-quant-type" title="Permanent link">&para;</a></h2>
+<pre><code class="language-python">gguf.quantize(f16, out, quant_type=&quot;Q4_K_M&quot;, imatrix=...)
+gguf.quantize(f16, out, quant_type=&quot;IQ4_XS&quot;, imatrix=...)
+gguf.quantize(f16, out, quant_type=&quot;Q5_K_M&quot;)
+</code></pre>
+<p>The <code>quant_type</code> string is passed through to <code>llama-quantize</code> unchanged.
+Anything <code>llama-quantize --help</code> lists works; common ones:</p>
+<table>
+<thead>
+<tr>
+<th>Tag</th>
+<th style="text-align: right;">Bits/weight</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Q5_K_M</code></td>
+<td style="text-align: right;">~5.5</td>
+<td>Smallest quality loss; usually within 0.5% of F16 PPL</td>
+</tr>
+<tr>
+<td><code>Q4_K_M</code></td>
+<td style="text-align: right;">~4.5</td>
+<td>Standard "good" target — the focus of the recipes</td>
+</tr>
+<tr>
+<td><code>IQ4_XS</code></td>
+<td style="text-align: right;">~4.25</td>
+<td>Smaller than Q4_K_M with similar quality; slower CPU prefill</td>
+</tr>
+<tr>
+<td><code>IQ3_S</code></td>
+<td style="text-align: right;">~3.5</td>
+<td>Visible quality drop; calibration matters most here</td>
+</tr>
+<tr>
+<td><code>IQ2_M</code></td>
+<td style="text-align: right;">~2.7</td>
+<td>Aggressive; only viable with strong calibration</td>
+</tr>
+</tbody>
+</table>
+<h2 id="mtp-head-training">MTP head training<a class="headerlink" href="#mtp-head-training" title="Permanent link">&para;</a></h2>
+<p><code>llama.cpp</code> supports multi-token prediction (MTP) speculative decoding via
+<code>--spec-type draft-mtp</code>. The draft head is bundled directly in the GGUF
+(<code>qwen35.nextn_predict_layers &gt; 0</code>) and requires no separate model file.</p>
+<h3 id="why-fine-tune-the-mtp-head">Why fine-tune the MTP head?<a class="headerlink" href="#why-fine-tune-the-mtp-head" title="Permanent link">&para;</a></h3>
+<p>Pre-trained MTP weights (e.g. from a base Qwen3.5-9B checkpoint) are calibrated
+to the base model's hidden-state distribution. Two things shift that distribution
+on your setup:</p>
+<ol>
+<li><strong>Fine-tuning</strong> — SFT/instruction-tuned derivatives have a shifted residual
+   stream; the donor MTP weights predict from the wrong distribution.</li>
+<li><strong>Quantization</strong> — the IQ3_S/Q4_K_M backbone produces hidden states with
+   quantization noise that accumulates across all 32 layers before the MTP head
+   reads them.</li>
+</ol>
+<p>Fine-tuning the MTP head on your domain data (with optional quantization noise
+injection) recovers both losses and raises the per-token draft acceptance rate.</p>
+<h3 id="training-pipeline-scriptstrain_mtp_headpy">Training pipeline (<code>scripts/train_mtp_head.py</code>)<a class="headerlink" href="#training-pipeline-scriptstrain_mtp_headpy" title="Permanent link">&para;</a></h3>
+<pre><code class="language-bash"># Typical run — 2 epochs, no noise injection
+uv run python scripts/train_mtp_head.py \
+    --model out/benchmark_9b_iq3s/tesslate/model_extracted \
+    --logs logtrain.jsonl \
+    --out out/benchmark_9b_iq3s/tesslate/mtp_trained \
+    --steps 293 --lr 2e-5
+
+# With quantization noise injection (see &quot;Measuring quant noise&quot; below)
+uv run python scripts/train_mtp_head.py \
+    --model out/benchmark_9b_iq3s/tesslate/model_extracted \
+    --logs logtrain.jsonl \
+    --out out/benchmark_9b_iq3s/tesslate/mtp_trained \
+    --steps 293 --lr 2e-5 \
+    --quant-type IQ3_S          # looks up σ=0.058 from built-in defaults
+    # or: --quant-noise 0.042   # use a measured value directly
+</code></pre>
+<p><strong>Key flags:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Flag</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>--steps</code></td>
+<td>500</td>
+<td>Optimizer steps. 2 epochs ≈ <code>(n_chunks / grad_accum)×2</code>. For 585 chunks @ accum=4 → 293 steps.</td>
+</tr>
+<tr>
+<td><code>--lr</code></td>
+<td>2e-5</td>
+<td>AdamW learning rate. Cosine decay to 0 over <code>--steps</code>.</td>
+</tr>
+<tr>
+<td><code>--eval-every</code></td>
+<td>100</td>
+<td>Steps between holdout PPL + top-1 accuracy evals. Also saves checkpoint and progress figure.</td>
+</tr>
+<tr>
+<td><code>--quant-type</code></td>
+<td>None</td>
+<td>GGUF quant type; looks up noise level from defaults table.</td>
+</tr>
+<tr>
+<td><code>--quant-noise</code></td>
+<td>0.0</td>
+<td>Explicit relative noise std (overrides <code>--quant-type</code>).</td>
+</tr>
+<tr>
+<td><code>--resume</code></td>
+<td>None</td>
+<td>Path to a <code>.pt</code> checkpoint to resume from.</td>
+</tr>
+</tbody>
+</table>
+<p>Evals fire at <strong>step 25</strong> (early capability check) plus every <code>--eval-every</code>
+steps. Each eval reports holdout PPL and top-1 accuracy (acceptance rate proxy)
+and saves a 3-panel progress figure to <code>--out/progress_stepNNNN.png</code>.</p>
+<p><strong>Epoch calculation:</strong></p>
+<pre><code>chunks   = floor(train_tokens / seq_len)     # e.g. 300k / 512 = 585
+steps_per_epoch = chunks / grad_accum        # 585 / 4 = 146
+steps_for_N_epochs = round(N * steps_per_epoch)
+</code></pre>
+<h3 id="measuring-quantization-noise-scriptsmeasure_quant_noisepy">Measuring quantization noise (<code>scripts/measure_quant_noise.py</code>)<a class="headerlink" href="#measuring-quantization-noise-scriptsmeasure_quant_noisepy" title="Permanent link">&para;</a></h3>
+<p>The MTP head trains on FP16 hidden states but sees quantized hidden states at
+inference. The gap is quantified as the relative Frobenius norm of the activation
+difference at the final hidden layer:</p>
+<pre><code>σ_rel = ||h_fp16 − h_quant||_F / ||h_fp16||_F
+</code></pre>
+<p><strong>How the measurement works:</strong></p>
+<ol>
+<li><code>llama-quantize --allow-requantize Q.gguf tmp_f16.gguf F16</code> — exact
+   dequantization using the same code that wrote the quantized file; works for
+   any GGUF quant type with no custom dequant code needed.</li>
+<li>Load both F16 GGUFs via <code>GGUFReader</code>; compare projection weight tensors to
+   get per-tensor relative RMSE.</li>
+<li>Propagate to activation noise:
+   <code>σ_rel ≈ sqrt(N_layers) × mean_weight_RMSE × 0.35</code>
+   (the 0.35 constant accounts for RMSNorm dampening error accumulation across
+   residual layers; derived empirically on Qwen3-family models).</li>
+<li>Optionally (<code>--empirical</code>): patch the HF model with dequantized weights, run
+   calibration batches, and measure the actual activation difference.</li>
+</ol>
+<pre><code class="language-bash"># Fast estimate (weight-based, ~2 min)
+uv run python scripts/measure_quant_noise.py \
+    --model  out/benchmark_9b_iq3s/tesslate/model_extracted \
+    --f16-gguf   out/benchmark_9b_iq3s/tesslate/model-f16.gguf \
+    --quant-gguf out/benchmark_9b_iq3s/tesslate/IQ3_S-custom.gguf \
+    --logs   logtrain.jsonl \
+    --out    out/benchmark_9b_iq3s/quant_noise.json
+
+# Empirical (forward-pass, ~5 min, more accurate)
+uv run python scripts/measure_quant_noise.py \
+    --model  out/benchmark_9b_iq3s/tesslate/model_extracted \
+    --f16-gguf   out/benchmark_9b_iq3s/tesslate/model-f16.gguf \
+    --quant-gguf out/benchmark_9b_iq3s/tesslate/IQ3_S-custom.gguf \
+    --logs   logtrain.jsonl \
+    --empirical
+</code></pre>
+<p>The script appends results to <code>--out</code> as JSON keyed by quant type, so you can
+accumulate measurements across formats:</p>
+<pre><code class="language-json">{
+  &quot;IQ3_S&quot;:  {&quot;sigma_estimated&quot;: 0.061, &quot;sigma_empirical&quot;: 0.058, &quot;mean_weight_rmse&quot;: 0.031},
+  &quot;Q4_K_M&quot;: {&quot;sigma_estimated&quot;: 0.023, &quot;mean_weight_rmse&quot;: 0.012}
+}
+</code></pre>
+<p><strong>Built-in defaults</strong> (used when <code>--quant-type</code> is set but no measurement exists):</p>
+<table>
+<thead>
+<tr>
+<th>Quant type</th>
+<th style="text-align: right;">σ_rel (default)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Q8_0</code></td>
+<td style="text-align: right;">0.002</td>
+</tr>
+<tr>
+<td><code>Q6_K</code></td>
+<td style="text-align: right;">0.005</td>
+</tr>
+<tr>
+<td><code>Q5_K_M</code></td>
+<td style="text-align: right;">0.013</td>
+</tr>
+<tr>
+<td><code>Q4_K_M</code></td>
+<td style="text-align: right;">0.022</td>
+</tr>
+<tr>
+<td><code>Q3_K_M</code></td>
+<td style="text-align: right;">0.048</td>
+</tr>
+<tr>
+<td><code>IQ4_XS</code></td>
+<td style="text-align: right;">0.018</td>
+</tr>
+<tr>
+<td><code>IQ3_S</code></td>
+<td style="text-align: right;">0.058</td>
+</tr>
+<tr>
+<td><code>IQ2_M</code></td>
+<td style="text-align: right;">0.095</td>
+</tr>
+</tbody>
+</table>
+<p>Run <code>measure_quant_noise.py</code> to replace these with values specific to your model
+and corpus — defaults are averaged across model families and may be off by
+±30–50% for any individual model.</p>
+<h3 id="installing-trained-weights-and-rebuilding-the-gguf">Installing trained weights and rebuilding the GGUF<a class="headerlink" href="#installing-trained-weights-and-rebuilding-the-gguf" title="Permanent link">&para;</a></h3>
+<p>After training, the <code>model-mtp-trained.safetensors</code> shard must be installed into
+<code>model_extracted</code> and the GGUF reconverted so llama.cpp picks up the new weights:</p>
+<pre><code class="language-bash"># 1. Install trained weights
+cp out/benchmark_9b_iq3s/tesslate/mtp_trained/model-mtp-trained.safetensors \
+   out/benchmark_9b_iq3s/tesslate/model_extracted/
+
+# 2. Update the safetensors index to point mtp.* keys to the new shard
+#    (run_mtp_pipeline.py does this automatically)
+python3 -c &quot;
+import json; p = 'out/benchmark_9b_iq3s/tesslate/model_extracted/model.safetensors.index.json'
+idx = json.load(open(p)); wm = idx['weight_map']
+for k in list(wm):
+    if k.startswith('mtp.'): wm[k] = 'model-mtp-trained.safetensors'
+json.dump(idx, open(p,'w'), indent=2)
+&quot;
+
+# 3. Reconvert + requantize (reuse existing imatrix; MTP activations are
+#    a tiny fraction of the calibration signal)
+rm out/benchmark_9b_iq3s/tesslate/model-f16.gguf
+uv run quant-tuner run --recipe iq3_s_9b_mtp \
+    --model out/benchmark_9b_iq3s/tesslate/model_extracted \
+    --workspace out/benchmark_9b_iq3s/tesslate
+</code></pre>
+<p>Or use the orchestrator which handles all three models end-to-end:</p>
+<pre><code class="language-bash">uv run python scripts/run_mtp_pipeline.py \
+    --logs logtrain.jsonl \
+    --models tesslate,jackrong,qwen
+</code></pre>
+<h3 id="evaluating-mtp-acceptance-rate">Evaluating MTP acceptance rate<a class="headerlink" href="#evaluating-mtp-acceptance-rate" title="Permanent link">&para;</a></h3>
+<pre><code class="language-bash"># Speed + acceptance rate vs --spec-draft-n-max, holdout prompts
+uv run python scripts/bench_mtp_speed.py \
+    --model out/benchmark_9b_iq3s/tesslate/IQ3_S-trained.gguf \
+    --holdout-jsonl logtrain.jsonl \
+    --reps 5 --n-max 1
+
+# Compare vanilla vs trained across all models (produces PNG chart)
+uv run python scripts/plot_mtp_acceptance.py \
+    --workspace out/benchmark_9b_iq3s \
+    --holdout-jsonl logtrain.jsonl \
+    --variants vanilla,trained \
+    --n-max-values 1,2,3
+</code></pre>
+<p><code>plot_mtp_acceptance.py</code> sweeps <code>--spec-draft-n-max</code> in [1, 2, 3] for each
+<code>(model × variant)</code> pair and writes <code>mtp_acceptance.json</code> + <code>mtp_acceptance.png</code>
+to the workspace root.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "content.code.copy", "search.highlight", "search.suggest", "search.preview"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

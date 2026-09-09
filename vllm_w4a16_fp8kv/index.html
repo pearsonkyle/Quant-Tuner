@@ -1,0 +1,1576 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Calibrate your own GGUF quantizations and vLLM W4A16 checkpoints from real agentic-coding logs">
+      
+      
+        <meta name="author" content="K. Pearson">
+      
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>W4A16 + fp8 KV cache for vLLM - quant-tuner</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#w4a16-fp8-kv-cache-for-vllm" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="quant-tuner" class="md-header__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            quant-tuner
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              W4A16 + fp8 KV cache for vLLM
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18V6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-2.69L23.31 12 20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="quant-tuner" class="md-nav__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    quant-tuner
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methods
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Methods
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The three calibrators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipe reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calibration_datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calibration datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmarks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lens/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jacobian lens
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT for ternary models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    QAT for ternary models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method & invariants
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_curriculum/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curriculum
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_preprint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Preprint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary/HANDOFF/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B stage 1 (handoff)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run logs (Qwen 3.8 family)
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Run logs (Qwen 3.8 family)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_release/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 release
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_awq_2bit_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 AWQ 2-bit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_gptq_vllm_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 GPTQ vLLM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_exp062_rebuild/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 exp-062 rebuild
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Research notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_32k_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT 32K handoff
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_optimization_audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT optimization audit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_run_history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT run history
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_calibration_experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ternary calibration experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patch_gguf_chat_template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patch a GGUF chat template
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_feasibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary feasibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reddit_ternary_qat_post/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reddit: ternary QAT post
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#why-fp8-kv-is-the-interesting-half" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why fp8 KV is the interesting half
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-calibrated-means-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What "calibrated" means here
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-recipe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The recipe
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The recipe">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#full-command" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Full command
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#two-flags-that-are-not-optional-in-practice" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two flags that are not optional in practice
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#-ignore-is-the-recurring-trap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        --ignore is the recurring trap
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#verifying-the-export" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Verifying the export
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#serving" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Serving
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#benchmarking-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Benchmarking it
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scheme-support" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scheme support
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="w4a16-fp8-kv-cache-for-vllm">W4A16 + fp8 KV cache for vLLM<a class="headerlink" href="#w4a16-fp8-kv-cache-for-vllm" title="Permanent link">&para;</a></h1>
+<p>How to produce a <strong>compressed-tensors INT4 checkpoint vLLM serves directly</strong>, with
+<strong>calibrated fp8 KV-cache scales baked in</strong>, from the same corpora that calibrate the
+GGUF ladder.</p>
+<p>Module: <code>src/quant_tuner/vllm_export/w4a16.py</code> · CLI: <code>scripts/run_vllm_ptq.py</code> ·
+Prior handoff: <a href="../qwen3_8_gptq_vllm_handoff/"><code>qwen3_8_gptq_vllm_handoff.md</code></a>.</p>
+<hr />
+<h2 id="why-fp8-kv-is-the-interesting-half">Why fp8 KV is the interesting half<a class="headerlink" href="#why-fp8-kv-is-the-interesting-half" title="Permanent link">&para;</a></h2>
+<p>Quantizing weights is a <strong>one-time</strong> saving: a 27B bf16 trunk goes ~55 GB → ~20 GB and
+stays there no matter how you serve it. Quantizing the KV cache is a <strong>per-token,
+per-sequence</strong> saving, and that is what actually decides two things you care about at
+deploy time:</p>
+<ul>
+<li><strong>how long a context fits</strong> — the cache, not the weights, is what grows with context;</li>
+<li><strong>how many requests run concurrently</strong> — vLLM's throughput is set by how many blocks
+  fit in the KV pool.</li>
+</ul>
+<p>On Qwen3.8-27B at its native 262,144-token context, bf16 KV is ≈17 GB and fp8 KV is
+≈8.5 GB. That difference is what moves "262k fits, tightly, on a 48 GB card" to "262k
+fits with ~14 GB of headroom for concurrency", and what makes YaRN extension to 524k
+practical on the same card.</p>
+<p>Only <strong>softmax-attention layers have a KV cache at all.</strong> On a hybrid model this is a
+minority of layers: Qwen3.8 has 16 <code>self_attn</code> layers and 48 DeltaNet <code>linear_attn</code>
+layers that carry recurrent state instead. Fewer scales than layers is correct, not a
+bug — see <a href="#verifying-the-export">Verifying the export</a>.</p>
+<h2 id="what-calibrated-means-here">What "calibrated" means here<a class="headerlink" href="#what-calibrated-means-here" title="Permanent link">&para;</a></h2>
+<p><code>--kv-cache-dtype fp8_e4m3</code> adds a <strong>static, per-tensor, symmetric</strong> fp8 scheme to the
+<em>same</em> oneshot pass that quantizes the weights. compressed-tensors attaches observers to
+the modules matching its <code>KV_CACHE_TARGETS</code> (<code>re:.*(self_attn|attention)$</code>), watches the
+k/v activations over the calibration sequences, and writes a scalar <code>k_scale</code>/<code>v_scale</code>
+onto each one.</p>
+<p><code>dynamic: False</code> is the entire point. A <em>dynamic</em> scheme defers the scale to runtime, so
+nothing is calibrated and nothing is stored; the static scheme is what makes the
+calibration corpus matter and what lets <code>vllm serve --kv-cache-dtype fp8_e4m3</code> pick the
+scales up with no extra flags.</p>
+<p>Because the scales come from the calibration corpus, they inherit the same property the
+rest of this repo is built on: calibrate on <strong>your</strong> distribution and the fidelity lands
+where you actually use the model.</p>
+<h2 id="the-recipe">The recipe<a class="headerlink" href="#the-recipe" title="Permanent link">&para;</a></h2>
+<p>The published INT4 cards do not use the <code>W4A16</code> preset. The preset is int4 / group-128 /
+symmetric / minmax; the cards use:</p>
+<table>
+<thead>
+<tr>
+<th>knob</th>
+<th>preset</th>
+<th>card</th>
+<th>flag</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>group size</td>
+<td>128</td>
+<td><strong>32</strong></td>
+<td><code>--group-size 32</code></td>
+</tr>
+<tr>
+<td>symmetry</td>
+<td>symmetric</td>
+<td><strong>asymmetric</strong> (zero-point)</td>
+<td><code>--asymmetric</code></td>
+</tr>
+<tr>
+<td>weight observer</td>
+<td>minmax</td>
+<td><strong>imatrix-mse</strong></td>
+<td><code>--observer imatrix-mse</code></td>
+</tr>
+<tr>
+<td>act-ordering</td>
+<td>none</td>
+<td><strong>static</strong></td>
+<td><code>--actorder static</code></td>
+</tr>
+<tr>
+<td>KV cache</td>
+<td>none</td>
+<td><strong>fp8-e4m3, calibrated</strong></td>
+<td><code>--kv-cache-dtype fp8_e4m3</code></td>
+</tr>
+</tbody>
+</table>
+<p><code>imatrix-mse</code> is a real observer in llm-compressor's registry (VERIFIED on 0.13.0) and is
+the direct analogue of the GGUF ladder's imatrix: it weights the MSE clipping search by
+per-input-channel activation importance collected during calibration, instead of taking
+the raw range endpoints. GPTQ is already paying for those forward passes.</p>
+<p><code>--actorder static</code> permutes columns by activation magnitude once, at quantization time,
+and folds the permutation into the saved weights — so serving pays no <code>g_idx</code>
+indirection. Prefer it over <code>group</code> for anything you intend to deploy.</p>
+<p>Deviating from the preset on <strong>any</strong> of group size / symmetry / observer / actorder
+switches the run from <code>scheme="W4A16"</code> to an explicit <code>config_groups</code> spec
+(<code>build_config_groups</code>). The two are mutually exclusive at the modifier; the module picks
+for you and records the resolved group in <code>quant_tuner_ptq.json</code>.</p>
+<h3 id="full-command">Full command<a class="headerlink" href="#full-command" title="Permanent link">&para;</a></h3>
+<pre><code class="language-bash">uv sync --extra vllm-ptq
+
+uv run python scripts/run_vllm_ptq.py \
+  --model out/exp-060/model_extracted \
+  --corpus out/exp-060-32k/corpora/corpus.cal.txt \
+  --out out/exp-060-w4a16-fp8kv/checkpoint \
+  --ctx 32768 --budget-tokens 4194304 \
+  --group-size 32 --asymmetric --observer imatrix-mse --actorder static \
+  --kv-cache-dtype fp8_e4m3 \
+  --ignore 're:.*visual.*' --ignore 're:mtp.*' \
+  --pipeline sequential
+</code></pre>
+<p>Dry-run it first — this prints the ignore-match counts, the fully resolved recipe and the
+tensors that would vanish from the export, and quantizes nothing:</p>
+<pre><code class="language-bash">uv run python scripts/run_vllm_ptq.py --model &lt;hf-dir&gt; --dry-run-ignore \
+  --group-size 32 --asymmetric --observer imatrix-mse --kv-cache-dtype fp8_e4m3
+</code></pre>
+<h3 id="two-flags-that-are-not-optional-in-practice">Two flags that are not optional in practice<a class="headerlink" href="#two-flags-that-are-not-optional-in-practice" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>--ctx</code> must match the corpus's packing ctx</strong> (top-level <code>ctx</code> in
+  <code>corpora_audit.json</code>). It is a packing parameter, not just a runtime flag: a corpus
+  packed for 32768 and read at 8192 straddles window boundaries, and numbers from
+  different ctxs are not comparable.</li>
+<li><strong><code>--budget-tokens</code> should be read as <em>sequences</em>.</strong> The 524,288 default is 16
+  sequences at ctx 32768 — far too few for a stable Hessian. Use ~4M (≈128 sequences).</li>
+</ul>
+<h3 id="-ignore-is-the-recurring-trap"><code>--ignore</code> is the recurring trap<a class="headerlink" href="#-ignore-is-the-recurring-trap" title="Permanent link">&para;</a></h3>
+<p><code>DEFAULT_IGNORE</code> is gemma-shaped. On a checkpoint whose tower is <code>model.visual.*</code> the
+default <code>re:.*vision_tower.*</code> matches <strong>nothing</strong> and the tower is quantized to int4
+against a text-only corpus, with no error. A top-level <code>mtp.*</code> draft head is likewise
+uncaught. Always <code>--dry-run-ignore</code> on a new model; a pattern matching zero modules is
+flagged.</p>
+<h2 id="verifying-the-export">Verifying the export<a class="headerlink" href="#verifying-the-export" title="Permanent link">&para;</a></h2>
+<p><code>run_ptq</code> calls <code>verify_export</code> before writing provenance, and refuses two failures that
+otherwise produce a checkpoint that loads and serves perfectly while being wrong:</p>
+<ol>
+<li><strong>no <code>quantization_config</code></strong> — vLLM serves it as bf16, at full size. The only symptom
+   is that it did not get smaller.</li>
+<li><strong>a requested KV scheme that wrote no scales</strong> — the config claims fp8 KV and the
+   <code>k_scale</code>/<code>v_scale</code> tensors are absent. vLLM falls back to an uncalibrated cache and
+   nothing in the run log says so.</li>
+</ol>
+<p>Read the counts, don't just trust the pass:</p>
+<pre><code class="language-python">from quant_tuner.vllm_export import count_kv_scales
+count_kv_scales(&quot;out/exp-060-w4a16-fp8kv/checkpoint&quot;)
+# {'k_scale': 16, 'v_scale': 16}  &lt;- 16 self_attn layers, NOT 64
+</code></pre>
+<p>Compare that against the model's <strong>softmax-attention layer count</strong>, never its layer
+count. On Qwen3.8, 16/16 is complete; 64 would mean something quantized a DeltaNet layer's
+state as if it were a KV cache.</p>
+<p><code>quant_tuner_ptq.json</code> in the output dir records the resolved config groups, the KV
+scheme, the ignore-match counts, the dropped tensors, and the corpus SHA-256s.</p>
+<h2 id="serving">Serving<a class="headerlink" href="#serving" title="Permanent link">&para;</a></h2>
+<p>The scales are in the checkpoint, so quantization is auto-detected and the cache dtype is
+the only flag:</p>
+<pre><code class="language-bash">vllm serve out/exp-060-w4a16-fp8kv/checkpoint \
+  --kv-cache-dtype fp8_e4m3 \
+  --max-model-len 262144 \
+  --gpu-memory-utilization 0.92 \
+  --enable-auto-tool-choice --tool-call-parser qwen3_xml
+</code></pre>
+<p><code>--tool-call-parser qwen3_xml</code> is <strong>required for tool calling on Qwen3.8</strong> — it emits XML
+tool calls, not JSON, and without the parser <code>tool_calls</code> is always empty, which reads as
+a broken quant but is a serving flag.</p>
+<p>If an MTP draft head survived the export, add speculative decoding:</p>
+<pre><code class="language-bash">  --speculative-config '{&quot;method&quot;:&quot;qwen3_5_mtp&quot;,&quot;num_speculative_tokens&quot;:2}'
+</code></pre>
+<h2 id="benchmarking-it">Benchmarking it<a class="headerlink" href="#benchmarking-it" title="Permanent link">&para;</a></h2>
+<p>The GGUF bench cannot read this format — <code>bench/kld.py</code> shells out to
+<code>llama-perplexity</code>, which is GGUF-only. Use the torch-side ladder instead:</p>
+<pre><code class="language-bash">uv run python scripts/run_hf_kld.py --help    # bench/kld_hf.py
+</code></pre>
+<p>Same <em>shape</em> as the GGUF ladder (six eval distributions, never concatenated, chunked at
+<code>eval_ctx</code> 8192, median KLD + top-token agreement) but <strong>not numerically comparable</strong> to
+it: the reference is the bf16 HF model rather than the F16 GGUF, and it tokenizes chat
+control tokens to their real single ids. Report them in separate columns.</p>
+<p>Two things worth measuring that only exist on this path:</p>
+<ul>
+<li><strong>fp8 KV is a second quantization.</strong> Bench the checkpoint with and without
+  <code>--kv-cache-dtype fp8_e4m3</code> at serve time; every published Δ that quotes a single number
+  is measuring the <em>stack</em>, not the weights.</li>
+<li><strong>Long-context retrieval is where an fp8 cache would show up first.</strong> Calibrating at
+  32K and then only testing at 4K tests nothing. Run a needle check at the context length
+  you intend to serve.</li>
+</ul>
+<h2 id="scheme-support">Scheme support<a class="headerlink" href="#scheme-support" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>scheme</th>
+<th>preset</th>
+<th>custom weight grid</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>W4A16</code></td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><code>W8A16</code></td>
+<td>✅</td>
+<td>✅</td>
+</tr>
+<tr>
+<td><code>W8A8</code></td>
+<td>✅</td>
+<td>❌ — also quantizes activations</td>
+</tr>
+<tr>
+<td><code>FP8_DYNAMIC</code></td>
+<td>✅</td>
+<td>❌ — also quantizes activations</td>
+</tr>
+</tbody>
+</table>
+<p>The activation-quantized schemes are supported at their preset settings only: a
+hand-built config group for them would have to specify <code>input_activations</code> as well, and
+silently dropping the override would be worse than refusing it. <code>--kv-cache-dtype</code> works
+with all four.</p>
+<p>Group size is restricted to <code>{-1, 32, 64, 128}</code> — what vLLM's packed-int4 kernels accept.
+compressed-tensors would happily write any grouping, and the checkpoint would then fail at
+<code>vllm serve</code>, long after the calibration is spent.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "content.code.copy", "search.highlight", "search.suggest", "search.preview"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

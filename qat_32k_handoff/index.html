@@ -1,0 +1,2548 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Calibrate your own GGUF quantizations and vLLM W4A16 checkpoints from real agentic-coding logs">
+      
+      
+        <meta name="author" content="K. Pearson">
+      
+      
+      
+        <link rel="prev" href="../qwen3_8_exp062_rebuild/">
+      
+      
+        <link rel="next" href="../qat_optimization_audit/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>QAT 32K handoff - quant-tuner</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#32k-ternary-qat-state-of-play-and-how-to-resume-elsewhere" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="quant-tuner" class="md-header__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            quant-tuner
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              QAT 32K handoff
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18V6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-2.69L23.31 12 20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="quant-tuner" class="md-nav__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    quant-tuner
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methods
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Methods
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The three calibrators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipe reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calibration_datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calibration datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmarks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lens/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jacobian lens
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT for ternary models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    QAT for ternary models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method & invariants
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_curriculum/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curriculum
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_preprint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Preprint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary/HANDOFF/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B stage 1 (handoff)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run logs (Qwen 3.8 family)
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Run logs (Qwen 3.8 family)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_release/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 release
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_awq_2bit_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 AWQ 2-bit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_gptq_vllm_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 GPTQ vLLM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_exp062_rebuild/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 exp-062 rebuild
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Research notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT 32K handoff
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT 32K handoff
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-why-this-work-happened" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Why this work happened
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-the-finding-that-mattered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. The finding that mattered
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-the-measured-ladder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. The measured ladder
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-what-is-validated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. What is validated
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-the-crash" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. The crash
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-the-open-question-this-was-trying-to-answer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. The open question this was trying to answer
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-resume-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Resume here
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-decisions-still-open-deliberately-not-made" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Decisions still open (deliberately not made)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-porting-to-a-different-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Porting to a different machine
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-the-cuda-port-2026-08-16" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. The CUDA port (2026-08-16)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="10. The CUDA port (2026-08-16)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#101-the-finding-that-mattered-fp32-has-no-fused-attention-kernel-on-cuda" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.1 The finding that mattered — fp32 has no fused attention kernel on CUDA
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#102-the-measured-ladder-this-replaces-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.2 The measured ladder — this replaces §3
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="10.2 The measured ladder — this replaces §3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#does-reduced-precision-actually-move-the-ternary-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Does reduced precision actually move the ternary codes?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#103-what-the-port-changed-in-the-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.3 What the port changed in the code
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#104-environment-gaps-found-on-a-fresh-box" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.4 Environment gaps found on a fresh box
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#105-resuming-this-run-with-more-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.5 Resuming this run with more data
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#106-pre-flight-on-the-real-corpus-and-why-the-run-is-bf16" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.6 Pre-flight on the real corpus — and why the run is bf16
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#107-grading-the-ab-somewhere-else" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.7 Grading the A/B somewhere else
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_optimization_audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT optimization audit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_run_history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT run history
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_calibration_experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ternary calibration experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patch_gguf_chat_template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patch a GGUF chat template
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_feasibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary feasibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reddit_ternary_qat_post/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reddit: ternary QAT post
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#1-why-this-work-happened" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Why this work happened
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-the-finding-that-mattered" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. The finding that mattered
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-the-measured-ladder" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. The measured ladder
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-what-is-validated" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. What is validated
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-the-crash" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. The crash
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-the-open-question-this-was-trying-to-answer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. The open question this was trying to answer
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-resume-here" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. Resume here
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8-decisions-still-open-deliberately-not-made" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8. Decisions still open (deliberately not made)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#9-porting-to-a-different-machine" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        9. Porting to a different machine
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#10-the-cuda-port-2026-08-16" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10. The CUDA port (2026-08-16)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="10. The CUDA port (2026-08-16)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#101-the-finding-that-mattered-fp32-has-no-fused-attention-kernel-on-cuda" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.1 The finding that mattered — fp32 has no fused attention kernel on CUDA
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#102-the-measured-ladder-this-replaces-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.2 The measured ladder — this replaces §3
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="10.2 The measured ladder — this replaces §3">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#does-reduced-precision-actually-move-the-ternary-codes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Does reduced precision actually move the ternary codes?
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#103-what-the-port-changed-in-the-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.3 What the port changed in the code
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#104-environment-gaps-found-on-a-fresh-box" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.4 Environment gaps found on a fresh box
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#105-resuming-this-run-with-more-data" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.5 Resuming this run with more data
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#106-pre-flight-on-the-real-corpus-and-why-the-run-is-bf16" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.6 Pre-flight on the real corpus — and why the run is bf16
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#107-grading-the-ab-somewhere-else" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        10.7 Grading the A/B somewhere else
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="32k-ternary-qat-state-of-play-and-how-to-resume-elsewhere">32K ternary-QAT: state of play and how to resume elsewhere<a class="headerlink" href="#32k-ternary-qat-state-of-play-and-how-to-resume-elsewhere" title="Permanent link">&para;</a></h1>
+<p>Written 2026-08-14 after the work below crashed the M4 Max it was running on (see
+"The crash" — it was an operator error, not a property of the code). Everything here is
+committed; nothing is left in a working tree.</p>
+<p>Target: <code>prism-ml/Ternary-Bonsai-8B</code> continued QAT, all-36 layers, fp32 latents, Adafactor.
+Reference box: <strong>M4 Max, 128 GB unified memory, macOS/MPS, torch 2.12, transformers 5.8.1.</strong>
+Every number below is from that box; <strong>none of it transfers to CUDA unchanged</strong> (see
+"Porting to a different machine").</p>
+<blockquote>
+<p><strong>2026-08-16: ported and re-measured on CUDA.</strong> See §10 — it supersedes §3's ladder and
+corrects §9's central prediction. The short version: CUDA does <strong>not</strong> hand fp32 a fused
+attention kernel, chunked SDPA is pure overhead here, 32768 full-gradient fits with
+6.4 GiB to spare, and one epoch of the universal corpus costs ~10 h instead of ~152 h.</p>
+</blockquote>
+<hr />
+<h2 id="1-why-this-work-happened">1. Why this work happened<a class="headerlink" href="#1-why-this-work-happened" title="Permanent link">&para;</a></h2>
+<p>The previous run (<code>sft8k-full</code>, 8064 window, 522 steps) trained cleanly and moved
+<em>behaviour</em> but not <em>capability</em>: 0/10 resolved before and after, tool-error rate 0.65 →
+0.33, but it hit <code>max_turns</code> on 7/10 instances and looped on 97% of trajectories.</p>
+<p>Two hypotheses, both now addressed in code:</p>
+<ol>
+<li><strong>The window was too short to teach termination.</strong> At 8064 only 27% of SWE
+   trajectories fit whole, so the model rarely saw a complete task→completion arc.</li>
+<li><strong>The stop token is drowned.</strong> 5,740,167 trainable tokens against 32,448 terminating
+   <code>&lt;|im_end|&gt;</code> targets — one "stop" decision per 176 "keep going".</li>
+</ol>
+<hr />
+<h2 id="2-the-finding-that-mattered">2. The finding that mattered<a class="headerlink" href="#2-the-finding-that-mattered" title="Permanent link">&para;</a></h2>
+<p><strong>Query-chunked SDPA capped one attention block's score tensor but not their SUM.</strong></p>
+<p>With grad enabled every block saves its own softmax output for backward, so the saved
+total is the whole <code>[heads, q_len, kv_len]</code> matrix regardless of block size:</p>
+<table>
+<thead>
+<tr>
+<th>window</th>
+<th>attention weights saved for backward</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>8064</td>
+<td>7.8 GiB — why this never surfaced</td>
+</tr>
+<tr>
+<td>16128</td>
+<td><strong>31 GiB</strong></td>
+</tr>
+<tr>
+<td>32768</td>
+<td><strong>128 GiB</strong></td>
+</tr>
+</tbody>
+</table>
+<p>That, and nothing else, is why the docs said "16128 completes no step in 31 minutes at 99%
+swap". It was never a fundamental limit.</p>
+<p><code>chunked_causal_sdpa(recompute_scores=True)</code> (default on, inert without grad) checkpoints
+each block so the scores are recomputed in backward. Forward is bit-identical, gradients
+match to 1e-6, and a unit test counts SDPA calls across forward/backward — if the
+recompute silently stops firing, forward and gradients stay <em>correct</em> and the only symptom
+is that long windows OOM again.</p>
+<hr />
+<h2 id="3-the-measured-ladder">3. The measured ladder<a class="headerlink" href="#3-the-measured-ladder" title="Permanent link">&para;</a></h2>
+<p>Real training loop (optimizer step included, not a single-window probe), all-36 / fp32 /
+adafactor, grad-accum 2, idle box after a 150 s cooldown, scores recomputed:</p>
+<table>
+<thead>
+<tr>
+<th>config</th>
+<th>s/step</th>
+<th>ms / <strong>trained</strong> token</th>
+<th>vs 8064</th>
+<th><strong>targets trained</strong></th>
+<th>SWE convs whole</th>
+<th>swap Δ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>8064 full-gradient</td>
+<td>178</td>
+<td>11.1</td>
+<td>1.0x</td>
+<td>100%</td>
+<td>27%</td>
+<td>flat</td>
+</tr>
+<tr>
+<td>16128 full-gradient</td>
+<td>626</td>
+<td>19.4</td>
+<td>1.8x</td>
+<td>100%</td>
+<td>68%</td>
+<td>+2.6 GB</td>
+</tr>
+<tr>
+<td>20480 full-gradient</td>
+<td>1061</td>
+<td>25.9</td>
+<td>2.3x</td>
+<td>100%</td>
+<td>81%</td>
+<td>+1.5 GB</td>
+</tr>
+<tr>
+<td>24576 full-gradient</td>
+<td>1372</td>
+<td>27.9</td>
+<td>2.5x</td>
+<td>100%</td>
+<td>88%</td>
+<td>+2.1 GB</td>
+</tr>
+<tr>
+<td><strong>32768 full-gradient</strong></td>
+<td><strong>1792</strong></td>
+<td><strong>27.3</strong></td>
+<td><strong>2.5x</strong></td>
+<td><strong>100%</strong></td>
+<td><strong>97%</strong></td>
+<td><strong>−3.9 GB</strong></td>
+</tr>
+<tr>
+<td>32768, tail 16384</td>
+<td>1490</td>
+<td>45.5</td>
+<td>4.1x</td>
+<td>54%</td>
+<td>97%</td>
+<td>−0.2 GB</td>
+</tr>
+<tr>
+<td>32768, tail 8192</td>
+<td>1790</td>
+<td>109</td>
+<td>9.9x</td>
+<td>26%</td>
+<td>97%</td>
+<td>+1.0 GB</td>
+</tr>
+<tr>
+<td>32768, tail 24576</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td>OOM 133.8 GiB</td>
+</tr>
+</tbody>
+</table>
+<p>Raw JSON in <code>out/probe/r*.json</code>; regenerate with <code>scripts/probe_window_budget.py</code>.</p>
+<p><strong>Conclusions:</strong></p>
+<ul>
+<li><strong>Train the full window. Do not use a prefix at 32768.</strong> Cost per trained token is flat
+  from 20480 to 32768 (25.9 / 27.9 / 27.3 ms) — quadratic attention is still small next to
+  the linear layers at 8B, so extra context is nearly free. Take the longest that fits.</li>
+<li><strong>A prefix discards training signal, not just compute.</strong> Targets are spread evenly
+  through a window, so a tail of T out of W trains ~T/W of them. Measured on the 32768 SWE
+  corpus (26 windows, 267,392 labeled targets): tail 8192 → 25.9%, tail 16384 → 53.7%.
+  <code>--trained-tail</code> is validated <strong>bit-exact</strong> but is now a fallback for going <em>past</em> the
+  full-gradient activation ceiling, not the plan.</li>
+<li><strong>bf16 is unusable at long windows on Metal</strong>: par with fp32 at 8064 (161 vs 151
+  ms/layer), then <strong>68,346 ms vs 2,456 ms at 32768</strong> (0.1 vs 3.6 TFLOP/s). A pathological
+  MPS path, not a gradual falloff.</li>
+<li><strong>There is no fused kernel to borrow.</strong> torch's <code>is_causal</code> is not fused on MPS — at
+  32768 it asks for a 128 GiB buffer. Our chunked path is faster than it at every size.</li>
+<li><strong>An 8-bit optimizer is a no-op here.</strong> Adafactor's factored state is 65 KB for a 201 MB
+  tensor (<strong>0.03%</strong>), ~9 MB across all 6.95 B trainable params. Memory is params (32.8 GB)</li>
+<li>grads (27.8 GB) + activations.</li>
+</ul>
+<hr />
+<h2 id="4-what-is-validated">4. What is validated<a class="headerlink" href="#4-what-is-validated" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>scripts/validate_prefix_context.py</code> on the real 36-layer model: prefix-split loss vs a
+  full-window forward over the same target set — <strong>delta 0.00e+00 on 4/4 windows</strong>, i.e.
+  bit-exact. Run this as a gate before any long job.</li>
+<li>915 unit tests pass. New coverage: offset-aware SDPA (cached prefix), score recompute
+  (forward/gradient parity + a call-counting test), prefix-context under gradient
+  checkpointing, stop-token weighting and its <code>sum(w[target])</code> denominator.</li>
+<li><strong>Live 32768 training step on the real SWE corpus</strong>: <code>loss=0.6019 gnorm=1.29
+  mem=31.5GiB 1799.6s/step</code> — matching the probe's 1791.6 exactly. Artifacts in
+  <code>out/exp-058/smoke32k/{metrics.jsonl,watch.log}</code>.</li>
+</ul>
+<hr />
+<h2 id="5-the-crash">5. The crash<a class="headerlink" href="#5-the-crash" title="Permanent link">&para;</a></h2>
+<p><code>/tmp/valcost.py</code> (a throwaway script, not in the repo) loaded the 30 GB model <strong>~3
+seconds after <code>pkill</code>-ing the training process</strong>, while the system still held that
+process's pages and ~29 GB of swap. The box went down during model load; the log stops
+after <code>Loading weights: 100%</code> with no timing printed.</p>
+<p><strong>This was operator error, not a code or configuration finding.</strong> <code>scripts/probe_window_budget.py</code>
+already has <code>--cooldown</code> (default 120 s) precisely for this — a config launched while
+macOS still holds the previous one's memory gets killed during load and reads as a false
+OOM. I did not apply the same discipline to a hand-rolled script.</p>
+<p><strong>Rule for the next box: wait for <code>sysctl -n vm.swapusage</code> to settle before loading the
+model.</strong> Nothing about the 32768 training configuration is implicated — it ran for 110
+minutes at a flat 31.5 GiB with swap <em>declining</em>.</p>
+<hr />
+<h2 id="6-the-open-question-this-was-trying-to-answer">6. The open question this was trying to answer<a class="headerlink" href="#6-the-open-question-this-was-trying-to-answer" title="Permanent link">&para;</a></h2>
+<p><strong>How expensive is validation at a 32768 window?</strong> The slow monitor caught that the val
+interval was the only place swap moved (+11.2 GiB in one 5-minute sample) and that it
+dragged the surrounding steps with it. Step 1 took 30 minutes; step 2 plus a 3-window
+validation had not finished 80 minutes later.</p>
+<p>Already fixed in <code>15c1884</code>: release the MPS cache before <em>and</em> after validation, time it,
+and print <code>(N windows in Xs)</code> plus a <code>val_seconds</code> field in <code>metrics.jsonl</code>. So the next
+run <strong>measures this itself</strong> — the standalone script is no longer needed.</p>
+<p>Unresolved: the right <code>--val-windows</code> at 32768. The default of 16 is very likely too
+expensive. Start at <strong>4</strong> and read the printed cost against the step time.</p>
+<hr />
+<h2 id="7-resume-here">7. Resume here<a class="headerlink" href="#7-resume-here" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash"># Corpora already built and on disk (rebuild with the commands below if starting fresh):
+#   out/exp-058/sft_corpus_swe_32768.pt      26 windows, 878,010 tok, 1,915 im_end targets
+#   out/exp-058/sft_corpus_val_32768.pt      81 windows, 2,774,117 tok
+
+PYTHONPATH=src python scripts/build_sft_qat_corpus.py \
+    --sft out/corpora/qwen3-universal/sft.jsonl.gz --source swe-trajectories \
+    --window 32768 --max-tool-tokens 8192 --min-density 0.05 \
+    --out out/exp-058/sft_corpus_swe_32768.pt
+PYTHONPATH=src python scripts/build_sft_qat_corpus.py \
+    --sft out/corpora/qwen3-universal/sft.jsonl.gz --split test \
+    --window 32768 --max-tool-tokens 8192 --min-density 0.05 \
+    --out out/exp-058/sft_corpus_val_32768.pt
+
+# 1. GATE — do not skip; it is ~5 minutes against a 26 h run
+PYTHONPATH=src python scripts/validate_prefix_context.py \
+    --corpus out/exp-058/sft_corpus_universal_8064.pt --tail 4096 --windows 4
+
+# 2. Re-measure one step on the new hardware before committing to the full run
+PYTHONPATH=src python scripts/probe_window_budget.py --window 32768 --trained-tail 0 \
+    --steps 2 --grad-accum 2 --cooldown 150
+
+# 3. The run
+PYTHONPATH=src python -m quant_tuner.qat.train \
+    --corpus out/exp-058/sft_corpus_swe_32768.pt \
+    --val-corpus out/exp-058/sft_corpus_val_32768.pt \
+    --train-layers 36 --optim adafactor --dtype fp32 \
+    --grad-accum 1 --epochs 4.0 --lr 5e-4 --warmup-frac 0.05 \
+    --stop-weight 6.0 --val-every 10 --val-windows 4 \
+    --ckpt-every 15 --ckpt-keep 3 \
+    --out out/exp-058/swe32k
+
+# 4. Monitor on a slow interval — do NOT poll the process
+bash scripts/watch_qat_run.sh out/exp-058/swe32k 300 48
+</code></pre>
+<p><code>--grad-accum 1</code>, not 2: 26 windows at accum 2 leaves only 13 steps/epoch — too few for
+the cosine schedule or the grad-spike guard's 20-step median window.</p>
+<p>Expect ~900 s/step at accum 1, 26 steps/epoch, <strong>~26 h for 4 epochs</strong> on the reference box.
+Healthy steady state is <code>mem=31.5GiB</code> with swap flat or declining. Read <code>gnorm</code> and the
+flip telemetry, <strong>not the loss</strong> — a ternary model only learns by flipping codes, and the
+loss falls on scale drift alone.</p>
+<hr />
+<h2 id="8-decisions-still-open-deliberately-not-made">8. Decisions still open (deliberately not made)<a class="headerlink" href="#8-decisions-still-open-deliberately-not-made" title="Permanent link">&para;</a></h2>
+<ol>
+<li><strong>Corpus scope.</strong> SWE-only is ~26 h for 4 epochs but risks eroding general behaviour —
+   the last run's one real gain was tool-error rate. Mixing in <code>logs-agents</code> costs
+   proportionally more wall-clock. Not my call to assume.</li>
+<li><strong><code>--val-windows</code>.</strong> Suggest 4; confirm from the cost the run now prints.</li>
+<li><strong>The holdout cannot settle the result.</strong> At n=10 with 0/10 both, the 95% upper bound
+   on the true resolve rate is ~31%. Enlarge the SWE-rebench holdout before the A/B, or a
+   real improvement will not be distinguishable from noise.</li>
+<li><strong><code>swe-trajectories</code> has no rows in the <code>test</code> split</strong>, so the val corpus is
+   agentic-log distribution, not held-out SWE. The real gate stays the SWE-rebench holdout.</li>
+</ol>
+<hr />
+<h2 id="9-porting-to-a-different-machine">9. Porting to a different machine<a class="headerlink" href="#9-porting-to-a-different-machine" title="Permanent link">&para;</a></h2>
+<p>The <em>code</em> changes are hardware-agnostic and are wins anywhere:
+<code>recompute_scores</code> cuts real memory on CUDA too, and prefix-context is exact everywhere.</p>
+<p>The <em>numbers</em> are not. Re-derive them:</p>
+<ul>
+<li>The MPSGraph <code>INT_MAX</code> element cap and <code>DEFAULT_SCORE_BYTES</code> budget are Metal-shaped.
+  On CUDA, PyTorch has a genuinely fused SDPA (FlashAttention) that never materializes the
+  score matrix, which makes <code>chunked_causal_sdpa</code> <strong>unnecessary and slower</strong> — check
+  whether <code>enable_chunked_sdpa()</code> should be off entirely (<code>--no-chunked-attention</code>).
+  With flash attention available, the whole memory problem this document solves largely
+  evaporates and much longer windows should be reachable.</li>
+<li><code>foreach=False</code> and the bf16 findings are MPS quirks. On CUDA, bf16 is the normal choice
+  and <code>--compute-dtype bf16</code> with fp32 masters should be re-tested, not assumed bad.</li>
+<li>Adafactor was chosen because AdamW's 55.6 GB of state did not fit in 128 GB shared.
+  On an 80 GB+ dedicated GPU, revisit AdamW.</li>
+<li>Re-run step 2 of the resume block to get s/step before sizing the run.</li>
+</ul>
+<hr />
+<h2 id="10-the-cuda-port-2026-08-16">10. The CUDA port (2026-08-16)<a class="headerlink" href="#10-the-cuda-port-2026-08-16" title="Permanent link">&para;</a></h2>
+<p>Box: <strong>1x NVIDIA RTX PRO 6000 Blackwell Workstation Edition, 95.0 GiB VRAM, cc 12.0</strong>,
+driver 590.48.01, torch 2.12.0+cu130, transformers 5.12.1, python 3.11.</p>
+<h3 id="101-the-finding-that-mattered-fp32-has-no-fused-attention-kernel-on-cuda">10.1 The finding that mattered — fp32 has no fused attention kernel on CUDA<a class="headerlink" href="#101-the-finding-that-mattered-fp32-has-no-fused-attention-kernel-on-cuda" title="Permanent link">&para;</a></h3>
+<p>§9 predicted that "PyTorch has a genuinely fused SDPA (FlashAttention) … which makes
+<code>chunked_causal_sdpa</code> unnecessary and slower" and that "the whole memory problem this
+document solves largely evaporates". <strong>Half right, and the wrong half is load-bearing.</strong></p>
+<p>The first fp32 run on this box OOM'd at a <strong>8064</strong> window on a 95 GiB card, asking for
+7.75 GiB. That number is exactly <code>32 heads x 8064^2 x 4 bytes</code> — the full score matrix,
+i.e. the very tensor chunking exists to avoid, materialized on the hardware that was
+supposed to make chunking unnecessary.</p>
+<p>The cause is a dispatch fallback, not a missing kernel:</p>
+<ul>
+<li>FlashAttention and cuDNN attention <strong>reject fp32 outright</strong> (<code>Expected query, key and
+  value to all be of dtype: {Half, BFloat16}</code>).</li>
+<li>The <strong>memory-efficient</strong> kernel <em>does</em> support fp32 — but not together with
+  <code>enable_gqa</code>.</li>
+<li>transformers passes <code>enable_gqa=True</code> to SDPA whenever the attention mask is None on
+  CUDA (<code>integrations/sdpa_attention.py::use_gqa_in_sdpa</code>) instead of expanding K/V
+  itself. Qwen3-8B is 32 heads / 8 KV, so that branch is always taken.</li>
+</ul>
+<p>With no kernel able to serve fp32 + GQA, the dispatcher falls all the way back to
+<strong>math</strong>, which materializes <code>[batch, heads, S, S]</code> for backward. Measured at S=2048,
+fp32, one fwd+bwd (<code>[H,S,S]</code> would be 0.500 GiB):</p>
+<table>
+<thead>
+<tr>
+<th>call shape</th>
+<th>peak</th>
+<th>kernel</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>repeat_kv</code> + <code>is_causal</code></td>
+<td>0.251 GiB</td>
+<td>fused</td>
+</tr>
+<tr>
+<td><code>enable_gqa=True</code> + <code>is_causal</code></td>
+<td>2.156 GiB</td>
+<td><strong>math</strong></td>
+</tr>
+<tr>
+<td><code>repeat_kv</code> + explicit bool mask</td>
+<td>0.266 GiB</td>
+<td>fused</td>
+</tr>
+</tbody>
+</table>
+<p><code>attention.enable_fp32_gqa_repeat()</code> makes the predicate honest about fp32 so
+transformers' own <code>repeat_kv</code> branch is taken; <code>train.py</code> calls it on CUDA whenever
+<code>compute_dtype</code> is fp32. That is what turns "8064 OOMs" into "32768 fits".</p>
+<p><strong>Consequence for §9:</strong> <code>--no-chunked-attention</code> alone was never the answer on CUDA. The
+chunked path was masking a dispatch bug, not merely working around an MPSGraph cap.</p>
+<h3 id="102-the-measured-ladder-this-replaces-3">10.2 The measured ladder — this replaces §3<a class="headerlink" href="#102-the-measured-ladder-this-replaces-3" title="Permanent link">&para;</a></h3>
+<p>Same protocol as §3: <code>scripts/probe_window_budget.py</code>, the real training loop with the
+optimizer step, all-36 / adafactor / grad-accum 2 / 3 steps, synthetic corpus at
+<code>--labeled-frac 0.35</code>. "fused" = stock SDPA with the fp32 GQA fix; "chunked" =
+<code>--chunked-attention on</code>. <code>peak</code> is <code>torch.cuda.max_memory_allocated</code>.</p>
+<table>
+<thead>
+<tr>
+<th>window</th>
+<th>fp32 fused</th>
+<th>fp32 + TF32</th>
+<th>fp32 chunked</th>
+<th>bf16 fused</th>
+<th>bf16 chunked</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>8064</td>
+<td><strong>20.1 s</strong> / 64.8 GiB</td>
+<td><strong>11.8 s</strong> / 64.8 GiB</td>
+<td>27.3 s / 69.3 GiB</td>
+<td><strong>5.5 s</strong> / 67.8 GiB</td>
+<td>17.4 s / 67.8 GiB</td>
+</tr>
+<tr>
+<td>16128</td>
+<td><strong>45.2 s</strong> / 72.6 GiB</td>
+<td>—</td>
+<td>—</td>
+<td><strong>10.8 s</strong> / 67.9 GiB</td>
+<td>—</td>
+</tr>
+<tr>
+<td>32768</td>
+<td><strong>124.2 s</strong> / 88.6 GiB</td>
+<td><strong>90.1 s</strong> / 88.6 GiB</td>
+<td>228.6 s / 88.6 GiB</td>
+<td><strong>24.7 s</strong> / 70.9 GiB</td>
+<td>—</td>
+</tr>
+<tr>
+<td>65536</td>
+<td><strong>OOM</strong></td>
+<td>—</td>
+<td><strong>66.5 s</strong> / 87.4 GiB</td>
+<td>—</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>The ceiling is 65536, and it is bf16-only.</strong> 65536 is the model's
+<code>max_position_embeddings</code>, so it is also the last rung that exists. fp32 cannot reach it
+(fp32 is already at 88.6 GiB of 95.0 at 32768); bf16 gets there with <strong>7.6 GiB spare —
+and that figure excludes validation and the checkpoint transient</strong>, so it is not a
+configuration to run without a real pre-flight. Note also that bf16's cost per trained
+token stops being flat there: 0.32 / 0.32 / 0.37 / <strong>0.51 ms</strong> at 8064 / 16128 / 32768 /
+65536. Doubling the window past 32768 costs 38% more per token and buys SWE
+conversations-whole from 97% to 100%.</p>
+<p>Before the fp32 GQA fix, <code>fp32 fused</code> <strong>OOM'd at every window including 8064</strong>.</p>
+<p>Cost per trained token (per-window fwd+bwd, netting out the ~0.4-0.5 s fixed per-step
+cost — note that fixed cost was <strong>~106 s</strong> on the M4 Max and is essentially free here):</p>
+<table>
+<thead>
+<tr>
+<th>window</th>
+<th>fp32</th>
+<th>bf16</th>
+<th>MPS fp32 (§3)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>8064</td>
+<td>1.22 ms</td>
+<td>0.32 ms</td>
+<td>11.1 ms</td>
+</tr>
+<tr>
+<td>16128</td>
+<td>1.39 ms</td>
+<td>0.32 ms</td>
+<td>19.4 ms</td>
+</tr>
+<tr>
+<td>32768</td>
+<td>1.89 ms</td>
+<td>0.37 ms</td>
+<td>27.3 ms</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Conclusions, and where they differ from §3:</strong></p>
+<ul>
+<li><strong>Train the full window at 32768. Still no prefix.</strong> §3's headline conclusion survives:
+  extra context remains cheap relative to the linear layers. But the CUDA slope is not
+  flat the way MPS's 20480-32768 plateau was — fp32 costs <strong>55% more per token</strong> at 32768
+  than at 8064 (bf16, on flash, is nearly flat at +16%). It is still overwhelmingly worth
+  it, because a prefix discards ~T/W of the targets and this buys 27% -&gt; 97% of SWE
+  conversations whole.</li>
+<li><strong>Chunked SDPA is a Metal workaround. It is pure overhead here</strong> — 3.2x on bf16 at 8064
+  (5.5 -&gt; 17.4 s), and 26% slower plus 4.5 GiB heavier than the fp32 fused path. It is now
+  opt-in per backend (<code>--chunked-attention auto|on|off</code>), enabled automatically only on
+  MPS and for <code>--trained-tail</code> on any device.</li>
+<li><strong>bf16 compute is a 5x speedup and 17.7 GiB lighter at 32768</strong> — the exact opposite of
+  the Metal finding in §3, where bf16 was a pathological 28x pessimization. Its memory is
+  also nearly flat in the window (67.8 -&gt; 70.9 GiB from 8064 to 32768) because the
+  <code>MasterOptimizer</code> static footprint dominates and bf16 activations are half-size, whereas
+  fp32's lower static footprint (56.4 GiB) is swamped by full-size activations.</li>
+<li><strong><code>--optim adamw</code> still does not fit, now for a VRAM reason rather than a shared-memory
+  one.</strong> Static footprint before any activations, against 95.0 GiB:</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th>configuration</th>
+<th>params</th>
+<th>grads/masters</th>
+<th>optimizer state</th>
+<th>total</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>fp32 + adafactor</td>
+<td>30.5</td>
+<td>25.9</td>
+<td>~0</td>
+<td><strong>56.4 GiB</strong></td>
+<td>fits</td>
+</tr>
+<tr>
+<td>fp32 + adamw</td>
+<td>30.5</td>
+<td>25.9</td>
+<td>51.8</td>
+<td><strong>108.1 GiB</strong></td>
+<td>over by 13.2</td>
+</tr>
+<tr>
+<td>bf16-compute + adafactor</td>
+<td>15.2</td>
+<td>51.8</td>
+<td>~0</td>
+<td><strong>67.0 GiB</strong></td>
+<td>fits</td>
+</tr>
+<tr>
+<td>bf16-compute + adamw</td>
+<td>15.2</td>
+<td>51.8</td>
+<td>51.8</td>
+<td><strong>118.8 GiB</strong></td>
+<td>over by 23.8</td>
+</tr>
+<tr>
+<td>bf16-compute + adamw-8bit</td>
+<td>15.2</td>
+<td>51.8</td>
+<td>12.9</td>
+<td><strong>80.0 GiB</strong></td>
+<td>fits, ~15 GiB left</td>
+</tr>
+</tbody>
+</table>
+<p>8-bit AdamW is the only AdamW that fits, and it costs 12.9 GiB to buy state that
+  Adafactor provides in 9 MB — while discarding the one hyperparameter this project has
+  actually measured (lr 5e-4 under Adafactor). Not worth it for a run whose purpose is to
+  test two data-side interventions.
+- <strong>TF32 (<code>--matmul-precision high</code>) is free speed that is bit-exact where it counts —
+  but the gain shrinks with the window.</strong> 1.70x at 8064 (11.8 vs 20.1 s), only <strong>1.38x at
+  32768</strong> (90.1 vs 124.2 s), at identical memory in both cases. torch defaults to
+  <code>highest</code>, so every plain-fp32 number above is a <em>true</em>-fp32 matmul. The narrowing is
+  the point: TF32 accelerates the linear layers, and at a long window attention — served
+  in fp32 by the memory-efficient kernel, which TF32 does not speed up the same way —
+  takes a growing share of the step. It reduces only the matmul's internal accumulation to
+  10 mantissa bits; the latents, the TWN threshold, <code>ternarize_group</code> and its deliberate
+  fp16 scale rounding are all elementwise fp32 and untouched. bf16 remains 3.6x ahead of
+  it at 32768, because bf16 reaches FlashAttention and TF32 cannot.
+- <strong><code>--matmul-precision medium</code> is not worth considering.</strong> 90.8 s at 32768 against
+  <code>high</code>'s 90.1 — identical within noise, for two fewer mantissa bits. That null result is
+  the confirmation of the paragraph above: at a long window what is left in the step is
+  attention, not linear-layer matmul precision, so there is nothing for <code>medium</code> to buy.
+  <code>high</code> is the only fp32 precision knob worth having.</p>
+<h4 id="does-reduced-precision-actually-move-the-ternary-codes">Does reduced precision actually move the ternary codes?<a class="headerlink" href="#does-reduced-precision-actually-move-the-ternary-codes" title="Permanent link">&para;</a></h4>
+<p>The obvious worry about <code>--compute-dtype bf16</code> is that it rounds the latent to 8 mantissa
+bits <em>before</em> ternarizing, so a weight near the TWN threshold ternarizes differently than
+the fp32 master the export reads. <strong>Measured, it does not happen at all:</strong></p>
+<table>
+<thead>
+<tr>
+<th>tensor</th>
+<th>codes differing, fp32 vs bf16 ternarization</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>layers.17.self_attn.q_proj</code></td>
+<td>0 / 16,777,216</td>
+</tr>
+<tr>
+<td><code>layers.35.mlp.gate_proj</code></td>
+<td>0 / 50,331,648</td>
+</tr>
+<tr>
+<td><code>layers.0.mlp.down_proj</code></td>
+<td>0 / 50,331,648</td>
+</tr>
+</tbody>
+</table>
+<p>Nor is anything close: counting weights within a given relative distance of <code>delta</code>, on
+real trained latents, gives <strong>0 within bf16 precision, 0 within TF32 precision, and 0
+within <em>fp32</em> precision</strong>. The reason is structural — a ternary latent sits at 0 or <code>±s</code>
+while <code>delta = 0.7·mean|W|</code> sits between them, so the boundary region is empty by
+construction. Codes only cross it transiently, while flipping.</p>
+<p>What bf16 <em>does</em> move is smaller and elsewhere: <code>ternarize_group</code> rounds the scale to
+<strong>fp16 on purpose</strong>, to match deployed Q2_0 numerics, and under bf16 compute that scale is
+bf16-rounded on top — measured 0.05-0.10% off the value the exported GGUF will carry. And
+the gradients are computed at 8 mantissa bits, which shifts <code>gnorm</code> and therefore what
+<code>GradSpikeGuard</code> treats as a spike. Neither is settled by argument; §10.6 measures them.</p>
+<h3 id="103-what-the-port-changed-in-the-code">10.3 What the port changed in the code<a class="headerlink" href="#103-what-the-port-changed-in-the-code" title="Permanent link">&para;</a></h3>
+<p><code>qat/_device.py</code> is new and owns every backend difference; the trainer asks it rather than
+branching on <code>dev ==</code>. The line it replaces was
+<code>dev = "mps" if torch.backends.mps.is_available() else "cpu"</code>, which on a CUDA box
+<strong>silently selects CPU</strong> — no error, ~100x slower, checkpoints still saving.</p>
+<table>
+<thead>
+<tr>
+<th>decision</th>
+<th>MPS</th>
+<th>CUDA</th>
+<th>why it inverts</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>foreach</code></td>
+<td>False</td>
+<td>True</td>
+<td>MPS multi-tensor kernels deadlock at full-model scale; on CUDA they replace ~250 small launches</td>
+</tr>
+<tr>
+<td>chunked SDPA</td>
+<td>forced</td>
+<td>off</td>
+<td>MPSGraph INT_MAX score cap vs a fused kernel (given the fp32 GQA fix)</td>
+</tr>
+<tr>
+<td><code>max_window</code> w/o chunking</td>
+<td>8191</td>
+<td>none</td>
+<td><code>n_heads * S^2 &lt; 2^31</code> is a Metal limit</td>
+</tr>
+<tr>
+<td>teacher dtype</td>
+<td>fp16</td>
+<td>bf16</td>
+<td>no bf16 on M1-generation parts</td>
+</tr>
+<tr>
+<td><code>--empty-cache-every</code></td>
+<td>5</td>
+<td>0 (off)</td>
+<td>macOS OOM-kills a run whose working set creeps into swap; CUDA has no such mode and the release costs a sync plus reusable blocks</td>
+</tr>
+<tr>
+<td>memory reporting</td>
+<td><code>current_allocated_memory</code></td>
+<td><code>max_memory_allocated</code></td>
+<td>MPS exposes no peak counter</td>
+</tr>
+</tbody>
+</table>
+<p>Also changed:</p>
+<ul>
+<li><strong><code>metrics.jsonl</code> gains <code>mem_peak_gib</code> and <code>device</code></strong>, and the step line prints
+  <code>mem=&lt;live&gt;/&lt;peak&gt;GiB</code>. The peak is what a run is sized from — the transient a
+  checkpoint save or a long-window validation spikes to is what decides whether the next
+  one OOMs, and a point sample of live bytes will not show it.
+  <code>scripts/qat_progress_report.py</code> renders both.</li>
+<li><strong><code>--matmul-precision {highest,high,medium}</code></strong> (new). This is a different knob from
+  <code>--compute-dtype</code>: the latents, the TWN threshold and <code>ternarize_group</code> are all
+  elementwise fp32 and stay bit-exact, so the codes a step produces are unperturbed in a
+  way <code>--compute-dtype bf16</code> cannot promise. Only the matmul accumulation is reduced
+  (TF32 keeps 10 mantissa bits, bf16 8). Default <code>highest</code> = true fp32 = what every
+  published run used. Note torch defaults to <code>highest</code>, so <strong>the fp32 numbers above are
+  true-fp32 matmuls, not TF32.</strong></li>
+<li><strong>Flip telemetry now reads the fp32 masters under bf16 compute.</strong> <code>snapshot_codes</code> read
+  <code>linear.weight</code> — the live <em>bf16 copy</em> — while <code>export_qat</code> ternarizes the masters. bf16
+  carries 8 mantissa bits, so a latent within ~0.2% of the TWN threshold ternarizes
+  differently in the two, and flips get recorded at the wrong step. Since flip velocity,
+  not loss, is how this project decides whether a ternary run is learning at all, that
+  instrument has to read the tensor that will actually ship. <code>latent_weights(model, opt)</code>
+  resolves it; unit-tested.</li>
+<li><strong><code>scripts/probe_window_budget.py</code> refuses to start against a busy card.</strong> A killed
+  sweep leaves its trainer holding the whole GPU, the next configuration cannot even load
+  the model, and the probe records "OOM" against a configuration that never ran. This
+  happened here: a leaked 32768 run sat at 96.9 of 97.9 GiB and two innocent configs were
+  recorded as OOM. It is the CUDA analogue of §5's macOS cooldown trap and fails the same
+  misleading way. Swap reporting also now reads <code>/proc/meminfo</code> on Linux.</li>
+<li><strong><code>scripts/watch_qat_run_cuda.sh</code></strong> is the CUDA sibling of <code>watch_qat_run.sh</code> (added,
+  not edited — §"Constraints"). It watches VRAM, the process list on the card, and the log
+  for real tracebacks, because on CUDA an OOM is an ordinary exception rather than §5's
+  silent SIGKILL.</li>
+<li><strong><code>export_qat</code> now raises if <code>chat_template.jinja</code> is missing</strong> instead of skipping it
+  silently. Without the template the F16 conversion bakes a thinking-enabled Qwen3 default
+  and the exported model emits <code>&lt;think&gt;</code> and never tool-calls — which reads as a model
+  that lost its agentic ability, not as a missing file.</li>
+</ul>
+<p>Unit tests: <strong>1003 pass</strong> (915 before; the additions cover the backend table, the fp32 GQA
+predicate, and the bf16 telemetry path). <code>mypy src</code> reports the same 5 errors in
+<code>qat/</code> before and after the port — none introduced.</p>
+<h3 id="104-environment-gaps-found-on-a-fresh-box">10.4 Environment gaps found on a fresh box<a class="headerlink" href="#104-environment-gaps-found-on-a-fresh-box" title="Permanent link">&para;</a></h3>
+<p>None of these are in any runbook, and all three block a step:</p>
+<ol>
+<li><strong><code>out/exp-057/chat_template.jinja</code></strong> — <code>qat/corpus.py</code> reads it from <code>exp-057/</code>, but
+   the unpacked HF repo ships it inside <code>model/</code>. Copy it up one level or every corpus
+   build dies on <code>FileNotFoundError</code>.</li>
+<li><strong><code>vendor/llama.cpp-prism</code> is not a tracked submodule</strong> and seven scripts export the
+   path without ever saying where it comes from. It is
+   <code>https://github.com/PrismML-Eng/llama.cpp</code> (<code>prism</code> branch, default), recorded only in
+   the <code>prism-ml/Ternary-Bonsai-8B-gguf</code> model card. Build command now in
+   <code>docs/ternary_qat.md</code>. Confirmed: <code>llama-quantize</code> lists <code>41 or Q2_0</code>.</li>
+<li><strong><code>prism-ml/Ternary-Bonsai-8B</code> 404s.</strong> The weights live at <code>…-8B-gguf</code> (packed) and
+   <code>…-8B-unpacked</code> (the trainable fp16 safetensors <code>out/exp-057/model</code> is a snapshot of).</li>
+</ol>
+<p><strong>The SWE-rebench eval cannot run on this box.</strong> It is an unprivileged container: no
+Docker daemon, no <code>/var/run/docker.sock</code>, and no <code>cap_sys_admin</code>, so no container runtime
+can be installed. Training and export work; the A/B has to be graded on a Docker-capable
+machine. The holdout <em>file</em> is network-only and was built here.</p>
+<h3 id="105-resuming-this-run-with-more-data">10.5 Resuming this run with more data<a class="headerlink" href="#105-resuming-this-run-with-more-data" title="Permanent link">&para;</a></h3>
+<p>The point of this branch is that the next iteration should be a corpus change and a
+launch, not a re-derivation. Everything below is already in place.</p>
+<p><strong>What is pinned.</strong> The SFT blob is <code>out/corpora/qwen3-universal-v2/sft.jsonl.gz</code>
+(sha256 <code>32ed736c…</code>, 22,686,353 bytes). The packed corpora are
+<code>out/exp-058/sft_corpus_{universal,val}_32768.pt</code>, and the trainer stores a
+<code>corpus_fingerprint</code> in every checkpoint — a <code>--resume</code> against a corpus that does not
+match is refused rather than silently continuing on different data. <strong>Adding data
+therefore ends the old run</strong>; it does not extend it.</p>
+<p><strong>To rebuild with more data:</strong></p>
+<pre><code class="language-bash"># 1. regenerate the SFT blob (data.universal writes sft.jsonl.gz beside the corpus)
+PYTHONPATH=src .venv/bin/python scripts/build_universal_corpus.py --ctx 32768 ...
+
+# 2. repack, at the window the run will use. --max-tool-tokens scales WITH the window:
+#    1024 drops 28% of all conversation content and was only ever right at 4096.
+PYTHONPATH=src .venv/bin/python scripts/build_sft_qat_corpus.py \
+    --window 32768 --max-tool-tokens 4096 --min-density 0.05 \
+    --out out/exp-058/sft_corpus_universal_32768.pt
+# ...and again with --split test for the val corpus.
+
+# 3. relaunch (fresh --out; do not resume across a corpus change)
+bash scripts/run_sft32k_qat_cuda.sh &lt;tag&gt; &lt;lr&gt; &lt;epochs&gt;
+</code></pre>
+<p><strong>Do not plan to extend epochs with <code>--resume</code>.</strong> <code>total_steps</code> is recomputed from
+<code>--epochs</code>, so resuming a finished 1.0-epoch run at 2.0 puts the cosine schedule back
+near its peak with no warmup: <strong>5.0e-5 -&gt; 2.9e-4, a 5.9x step up</strong>, at exactly the
+annealed point. That is the same shape as the trigger that cost sft8k-full 90 steps.
+Commit to the epoch count at launch. <code>--resume</code> is for continuing an <em>interrupted</em> run
+of the same schedule on the same corpus, which is what it is safe for.</p>
+<p><strong>What scales with more data, and what does not.</strong> Steps per epoch is
+<code>n_windows / grad_accum</code>, so a corpus 2x the size doubles the run at a fixed
+tokens-per-step — the numbers in §10.2 are per-step and stay valid. What does <em>not</em>
+carry over is the stop-token ratio: <code>--stop-weight</code> corrects the measured imbalance in
+<em>this</em> blob (35,359 terminating <code>&lt;|im_end|&gt;</code> in 6,071,948 targets, one per 172). Recheck
+it against the new corpus's <code>im_end_targets</code> and rescale, or the weight silently means
+something different.</p>
+<p><strong>If the window changes</strong>, re-run the probe rather than interpolating §10.2 — fp32 cost
+per trained token is <em>not</em> flat on CUDA (+55% from 8064 to 32768), unlike the MPS
+plateau §3 recorded.</p>
+<pre><code class="language-bash">PYTHONPATH=src .venv/bin/python scripts/probe_window_budget.py \
+    --window W --trained-tail 0 --steps 3 --grad-accum 1 --cooldown 0
+</code></pre>
+<p><strong>Probe caveat — the tables in §10.2 are WARM-UP steps.</strong> <code>train.py</code> emits a step record
+at step 1 and then every 5th, so a <code>--steps 3</code> probe only ever logged <strong>step 1</strong>, which
+carries kernel autotune and allocator growth. Those numbers are comparable <em>to each other</em>
+(every config paid the same cost) but they are not the rate a 613-step run bills at. To
+price a real run, run ~12 steps and take the marginal rate between the step-5 and step-10
+<code>elapsed_s</code> in <code>metrics.jsonl</code> — that is what §10.6 does.</p>
+<h3 id="106-pre-flight-on-the-real-corpus-and-why-the-run-is-bf16">10.6 Pre-flight on the real corpus — and why the run is bf16<a class="headerlink" href="#106-pre-flight-on-the-real-corpus-and-why-the-run-is-bf16" title="Permanent link">&para;</a></h3>
+<p>12 steps of the real corpus at the real config (grad-accum 1, <code>--stop-weight 6.0</code>,
+validation and a checkpoint save included). The seed is fixed at 1234 inside <code>train.py</code>,
+so both configurations saw an <strong>identical window order</strong> — the <code>loss_by_source</code> labels in
+<code>metrics.jsonl</code> confirm it step by step, which is what makes this a precision comparison
+rather than two unrelated runs.</p>
+<table>
+<thead>
+<tr>
+<th>step</th>
+<th>source(s)</th>
+<th>loss fp32 -&gt; bf16</th>
+<th><strong>gnorm</strong> fp32 -&gt; bf16</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>logs-agents</code></td>
+<td>0.6854 -&gt; 0.6836 (0.26%)</td>
+<td>1.316 -&gt; 1.307 (<strong>0.68%</strong>)</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>broad-instruct</code>, <code>logs</code></td>
+<td>1.0174 -&gt; 1.0178 (0.04%)</td>
+<td>1.172 -&gt; 1.153 (<strong>1.6%</strong>)</td>
+</tr>
+<tr>
+<td>10</td>
+<td><code>logs</code>, <code>swe-trajectories</code></td>
+<td>0.8528 -&gt; 0.8530 (0.02%)</td>
+<td>4.890 -&gt; 1.485 (<strong>3.3x</strong>)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Speed — take the marginal rate, not the cumulative average.</strong> Steps 1-&gt;5 contain no
+validation and no checkpoint, so that span is the clean rate:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>clean s/step</th>
+<th>613 steps</th>
+<th>validation</th>
+<th>checkpoint save</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>fp32</td>
+<td>63.3 s</td>
+<td>~11.5 h</td>
+<td>59.0 s (4 windows)</td>
+<td>~32 s</td>
+</tr>
+<tr>
+<td><strong>bf16</strong></td>
+<td><strong>12.3 s</strong></td>
+<td><strong>~2.3 h</strong></td>
+<td>12.2 s</td>
+<td>~32 s</td>
+</tr>
+</tbody>
+</table>
+<p>Peak memory is 68.1 GiB (bf16) against 70.6 (fp32) — the fp32 masters give back most of
+what half-size activations save, so bf16 buys speed here, not headroom. Note both are far
+under the <strong>88.6 GiB the synthetic probe reported</strong> at the same window; the real-corpus
+figure is the one that governs. Carry one caveat: the densest window in the corpus has
+31,273 labeled targets against the 18,486 maximum these 12 windows happened to draw, so
+watch <code>mem_peak_gib</code> rather than treating 68.1 as the ceiling.</p>
+<p><strong>The step-10 gnorm divergence is not evidence against bf16.</strong> Three samples cannot
+separate "bf16 flattens the gradient tail" from "nine optimizer steps have moved the two
+runs apart" — and the per-source losses show the weights <em>have</em> separated by then, while
+fp32's own norms swing 1.17 -&gt; 4.89 inside its own run. Step 1, where the weights are
+still identical, is the clean precision read, and 0.68% is parity. The live run resolves
+the rest: <code>n_skipped</code> and the <code>gnorm</code> series over 613 steps are a better instrument than
+a longer pre-check would have been, and rolling back to a checkpoint costs minutes.</p>
+<p><strong>What settled it:</strong> bf16 changes 0 of 117M ternary codes (§10.2), the CE is fp32 either
+way (<code>masked_forward</code> upcasts before <code>cross_entropy</code>, and computes the <code>sum(w[target])</code>
+stop-weight denominator in fp32), and both the export and — since this branch — the flip
+telemetry read the optimizer's fp32 masters. What bf16 <em>does</em> change is the fp16 scale, by
+0.05-0.10% against what the exported Q2_0 carries.</p>
+<h3 id="107-grading-the-ab-somewhere-else">10.7 Grading the A/B somewhere else<a class="headerlink" href="#107-grading-the-ab-somewhere-else" title="Permanent link">&para;</a></h3>
+<p>The eval cannot run on the training box (§10.4). What has to move is small:</p>
+<table>
+<thead>
+<tr>
+<th>artifact</th>
+<th>what it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>out/exp-057/Ternary-Bonsai-8B-&lt;tag&gt;-Q2_0.gguf</code></td>
+<td>the run's export, ~2.5 GiB</td>
+</tr>
+<tr>
+<td><code>out/exp-057/Ternary-Bonsai-8B-vanilla-Q2_0.gguf</code></td>
+<td>the untrained control, same build</td>
+</tr>
+<tr>
+<td><code>out/external/swe-rebench/holdout50.jsonl</code></td>
+<td>50 instances, <strong>0 overlap</strong> with the 71 trained on</td>
+</tr>
+</tbody>
+</table>
+<p>Both GGUFs must come from the <em>same</em> llama.cpp build, and the eval box needs a Docker
+daemon plus the <code>swebench</code> extra:</p>
+<pre><code class="language-bash">PYTHONPATH=src python scripts/run_swebench_eval.py \
+    --models Ternary-Bonsai-8B-vanilla-Q2_0.gguf Ternary-Bonsai-8B-&lt;tag&gt;-Q2_0.gguf \
+    --holdout holdout50.jsonl --workspace out/ab-&lt;tag&gt;
+</code></pre>
+<p><strong>Loop fraction is the primary endpoint</strong> for this iteration, not resolve rate: sft8k-full
+already showed that behaviour can move (tool errors 0.65 -&gt; 0.33) while capability does
+not (0/10 both ways). Report resolved, patch rate, tool-error rate, <code>max_turns</code> exits and
+loop fraction together. At 0/50 the 95% upper bound on the resolve rate is ~5.8%, versus
+~31% at n=10 — which is the whole reason for the larger holdout.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "content.code.copy", "search.highlight", "search.suggest", "search.preview"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

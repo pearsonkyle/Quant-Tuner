@@ -1,0 +1,2027 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Calibrate your own GGUF quantizations and vLLM W4A16 checkpoints from real agentic-coding logs">
+      
+      
+        <meta name="author" content="K. Pearson">
+      
+      
+      
+      
+        <link rel="next" href="methods/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>quant-tuner</title>
+      
+    
+    
+      <link rel="stylesheet" href="assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#quant-tuner" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="." title="quant-tuner" class="md-header__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            quant-tuner
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Overview
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18V6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-2.69L23.31 12 20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="." title="quant-tuner" class="md-nav__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    quant-tuner
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="." class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Capabilities
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The methods
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The methods">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-awq-helps-at-2-bits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why AWQ helps at 2 bits
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-calibration-corpora" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The calibration corpora
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick start
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-a-calibration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running a calibration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Running a calibration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#building-the-calibration-corpora" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Building the calibration corpora
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#task-level-benchmarks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task-level benchmarks
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Task-level benchmarks">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#agentic-benchmark-swe-rebench" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agentic benchmark (SWE-rebench)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#serving-a-quant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Serving a quant
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#vllm-instead-of-gguf-w4a16-fp8-kv-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        vLLM instead of GGUF (W4A16 + fp8 KV cache)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inspecting-a-quant-jacobian-lens" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inspecting a quant (Jacobian lens)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pipeline-at-a-glance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipeline at a glance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layout
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#development" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Development
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#license-attribution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        License &amp; attribution
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methods
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Methods
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The three calibrators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipe reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="calibration_datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calibration datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="benchmarks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="lens/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jacobian lens
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT for ternary models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    QAT for ternary models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="ternary_qat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method & invariants
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="ternary_qat_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="ternary_qat_curriculum/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curriculum
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="ternary_qat_preprint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Preprint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="gemma4_ternary/HANDOFF/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B stage 1 (handoff)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run logs (Qwen 3.8 family)
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Run logs (Qwen 3.8 family)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="qwen3_8_release/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 release
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="qwen3_8_awq_2bit_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 AWQ 2-bit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="qwen3_8_gptq_vllm_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 GPTQ vLLM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="qwen3_8_exp062_rebuild/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 exp-062 rebuild
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Research notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="qat_32k_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT 32K handoff
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="qat_optimization_audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT optimization audit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="qat_run_history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT run history
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="ternary_calibration_experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ternary calibration experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="patch_gguf_chat_template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patch a GGUF chat template
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="gemma4_ternary_feasibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary feasibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="gemma4_ternary_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="reddit_ternary_qat_post/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reddit: ternary QAT post
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#capabilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Capabilities
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#the-methods" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The methods
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="The methods">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-awq-helps-at-2-bits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why AWQ helps at 2 bits
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-calibration-corpora" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The calibration corpora
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#quick-start" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Quick start
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-a-calibration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running a calibration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Running a calibration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#building-the-calibration-corpora" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Building the calibration corpora
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#task-level-benchmarks" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Task-level benchmarks
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Task-level benchmarks">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#agentic-benchmark-swe-rebench" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agentic benchmark (SWE-rebench)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#serving-a-quant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Serving a quant
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#vllm-instead-of-gguf-w4a16-fp8-kv-cache" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        vLLM instead of GGUF (W4A16 + fp8 KV cache)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inspecting-a-quant-jacobian-lens" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inspecting a quant (Jacobian lens)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#pipeline-at-a-glance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pipeline at a glance
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Layout
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#development" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Development
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#license-attribution" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        License &amp; attribution
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="quant-tuner">quant-tuner<a class="headerlink" href="#quant-tuner" title="Permanent link">&para;</a></h1>
+<p><strong>Calibrate your own GGUF quantizations and vLLM W4A16 checkpoints from a
+corpus derived from real agentic-coding usage logs — and push working models
+below 3 bits per weight.</strong></p>
+<p><code>quant-tuner</code> takes a HuggingFace model plus a corpus derived from your own
+prompt/response logs and produces a GGUF (or a compressed-tensors W4A16
+checkpoint for vLLM) tuned to the distribution your model actually sees. It
+benchmarks the result against FP16 (KL-divergence, perplexity, top-token
+agreement, tok/s) and against task-level metrics (tool-call accuracy,
+MMLU-Pro, <strong>agentic SWE-rebench pass rate</strong>). Every GGUF output is a
+<strong>standard GGUF</strong> that runs on unmodified <code>llama.cpp</code> — calibration changes
+<em>which</em> weights get the quantizer's budget, never the inference path.</p>
+<hr />
+<h2 id="capabilities">Capabilities<a class="headerlink" href="#capabilities" title="Permanent link">&para;</a></h2>
+<p>Released quants, all calibrated on the
+<a href="https://huggingface.co/datasets/pearsonkyle/llmtk-sft-corpus-v2">llmtk SFT corpus</a>
+(15M tokens, 65 536 ctx, the 32K-ctx slice) and the agentic SWE-rebench
+holdout:</p>
+<table>
+<thead>
+<tr>
+<th>Model</th>
+<th>GGUF</th>
+<th>vLLM W4A16</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Qwen3.8-27B</td>
+<td><a href="https://huggingface.co/pearsonkyle/Qwen3.8-27B-imatrix-MTP-GGUF">imatrix + MTP</a></td>
+<td><a href="https://huggingface.co/pearsonkyle/Qwen3.8-27B-GPTQ-W4A16">GPTQ W4A16</a></td>
+<td>IQ2_M / IQ3_M / IQ4_XS / Q5_K_M rungs; W4A16 deploys on an RTX 3090</td>
+</tr>
+<tr>
+<td>Qwopus3.6-27B-Coder-2bit-MTP</td>
+<td><a href="https://huggingface.co/pearsonkyle/Qwopus3.6-27B-Coder-2bit-MTP-GGUF">GGUF</a></td>
+<td>—</td>
+<td>IQ2_M <strong>63% SWE-rebench pass — matches the 5-bit Q5_K_M (57%)</strong></td>
+</tr>
+<tr>
+<td>tmax-27b-imatrix-MTP</td>
+<td><a href="https://huggingface.co/pearsonkyle/tmax-27b-imatrix-MTP-GGUF">GGUF</a></td>
+<td>—</td>
+<td>IQ2_XS / Q2_K_S / IQ3_M / IQ4_XS all <strong>resolve 7/10</strong> SWE-rebench</td>
+</tr>
+<tr>
+<td>gemma-4-31b-it</td>
+<td><a href="https://huggingface.co/pearsonkyle/gemma-4-31b-it-imatrix-GGUF">GGUF</a></td>
+<td>—</td>
+<td>IQ2_M (2.85 bpw) <strong>solves 40% of SWE-rebench</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Browse the full family at the <a href="https://huggingface.co/collections/pearsonkyle/qwen">Qwen collection</a>.</p>
+<blockquote>
+<p>These are aggressive sub-5-bpw quants of 27–31B models. They beat the
+alternatives <em>at the same size</em>, but they are <strong>not</strong> a substitute for FP16 /
+Q5_K_M when you have the VRAM. Reach for them when memory is the binding
+constraint.</p>
+</blockquote>
+<h2 id="the-methods">The methods<a class="headerlink" href="#the-methods" title="Permanent link">&para;</a></h2>
+<p>Three calibration methods, all producing a standard GGUF with <strong>zero inference
+cost</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>What it does</th>
+<th>Best for</th>
+<th>Key metric</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>imatrix</strong></td>
+<td>Per-tensor importance (<code>E[a²]</code>) steers the quantizer's bit budget</td>
+<td>the default; 2–5 bpw</td>
+<td>Qwopus IQ4_XS near-lossless (KLD <strong>0.004</strong>); IQ2_M at 2 bits matches a 5-bit quant on agentic coding</td>
+</tr>
+<tr>
+<td><strong>AWQ</strong></td>
+<td>Per-channel weight rescale folded into RMSNorm, flattening outliers</td>
+<td>the hardest sub-3 bpw, where a few outlier channels wreck the codebook</td>
+<td>Gemma QAT Q2_K_S: KLD <strong>1.22 → 1.09</strong>, PPL 125 → 120 (vanilla source: PPL <strong>1436 → 73</strong>)</td>
+</tr>
+<tr>
+<td><strong>GPTQ</strong></td>
+<td>Hessian-based rounding with error compensation</td>
+<td>when you want an explicit PPL guardrail, or a W4A16 vLLM checkpoint</td>
+<td>auto-relaxed bits-aware PPL/logit bounds at 2–3 bits; W4A16 deploys on an RTX 3090</td>
+</tr>
+</tbody>
+</table>
+<p>Plus <strong>MTP</strong>: bundle the model's own multi-token-prediction draft head at Q8 for
+built-in speculative decoding — <strong>1.26× decode</strong> on Metal (Qwopus, 79.9% accept),
+up to <strong>95.6% draft acceptance</strong> at n=1.</p>
+<p>Plus <strong>QAT for natively-ternary models</strong> (<code>qat/</code>): for the Qwen-Bonsai family
+and the <code>prism-ml/Ternary-Bonsai-8B</code> reference, post-hoc calibration is a
+structural no-op (the "F16" is a lossless container of <code>w = s·c</code>, <code>c ∈
+{−1,0,+1}</code>). The only lever is more training with the ternarization in the loop
+(TWN straight-through estimator). See <a href="ternary_qat/"><code>docs/ternary_qat.md</code></a>.</p>
+<h3 id="why-awq-helps-at-2-bits">Why AWQ helps at 2 bits<a class="headerlink" href="#why-awq-helps-at-2-bits" title="Permanent link">&para;</a></h3>
+<p>At 2-bit each weight has only ~4 codebook values, so a few outlier channels can
+wreck quantization error for an entire layer. For every linear <code>y = W · a</code>, AWQ
+picks a per-channel scale <code>s</code> and rewrites:</p>
+<pre><code>y  =  W · a  =  (W · diag(s))  ·  (diag(1/s) · a)
+              └──────┬──────┘    └──────┬──────┘
+              quantize this       fold into prev RMSNorm gain
+</code></pre>
+<p>Math-equivalent to the original layer, but the rescaled weight matrix has a
+flatter per-channel range, so the 2-bit codebook fits it with far less error —
+<strong>no runtime overhead, the GGUF stays standard.</strong> Three refinements make it work
+below 3 bpw: <strong>per-tensor α refinement</strong>, a <strong>held-out gate</strong> (a per-tensor α is
+accepted only if it also lowers loss on a disjoint validation slice — without it,
+sub-3-bpw α over-fits and PPL collapses on unseen text), and <strong>codebook-faithful
+proxy quantizers</strong> (bit-exact E8-lattice proxies matching llama.cpp's grids).</p>
+<blockquote>
+<p>Caveat from the Gemma study: AWQ wins on static PPL/KLD at every sub-3-bpw
+budget, but on <strong>agentic</strong> SWE-rebench the plain hybrid-imatrix IQ2_M solved
+more issues than its AWQ variant — so imatrix shipped. Static gains don't
+always translate to agentic gains; benchmark the metric you care about.</p>
+</blockquote>
+<h3 id="the-calibration-corpora">The calibration corpora<a class="headerlink" href="#the-calibration-corpora" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Slice</th>
+<th>Source</th>
+<th>Used for</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Calibration</strong></td>
+<td>llmtk SFT 32K slice + usage logs + SWE trajectories + broad supplement</td>
+<td>imatrix collection + AWQ α search + GPTQ Hessians</td>
+</tr>
+<tr>
+<td><strong>Validation</strong></td>
+<td>out-of-distribution supplement</td>
+<td>held-out gate for per-tensor α (accept/reject only)</td>
+</tr>
+<tr>
+<td><strong>Eval</strong></td>
+<td>external code+math+tools (<a href="https://huggingface.co/datasets/eaddario/imatrix-calibration"><code>eaddario/imatrix-calibration</code></a>)</td>
+<td>all PPL/KLD numbers; neither cal nor val appears here</td>
+</tr>
+</tbody>
+</table>
+<p>The agentic SWE-rebench holdout is a wholly separate dataset whose issues never
+touch any calibration corpus. See
+<a href="calibration_datasets/"><code>docs/calibration_datasets.md</code></a> for the full
+source list, the 32K-ctx packing invariants, and how to point the pipeline at a
+pre-built corpus.</p>
+<hr />
+<h2 id="quick-start">Quick start<a class="headerlink" href="#quick-start" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash"># 1. Clone + fetch the pinned llama.cpp submodule
+git clone &lt;this repo&gt; quant-tuner &amp;&amp; cd quant-tuner
+git submodule update --init --recursive
+
+# 2. Build llama.cpp once (Metal on macOS; -DGGML_CUDA=ON on Linux+NVIDIA)
+cmake -S vendor/llama.cpp -B vendor/llama.cpp/build -DGGML_METAL=ON
+cmake --build vendor/llama.cpp/build -j
+
+# 3. Install the Python package
+uv sync
+</code></pre>
+<p><strong>Requirements:</strong> Python ≥ 3.11 · <a href="https://github.com/astral-sh/uv"><code>uv</code></a> · a C++
+toolchain for <code>llama.cpp</code>. Override the build location with
+<code>LLAMA_CPP_DIR=/path/to/your/build</code> to use a system install.</p>
+<h2 id="running-a-calibration">Running a calibration<a class="headerlink" href="#running-a-calibration" title="Permanent link">&para;</a></h2>
+<p>The CLI is recipe-driven; each recipe under <code>src/quant_tuner/recipes/</code> declares
+one method × quant type. The 32K-ctx recipes are the default for new models.</p>
+<pre><code class="language-bash"># GGUF: hybrid imatrix at IQ2_M, 32K ctx
+uv run quant-tuner run --recipe iq2m_imatrix_32k \
+    --model Qwen/Qwen3.5-8B --logs logs.jsonl --workspace ./out/run
+
+# GGUF: GPTQ at IQ3_M, 32K ctx (Hessian calibration + PPL guardrail)
+uv run quant-tuner run --recipe iq3m_gptq_32k \
+    --model Qwen/Qwen3.5-8B --logs logs.jsonl --workspace ./out/run
+
+# vLLM: W4A16 compressed-tensors, 32K ctx (no llama.cpp in the loop)
+uv sync --extra vllm-ptq
+uv run python examples/gptq_w4a16.py --model Qwen/Qwen3.5-8B \
+    --corpus out/corpora/corpus.cal.txt --out out/qwen3.5-w4a16
+
+# Validate-only (resolves recipe + overrides, prints merged config)
+uv run quant-tuner run --recipe iq2m_imatrix_32k --model X --logs Y --workspace W --dry-run
+
+# Bench any GGUF against FP16 → CSV row, then aggregate to markdown
+uv run quant-tuner bench --quant out/run/gguf/IQ2_M-imatrix-hybrid_custom.gguf \
+    --reference out/run/gguf/model-f16.gguf \
+    --eval out/run/corpus/eval.txt --out out/run/results.csv
+uv run quant-tuner leaderboard --results out/run/results.csv --out LEADERBOARD.md
+</code></pre>
+<p><strong>Shipped recipes:</strong>
+- <strong>32K-ctx (new models):</strong> <code>iq2m_imatrix_32k</code>, <code>iq2m_gptq_32k</code>,
+  <code>iq3m_imatrix_32k</code>, <code>iq3m_gptq_32k</code>, <code>iq4xs_imatrix_32k</code>, <code>iq4xs_gptq_32k</code>,
+  <code>q5km_imatrix_32k</code>, <code>q5km_gptq_32k</code>
+- <strong>4-bit baselines:</strong> <code>q4_k_m_{imatrix,awq,gptq,none}</code>
+- <strong>Low-bit (2–3 bpw):</strong> <code>q2_k_awq</code>, <code>iq2_xs_awq</code>, <code>iq2_m_awq</code> (AWQ + hybrid
+  imatrix, codebook proxies auto-selected); <code>q2_k_gptq</code>, <code>iq3_s_gptq</code>
+- <strong>GPTQ ladder (2–4.5 bpw):</strong> <code>iq2_xs_gptq</code>, <code>iq2_m_gptq</code>, <code>iq3_m_gptq</code>,
+  <code>iq4_xs_gptq</code> (+ the two above and <code>q4_k_m_gptq</code>) — per-tensor grid mix
+  matching llama-quantize's tensor bumps, imatrix collected on the rounded F16
+- <strong>Model-specific:</strong> <code>q4_k_m_qwen3_5_4b</code>, <code>{q4_k_m,q5_k_s}_qwen3_6_mtp{,_awq,_none}</code>,
+  <code>iq3_s_9b_mtp</code> (MTP heads retained)</p>
+<p>A recipe is just YAML — copy any of them and pass the path to <code>--recipe</code> to
+override the variant, token budget, or sampling. See
+<a href="recipes/"><code>docs/recipes.md</code></a> for the full recipe reference, including
+the AWQ codebook proxies and the GPTQ grid mix.</p>
+<h3 id="building-the-calibration-corpora">Building the calibration corpora<a class="headerlink" href="#building-the-calibration-corpora" title="Permanent link">&para;</a></h3>
+<p><code>scripts/build_universal_corpus.py</code> is the canonical builder for new models:
+it writes the calibration / validation / eval corpora, asserts the slices are
+disjoint, and includes the llmtk SFT 32K slice by default.</p>
+<pre><code class="language-bash">uv run python scripts/build_universal_corpus.py \
+    --out out/corpora --model out/run/model_extracted --ctx 32768
+</code></pre>
+<p><code>scripts/build_corpora.py</code> remains for reproducing the published two-source
+runs.</p>
+<h2 id="task-level-benchmarks">Task-level benchmarks<a class="headerlink" href="#task-level-benchmarks" title="Permanent link">&para;</a></h2>
+<p>Two task evals report <strong>mean ± stdev across N reps</strong> (default 10), each spawning
+one <code>llama-server</code> per model:</p>
+<pre><code class="language-bash"># Tool-calling on a held-out session corpus
+uv run python scripts/run_toolcall_reps.py --models a.gguf b.gguf --reps 10
+
+# MMLU-Pro CS + math (25 questions/subject, 2-shot)
+uv run python scripts/build_mmlu_pro_holdout.py    # one-time, downloads dataset
+uv run python scripts/run_mmlu_pro_reps.py --models a.gguf b.gguf --reps 10
+</code></pre>
+<h3 id="agentic-benchmark-swe-rebench">Agentic benchmark (SWE-rebench)<a class="headerlink" href="#agentic-benchmark-swe-rebench" title="Permanent link">&para;</a></h3>
+<p>KLD and tool-call accuracy tell you a quant <em>emits valid tokens</em>; they don't tell
+you it can <strong>read a repo, run commands, edit code, and land a working patch</strong>.
+This benchmark drives <a href="https://github.com/SWE-agent/mini-swe-agent"><code>mini-swe-agent</code></a>
+or the <a href="https://github.com/openai/openai-agents-python">OpenAI Agents SDK</a> against
+real issues from <a href="https://huggingface.co/datasets/nebius/SWE-rebench"><code>nebius/SWE-rebench</code></a>,
+each in a <strong>clean per-instance Docker container</strong>, and grades a true <strong>pass rate</strong>
+by running the gold <code>FAIL_TO_PASS</code> / <code>PASS_TO_PASS</code> tests.</p>
+<pre><code class="language-bash">uv sync --extra swebench           # installs mini-swe-agent; needs a running Docker daemon
+PYTHONPATH=src .venv/bin/python scripts/build_swebench_holdout.py --n 10
+PYTHONPATH=src .venv/bin/python scripts/run_swebench_eval.py --progress \
+    --models out/run/gguf/IQ2_M.gguf
+</code></pre>
+<h2 id="serving-a-quant">Serving a quant<a class="headerlink" href="#serving-a-quant" title="Permanent link">&para;</a></h2>
+<p><strong>GGUF</strong> — load in <code>llama-server</code>, LM Studio, Ollama, or anything that reads GGUF.
+Add <code>--spec-type draft-mtp --spec-draft-n-max 1</code> for MTP releases.</p>
+<pre><code class="language-bash">./llama-server --model qwen3.5-8B-IQ2_M.gguf \
+    --ctx-size 32768 --n-gpu-layers 999 --flash-attn on \
+    --cache-type-k q8_0 --cache-type-v q8_0 --host 0.0.0.0 --port 1234
+</code></pre>
+<p><strong>vLLM</strong> — the W4A16 checkpoint is a plain safetensors dir; vLLM auto-detects the
+compressed-tensors config.</p>
+<pre><code class="language-bash">vllm serve out/qwen3.5-w4a16 --max-model-len 32768 --tensor-parallel-size 1
+</code></pre>
+<h2 id="vllm-instead-of-gguf-w4a16-fp8-kv-cache">vLLM instead of GGUF (W4A16 + fp8 KV cache)<a class="headerlink" href="#vllm-instead-of-gguf-w4a16-fp8-kv-cache" title="Permanent link">&para;</a></h2>
+<p>The GGUF ladder's sibling: a <strong>compressed-tensors INT4 checkpoint vLLM serves
+directly</strong>, calibrated on the same corpora, with <strong>fp8 KV-cache scales baked in</strong>.</p>
+<p>Quantizing weights saves memory once. Quantizing the KV cache saves it <em>per token
+per sequence</em> — which is what actually sets how long a context fits and how many
+requests run concurrently. On a 27B model at 262k context that is ~17 GB of bf16
+KV versus ~8.5 GB of fp8.</p>
+<pre><code class="language-bash">uv sync --extra vllm-ptq
+
+# Always dry-run a new model first: prints the resolved recipe, how many live
+# modules each ignore pattern matches, and the tensors that would vanish.
+uv run python scripts/run_vllm_ptq.py --model &lt;hf-dir&gt; --dry-run-ignore
+
+uv run python scripts/run_vllm_ptq.py \
+    --model &lt;hf-dir&gt; --corpus corpus.cal.txt --out out/w4a16-fp8kv \
+    --ctx 32768 --budget-tokens 4194304 \
+    --group-size 32 --asymmetric --observer imatrix-mse --actorder static \
+    --kv-cache-dtype fp8_e4m3
+
+vllm serve out/w4a16-fp8kv --kv-cache-dtype fp8_e4m3 --max-model-len 262144
+</code></pre>
+<p><code>imatrix-mse</code> is the direct analogue of the GGUF ladder's imatrix — it weights
+the MSE clipping search by per-input-channel activation importance rather than
+taking raw range endpoints. The export is verified before it is written: a
+missing <code>quantization_config</code> (vLLM would serve bf16 at full size) and a
+requested KV scheme that produced <strong>no</strong> <code>k_scale</code>/<code>v_scale</code> tensors both fail
+loudly, because each otherwise yields a checkpoint that loads and serves
+perfectly while being wrong.</p>
+<p>See <a href="vllm_w4a16_fp8kv/"><code>vllm_w4a16_fp8kv</code></a> for the full guide.</p>
+<h2 id="inspecting-a-quant-jacobian-lens">Inspecting a quant (Jacobian lens)<a class="headerlink" href="#inspecting-a-quant-jacobian-lens" title="Permanent link">&para;</a></h2>
+<p>Beyond the leaderboard numbers, <code>quant-tuner lens</code> opens up the <em>inside</em> of a
+quant with the <a href="https://transformer-circuits.pub/2026/workspace/index.html">Jacobian lens</a>:
+layer-by-layer readouts, where tool-call decisions form, why a 2-bit model
+loops, what heavy quantization erased versus merely suppressed, and an A/B diff
+between two quants. If a runtime steer/ablate edit fixes a problem, it can be
+baked back into the GGUF.</p>
+<pre><code class="language-bash">uv run quant-tuner lens build-server
+uv run quant-tuner lens fit --model model-f16.gguf --corpus corpus.cal.txt -o lens.gguf
+uv run quant-tuner lens serve --model quant.gguf --lens lens.gguf \
+    --runs-dir out/lens/runs --model-b model-f16.gguf   # → http://127.0.0.1:8090
+</code></pre>
+<p>See <a href="lens/"><code>docs/lens.md</code></a> for the full guide.</p>
+<h2 id="pipeline-at-a-glance">Pipeline at a glance<a class="headerlink" href="#pipeline-at-a-glance" title="Permanent link">&para;</a></h2>
+<pre><code>HF model + usage logs (.jsonl)
+   → extract            HF → F16 GGUF
+   → prepare corpora    cal | val | eval | holdout   (llmtk SFT 32K slice included)
+   → calibrate          imatrix | AWQ | GPTQ
+   → quantize           F16 → Q* GGUF (llama-quantize)
+   → bench              KLD vs FP16, PPL, BPW, top-p, tok/s → results.csv
+   → leaderboard        results.csv → LEADERBOARD.md
+</code></pre>
+<p><code>pipeline.run_pipeline(RunConfig)</code> is the canonical end-to-end flow; every stage
+is idempotent (existence-based via <code>experiments.step</code>), so re-running a populated
+workspace just verifies state and re-renders.</p>
+<h2 id="layout">Layout<a class="headerlink" href="#layout" title="Permanent link">&para;</a></h2>
+<pre><code>src/quant_tuner/
+├── calibrate/   # imatrix | awq | gptq calibrators (+ generated IQ2 codebook grids)
+├── quantize/    # HF → F16 GGUF, F16 → Q* GGUF
+├── bench/       # bpw | kld | speed | runner (CSV row builder)
+├── data/        # log ingest, stratified packing, train/test/holdout split, universal corpus
+├── eval/        # task-level evals (toolcall, mmlu_pro, swebench, redteam) + N-rep runner
+├── leaderboard/ # CSV → markdown aggregation with SQS scoring
+├── models/      # HF extract, llama.cpp wrappers, HF→GGUF name map
+├── lens/        # Jacobian-lens interpretability (fit, capture, diff, probes, bake) + D3 UI
+├── qat/         # continued QAT for natively-ternary models (TWN STE, stop probe, KD table)
+├── vllm_export/ # W4A16 compressed-tensors PTQ for vLLM serving
+├── drafter/     # MTP draft-head fine-tuning on usage logs
+├── datasets/    # publishable dataset specs (swe-agentic-trajectories, redteam disclosures)
+├── recipes/     # YAML recipes consumed by `quant-tuner run --recipe ...`
+├── cli.py       # typer CLI: run | bench | leaderboard | lens
+└── pipeline.py  # end-to-end: extract → calibrate → quantize → bench
+
+examples/        # three one-file entry points (imatrix_gguf, gptq_w4a16, ternary_qat)
+scripts/         # corpus builders, experiment drivers, leaderboard reproducer
+tests/unit/      # 100+ passing tests
+</code></pre>
+<h2 id="development">Development<a class="headerlink" href="#development" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">uv run pytest                 # all unit tests
+uv run ruff check src tests   # lint
+uv run mypy src               # types
+</code></pre>
+<p>The docs site (this README + <code>docs/</code>) is built with mkdocs-material and published
+to GitHub Pages on push to <code>main</code> (see <code>.github/workflows/ci.yml</code>).</p>
+<h2 id="license-attribution">License &amp; attribution<a class="headerlink" href="#license-attribution" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Released quantizations inherit their base model's license.</li>
+<li>Quantization performed locally with <strong>quant-tuner</strong> + vendored
+  <a href="https://github.com/ggerganov/llama.cpp">llama.cpp</a>.</li>
+<li>Usage-log calibration data scraped with <a href="https://github.com/pearsonkyle/LogMiner"><strong>LogMiner</strong></a>.</li>
+<li>The Jacobian-lens tooling (<code>src/quant_tuner/lens/</code>, <code>native/jlens_server/</code>) is
+  adapted from <a href="https://github.com/igorbarshteyn/jlens-gguf">jlens-gguf</a> and
+  <a href="https://github.com/anthropics/jacobian-lens">jacobian-lens</a> (both Apache-2.0);
+  see the root <a href="NOTICE"><code>NOTICE</code></a> for details.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": ".", "features": ["navigation.sections", "navigation.top", "content.code.copy", "search.highlight", "search.suggest", "search.preview"], "search": "assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

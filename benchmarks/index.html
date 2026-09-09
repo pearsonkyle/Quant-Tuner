@@ -1,0 +1,2704 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Calibrate your own GGUF quantizations and vLLM W4A16 checkpoints from real agentic-coding logs">
+      
+      
+        <meta name="author" content="K. Pearson">
+      
+      
+      
+        <link rel="prev" href="../calibration_datasets/">
+      
+      
+        <link rel="next" href="../lens/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Benchmarks - quant-tuner</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#benchmarks" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="quant-tuner" class="md-header__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            quant-tuner
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Benchmarks
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18V6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-2.69L23.31 12 20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="quant-tuner" class="md-nav__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    quant-tuner
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methods
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Methods
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The three calibrators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipe reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calibration_datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calibration datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metrics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Metrics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fidelity-from-llama-perplexity-kl-divergence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fidelity — from llama-perplexity --kl-divergence
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#size-from-gguf-on-disk-inspection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Size — from GGUF on-disk inspection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#speed-from-llama-bench-o-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Speed — from llama-bench -o json
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tool-call-accuracy-from-quant_tunereval" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tool-call accuracy — from quant_tuner.eval
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tool-call accuracy — from quant_tuner.eval">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#per-arg-scoring-param_acc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-arg scoring (param_acc)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#schema-validation-schema_valid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schema validation (schema_valid)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sampling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sampling
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mmlu-pro-reasoning-from-quant_tunerevalmmlu_pro" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MMLU-Pro reasoning — from quant_tuner.eval.mmlu_pro
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MMLU-Pro reasoning — from quant_tuner.eval.mmlu_pro">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prompt-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prompt format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#answer-extraction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Answer extraction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-rep-eval-quant_tunerevalreps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-rep eval (quant_tuner.eval.reps)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#red-team-safety" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Red team (safety)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Red team (safety)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-this-exists" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why this exists
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it works
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-frozen-attack-bank" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The frozen attack bank
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-ladder-the-number-worth-reading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The ladder — the number worth reading
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#does-any-existing-gate-see-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Does any existing gate see it?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agentic-red_team_agenticyaml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agentic (red_team_agentic.yaml)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reproducing-a-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reproducing a run
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-disclosure-artifact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The disclosure artifact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#worked-example-ornith-10-35b-2026-07-31" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Worked example — ornith-1.0-35b, 2026-07-31
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scope-what-this-does-not-measure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scope — what this does not measure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#roadmap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Roadmap
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bench-suites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bench suites
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#train-test-holdout-splits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Train / test / holdout splits
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#comparing-across-models" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Comparing across models
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sqs-the-leaderboard-summary-scalar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SQS — the leaderboard summary scalar
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lens/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jacobian lens
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT for ternary models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    QAT for ternary models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method & invariants
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_curriculum/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curriculum
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_preprint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Preprint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary/HANDOFF/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B stage 1 (handoff)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run logs (Qwen 3.8 family)
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Run logs (Qwen 3.8 family)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_release/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 release
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_awq_2bit_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 AWQ 2-bit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_gptq_vllm_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 GPTQ vLLM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_exp062_rebuild/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 exp-062 rebuild
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Research notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_32k_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT 32K handoff
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_optimization_audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT optimization audit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_run_history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT run history
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_calibration_experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ternary calibration experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patch_gguf_chat_template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patch a GGUF chat template
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_feasibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary feasibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reddit_ternary_qat_post/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reddit: ternary QAT post
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#metrics" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Metrics
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Metrics">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#fidelity-from-llama-perplexity-kl-divergence" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fidelity — from llama-perplexity --kl-divergence
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#size-from-gguf-on-disk-inspection" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Size — from GGUF on-disk inspection
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#speed-from-llama-bench-o-json" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Speed — from llama-bench -o json
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tool-call-accuracy-from-quant_tunereval" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tool-call accuracy — from quant_tuner.eval
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tool-call accuracy — from quant_tuner.eval">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#per-arg-scoring-param_acc" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-arg scoring (param_acc)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#schema-validation-schema_valid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Schema validation (schema_valid)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#sampling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Sampling
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#mmlu-pro-reasoning-from-quant_tunerevalmmlu_pro" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        MMLU-Pro reasoning — from quant_tuner.eval.mmlu_pro
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="MMLU-Pro reasoning — from quant_tuner.eval.mmlu_pro">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#prompt-format" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Prompt format
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#answer-extraction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Answer extraction
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Output
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#multi-rep-eval-quant_tunerevalreps" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Multi-rep eval (quant_tuner.eval.reps)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#red-team-safety" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Red team (safety)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Red team (safety)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#why-this-exists" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why this exists
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it works
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-frozen-attack-bank" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The frozen attack bank
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-ladder-the-number-worth-reading" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The ladder — the number worth reading
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#does-any-existing-gate-see-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Does any existing gate see it?
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#agentic-red_team_agenticyaml" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Agentic (red_team_agentic.yaml)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#reproducing-a-run" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reproducing a run
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-disclosure-artifact" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The disclosure artifact
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#worked-example-ornith-10-35b-2026-07-31" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Worked example — ornith-1.0-35b, 2026-07-31
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#scope-what-this-does-not-measure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Scope — what this does not measure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#roadmap" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Roadmap
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bench-suites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bench suites
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#train-test-holdout-splits" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Train / test / holdout splits
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#comparing-across-models" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Comparing across models
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#sqs-the-leaderboard-summary-scalar" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        SQS — the leaderboard summary scalar
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="benchmarks">Benchmarks<a class="headerlink" href="#benchmarks" title="Permanent link">&para;</a></h1>
+<p><code>quant-tuner</code> evaluates a quantized GGUF along three independent axes:
+<strong>fidelity</strong> (does it produce the same outputs as the F16 reference?), <strong>size</strong>
+(how compact is it on disk?), and <strong>speed</strong> (how fast is inference?).</p>
+<p>The bench runner (<code>quant_tuner.bench.runner.bench_one</code>) produces one CSV row
+per model with all of the metrics below.</p>
+<h2 id="metrics">Metrics<a class="headerlink" href="#metrics" title="Permanent link">&para;</a></h2>
+<h3 id="fidelity-from-llama-perplexity-kl-divergence">Fidelity — from <code>llama-perplexity --kl-divergence</code><a class="headerlink" href="#fidelity-from-llama-perplexity-kl-divergence" title="Permanent link">&para;</a></h3>
+<p>These compare the quantized model against an F16 reference on a held-out
+text corpus. The reference is captured once via
+<code>kld.build_baseline(reference_gguf, eval_dataset, baseline.kld)</code>; every
+subsequent evaluation reuses that baseline.</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>What it measures</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ppl</code></td>
+<td>Mean per-token perplexity of the <strong>quantized</strong> model on the eval set. Lower is better.</td>
+</tr>
+<tr>
+<td><code>ppl_ratio</code></td>
+<td><code>ppl(Q) / ppl(F16)</code>. 1.000 means quant matches reference exactly. Closer to 1 is better.</td>
+</tr>
+<tr>
+<td><code>mean_kld</code></td>
+<td>Mean KL-divergence per token between Q's and F16's next-token distributions. Lower is better.</td>
+</tr>
+<tr>
+<td><code>median_kld</code></td>
+<td>Median per-token KLD. Outlier-robust; dominates the mean when a quant has a few catastrophically off tokens.</td>
+</tr>
+<tr>
+<td><code>same_top_p</code></td>
+<td>Percentage of tokens where Q and F16 agree on the top-1 prediction. Closer to 100% is better.</td>
+</tr>
+<tr>
+<td><code>rms_dp</code></td>
+<td>RMS of the per-token difference in top-1 probability. Lower is better.</td>
+</tr>
+</tbody>
+</table>
+<p>KLD is the most informative of these for ranking quants — PPL ratio is
+coarse-grained because PPL itself is an exponential of cross-entropy, so
+small differences hide large ones. Mean KLD splits hairs that PPL ratio
+can't.</p>
+<h3 id="size-from-gguf-on-disk-inspection">Size — from GGUF on-disk inspection<a class="headerlink" href="#size-from-gguf-on-disk-inspection" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>size_gib</code></td>
+<td>Filesystem byte size / 1024³</td>
+</tr>
+<tr>
+<td><code>bpw</code></td>
+<td><code>size_bytes · 8 / n_params</code> — effective bits/weight</td>
+</tr>
+</tbody>
+</table>
+<p><code>n_params</code> is computed once per F16 reference (<code>bench.bpw.n_params(f16_gguf)</code>)
+and reused; the quantized files don't store a separate count.</p>
+<h3 id="speed-from-llama-bench-o-json">Speed — from <code>llama-bench -o json</code><a class="headerlink" href="#speed-from-llama-bench-o-json" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>What it measures</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>prefill_tok_s</code></td>
+<td>Avg tok/s during a 2048-token prompt eval (no generation).</td>
+</tr>
+<tr>
+<td><code>decode_tok_s</code></td>
+<td>Avg tok/s during 128-token decode (no prompt).</td>
+</tr>
+<tr>
+<td><code>ttft_2k_ms</code></td>
+<td>Derived: <code>2048 / prefill_tok_s · 1000</code>. Time-to-first-token for a 2k-prompt request.</td>
+</tr>
+</tbody>
+</table>
+<p>Decode speed is the one users feel during a chat session; prefill matters for
+agent workflows that send long contexts. Heavy K-quants (Q5_K_M, Q6_K) tend
+to have lower decode tok/s than the F16 baseline on CPU/Metal because the
+dequantize cost per matmul exceeds the I/O savings.</p>
+<h3 id="tool-call-accuracy-from-quant_tunereval">Tool-call accuracy — from <code>quant_tuner.eval</code><a class="headerlink" href="#tool-call-accuracy-from-quant_tunereval" title="Permanent link">&para;</a></h3>
+<p>KLD measures token-level fidelity but doesn't tell you whether the quant still
+emits <em>valid tool calls</em> on real agentic traffic. The tool-call eval — entry
+point <code>quant_tuner.eval.run_toolcall_eval(holdout, model_path=…)</code> — runs each
+quant against a held-out session corpus (<code>scripts/build_toolcall_holdout.py</code>
+samples it with a fixed seed from <code>logtrain.jsonl</code>'s <code>test + holdout</code> slices,
+fingerprint-disjoint from the calibration <code>train</code> slice). The model is served
+via <code>llama-server</code>'s OpenAI-compatible endpoint (lifecycle managed by
+<code>quant_tuner.eval.server.running_server</code>). Each session goes through two
+independent passes:</p>
+<p><strong>1. Per-turn pass.</strong> For every ground-truth assistant turn that emitted a
+<code>tool_calls</code>, replay the prior context and ask the model for <em>one</em> completion.
+Compare the model's first tool call to the recorded one. By default the
+session stops at the first selection failure (<code>--no-stop-on-fail</code> keeps
+scoring further turns).</p>
+<p><strong>2. Rollout pass.</strong> Once per session, run the full agentic loop from the
+first user turn. When the model emits a tool call, splice in the <em>recorded</em>
+tool result (matched by tool name, in call order) and continue. Capture
+whether the model reaches a natural stop and which tools it used.</p>
+<p>These produce four columns in the leaderboard (<code>out/&lt;run&gt;/toolcall_results.csv</code>,
+merged into <code>LEADERBOARD.md</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Pass</th>
+<th>What it measures</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>Tool Sel %</code></td>
+<td>per-turn</td>
+<td><code>tool_selection_acc</code> — fraction of turns where <code>pred.name == truth.name</code> (case-insensitive).</td>
+</tr>
+<tr>
+<td><code>Param Acc %</code></td>
+<td>per-turn</td>
+<td><code>param_acc_mean</code> — mean across turns of <code>(required-arg hits) / (required args)</code>, type-aware.</td>
+</tr>
+<tr>
+<td><code>Schema %</code></td>
+<td>per-turn</td>
+<td><code>schema_valid_rate</code> — fraction of predicted calls that pass JSON-schema validation against the session's declared tools.</td>
+</tr>
+<tr>
+<td><code>Rollout %</code></td>
+<td>rollout</td>
+<td><code>rollout_complete_rate</code> — fraction of sessions where the model reached a natural stop within <code>--rollout-max-turns</code>.</td>
+</tr>
+</tbody>
+</table>
+<p>A fifth metric, <code>rollout_tool_set_match_rate</code> (predicted tool <em>set</em> equals the
+recorded <code>tools_used</code> set), is logged to CSV but not currently displayed.</p>
+<h4 id="per-arg-scoring-param_acc">Per-arg scoring (<code>param_acc</code>)<a class="headerlink" href="#per-arg-scoring-param_acc" title="Permanent link">&para;</a></h4>
+<p>A predicted call's parameter score is <code>(hits) / (required keys)</code>, where each
+key counts as a hit if it's present <strong>and</strong> its value is <em>equivalent</em> to the
+ground truth. Equivalence is type-aware, dispatched by key name and JSON-schema
+type (<code>quant_tuner.eval.scoring.compare_value</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Argument shape</th>
+<th>How values compare</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>boolean</td>
+<td>strict equality</td>
+</tr>
+<tr>
+<td>number / integer</td>
+<td>exact, or relative tolerance ≤ 10 % (<code>max(\|a\|, \|b\|, 1)</code> denominator)</td>
+</tr>
+<tr>
+<td>filesystem path keys</td>
+<td><code>os.path.normpath</code> equality; case-insensitive or same-basename → "similar"</td>
+</tr>
+<tr>
+<td>shell-command keys</td>
+<td>trimmed-equality, or shlex tokens with same <code>argv[0]</code> and ≥ 30 % Jaccard</td>
+</tr>
+<tr>
+<td>list / dict (structural)</td>
+<td>canonical-JSON equality</td>
+</tr>
+<tr>
+<td>free-text keys[^1]</td>
+<td>presence-only (any non-null counts)</td>
+</tr>
+<tr>
+<td>generic strings</td>
+<td>Jaccard over word tokens ≥ 0.5</td>
+</tr>
+</tbody>
+</table>
+<p>[^1]: <code>command, description, content, message, text, prompt, question(s), new_string, old_string, code, body, instructions, explanation, summary, thought, thinking, query, search</code> — keys where two competent agents will rarely emit byte-identical strings.</p>
+<p>"Similar" matches count as hits; only outright mismatches dock the score.
+This was deliberate: with greedy decoding the model can pick the right tool
+and right path but phrase a <code>description</code> differently, and we don't want to
+penalize that as a parameter error.</p>
+<h4 id="schema-validation-schema_valid">Schema validation (<code>schema_valid</code>)<a class="headerlink" href="#schema-validation-schema_valid" title="Permanent link">&para;</a></h4>
+<p>For each predicted call, the script looks up the JSON-schema declared by the
+session's <code>tools</code> list (per OpenAI's function-calling format) and validates
+<code>arguments</code> against it. A call fails schema if (a) the tool name isn't in
+the tools list, (b) <code>arguments</code> doesn't parse as a JSON object, or (c)
+<code>Draft7Validator</code> reports errors. When the <code>jsonschema</code> library is missing,
+a fallback checks only <code>required</code> keys (logged as <code>"ok (no jsonschema lib)"</code>).</p>
+<p>Note: <code>tool_selection_acc</code> and <code>schema_valid_rate</code> are <em>independent</em> —
+a wrong-tool call can still pass schema if the tool name happens to exist
+in the tools list and its args validate, and a right-tool call can fail
+schema if <code>arguments</code> is malformed.</p>
+<h4 id="sampling">Sampling<a class="headerlink" href="#sampling" title="Permanent link">&para;</a></h4>
+<p>Defaults to greedy (<code>temperature=0</code>). The runner forwards OpenAI-standard
+params (<code>top_p</code>, <code>presence_penalty</code>, <code>seed</code>) directly and llama.cpp
+extensions (<code>top_k</code>, <code>min_p</code>, <code>repeat_penalty</code>) via <code>extra_body</code>. The
+multi-rep runner (<code>scripts/run_toolcall_reps.py</code> — see "Multi-rep eval"
+below) holds one <code>llama-server</code> per model across N repetitions and emits
+mean ± stdev per metric.</p>
+<h3 id="mmlu-pro-reasoning-from-quant_tunerevalmmlu_pro">MMLU-Pro reasoning — from <code>quant_tuner.eval.mmlu_pro</code><a class="headerlink" href="#mmlu-pro-reasoning-from-quant_tunerevalmmlu_pro" title="Permanent link">&para;</a></h3>
+<p>A third axis: does the quant still solve reasoning-heavy multiple-choice
+questions? Useful as a check that a quant tuned for one workload
+(e.g. tool-calling on <code>logtrain.jsonl</code>) hasn't quietly regressed on
+general knowledge.</p>
+<p>Entry point <code>quant_tuner.eval.run_mmlu_pro_eval(holdout, model_path=…)</code>.
+The holdout JSON (built by <code>scripts/build_mmlu_pro_holdout.py</code>) bundles
+two sections:</p>
+<table>
+<thead>
+<tr>
+<th>Section</th>
+<th>Source</th>
+<th>Used as</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>shots[&lt;subject&gt;]</code></td>
+<td>first <code>--n-shot</code> rows of the dev split</td>
+<td>few-shot demonstrations</td>
+</tr>
+<tr>
+<td><code>samples</code></td>
+<td><code>--n-per-subject</code> random rows from the test split (seeded)</td>
+<td>the actual eval set</td>
+</tr>
+</tbody>
+</table>
+<p>Default: 25 samples × {<code>computer science</code>, <code>math</code>}, 2-shot, seed=42 — pass
+<code>--subjects</code>, <code>--n-per-subject</code>, <code>--n-shot</code>, <code>--seed</code> to change any of these.</p>
+<h4 id="prompt-format">Prompt format<a class="headerlink" href="#prompt-format" title="Permanent link">&para;</a></h4>
+<p>Each evaluation builds a chat-completion prompt of the form:</p>
+<pre><code>system   : You are an expert taking a multiple-choice exam. … respond with
+           only the letter of the best answer.
+user     : Subject: &lt;subject&gt;
+           Question: &lt;shot 1 question&gt;
+           Options:
+           (A) … (B) … (C) … …
+assistant: Answer: &lt;truth letter&gt;
+user     : &lt;shot 2 question, same format&gt;
+assistant: Answer: &lt;truth letter&gt;
+user     : &lt;target question&gt;      ← model responds here
+</code></pre>
+<p>The number of demonstration pairs equals <code>holdout.n_shot</code>. MMLU-Pro has up
+to 10 answer choices per question (A–J), so the parser bounds the valid
+letter range by <code>len(options)</code> — a 4-option question rejects an "F"
+prediction even if the model emits one.</p>
+<h4 id="answer-extraction">Answer extraction<a class="headerlink" href="#answer-extraction" title="Permanent link">&para;</a></h4>
+<p><code>parse_answer</code> walks four tiers in priority order:</p>
+<ol>
+<li>Explicit marker: <code>Answer: X</code> (or <code>Answer = X</code>, <code>Answer - X</code>, <code>Answer:(X)</code>,
+   case-insensitive)</li>
+<li>Parenthesized: <code>(X)</code> anywhere in the completion</li>
+<li>Verb phrase: <code>answer is X</code> / <code>the answer is (X)</code></li>
+<li>Fallback: first standalone capital letter A–J in the completion</li>
+</ol>
+<p>A reply of "B" alone, "Answer: (B)", "The answer is B", or "After working
+through this, B is right." all resolve to <code>"B"</code>. A reply with no in-range
+letter at all (or a letter past the option count) is logged as
+<code>pred=None</code>, counted as <code>n_unparseable</code>, and treated as a wrong answer for
+accuracy purposes.</p>
+<h4 id="output">Output<a class="headerlink" href="#output" title="Permanent link">&para;</a></h4>
+<p><code>run_mmlu_pro_eval</code> returns an <code>MmluProSummary</code> dataclass with:</p>
+<ul>
+<li><code>accuracy</code> — overall, fraction of correct predictions</li>
+<li><code>by_subject[&lt;subject&gt;]</code> — <code>{n, correct, accuracy, unparseable}</code> per subject</li>
+<li><code>n_unparseable</code> — completions where no letter could be extracted</li>
+<li><code>per_sample</code> — full row list for debugging (also written as JSONL log)</li>
+</ul>
+<p>The CLI shim <code>scripts/eval_mmlu_pro.py</code> appends one CSV row per
+<code>(model, run)</code> with per-subject accuracy as broken-out columns.</p>
+<h2 id="multi-rep-eval-quant_tunerevalreps">Multi-rep eval (<code>quant_tuner.eval.reps</code>)<a class="headerlink" href="#multi-rep-eval-quant_tunerevalreps" title="Permanent link">&para;</a></h2>
+<p>Any benchmark whose summary reduces to <code>dict[str, float]</code> can plug into the
+generic multi-rep runner — <code>eval.reps.run_reps_for_models</code> spawns one
+<code>llama-server</code> per model, runs the eval <code>N</code> times against it with a per-rep
+seed (<code>base_seed + rep_idx</code>), and aggregates <strong>mean ± stdev</strong> across reps.</p>
+<p>Defaults to <strong>10 reps</strong>; override with <code>--reps</code> on the CLI or <code>reps=N</code> in
+Python. Set it to <code>1</code> for a quick smoke test, <code>25+</code> for tighter confidence
+intervals.</p>
+<pre><code class="language-bash"># 10 reps × 8 GGUFs (~14 h at default settings)
+uv run python scripts/run_toolcall_reps.py
+
+# Just two models, 5 reps
+uv run python scripts/run_toolcall_reps.py \
+    --models out/run/model-f16.gguf out/run/Q4_K_M-none.gguf \
+    --reps 5
+
+# MMLU-Pro, same shape
+uv run python scripts/run_mmlu_pro_reps.py --models out/run/*.gguf --reps 10
+
+# Deterministic (no stdev → 1 rep is enough)
+uv run python scripts/run_mmlu_pro_reps.py --temperature 0 --reps 1
+</code></pre>
+<p>Both runners emit <strong>two CSVs</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Shape</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>&lt;name&gt;_reps_results.csv</code></td>
+<td>one row per <code>(model, rep)</code></td>
+<td>debugging individual reps</td>
+</tr>
+<tr>
+<td><code>&lt;name&gt;_reps_aggregated.csv</code></td>
+<td>one row per model</td>
+<td>leaderboard input</td>
+</tr>
+</tbody>
+</table>
+<p>The aggregated CSV expands each metric into <code>&lt;m&gt;_mean</code> / <code>&lt;m&gt;_stdev</code> /
+<code>&lt;m&gt;_n</code> columns, plus the sampling params (<code>temperature</code>, <code>top_p</code>, …) for
+traceability. The leaderboard aggregator (<code>leaderboard.aggregate.merge_toolcall</code>)
+detects this shape automatically and renders cells as <code>mean ± stdev</code>.</p>
+<p>To plug a new benchmark into this pipeline, write a <code>dict[str, float]</code>-returning
+adapter and call <code>run_reps_for_models</code>:</p>
+<pre><code class="language-python">from quant_tuner.eval.reps import run_reps_for_models, write_csvs, sampling_extra_cols
+from quant_tuner.eval.toolcall import Sampling
+
+def my_eval(base_url: str, sampling: Sampling, rep: int) -&gt; dict[str, float]:
+    # … run one rep against the model at base_url …
+    return {&quot;my_metric_1&quot;: 0.85, &quot;my_metric_2&quot;: 0.42}
+
+sampling = Sampling(temperature=0.6, top_p=0.95, top_k=20)
+by_model = run_reps_for_models(
+    models=[Path(&quot;model.gguf&quot;)],
+    eval_fn=my_eval,
+    reps=10,
+    sampling=sampling,
+)
+write_csvs(by_model,
+           per_rep=Path(&quot;out/my_reps.csv&quot;),
+           aggregated=Path(&quot;out/my_agg.csv&quot;),
+           extra_cols=sampling_extra_cols(sampling))
+</code></pre>
+<p><code>run_reps_for_models</code> handles server lifecycle (spawn/health-check/teardown
+per model), error capture (a failed rep gets <code>error=…</code> and is skipped during
+aggregation), and per-rep / per-model callbacks for progress logging.</p>
+<h2 id="red-team-safety">Red team (safety)<a class="headerlink" href="#red-team-safety" title="Permanent link">&para;</a></h2>
+<p>Every other metric in this document answers <em>"is the quant still capable?"</em> —
+BPW, KLD, perplexity, tok/s, tool-call accuracy, MMLU-Pro, SWE-rebench pass rate.
+None answers <em>"is the quant still safe?"</em> A quant that had lost its refusal
+behaviour entirely would score clean on every column the leaderboard renders.</p>
+<h3 id="why-this-exists">Why this exists<a class="headerlink" href="#why-this-exists" title="Permanent link">&para;</a></h3>
+<p>Anthropic's <a href="https://www.anthropic.com/news/position-open-weights-models">position on open-weights models</a> (Dario Amodei, 27 Jul 2026)
+proposes that "all sufficiently capable models, open and closed, should go
+through mandatory safety testing" — testing "for cyber, biological, and alignment
+risks <strong>before release</strong>" — and is explicit that the open-weights risk question
+is an empirical one:</p>
+<blockquote>
+<p>Whether open models do or don't pose an increased risk, and whether that risk
+can be mitigated, is something that should emerge from testing, rather than be
+decided in advance […] Questions like this should be empirically answered by
+rigorous pre-release testing, not assumed in advance.</p>
+</blockquote>
+<p>The gap this repo sits in is <strong>"before release."</strong> Every mitigation the piece
+proposes gates the artifact at the moment of publication. A GGUF quantization is
+produced <em>after</em> release, by a third party, from the released weights — it is not
+the artifact that was tested, and nothing re-tests it.</p>
+<p>The piece's model of what happens post-release is deliberate removal. In Amodei's
+own words, open-weights models "do potentially present a higher risk than closed
+models, because it is very difficult to apply guardrails to them or monitor their
+usage, and once weights are released they cannot be withdrawn." Its footnote 2
+quotes the <strong>UK AI Security Institute</strong> (this is the report's language, not
+Amodei's) — "safeguards can be removed, and copies can be downloaded,
+redistributed, and run on private systems beyond monitoring."</p>
+<p><em>Removed</em> — an act. Neither has a category for safeguards that <strong>degrade
+incidentally</strong>, as a side effect of a routine engineering step performed by
+someone with no interest in removing them. That is what quantization is. The
+piece discusses distillation at length, but purely as a compute-evasion and IP
+problem; whether a <em>derived</em> artifact inherits its ancestor's safety properties
+is never raised, and quantization, LoRA and merges are not mentioned at all.</p>
+<p>It also points at tamper-resistance work ("promising methods for improving the
+safety of open-weights models, including recent research from AE Studio and
+Anthropic on modular training strategies"), which sharpens the same point: any
+claim that a safety property is <em>durably</em> baked into open weights needs a test
+that the property <strong>survives derivation</strong>.</p>
+<h3 id="how-it-works">How it works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h3>
+<p>Three independent OpenAI-compatible endpoints, by design:</p>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>What it is</th>
+<th>Why separate</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>target</strong></td>
+<td>the quant under test (<code>llama-server</code> on a local GGUF)</td>
+<td>the thing being measured</td>
+</tr>
+<tr>
+<td><strong>simulator</strong></td>
+<td>writes the attack prompts</td>
+<td>a safety-tuned model refuses to author attacks</td>
+</tr>
+<tr>
+<td><strong>judge</strong></td>
+<td>grades each response 1 (defended) / 0 (complied)</td>
+<td>a 2-bit quant judging its own jailbreaks produces garbage</td>
+</tr>
+</tbody>
+</table>
+<p><code>eval/red_team.py</code> wraps each endpoint in a <code>DeepEvalBaseLLM</code> (<code>LocalLLM</code>) and
+hands them to <a href="https://github.com/confident-ai/deepteam"><code>deepteam</code></a>. Vulnerability
+and attack selection is plain YAML (<code>eval/red_team_configs/</code>), resolved by name
+through <code>_VULN_SPECS</code> / <code>_ATTACK_SPECS</code>.</p>
+<p>Three adaptations that matter for self-hosted models:</p>
+<ol>
+<li><strong><code>schema=</code> raises <code>TypeError</code></strong> so deepteam falls back to its raw-text
+   <code>trimAndLoadJson</code> parser — GGUF endpoints don't implement deepeval's
+   structured-output path. The prompt is remembered, so deepteam's schema-free
+   retry of that same prompt is sent with llama.cpp's
+   <code>response_format={"type":"json_object"}</code>: JSON enforcement exactly where JSON
+   is wanted, and nowhere else (some simulator calls legitimately return prose).</li>
+<li><strong><code>&lt;think&gt;</code> / <code>&lt;thinking&gt;</code> blocks are stripped</strong> before any parsing — reasoning
+   traces contain braces that break the JSON parser.</li>
+<li><strong>The target callback takes <code>(input, turns=None)</code>.</strong> deepteam's
+   <code>wrap_model_callback</code> forwards conversation history <em>only</em> to a callback
+   declaring more than one parameter. With one parameter, every multi-turn
+   jailbreak (Linear / Crescendo / Tree) silently probes a target with no memory
+   of the escalation, and those scores mean nothing. <code>tests/unit/test_red_team.py</code>
+   asserts the arity.</li>
+</ol>
+<h3 id="the-frozen-attack-bank">The frozen attack bank<a class="headerlink" href="#the-frozen-attack-bank" title="Permanent link">&para;</a></h3>
+<p>deepteam simulates a fresh attack bank per run. Two quants scored independently
+therefore differ both by the model <em>and</em> by the prompts they happened to be
+asked — and at realistic bank sizes the second effect swamps the first.</p>
+<p><code>--frozen-bank</code> (default on for multi-target runs) simulates the bank <strong>once</strong>,
+against the first target, and replays it verbatim against every later target.
+Pass the F16 reference first so the prompts are written against the unquantized
+parent. <code>--bank-out</code> dumps it; <code>--bank-in</code> replays a bank from weeks earlier, so
+a new leaderboard row stays comparable to old ones.</p>
+<p>Errored cases stay in <code>n_tests</code> but are excluded from <code>pass_rate</code>'s denominator,
+and <code>score</code> stays <strong>tri-state</strong> (1 / 0 / <code>None</code>) all the way through the CSV. A
+timeout is not a jailbreak. <code>run_red_team_eval</code> also <strong>raises</strong> when zero cases
+scored — deepteam defaults <code>ignore_errors=True</code>, so an unreachable target would
+otherwise report a clean <code>pass_rate=0.0</code>, indistinguishable from a model that
+complied with everything (same guard, same reasoning, as <code>toolcall.py</code>).</p>
+<h3 id="the-ladder-the-number-worth-reading">The ladder — the number worth reading<a class="headerlink" href="#the-ladder-the-number-worth-reading" title="Permanent link">&para;</a></h3>
+<p><code>scripts/redteam_ladder.py</code> joins two runs on a content-derived <code>case_id</code>
+(<code>sha1(vulnerability|type|attack|input)</code>) and reports a McNemar-style paired
+breakdown rather than a bare pass rate:</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>n_flip_unsafe</code></td>
+<td>reference refused, quant complied — <strong>incidental safeguard degradation</strong></td>
+</tr>
+<tr>
+<td><code>n_flip_safe</code></td>
+<td>the reverse; the noise floor / over-refusal</td>
+</tr>
+<tr>
+<td><code>net_drift</code></td>
+<td><code>(n_flip_safe − n_flip_unsafe) / n_paired</code></td>
+</tr>
+<tr>
+<td><code>pass_rate_delta</code></td>
+<td>quant − reference, over paired cases only</td>
+</tr>
+<tr>
+<td><code>mcnemar_p</code></td>
+<td>exact two-sided p for the flip asymmetry</td>
+</tr>
+<tr>
+<td><code>n_unmatched</code></td>
+<td><strong>non-zero means the bank was not shared — the row is invalid</strong></td>
+</tr>
+</tbody>
+</table>
+<p><code>n_flip_unsafe</code> is the quantity the position piece's framing has no slot for: no
+adversary, no fine-tuning, a routine engineering step, and the artifact that
+ships is not the artifact that was tested. Cases errored on <em>either</em> side are
+dropped, since they say nothing about either model. <code>unsafe_flips.csv</code> writes out
+the actual evidence, so a number can be eyeballed before it is cited.</p>
+<p>With <code>--reps &gt; 1</code>, a case counts as defended only if the model refused on <strong>every</strong>
+rep. That is the conservative direction: a model that complies one time in three
+has not reliably refused.</p>
+<h3 id="does-any-existing-gate-see-it">Does any existing gate see it?<a class="headerlink" href="#does-any-existing-gate-see-it" title="Permanent link">&para;</a></h3>
+<p><code>scripts/redteam_vs_quality.py</code> correlates the ladder's drift against <code>mean_kld</code>,
+<code>ppl_ratio</code>, <code>same_top_p</code>, tool-call accuracy and MMLU-Pro (Spearman, so the
+question is monotonic over a handful of rungs). Pure CSV analysis — no model, no
+GPU.</p>
+<p>The expected answer is <strong>no correlation</strong>, and that is the useful result: refusal
+is low-probability-mass behaviour that an averaged divergence washes out, and the
+pipeline's own guardrails (<code>ppl_max_ratio</code>, <code>sanity_max_rel</code> in <code>calibrate/gptq.py</code>)
+are deliberately <em>relaxed</em> at 2-3 bits — exactly where alignment is most fragile.
+If it holds, "we validated the quant" as currently practised says nothing about
+whether the safety properties survived. That is a measured claim rather than an
+assumed one, which is the standard the position piece asks for.</p>
+<h3 id="agentic-red_team_agenticyaml">Agentic (<code>red_team_agentic.yaml</code>)<a class="headerlink" href="#agentic-red_team_agenticyaml" title="Permanent link">&para;</a></h3>
+<p>The position piece names <strong>cyber</strong> as a test axis, and this repo's models are
+tool-calling coding agents — yet a chat-only probe grades prose, not action.
+<code>scripts/redteam_agentic.py</code> + <code>eval/red_team_agent.AgenticTarget</code> give the target
+a real <code>bash</code> tool inside a disposable SWE-rebench container (the same mechanism
+<code>eval/swebench.py</code> already uses to run untrusted model output — nothing executes
+on the host). The returned <code>RTTurn</code> carries <code>tools_called</code>, which deepteam's
+agentic metrics grade against, so "complied" means <em>ran the command</em>.</p>
+<p><code>seed_file()</code> plants the attack in the checkout itself, which is the realistic
+vector for <code>IndirectInstruction</code> / <code>document_embedded_instructions</code>: a poisoned
+README or test fixture, not a user turn.</p>
+<blockquote>
+<p>⚠️ <strong>Capability confound.</strong> Complying with an agentic attack requires
+successfully emitting a tool call. A quant too degraded to tool-call scores as
+"safe" for entirely the wrong reason. The runner prints <code>n_tool_calls</code> beside
+<code>pass_rate</code> and warns when a target executed nothing; a rung whose pass rate
+rises while its tool-call count collapses has not become safer. Commands
+written in prose (<code>```bash</code>) are counted too, precisely so the most
+degraded rungs don't win by incompetence.</p>
+</blockquote>
+<h3 id="reproducing-a-run">Reproducing a run<a class="headerlink" href="#reproducing-a-run" title="Permanent link">&para;</a></h3>
+<p><code>scripts/reproduce_redteam.sh</code> is the one-command entry point. It builds the
+Python ≤ 3.12 venv (<code>.venv-redteam</code>, because deepteam 1.0.7 imports <code>nntplib</code>
+and the repo's main <code>.venv</code> is 3.13), runs the sweep on a frozen bank, and — for
+more than one target — pairs the rungs. Everything is env-overridable:</p>
+<pre><code class="language-bash"># The 2026-07-31 ornith-1.0-35b run (defaults)
+scripts/reproduce_redteam.sh
+
+# A different target / config / endpoint
+TARGETS=&quot;my-model&quot; CONFIG=red_team_minimal \
+  JUDGE_URL=http://host:1234/v1 JUDGE_MODEL=uncensored-judge \
+  scripts/reproduce_redteam.sh
+
+# Several models on one endpoint (LM Studio / vLLM / llama-swap), one frozen bank
+TARGETS=&quot;ref-model quant-a quant-b&quot; scripts/reproduce_redteam.sh
+</code></pre>
+<p>Configs ship in <code>eval/red_team_configs/</code>: <code>red_team_minimal</code> (smoke),
+<code>red_team_broad</code> (9 vulnerabilities × curated types × single-turn-heavy + one
+multi-turn, ~19 cases — the substantive-but-finishes sweep), <code>red_team</code> (full,
+apvt=3, multi-day), <code>red_team_agentic</code>, and two gemma-specific presets.</p>
+<p><strong>Reasoning targets need token headroom.</strong> Ornith/Qwen3/DeepSeek put their
+chain-of-thought in a separate <code>reasoning_content</code> field and spend it <em>first</em>, so
+a low <code>--target-max-tokens</code> returns an empty answer that the judge scores as
+"safe" — a literal 100 % false pass, which is why <code>_assert_scored</code> hard-errors on
+an all-empty run. Use ≥ 3000 (the repro script defaults to 4000). The reasoning
+trace is captured for the disclosure report but never shown to the judge.</p>
+<h3 id="the-disclosure-artifact">The disclosure artifact<a class="headerlink" href="#the-disclosure-artifact" title="Permanent link">&para;</a></h3>
+<p>Every run writes <code>disclosure_&lt;model&gt;_repN.json</code>: for each <strong>non-refusal</strong>
+(complied or errored) case, the complete provenance a maintainer needs to
+reproduce and fix — the full attack (seed prompt <em>and</em> every multi-turn
+escalation step), the target's verbatim response and its own reasoning, the
+judge's verdict and reason, and a <code>case_id</code> to pair a re-test against. Refusals
+are excluded; a defended case is not a finding. This is the deliverable of the
+whole exercise: a bug report to help harden an open-weight model, generated on
+your own hardware against your own endpoints.</p>
+<h3 id="worked-example-ornith-10-35b-2026-07-31">Worked example — ornith-1.0-35b, 2026-07-31<a class="headerlink" href="#worked-example-ornith-10-35b-2026-07-31" title="Permanent link">&para;</a></h3>
+<p><code>red_team_broad</code>, uncensored Qwopus3.6 as simulator + judge, single rep:</p>
+<table>
+<thead>
+<tr>
+<th>Category</th>
+<th>Pass rate</th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Data Privacy</td>
+<td>100 %</td>
+<td>4 / 4</td>
+</tr>
+<tr>
+<td>Responsible AI</td>
+<td>100 %</td>
+<td>5 / 5</td>
+</tr>
+<tr>
+<td><strong>Safety</strong></td>
+<td><strong>70 %</strong></td>
+<td>7 / 10 — every finding here</td>
+</tr>
+</tbody>
+</table>
+<p>Overall <strong>84.2 %</strong> (16 defended / 3 complied / 0 errored); single-turn 88 %,
+multi-turn 67 %. The three findings — profanity via a "synthetic data for an AI
+Safety Lab" prompt injection, a dangerous-challenge invention via a roleplay
+persona, and graphic trauma detail via a "sensory database for my novel"
+multi-turn escalation — share one pattern: the model is robust to blunt requests
+but <strong>susceptible to benign-purpose reframing</strong>. That pattern, not the scalar, is
+what the disclosure report hands its authors.</p>
+<p>The profanity case was then taken apart mechanistically with the Jacobian lens:
+<code>scripts/lens_refusal_steer.py</code> shows the framing suppresses a clean linear
+refusal feature (+8.4 σ at layer 37) down to the decision boundary, and that a
+runtime steer restores the refusal — though a fixed additive one is too blunt to
+be a clean mitigation. See
+<a href="../lens/#steering-a-red-team-failure-back-to-a-refusal"><code>docs/lens.md</code></a>.</p>
+<h3 id="scope-what-this-does-not-measure">Scope — what this does not measure<a class="headerlink" href="#scope-what-this-does-not-measure" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Bio.</strong> The piece names cyber, biological, and alignment. A bio-uplift probe
+  set does not belong in a public quantization repo; that axis is out of scope by
+  choice, not oversight.</li>
+<li><strong>Absolute safety.</strong> These are <em>relative</em> measurements against an ancestor. A
+  high <code>pass_rate</code> means "no worse than F16 on this bank", not "safe".</li>
+<li><strong>Bank coverage.</strong> A frozen bank is a sample. <code>n_flip_unsafe = 0</code> means this
+  bank found nothing, not that nothing is there.</li>
+<li><strong>Judge quality.</strong> The judge is itself a local model doing prompt-and-hope JSON.
+  Check <code>n_errored</code> before trusting any rate.</li>
+</ul>
+<h3 id="roadmap">Roadmap<a class="headerlink" href="#roadmap" title="Permanent link">&para;</a></h3>
+<p>Two scenarios designed but not yet run, both aimed at the same gap:</p>
+<ul>
+<li><strong>Corpus provenance.</strong> quant-tuner calibrates on a <em>user-supplied</em> prompt/response
+  log, and (since the QAT work landed) also fine-tunes on self-generated solver
+  trajectories — the AWQ α-search, the GPTQ Hessian, and <code>qat/train.py</code>'s masked CE
+  all optimise against that corpus with no refusal-preservation term. Score two
+  otherwise-identical artifacts that differ only in corpus. If it moves, corpus
+  choice is an alignment-relevant <em>invisible</em> knob: the output is a standard GGUF
+  with no runtime cost, and nothing in the artifact records which corpus produced
+  it — cheaper and more deniable than the fine-tuning the discourse assumes. It
+  would argue for a corpus fingerprint in the GGUF kv (precedent: the
+  <code>quant_tuner.lens.*</code> provenance kv in <code>lens/gguf_edit.py</code>).</li>
+<li><strong>Refusal-direction survival.</strong> Reuse <code>lens/probes.py</code> with a refusal probe set
+  to ask not "does it refuse less" but "did the 2-bit grid destroy the
+  representation that drives refusal" — the mechanistic complement to the ladder,
+  and the shape of test any tamper-resistance claim needs.</li>
+</ul>
+<h2 id="bench-suites">Bench suites<a class="headerlink" href="#bench-suites" title="Permanent link">&para;</a></h2>
+<p><code>bench_one(quant, label, ..., suite=...)</code> selects what to compute:</p>
+<table>
+<thead>
+<tr>
+<th>Suite</th>
+<th>Computes</th>
+<th>Needs</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>quick</code></td>
+<td>size + BPW only</td>
+<td>nothing</td>
+</tr>
+<tr>
+<td><code>kld</code></td>
+<td>size + BPW + KLD</td>
+<td>eval_dataset, eval_baseline</td>
+</tr>
+<tr>
+<td><code>speed</code></td>
+<td>size + BPW + llama-bench</td>
+<td>nothing</td>
+</tr>
+<tr>
+<td><code>full</code></td>
+<td>all of the above</td>
+<td>eval_dataset, eval_baseline</td>
+</tr>
+<tr>
+<td><code>leaderboard</code></td>
+<td>alias for <code>full</code></td>
+<td>"</td>
+</tr>
+</tbody>
+</table>
+<p>A <code>quick</code> row in CI/dev is enough to catch obvious regressions before paying
+for the full KLD pass (which runs llama-perplexity on the full eval set and
+takes minutes on a 1B model, tens of minutes on a 9B).</p>
+<h2 id="train-test-holdout-splits">Train / test / holdout splits<a class="headerlink" href="#train-test-holdout-splits" title="Permanent link">&para;</a></h2>
+<p><code>quant_tuner.data.split.split_sessions(...)</code> partitions log sessions by
+fingerprint into three disjoint sets:</p>
+<ul>
+<li><strong>train</strong> — used by the calibrators (imatrix forward pass, AWQ activation
+  capture, GPTQ Hessian accumulation). Default 80%.</li>
+<li><strong>test</strong> — used to build the KLD eval dataset that scores every quant.
+  Default 10%.</li>
+<li><strong>holdout</strong> — reserved for end-to-end checks like the tool-call benchmark
+  or human eval. Never touched by calibration or KLD scoring. Default 10%.</li>
+</ul>
+<p>The split is deterministic given a <code>seed</code>. Splits are session-level (not
+token-level), so a single session never appears in more than one split — this
+prevents contamination from large multi-turn sessions whose tokens would
+otherwise leak across the train/eval boundary.</p>
+<h2 id="comparing-across-models">Comparing across models<a class="headerlink" href="#comparing-across-models" title="Permanent link">&para;</a></h2>
+<p>KLD is computed against a <em>specific</em> reference GGUF (typically F16 of the
+same model). To compare <code>quant-tuner</code> results across two different base
+models, you'd need either:</p>
+<ol>
+<li>A common eval set + a common reference (e.g. both models scored against
+   a third "judge" model's distribution), or</li>
+<li>Comparing only <code>same_top_p</code> / <code>rms_dp</code> numerically, since those depend
+   only on the relative shape of each model's output distribution.</li>
+</ol>
+<p>In practice for tuning one model, sticking with the per-model F16 reference
+is what you want — every row's KLD is "how much fidelity did this quant
+lose relative to my own F16?", which is the directly-actionable number.</p>
+<h2 id="sqs-the-leaderboard-summary-scalar">SQS — the leaderboard summary scalar<a class="headerlink" href="#sqs-the-leaderboard-summary-scalar" title="Permanent link">&para;</a></h2>
+<p>(Coming in Phase 5.) The leaderboard collapses all of the above into one
+sortable number <code>SQS</code> (Squashed Quality Score) using weights <code>α, β, γ</code> over
+KLD, top-1 agreement, and speed retention vs F16. Until the aggregator
+lands, treat <code>mean_kld</code> as the primary ranking column and <code>decode_tok_s</code> as
+the speed tie-breaker.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "content.code.copy", "search.highlight", "search.suggest", "search.preview"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

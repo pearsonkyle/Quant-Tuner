@@ -1,0 +1,12 @@
+[sft] logs               25/25 convs   1,486,235 tok    29% masked  -> 42 windows (-3 low-density)
+[sft]                    tool-calls 1267/1267 kept · reasoning 27/57 kept · tool-output truncation dropped 109,077 tok (7% of this source's conversation content)
+[sft]                    merged 94 split assistant messages into their turn · dropped 0 empty assistant turn(s) (pure stop-token targets) · dropped 0 conversation(s) quoting a control token
+[sft] logs-agents        42/42 convs   1,512,477 tok    19% masked  -> 44 windows (-2 low-density)
+[sft]                    tool-calls 1923/1923 kept · reasoning 276/276 kept · tool-output truncation dropped 238,215 tok (14% of this source's conversation content)
+[sft]                    merged 535 split assistant messages into their turn · dropped 0 empty assistant turn(s) (pure stop-token targets) · dropped 0 conversation(s) quoting a control token
+[sft] TOTAL 2,998,712 tokens (24% assistant-masked) -> 86 windows of 32768
+[sft] tool-calls 3190/3190 · reasoning 303/333 · tool-output truncation dropped 347,292 tok (10% of conversation content) at --max-tool-tokens 8192
+[corpus] window trainable-density deciles: 0.05 0.11 0.13 0.16 0.19 0.22 0.26 0.30 0.36 0.43 0.83
+[corpus] dialect=gemma4 labeled <turn|> targets: 89
+[corpus] saved 86 windows [(86, 32768)] fingerprint=16177b9a361cbdd7 -> out/gemma4-ternary/corpus_sft_gemma4_val_32768.pt
+[corpus] masked-token share overall: 24.9%

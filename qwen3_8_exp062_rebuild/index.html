@@ -1,0 +1,2326 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Calibrate your own GGUF quantizations and vLLM W4A16 checkpoints from real agentic-coding logs">
+      
+      
+        <meta name="author" content="K. Pearson">
+      
+      
+      
+        <link rel="prev" href="../qwen3_8_gptq_vllm_handoff/">
+      
+      
+        <link rel="next" href="../qat_32k_handoff/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Qwen3.8 exp-062 rebuild - quant-tuner</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#exp-062-rebuilding-the-qwen38-27b-low-bit-rungs-on-a-tool-dense-corpus" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="quant-tuner" class="md-header__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            quant-tuner
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Qwen3.8 exp-062 rebuild
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18V6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-2.69L23.31 12 20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="quant-tuner" class="md-nav__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    quant-tuner
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methods
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Methods
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The three calibrators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipe reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calibration_datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calibration datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmarks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lens/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jacobian lens
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT for ternary models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    QAT for ternary models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method & invariants
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_curriculum/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curriculum
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_preprint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Preprint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary/HANDOFF/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B stage 1 (handoff)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run logs (Qwen 3.8 family)
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Run logs (Qwen 3.8 family)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_release/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 release
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_awq_2bit_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 AWQ 2-bit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_gptq_vllm_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 GPTQ vLLM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 exp-062 rebuild
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 exp-062 rebuild
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#state-at-end-of-session-2026-08-16-0430" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State at end of session (2026-08-16 04:30)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-what-changed-and-why" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. What changed, and why
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. What changed, and why">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#11-the-corpus-v" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1 The corpus [V]
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#12-two-strata-dropped-v" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2 Two strata dropped [V]
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#13-the-template-does-not-change-the-corpus-v" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3 The template does NOT change the corpus [V]
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#14-what-the-search-actually-reads-v" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4 What the α search actually reads [V]
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-per-rung-facts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Per-rung facts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Per-rung facts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-the-folds-cannot-be-shared-v" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 The folds cannot be shared [V]
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-a-same-value-sanity-number-is-not-a-no-op-v" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 A same-value sanity number is not a no-op [V]
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-build-audit-scriptsvalidate_exp062_awqsh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3 Build audit (scripts/validate_exp062_awq.sh)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Results
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Results">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-iq2_m-distributional-v" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 IQ2_M — distributional [V]
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-iq3_m-distributional-v" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 IQ3_M — distributional [V]
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-tool-call-iq2_m-pair-complete-iq3_m-iq4_xs-not-measured" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 Tool-call — IQ2_M pair complete; IQ3_M / IQ4_XS not measured
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34-agentic-swe-mimic-not-measured" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4 Agentic (SWE-mimic) — NOT MEASURED
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-harness-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Harness notes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-verdict-rule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Verdict rule
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Research notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_32k_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT 32K handoff
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_optimization_audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT optimization audit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_run_history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT run history
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_calibration_experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ternary calibration experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patch_gguf_chat_template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patch a GGUF chat template
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_feasibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary feasibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reddit_ternary_qat_post/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reddit: ternary QAT post
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#state-at-end-of-session-2026-08-16-0430" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        State at end of session (2026-08-16 04:30)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-what-changed-and-why" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. What changed, and why
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="1. What changed, and why">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#11-the-corpus-v" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1 The corpus [V]
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#12-two-strata-dropped-v" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2 Two strata dropped [V]
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#13-the-template-does-not-change-the-corpus-v" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3 The template does NOT change the corpus [V]
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#14-what-the-search-actually-reads-v" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.4 What the α search actually reads [V]
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-per-rung-facts" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Per-rung facts
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="2. Per-rung facts">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#21-the-folds-cannot-be-shared-v" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.1 The folds cannot be shared [V]
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#22-a-same-value-sanity-number-is-not-a-no-op-v" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.2 A same-value sanity number is not a no-op [V]
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#23-build-audit-scriptsvalidate_exp062_awqsh" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2.3 Build audit (scripts/validate_exp062_awq.sh)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Results
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="3. Results">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#31-iq2_m-distributional-v" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.1 IQ2_M — distributional [V]
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#32-iq3_m-distributional-v" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.2 IQ3_M — distributional [V]
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#33-tool-call-iq2_m-pair-complete-iq3_m-iq4_xs-not-measured" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.3 Tool-call — IQ2_M pair complete; IQ3_M / IQ4_XS not measured
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#34-agentic-swe-mimic-not-measured" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3.4 Agentic (SWE-mimic) — NOT MEASURED
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-harness-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Harness notes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-verdict-rule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Verdict rule
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="exp-062-rebuilding-the-qwen38-27b-low-bit-rungs-on-a-tool-dense-corpus">exp-062: rebuilding the Qwen3.8-27B low-bit rungs on a tool-dense corpus<a class="headerlink" href="#exp-062-rebuilding-the-qwen38-27b-low-bit-rungs-on-a-tool-dense-corpus" title="Permanent link">&para;</a></h1>
+<p>Rebuild of the IQ2_M / IQ3_M / IQ4_XS rungs of
+<code>pearsonkyle/Qwen3.8-27B-imatrix-MTP-GGUF</code> via AWQ + <code>hybrid_custom</code> imatrix, on a
+new calibration corpus cut from <code>sft_chat_train.jsonl.gz</code>, with the fixed
+<code>qwen3_8_safe_v2</code> chat template baked into every output.</p>
+<p>Status legend: <strong>[V]</strong> measured on this run · <strong>[P]</strong> predicted, not yet measured.</p>
+<h2 id="state-at-end-of-session-2026-08-16-0430">State at end of session (2026-08-16 04:30)<a class="headerlink" href="#state-at-end-of-session-2026-08-16-0430" title="Permanent link">&para;</a></h2>
+<p><strong>NOTHING WAS PUBLISHED.</strong> No upload to Hugging Face was performed; the live repo
+is untouched and still serves the original four imatrix rungs.</p>
+<table>
+<thead>
+<tr>
+<th>item</th>
+<th>state</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IQ2_M AWQ rung</td>
+<td>built, audited, benched (2 evals) — <code>out/exp-062-awq-iq2m/gguf/IQ2_M-awq-best-hybrid_custom-mtp.gguf</code></td>
+</tr>
+<tr>
+<td>IQ3_M AWQ rung</td>
+<td>built, audited, benched (2 evals) — regressed, see §3.2</td>
+</tr>
+<tr>
+<td>IQ4_XS AWQ rung</td>
+<td><strong>never built</strong> — recipe + workspace + gated runner staged only</td>
+</tr>
+<tr>
+<td>tool-call smoke</td>
+<td>IQ2_M pair complete (§3.3); IQ3_M/IQ4_XS <strong>not run</strong></td>
+</tr>
+<tr>
+<td>SWE-mimic smoke</td>
+<td><strong>never run</strong></td>
+</tr>
+<tr>
+<td>6-eval KLD top-up</td>
+<td><strong>never run</strong> — <code>scripts/exp062_kld_all_evals.py</code> written and validated</td>
+</tr>
+<tr>
+<td>model card</td>
+<td><strong>not updated</strong> — still describes the superseded imatrix IQ2_M</td>
+</tr>
+<tr>
+<td>HF upload</td>
+<td><strong>not performed</strong> — <code>scripts/exp062_ship_iq2m.py</code> correctly BLOCKS on the stale card</td>
+</tr>
+</tbody>
+</table>
+<p><strong>To resume the IQ2_M ship</strong>, in order:</p>
+<ol>
+<li><code>PYTHONPATH=src .venv/bin/python scripts/exp062_kld_all_evals.py --quant out/exp-062-awq-iq2m/gguf/IQ2_M-awq-best-hybrid_custom-mtp.gguf --out out/exp-062-32k/eval/kld_all_evals.csv</code> (~12 min) — the card publishes six eval distributions and only two are measured for this file.</li>
+<li><code>MODELS_FILE=models_exp062.txt PORT=18080 RBUDGET=2048 TAG=_exp062 bash run_all_quants.sh</code> in <code>/workspace/swe-mimic</code> — the card's 🤖 SWE rows.</li>
+<li>Re-run the tool-call pair at multiple seeds — see §3.3; the single-seed result is inside the noise band and does not settle the ship question.</li>
+<li>Update <code>out/exp-060-32k/release/README.md</code> (IQ2_M column + a "why the 2-bit is AWQ" section + the new corpus/template in methodology).</li>
+<li><code>PYTHONPATH=src .venv/bin/python scripts/exp062_ship_iq2m.py</code> (dry run), then <code>--push</code>.</li>
+</ol>
+<p>⚠️ <strong>Read §3.3 before shipping.</strong> The distributional case is strong and the
+task-level case is a wash, so this is a judgement call rather than a
+measurement-driven conclusion.</p>
+<blockquote>
+<p><strong>Three variables moved at once</strong> relative to the shipped ladder: the AWQ fold,
+the calibration corpus, and the embedded template. Any win therefore belongs to
+"the new recipe", not to AWQ specifically. The clean attribution experiment, if
+it is ever wanted, is the new corpus with <code>calibration.method: imatrix</code> (no AWQ)
+— one imatrix pass, ~3.4 h. It has not been run.</p>
+</blockquote>
+<hr />
+<h2 id="1-what-changed-and-why">1. What changed, and why<a class="headerlink" href="#1-what-changed-and-why" title="Permanent link">&para;</a></h2>
+<h3 id="11-the-corpus-v">1.1 The corpus <strong>[V]</strong><a class="headerlink" href="#11-the-corpus-v" title="Permanent link">&para;</a></h3>
+<p>Built by <code>scripts/exp060_repack_cal_32k.py</code> (which gained <code>--chat-template</code>,
+<code>--drop</code>, <code>--budget</code>; its defaults still reproduce the pinned exp-060 corpus, and
+<code>tests/unit/test_exp062_corpus_recipes.py</code> pins that property):</p>
+<pre><code class="language-bash">PYTHONPATH=src .venv/bin/python scripts/exp060_repack_cal_32k.py \
+    --sft /workspace/sft_chat_train.jsonl.gz --run exp-062-32k --ctx 32768 \
+    --chat-template data/chat_templates/qwen3_8_safe_v2.jinja \
+    --drop redteam-refusals --drop reasoning \
+    --budget logs=2800000 --budget swe-trajectories=800000 \
+    --budget broad-supplement=300000
+</code></pre>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>exp-060 (shipped)</th>
+<th>exp-062 (new)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tokens</td>
+<td>4,255,761</td>
+<td>3,744,101</td>
+</tr>
+<tr>
+<td>windows</td>
+<td>3,436</td>
+<td>1,738</td>
+</tr>
+<tr>
+<td>tool-call markers</td>
+<td>6,817</td>
+<td><strong>6,955</strong></td>
+</tr>
+<tr>
+<td>tool-response markers</td>
+<td>5,861</td>
+<td><strong>6,532</strong></td>
+</tr>
+<tr>
+<td>tool calls per 1M tokens</td>
+<td>1,602</td>
+<td><strong>1,858</strong> (+16%)</td>
+</tr>
+<tr>
+<td>agentic share (logs+swe)</td>
+<td>63%</td>
+<td><strong>92%</strong></td>
+</tr>
+</tbody>
+</table>
+<p>Fewer tokens, more tool traffic, and roughly double the tokens per window — i.e.
+the 32K packing is actually being used.</p>
+<h3 id="12-two-strata-dropped-v">1.2 Two strata dropped <strong>[V]</strong><a class="headerlink" href="#12-two-strata-dropped-v" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong><code>redteam-refusals</code></strong> — 305 rows, <strong>zero</strong> tool calls, 0.5% of the source file.
+  ⚠️ <strong>This is a real tradeoff, not a free win.</strong> Refusal behavior is what low-bit
+  quantization erodes first (<code>data/refusals.py</code>), so these rungs are <em>not</em>
+  calibrated on the attack distribution. If a release cares about that, re-add it
+  at a small budget and re-measure; do not assume it is unchanged.</li>
+<li><strong><code>reasoning</code></strong> — this stratum re-cut the <em>same</em> log sessions so a reasoning turn
+  landed last. It existed because chat templates historically scrubbed reasoning
+  from history. <strong>Measured on this file: 3,158 of 3,220 reasoning turns (98%)
+  already survive in place</strong>, so the stratum was only double-weighting a subset of
+  <code>logs</code>. Its 1M-token budget went to <code>logs</code> instead.</li>
+</ul>
+<h3 id="13-the-template-does-not-change-the-corpus-v">1.3 The template does NOT change the corpus <strong>[V]</strong><a class="headerlink" href="#13-the-template-does-not-change-the-corpus-v" title="Permanent link">&para;</a></h3>
+<p>The premise going in was that the new template "handles reasoning better" and
+would therefore improve calibration. It does not — not here:</p>
+<blockquote>
+<p>All <strong>6,100</strong> rows of <code>sft_chat_train.jsonl.gz</code> render <strong>byte-identical</strong> under
+the stock template and <code>qwen3_8_safe_v2</code>. Zero render errors on either side.
+Identical non-empty <code>&lt;think&gt;</code> counts (3,158 vs 3,158). Total rendered chars
+differ by <strong>0</strong>.</p>
+</blockquote>
+<p>The template's value is entirely at <strong>inference</strong> time. That byte-identity is also
+the safety argument for baking it: the swap cannot change quality, only stop the
+crashes.</p>
+<p>Verified by extracting <code>tokenizer.chat_template</code> from <strong>the built GGUFs
+themselves</strong> (not the source <code>.jinja</code>) and rendering each case under jinja2 — so
+this tests the shipped artifact, not the intent <strong>[V]</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>case</th>
+<th>shipped IQ2_M</th>
+<th>new IQ2_M</th>
+<th>status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>reasoning_effort="high"</code> (the OpenAI-standard value)</td>
+<td><strong>raises</strong> → HTTP 400</td>
+<td>renders</td>
+<td>fixed</td>
+</tr>
+<tr>
+<td>JSON-string tool <code>arguments</code> (what OpenAI-compatible servers return)</td>
+<td><strong>raises</strong> <code>TypeError: Can only get item pairs from a mapping</code></td>
+<td>renders, args preserved</td>
+<td>fixed</td>
+</tr>
+<tr>
+<td>leading <code>tool</code> message</td>
+<td><strong>malformed</strong> (see below)</td>
+<td>wrapped in <code>&lt;\|im_start\|&gt;user</code></td>
+<td>fixed</td>
+</tr>
+<tr>
+<td>bare string in a content list</td>
+<td>raises <code>Unexpected item type in content.</code></td>
+<td>raises, clearer message</td>
+<td><strong>not a bug</strong></td>
+</tr>
+</tbody>
+</table>
+<p>The leading-<code>tool</code>-message defect is worth seeing concretely — the shipped
+template emits the <code>&lt;tool_response&gt;</code> with <strong>no <code>&lt;|im_start|&gt;</code> header</strong> and then
+closes it with an orphaned <code>&lt;|im_end|&gt;</code>:</p>
+<pre><code>...&lt;|im_end|&gt;\n\n&lt;tool_response&gt;\nprior result\n&lt;/tool_response&gt;&lt;|im_end|&gt;\n&lt;|im_start|&gt;user\n...
+</code></pre>
+<p>⚠️ <strong>Correction to <code>docs/patch_gguf_chat_template.md</code></strong>: that doc lists a fourth
+bug — a bare string in a content list "emitting a vision token while DISCARDING
+the text". <strong>This does not reproduce.</strong> Both templates <em>raise</em> on that input,
+which is the safe behavior; the new one merely gives a better message. Three of
+the four claimed bugs are real and fixed. (Tested under python jinja2; llama.cpp
+serves templates through minja, so the exact message differs but the raise does
+not.)</p>
+<h3 id="14-what-the-search-actually-reads-v">1.4 What the α search actually reads <strong>[V]</strong><a class="headerlink" href="#14-what-the-search-actually-reads-v" title="Permanent link">&para;</a></h3>
+<p><code>calibration.params.tokens: 524288</code> is not arbitrary. Measured with the production
+sampler (<code>calibrate/_ingest.sample_chunks</code>) on this corpus at ctx 32768:</p>
+<table>
+<thead>
+<tr>
+<th>budget</th>
+<th>chunks</th>
+<th>tokens</th>
+<th>corpus coverage</th>
+<th>tool calls seen</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>524,288 (this build)</strong></td>
+<td>16</td>
+<td>500,069</td>
+<td><strong>13.4%</strong></td>
+<td><strong>813</strong></td>
+</tr>
+<tr>
+<td>65,536 (awq default)</td>
+<td>2</td>
+<td>41,317</td>
+<td>1.1%</td>
+<td>66</td>
+</tr>
+</tbody>
+</table>
+<p>At the default the α search would see 66 tool calls concentrated in two places.
+The sampled span is <code>0..3744087</code> — the whole file, evenly strided — and the
+α-search activation matrix <code>X</code> takes evenly-spaced rows from <em>every</em> sampled
+chunk, so α is chosen on the corpus distribution rather than on a leading system
+prompt.</p>
+<hr />
+<h2 id="2-per-rung-facts">2. Per-rung facts<a class="headerlink" href="#2-per-rung-facts" title="Permanent link">&para;</a></h2>
+<h3 id="21-the-folds-cannot-be-shared-v">2.1 The folds cannot be shared <strong>[V]</strong><a class="headerlink" href="#21-the-folds-cannot-be-shared-v" title="Permanent link">&para;</a></h3>
+<p>AWQ scores α candidates through a proxy quantizer chosen from <code>quantize.type</code>, so
+each rung needs its own fold <em>and</em> its own imatrix pass (~3.4 h each). Measured:</p>
+<table>
+<thead>
+<tr>
+<th>rung</th>
+<th>proxy</th>
+<th>per-member mix</th>
+<th>α histogram</th>
+<th>fold sanity rel</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IQ2_M</td>
+<td><code>q2k_b16</code> (pinned)</td>
+<td><code>None</code> (pinning opts out)</td>
+<td>46 @ 0.25, 34 @ 0.50</td>
+<td>1.892e-02</td>
+</tr>
+<tr>
+<td>IQ3_M</td>
+<td><code>q3k_b16</code> (auto)</td>
+<td><code>IQ3_M</code></td>
+<td><strong>10 @ 0.0</strong>, 57 @ 0.25, 13 @ 0.50</td>
+<td>1.503e-02</td>
+</tr>
+</tbody>
+</table>
+<p>Only <strong>49 of 80 groups share an α</strong> across the two rungs.</p>
+<p>Two observations worth acting on:</p>
+<ul>
+<li><strong>The 3-bit search declines to intervene on 10 groups</strong> (α = 0.0). The 2-bit
+  search never does. That is the expected shape — less quantization error at 3
+  bits means AWQ's rescaling is sometimes not worth its own distortion — and it is
+  evidence the search is discriminating rather than degenerate.</li>
+<li><strong>The grid's upper half is never used.</strong> The grid is
+  <code>(0.0, 0.25, 0.5, 0.75, 1.0)</code> and across both rungs <em>no</em> group selected 0.75 or
+  1.0. All the action is in <code>[0, 0.5]</code>. <strong>A refined grid over that range is the
+  cheapest next lever</strong> if a rung comes out a wash. <strong>[P]</strong></li>
+</ul>
+<h3 id="22-a-same-value-sanity-number-is-not-a-no-op-v">2.2 A same-value sanity number is not a no-op <strong>[V]</strong><a class="headerlink" href="#22-a-same-value-sanity-number-is-not-a-no-op-v" title="Permanent link">&para;</a></h3>
+<p>The IQ2_M fold reported <code>rel=1.892e-02</code>, identical to the previous exp-060-32k-awq
+attempt on the <em>old</em> corpus. That looks alarming and is not: comparing the two
+<code>awq.pt</code> files, <strong>all 80 scale tensors differ, max relative difference 2.006</strong>,
+while the α <em>histogram</em> is unchanged because the grid has only 5 coarse points.
+The sanity number reflects fp-rounding of the fold on a fixed probe, and IQ3_M's
+differing 1.503e-02 confirms it moves when the scales move enough.</p>
+<h3 id="23-build-audit-scriptsvalidate_exp062_awqsh">2.3 Build audit (<code>scripts/validate_exp062_awq.sh</code>)<a class="headerlink" href="#23-build-audit-scriptsvalidate_exp062_awqsh" title="Permanent link">&para;</a></h3>
+<p>Every check guards a failure whose only other symptom is a mediocre benchmark
+number hours later. IQ2_M <strong>[V]</strong>, all pass:</p>
+<ul>
+<li>template 27,850 bytes matching the repo <code>.jinja</code>; <code>general.name = Qwen3.8-27B</code></li>
+<li>MTP head: 15 tensors at <code>blk.64</code>, 8 × Q8_0 + 7 × F32 (the pin matched real
+  tensors — <code>llama-quantize</code> accepts a <code>--tensor-type</code> pattern matching nothing)</li>
+<li>imatrix coverage: the only tensors quantized blind are <code>token_embd.weight</code> and
+  the 8 <code>blk.64.*</code> MTP tensors. Anything else in that list is a bug.</li>
+<li>imatrix itself: 994 entries / 497 tensors, <strong><code>output.weight</code> present</strong>
+  (<code>--process-output</code>), <code>token_embd</code> and <code>blk.64</code> correctly absent. Family counts
+  confirm the hybrid split — 16 layers with <code>attn_k/q/v/output</code>, 48 with
+  <code>attn_qkv</code>/<code>attn_gate</code>/<code>ssm_*</code>.</li>
+<li><code>hybrid_custom</code>: 497 tensors, 144 SSM passthrough, 0 skipped.</li>
+</ul>
+<hr />
+<h2 id="3-results">3. Results<a class="headerlink" href="#3-results" title="Permanent link">&para;</a></h2>
+<h3 id="31-iq2_m-distributional-v">3.1 IQ2_M — distributional <strong>[V]</strong><a class="headerlink" href="#31-iq2_m-distributional-v" title="Permanent link">&para;</a></h3>
+<p>Identical bpw; eval corpora and FP16 baselines pinned to exp-060.</p>
+<table>
+<thead>
+<tr>
+<th>external eval</th>
+<th>shipped</th>
+<th>new AWQ</th>
+<th>delta</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>bpw</td>
+<td>3.0617</td>
+<td>3.0617</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>ppl</strong></td>
+<td>56.540</td>
+<td><strong>34.530</strong></td>
+<td><strong>−38.9%</strong></td>
+</tr>
+<tr>
+<td>ppl_ratio vs FP16</td>
+<td>2.881</td>
+<td>1.760</td>
+<td>−38.9%</td>
+</tr>
+<tr>
+<td>mean_kld</td>
+<td>1.2841</td>
+<td>1.2284</td>
+<td>−4.3%</td>
+</tr>
+<tr>
+<td>median_kld</td>
+<td>0.1242</td>
+<td>0.1140</td>
+<td>−8.2%</td>
+</tr>
+<tr>
+<td>same_top_p</td>
+<td>71.95%</td>
+<td>73.20%</td>
+<td>+1.25pp</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>tools eval</th>
+<th>shipped</th>
+<th>new AWQ</th>
+<th>delta</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ppl_tools</strong></td>
+<td>54.311</td>
+<td><strong>43.540</strong></td>
+<td><strong>−19.8%</strong></td>
+</tr>
+<tr>
+<td>mean_kld_tools</td>
+<td>2.3816</td>
+<td>2.3220</td>
+<td>−2.5%</td>
+</tr>
+<tr>
+<td>same_top_p_tools</td>
+<td>72.03%</td>
+<td>73.02%</td>
+<td>+0.99pp</td>
+</tr>
+</tbody>
+</table>
+<p>Speed: 3,539 tok/s prefill, 107.1 tok/s decode (10 reps).</p>
+<p><strong>Validity check</strong>: the implied FP16 reference is 56.540/2.881 = 19.623 and
+34.530/1.760 = 19.622 — identical, confirming both rows were scored on the same
+eval corpus against the same baseline.</p>
+<p>Note the PPL/KLD divergence: <code>mean_kld</code> 1.228 against a <code>median_kld</code> of 0.114 is a
+~10× ratio, so a handful of outlier tokens dominate the mean. The quant got much
+better at predicting real text while a few tokens still diverge sharply from FP16.</p>
+<p>Timings, IQ2_M leg: calibrate 3.8 min · fold 1.2 min · convert 1.8 min ·
+<strong>imatrix 200.7 min</strong> (114 chunks @ 105.5 s) · re-weight 2.0 min · quantize 5.8 min
+· metadata bake 0.2 min · bench 2.4 min.</p>
+<h3 id="32-iq3_m-distributional-v">3.2 IQ3_M — distributional <strong>[V]</strong><a class="headerlink" href="#32-iq3_m-distributional-v" title="Permanent link">&para;</a></h3>
+<p>Identical bpw (3.81607 both). <strong>Regressed on every metric except median_kld</strong>, the
+mirror image of IQ2_M:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>shipped</th>
+<th>new AWQ</th>
+<th>delta</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ppl (external)</td>
+<td><strong>37.362</strong></td>
+<td>41.531</td>
+<td>+11.2% worse</td>
+</tr>
+<tr>
+<td>mean_kld</td>
+<td><strong>0.7394</strong></td>
+<td>0.7876</td>
+<td>+6.5% worse</td>
+</tr>
+<tr>
+<td>median_kld</td>
+<td>0.035383</td>
+<td>0.035385</td>
+<td>identical</td>
+</tr>
+<tr>
+<td>same_top_p</td>
+<td><strong>82.41%</strong></td>
+<td>81.65%</td>
+<td>−0.75pp</td>
+</tr>
+<tr>
+<td>ppl_tools</td>
+<td><strong>21.695</strong></td>
+<td>23.322</td>
+<td>+7.5% worse</td>
+</tr>
+<tr>
+<td>mean_kld_tools</td>
+<td><strong>1.5354</strong></td>
+<td>1.5667</td>
+<td>+2.0% worse</td>
+</tr>
+<tr>
+<td>same_top_p_tools</td>
+<td><strong>80.52%</strong></td>
+<td>80.21%</td>
+<td>−0.31pp</td>
+</tr>
+</tbody>
+</table>
+<p>Speed: 4,101 tok/s prefill, 92.3 tok/s decode.</p>
+<p><strong>Working explanation for the 2-bit/3-bit split.</strong> The new corpus is much narrower
+(92% agentic; wiki, <code>reasoning</code> and <code>redteam-refusals</code> all dropped), and <em>both</em>
+eval corpora are drawn from outside it. At 2 bits AWQ's channel protection is large
+enough to swamp that narrowing; at 3 bits the quantization error is smaller, so the
+narrowing dominates and shows up as a generalization cost. This is a hypothesis
+consistent with the data, <strong>not</strong> a measured cause — testing it means rebuilding
+IQ3_M with the wiki/broad strata restored. <strong>[P]</strong></p>
+<p>Timings, IQ3_M leg: calibrate 3.8 min · fold 1.1 min · convert 1.8 min ·
+<strong>imatrix 210.0 min</strong> · re-weight 1.2 min · quantize 7.1 min · bake 0.2 min ·
+bench 1.9 min.</p>
+<h3 id="33-tool-call-iq2_m-pair-complete-iq3_m-iq4_xs-not-measured">3.3 Tool-call — IQ2_M pair complete; IQ3_M / IQ4_XS not measured<a class="headerlink" href="#33-tool-call-iq2_m-pair-complete-iq3_m-iq4_xs-not-measured" title="Permanent link">&para;</a></h3>
+<p><code>scripts/smoke_exp062.py</code>, greedy, 25-session holdout, <code>stop_on_fail=False</code>.
+⚠️ This harness scored <strong>125</strong> turns for IQ2_M where the published ladder scored
+174, so <strong>these numbers are not comparable to the card's 🤖 rows</strong> — only to each
+other, which is why every shipped rung is re-measured in the same sweep.</p>
+<table>
+<thead>
+<tr>
+<th>model</th>
+<th>tool_sel</th>
+<th>param_acc</th>
+<th>schema_valid</th>
+<th>n</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IQ2_M-awq-new</td>
+<td>0.504</td>
+<td>0.267</td>
+<td>0.832</td>
+<td>125</td>
+</tr>
+<tr>
+<td>IQ2_M-shipped (control, same session)</td>
+<td>0.480</td>
+<td>0.240</td>
+<td>0.896</td>
+<td>125</td>
+</tr>
+<tr>
+<td><strong>delta (new − shipped)</strong></td>
+<td><strong>+0.024</strong></td>
+<td><strong>+0.027</strong></td>
+<td><strong>−0.064</strong></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Noise floor</strong>: at p≈0.24, n=125, the binomial SE is <strong>3.8pp</strong>; the conservative
+unpaired 1-SE bound on a difference is 5.4pp, so the "beyond noise" threshold is
+roughly <strong>±10.8pp</strong>.</p>
+<p><strong>Verdict on the decision metric: a WASH, not a win.</strong> param_acc +0.027 is 2.7pp
+against a ~10.8pp threshold — well inside noise, and nowhere near the gemma-order
++0.09 that would justify a swap on task grounds. tool_sel +0.024 is likewise
+noise. schema_valid <strong>−0.064</strong> is also inside the band but points the wrong way on
+a metric where down is unambiguously bad.</p>
+<p>So the two halves of the evidence disagree:</p>
+<ul>
+<li><strong>Distributional: a large, unambiguous win.</strong> ppl −38.9% is far outside any
+  plausible noise, and every KLD/top_p metric improved.</li>
+<li><strong>Task-level: neutral, with a mild negative signal on schema validity.</strong></li>
+</ul>
+<p>⚠️ <strong>By the verdict rule in §5 this rung does NOT qualify for a swap</strong> — the rule
+requires a tool-call gain beyond noise <em>and</em> no schema regression, and neither
+holds. The remaining arguments for shipping it anyway are real but are <strong>not</strong>
+"the model got better at tool calls": the fixed chat template (the
+<code>reasoning_effort="high"</code> → HTTP 400 fix), the corrected <code>general.name</code>, and a
+much healthier PPL. That is a judgement call for the maintainer, not something the
+measurements settle.</p>
+<p>To resolve it properly rather than by judgement: re-run the pair at several seeds
+(or on the full 174-turn footing) to shrink the interval, since the whole question
+is whether a ~3pp gain and a ~6pp schema drop are real.</p>
+<h3 id="34-agentic-swe-mimic-not-measured">3.4 Agentic (SWE-mimic) — NOT MEASURED<a class="headerlink" href="#34-agentic-swe-mimic-not-measured" title="Permanent link">&para;</a></h3>
+<p>Never run. <code>/workspace/swe-mimic</code> is staged with <code>models_exp062.txt</code> and the grader
+truncation fix; <code>MODELS_FILE=models_exp062.txt PORT=18080 RBUDGET=2048 TAG=_exp062 \
+  bash run_all_quants.sh</code> is the command.</p>
+<p>Context for reading §3.3: KLD is a guardrail only. The gemma-4-31B precedent was
+worse on median KLD (1.804 vs 1.571) and on top_p (43.9% vs 46.6%) and still won
+by <strong>+54%</strong> on tool arguments (0.171 → 0.263). A −39% PPL does not by itself mean
+better tool calls — and here it did not deliver them.</p>
+<p>Shipped baselines to beat:</p>
+<table>
+<thead>
+<tr>
+<th>rung</th>
+<th>tool_selection</th>
+<th>param_acc</th>
+<th>schema_valid</th>
+<th>source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IQ2_M</td>
+<td>0.4943</td>
+<td><strong>0.2601</strong></td>
+<td>0.9540</td>
+<td>full holdout, n≈174</td>
+</tr>
+<tr>
+<td>IQ3_M</td>
+<td>0.4540</td>
+<td><strong>0.2395</strong></td>
+<td>0.9310</td>
+<td>full holdout, n≈174</td>
+</tr>
+<tr>
+<td>IQ4_XS</td>
+<td>0.5029</td>
+<td><strong>0.2738</strong></td>
+<td>0.9306</td>
+<td>full holdout, n≈174</td>
+</tr>
+<tr>
+<td>F16</td>
+<td>0.4943</td>
+<td>0.2562</td>
+<td>0.9310</td>
+<td>full holdout, n≈174</td>
+</tr>
+<tr>
+<td>IQ2_M</td>
+<td>0.650</td>
+<td>0.3056</td>
+<td>1.000</td>
+<td>25-session smoke, n=92</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Noise floor</strong>: greedy, n=92 smoke turns → binomial SE ≈ 4.8pp; n≈174 full
+holdout → ≈ 3.3pp. A +0.01 "win" is noise. Ship on a gap of the gemma order
+(+0.09) or run multiple seeds.</p>
+<p>⚠️ <strong>The shipped IQ3_M scores <em>below</em> IQ2_M on tool arguments</strong> (0.2395 vs 0.2601)
+despite 0.75 more bpw and roughly half the KLD. A rung better on every
+distributional metric and worse on the task is the signature of a calibration
+mismatch rather than of bit width — which is the specific defect this rebuild is
+meant to repair. Watch that number.</p>
+<p><strong>IQ4_XS expectation [P]</strong>: small. AWQ protects salient channels from quantization
+error, and that error is small at 4 bits; the α search there scores through plain
+<code>int4_g128</code> rather than an E8-lattice codebook proxy; and the shipped IQ4_XS is
+already the ladder's best tool-call rung (above even F16). The realistic good
+outcome is "no regression", which still has value — it would let the repo ship on
+one corpus and one template instead of a mix.</p>
+<hr />
+<h2 id="4-harness-notes">4. Harness notes<a class="headerlink" href="#4-harness-notes" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>SWE-rebench proper cannot run in this container</strong> — no docker binary, no
+  <code>/var/run/docker.sock</code>, no <code>CAP_SYS_ADMIN</code>, and seccomp blocks <code>CLONE_NEWUSER</code>.
+  Use <code>/workspace/swe-mimic</code> (Docker-free, real agent episode graded by running
+  the instance's F2P/P2P tests). <code>MODELS_FILE=models_exp062.txt</code> selects the rungs.</li>
+<li><strong>Fixed in swe-mimic [V]</strong>: the grader ran the P2P suite through <code>sh()</code>'s
+  6,000-char cap while that suite emits 10,408 chars. Every <code>PASSED</code> line survived
+  here by ~1.7×, but a larger suite would lose them and report a <strong>false
+  unresolved</strong> — a pessimistic bias indistinguishable from a broken quant. The
+  grading call now passes <code>limit=None</code>.</li>
+<li><strong>Shipped controls are re-measured in the same session</strong>, not compared against
+  recorded numbers — the exp-060 figures came from a different day and llama.cpp
+  build, and an unpaired delta would fold server drift into the result.</li>
+<li><strong>Disk</strong>: each rung's fold is ~103 GB (folded HF bf16 + folded F16 GGUF) and two
+  cannot coexist here. <code>run_exp062_awq.sh</code> reclaims between rungs, and refuses to
+  reclaim if the rung produced no GGUF.</li>
+<li><code>scripts/report_exp062.py</code> assembles KLD + tool-call + SWE into one table and
+  prints the noise bound next to every tool-call delta.</li>
+</ul>
+<h2 id="5-verdict-rule">5. Verdict rule<a class="headerlink" href="#5-verdict-rule" title="Permanent link">&para;</a></h2>
+<p>Swap a rung <strong>only</strong> if tool-call <code>param_acc</code> improves by more than the noise
+bound <strong>and</strong> schema validity does not regress <strong>and</strong> the SWE smoke still
+completes. KLD moving the wrong way is acceptable — the gemma precedent did
+exactly that and swapping was the right call.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "content.code.copy", "search.highlight", "search.suggest", "search.preview"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

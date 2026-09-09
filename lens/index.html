@@ -1,0 +1,1906 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Calibrate your own GGUF quantizations and vLLM W4A16 checkpoints from real agentic-coding logs">
+      
+      
+        <meta name="author" content="K. Pearson">
+      
+      
+      
+        <link rel="prev" href="../benchmarks/">
+      
+      
+        <link rel="next" href="../ternary_qat/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Jacobian lens - quant-tuner</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#jacobian-lens-interpretability-for-gguf-quants" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="quant-tuner" class="md-header__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            quant-tuner
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Jacobian lens
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18V6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-2.69L23.31 12 20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="quant-tuner" class="md-nav__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    quant-tuner
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methods
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Methods
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The three calibrators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipe reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calibration_datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calibration datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmarks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jacobian lens
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jacobian lens
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it works
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fit-a-lens" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fit a lens
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inspect-one-quant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inspect one quant
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ab-compare-two-quants" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A/B compare two quants
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#diagnose-agentic-failures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Diagnose agentic failures
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-does-calibration-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why does calibration work?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bake-an-edit-back-into-a-gguf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bake an edit back into a GGUF
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Bake an edit back into a GGUF">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#combining-directions-multi-direction-bake" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Combining directions (multi-direction bake)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#figures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Figures
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#repetition-penalty-breaking-loops-without-stopping-exploration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Repetition penalty (breaking loops without stopping exploration)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#steering-a-red-team-failure-back-to-a-refusal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Steering a red-team failure back to a refusal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#experiment-scripts-gemma-4-31b-ornith-10-9b-anchored" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experiment scripts (gemma-4-31B + Ornith-1.0-9B anchored)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#caveats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Caveats
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT for ternary models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    QAT for ternary models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method & invariants
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_curriculum/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curriculum
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_preprint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Preprint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary/HANDOFF/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B stage 1 (handoff)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run logs (Qwen 3.8 family)
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Run logs (Qwen 3.8 family)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_release/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 release
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_awq_2bit_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 AWQ 2-bit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_gptq_vllm_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 GPTQ vLLM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_exp062_rebuild/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 exp-062 rebuild
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Research notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_32k_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT 32K handoff
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_optimization_audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT optimization audit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_run_history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT run history
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_calibration_experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ternary calibration experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patch_gguf_chat_template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patch a GGUF chat template
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_feasibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary feasibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reddit_ternary_qat_post/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reddit: ternary QAT post
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How it works
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#setup" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Setup
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fit-a-lens" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Fit a lens
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#inspect-one-quant" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Inspect one quant
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ab-compare-two-quants" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        A/B compare two quants
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#diagnose-agentic-failures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Diagnose agentic failures
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#why-does-calibration-work" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Why does calibration work?
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#bake-an-edit-back-into-a-gguf" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Bake an edit back into a GGUF
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Bake an edit back into a GGUF">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#combining-directions-multi-direction-bake" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Combining directions (multi-direction bake)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#figures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Figures
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#repetition-penalty-breaking-loops-without-stopping-exploration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Repetition penalty (breaking loops without stopping exploration)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#steering-a-red-team-failure-back-to-a-refusal" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Steering a red-team failure back to a refusal
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#experiment-scripts-gemma-4-31b-ornith-10-9b-anchored" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Experiment scripts (gemma-4-31B + Ornith-1.0-9B anchored)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#testing" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Testing
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#caveats" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Caveats
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="jacobian-lens-interpretability-for-gguf-quants">Jacobian-lens interpretability for GGUF quants<a class="headerlink" href="#jacobian-lens-interpretability-for-gguf-quants" title="Permanent link">&para;</a></h1>
+<p><code>quant-tuner lens</code> opens up the <em>inside</em> of a quant: what each layer is disposed
+to predict, where a tool-call decision forms, why a 2-bit model loops, what
+heavy quantization erased versus merely suppressed, and — when a runtime edit
+proves out — how to bake it back into the weights. It is built on two upstreams
+(Apache-2.0; see the repo-root <code>NOTICE</code>):</p>
+<ul>
+<li><strong><a href="https://github.com/anthropics/jacobian-lens">anthropics/jacobian-lens</a></strong> —
+  the reference PyTorch implementation of the Jacobian lens
+  (<code>lens_l(h) = unembed(J_l·h)</code>, <code>J_l = E[∂h_final/∂h_l]</code>), vendored as the
+  <code>vendor/jacobian-lens</code> submodule. Used only by <code>lens fit-causal</code>.</li>
+<li><strong><a href="https://github.com/igorbarshteyn/jlens-gguf">igorbarshteyn/jlens-gguf</a></strong> —
+  a GGUF-native reimplementation (a llama.cpp activation server + numpy lens
+  math + a D3 visualizer), adapted in-tree under <code>native/jlens_server/</code> and
+  <code>src/quant_tuner/lens/</code>.</li>
+</ul>
+<h2 id="how-it-works">How it works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h2>
+<p>Three layers:</p>
+<ol>
+<li><strong><code>native/jlens_server</code></strong> — a llama-server-compatible binary that hooks the
+   ggml scheduler eval callback to capture each layer's residual output
+   (<code>l_out-&lt;il&gt;</code>) and apply runtime interventions (steer / ablate / swap)
+   mid-graph. Built against the repo's vendored llama.cpp — it links only the
+   public API, so a submodule bump is just a rebuild.</li>
+<li><strong><code>src/quant_tuner/lens</code></strong> — the Python bridge: the lens container
+   (<code>lens.gguf</code>), the numpy readout math (dequantizes each model's own head, so
+   it matches llama.cpp logits to &gt;0.9999 correlation even at 2-bit), a capture
+   run store, a diff engine, and the analysis modules.</li>
+<li><strong>the visualizer</strong> (<code>lens serve</code>) — the D3 heatmap plus a quant-tuner A/B
+   panel that diffs two capture runs.</li>
+</ol>
+<p>The lens strategy for comparability: fit <strong>one regression lens per base model</strong>
+on the <strong>F16 GGUF</strong> over the <strong>calibration corpus</strong> (the tool-use logs), and
+reuse it across every quant of that model. Because the decoder is fixed, an A/B
+diff then isolates exactly how quantization moved the activations. (<code>fit-causal</code>
+produces the same <code>lens.gguf</code> from the exact backprop Jacobian, as an option.)</p>
+<h2 id="setup">Setup<a class="headerlink" href="#setup" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">git submodule update --init --recursive          # brings in vendor/jacobian-lens
+# build llama.cpp as usual (Metal/CUDA/CPU), then:
+uv run quant-tuner lens build-server             # or: bash native/jlens_server/build.sh
+</code></pre>
+<p>The server binary lands at <code>native/jlens_server/jlens-server</code>; override its
+location with <code>$JLENS_SERVER_BIN</code>, and the llama.cpp checkout with
+<code>$LLAMA_CPP_DIR</code> (same variable <code>paths.llama_bin</code> honors).</p>
+<h2 id="fit-a-lens">Fit a lens<a class="headerlink" href="#fit-a-lens" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">uv run quant-tuner lens fit \
+    --model out/exp-044/vanilla/model-f16.gguf \
+    --corpus out/exp-044/corpora/corpus.cal.txt \
+    -o out/lens/gemma-4-31B.lens.gguf
+</code></pre>
+<p>Forward-only, works on any quant, no torch. On wide models (gemma d≈5120, 60
+layers) the <code>d_model²</code> Gram accumulators dominate memory; <code>--band-size</code> fits
+layers in groups and merges (<code>--gram-float32</code> halves it further, <code>--layers
+lo-hi</code> fits a subset). The exact causal alternative:</p>
+<pre><code class="language-bash">uv run quant-tuner lens fit-causal --hf-model &lt;ws&gt;/model_extracted \
+    --model model-f16.gguf --corpus corpus.cal.txt -o lens.gguf
+# or convert a pre-fit reference lens:  lens convert-pt lens.pt lens.gguf
+</code></pre>
+<h2 id="inspect-one-quant">Inspect one quant<a class="headerlink" href="#inspect-one-quant" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">uv run quant-tuner lens serve --model quant.gguf --lens lens.gguf
+# → http://127.0.0.1:8090  (layer × position heatmap, top-k panels,
+#    pinned-token rank charts, activation decomposition, steer/ablate/swap)
+</code></pre>
+<h2 id="ab-compare-two-quants">A/B compare two quants<a class="headerlink" href="#ab-compare-two-quants" title="Permanent link">&para;</a></h2>
+<p>Capture a run per model (the on-disk unit of comparison), then diff:</p>
+<pre><code class="language-bash">A=$(uv run quant-tuner lens capture --model quant.gguf --lens lens.gguf \
+      --runs-dir out/lens/runs --prompt-file p.txt --tail 32 | awk '{print $2}')
+B=$(uv run quant-tuner lens capture --model model-f16.gguf --lens lens.gguf \
+      --runs-dir out/lens/runs --prompt-file p.txt --tail 32 | awk '{print $2}')
+uv run quant-tuner lens diff &quot;$A&quot; &quot;$B&quot; --runs-dir out/lens/runs \
+    --lens lens.gguf --out out/lens/diff
+</code></pre>
+<p>The diff reports per-(layer, position) top-1 disagreement, the rank the
+reference's top-1 token fell to in the candidate, per-layer activation
+divergence, and per-position final KLD (exact at flagged decision positions,
+top-k-approximated elsewhere, marked as such). The visualizer renders all of
+this interactively — launch with a run store (and optionally a second live
+backend) and use the <strong>A/B</strong> panel:</p>
+<pre><code class="language-bash">uv run quant-tuner lens serve --model quant.gguf --lens lens.gguf \
+    --runs-dir out/lens/runs --model-b model-f16.gguf
+</code></pre>
+<h2 id="diagnose-agentic-failures">Diagnose agentic failures<a class="headerlink" href="#diagnose-agentic-failures" title="Permanent link">&para;</a></h2>
+<ul>
+<li>
+<p><strong>Tool-call representations</strong> — replay the tool-call holdout through the lens
+  and see where the gold tool token emerges across layers:
+  <code>bash
+  uv run quant-tuner lens replay-toolcalls --model quant.gguf --lens lens.gguf \
+      --holdout toolcall_holdout.jsonl --runs-dir out/lens/runs \
+      --csv out/lens/lens_toolcall.csv
+  uv run quant-tuner leaderboard --results results.csv --lens-csv out/lens/lens_toolcall.csv</code>
+  The sidecar joins into the leaderboard (Gold Rank / Emerge L / Decision KLD
+  columns) by <code>basename(quant_path)</code>.</p>
+</li>
+<li>
+<p><strong>Infinite loops</strong> — replay a looping generation (e.g. a swebench
+  <code>.traj.json</code>), measure how early the quant's layers commit to the loop token
+  versus FP16, and sweep ablations to break it:
+  <code>bash
+  uv run quant-tuner lens loop --model quant.gguf --lens lens.gguf \
+      --traj &lt;ws&gt;/trajectories/&lt;model&gt;/&lt;id&gt;.traj.json \
+      --reference model-f16.gguf --runs-dir out/lens/runs --out out/lens/loop --sweep</code>
+  A winning ablation is saved as <code>direction.npz</code>.</p>
+</li>
+<li>
+<p><strong>Knowledge loss</strong> — classify factual probes as <code>correct</code> / <code>suppressed</code>
+  (present in the residual stream, readout degraded) / <code>absent</code> (erased), and
+  compare a quant to FP16:
+  <code>bash
+  uv run python scripts/build_probe_set.py --holdout toolcall_holdout.jsonl --out artifacts/probes.jsonl
+  uv run quant-tuner lens probe --model quant.gguf --lens lens.gguf \
+      --probes artifacts/probes.jsonl --reference model-f16.gguf --out out/lens/probe</code></p>
+</li>
+</ul>
+<h2 id="why-does-calibration-work">Why does calibration work?<a class="headerlink" href="#why-does-calibration-work" title="Permanent link">&para;</a></h2>
+<p><code>lens study</code> overlays per-layer divergence-vs-FP16 profiles for several
+calibration variants at the same bit-width, alongside per-tensor weight RMSE and
+imatrix concentration:</p>
+<pre><code class="language-bash">uv run python scripts/lens_exp104_why_calibration.py --emit-example &gt; study.yaml
+uv run quant-tuner lens study --config study.yaml --out out/lens/exp104
+</code></pre>
+<h2 id="bake-an-edit-back-into-a-gguf">Bake an edit back into a GGUF<a class="headerlink" href="#bake-an-edit-back-into-a-gguf" title="Permanent link">&para;</a></h2>
+<p>If an ablation direction proves out at runtime, make it permanent by
+orthogonalizing it out of the FP16 residual-writing tensors
+(<code>attn_output.weight</code>, <code>ffn_down.weight</code>; per-expert for MoE — the skip
+connection is untouched) and requantizing with the existing imatrix:</p>
+<pre><code class="language-bash">uv run quant-tuner lens bake --f16 model-f16.gguf --direction out/lens/loop/direction.npz \
+    --quant-type IQ2_M --imatrix imatrix.gguf --out-dir out/lens/baked \
+    --verify-against quant.gguf --reference model-f16.gguf --eval corpus.eval.txt
+</code></pre>
+<p>Edits are only ever applied to the FP16 and then requantized fresh — never
+block-edited in place (which would be lossy). Additive <strong>steering</strong> does not
+bake cleanly (most architectures have no per-layer bias tensor to absorb it), so
+it stays a runtime-only capability of the OpenAI-compatible jlens-server, which
+you can point an agent framework at to serve a steered model live.</p>
+<h3 id="combining-directions-multi-direction-bake">Combining directions (multi-direction bake)<a class="headerlink" href="#combining-directions-multi-direction-bake" title="Permanent link">&para;</a></h3>
+<p><code>orthogonalize_subspace(f16, [dir1, dir2, ...], out_f16)</code> removes the <em>span</em> of
+several directions at once. It builds an SVD orthonormal basis Q (dropping
+near-duplicate directions) and applies <code>W &lt;- W - Q(QᵀW)</code> — the correct joint
+edit for non-orthogonal directions; removing them one at a time would over- or
+under-project. <code>scripts/lens_exp107_multidir_bake.py</code> folds a loop direction
+together with an <strong>explore-vs-act</strong> direction (a contrastive mean-difference
+vector from the <em>real</em> tool-call holdout: residual at "about to call an explore
+tool" minus "about to call an act tool") and bakes the combined subspace.</p>
+<p><strong>Verify against a matched control and a real task holdout — a mechanistic shift
+is not a win.</strong> On Ornith-1.0-9B IQ2_M the multi-direction bake did exactly what
+the directions describe at the readout level — it suppressed explore tokens
+(<code>inspect</code> rank 350→7892) and promoted action verbs (<code>modify</code> 167418→4817) at
+the commit decision — yet the real 25-session tool-call holdout showed it <em>broke</em>
+the model (param accuracy 0.193→0.013, tool-selection 0.40→0.20) and slightly
+worsened looping. Ablating a behavioral subspace from a 2-bit model's weights
+removes capability along with the behavior; the axis is not cleanly separable
+from competence at that bit-width. So for <strong>loops specifically, prefer the
+repetition penalty</strong> (a sampling fix — no weight edit, no capability loss); treat
+weight-space bakes as an experimental capability that must clear a real-task
+eval before it is called a correction. This is exactly why the bake pipeline
+ships with <code>verify_bake</code> and the exp-106/107 scripts run a matched control.</p>
+<p><strong>Two-tier eval: cheap gate, then the gold standard.</strong> Verify a candidate bake
+on the tool-call holdout first — it is fast (minutes) and, on the multi-direction
+bake, it <em>correctly</em> flagged the regression (param accuracy 0.193→0.013) before
+any expensive agentic run. Only escalate a bake that <em>passes</em> the gate to the
+full agentic <strong>SWE-rebench</strong> eval (<code>scripts/run_swebench_eval.py --models
+&lt;gguf&gt; …</code>), which is the real "does it resolve issues?" metric but costs hours
+per model (one Docker container per instance; slow under Apple-Silicon
+emulation). Running SWE-rebench on a bake that already failed the tool-holdout
+just confirms 0% at great cost. The tool-holdout is the proxy; SWE-rebench is
+the verdict — use them in that order.</p>
+<h3 id="figures">Figures<a class="headerlink" href="#figures" title="Permanent link">&para;</a></h3>
+<p><code>scripts/plot_jlens_analysis.py</code> renders the analysis into two PNGs under
+<code>out/exp-051/lens/</code>: <code>jlens_story.png</code> (the 2×2 — 2-bit sharpens explore≫act →
+the bake shifts the readout → but breaks the model → repetition penalty is the
+safe fix) and <code>jlens_layers.png</code> (the layer × token rank heatmap — the
+inside-the-network view). CVD-safe blue/red by job, log-scale ranks.</p>
+<h2 id="repetition-penalty-breaking-loops-without-stopping-exploration">Repetition penalty (breaking loops without stopping exploration)<a class="headerlink" href="#repetition-penalty-breaking-loops-without-stopping-exploration" title="Permanent link">&para;</a></h2>
+<p>Low-bit quants loop during long agent rollouts. The <strong>serving path</strong>
+(<code>/v1/chat/completions</code>, <code>/v1/completions</code>) applies a repetition penalty by
+default — <code>repeat_penalty=1.1</code>, <code>repeat_last_n=256</code> — mirroring
+<code>eval/server.py</code>'s llama-server flags. It only damps <em>verbatim</em> repetition, so
+the agent still explores/plans freely; it just can't get stuck emitting the same
+tokens. Any OpenAI request field (<code>repeat_penalty</code>/<code>repetition_penalty</code>,
+<code>repeat_last_n</code>, <code>frequency_penalty</code>, <code>presence_penalty</code>) overrides the default.</p>
+<p>The <strong>capture path</strong> (<code>/jlens/forward</code>) defaults the penalty <strong>off</strong> so lens
+readouts stay faithful to the model's own distribution; pass
+<code>sampling={"repeat_penalty": 1.2, ...}</code> when you want penalized generation (e.g.
+to check whether a penalty alone breaks a loop before reaching for a bake).</p>
+<h2 id="steering-a-red-team-failure-back-to-a-refusal">Steering a red-team failure back to a refusal<a class="headerlink" href="#steering-a-red-team-failure-back-to-a-refusal" title="Permanent link">&para;</a></h2>
+<p><code>scripts/lens_refusal_steer.py</code> takes a case the red-team sweep found <em>complied</em>
+and asks the mechanistic question directly: <strong>where does the attack's framing
+suppress the refusal signal, and can we add it back at runtime?</strong> It talks to a
+<code>jlens-server</code> over <code>POST /jlens/forward</code> (capture + <code>add</code>-mode steering), so it
+needs no lens GGUF and no torch — just the server and numpy.</p>
+<p>Worked example — ornith-1.0-35b (a <code>qwen35moe</code>), the profanity case the sweep
+disclosed (a swearing request disguised as "negative samples for an AI Safety Lab
+classifier"):</p>
+<ol>
+<li><strong>The refusal direction is real.</strong> A contrast set (8 refused-harmful vs 8
+   complied-benign prompts), differenced at the last prompt token, separates at
+   <strong>+8.4 σ at layer 37</strong> — refusal is a clean, linear, late-layer feature.</li>
+<li><strong>The attack works by suppressing it.</strong> The attack's projection sits at the
+   <strong>decision boundary</strong> (~51 % of the way from the benign mean to the harmful
+   mean), where a blunt direct request would sit near the harmful mean. The
+   "safety lab" framing literally drags the refusal feature down to the tipping
+   point — a mechanistic explanation of the disclosed finding.</li>
+<li><strong>It can be steered back.</strong> Adding <code>+α·refusal_dir</code> at layer 37 flips
+   generation from the compliant JSON of swearing to a clean <em>"I cannot generate
+   aggressive or abusive messages…"</em>.</li>
+<li><strong>But an additive steer is not a clean drop-in mitigation</strong> — the honest
+   result. There is <strong>no global α window</strong>: the attack only flips at α ≳ 10, and
+   by then benign prompts (a coding request, a plot summary) are already degraded
+   to garbage. A projection <strong>gate</strong> (fire only in the ambiguous band) helps but
+   still misfires, because benign coding/summary prompts overlap the disguised
+   attack in projection.</li>
+</ol>
+<p><strong>One prompt lies; use a variety.</strong> Rebuilding the direction from a <em>labeled probe
+set</em> (<code>scripts/build_refusal_probe_set.py</code> — 16 correctly-refused vs 12 benign,
+plus 11 held-out failures) changes the story in two important ways:</p>
+<ul>
+<li>the honest separation is <strong>+3.3 σ, not +8.4 σ</strong> — the single-pair
+  harmful-vs-benign direction was inflated by <em>topic</em>, not refusal;</li>
+<li>steering along that clean direction <strong>does not generalise</strong>: at an α that keeps
+  benign coherent, <strong>0 of the held-out failures</strong> are fixed, at α from 12 to 30.</li>
+</ul>
+<p>So the single-prompt "it flips!" was a false positive — the topic-contaminated
+direction happened to align with that one attack. Across a variety of framed
+attacks, a fixed additive steer restores nothing without breaking benign output.</p>
+<p><strong>What this means for a fix.</strong> The lens <em>diagnosis</em> is solid and useful — refusal
+is a real linear feature the model already computes, and the attacks work by
+<em>framing</em> the request so that feature never fires. But the <em>mitigation</em> is a
+training problem, not a runtime-vector problem: the model must learn to see
+through the benign-purpose framing, which a single additive direction cannot
+encode. The right fix is <strong>continued safety fine-tuning (QAT)</strong> on the probe
+set's <code>failure</code> prompts (paired with refusals) mixed with <code>benign</code> → helpful,
+then a normal quantize — which also yields a genuinely corrected standalone GGUF,
+something additive steering <strong>cannot</strong> bake into this hybrid SSM+attention+MoE
+arch (no residual bias hook; <code>scripts/lens_refusal_steer.py --export-gguf</code> writes
+a servable runtime bundle and says as much).</p>
+<p>The takeaway that generalises: this pipeline <strong>locates</strong> a safety failure and
+proves the capability exists to fix it — the diagnosis — while being honest that
+runtime additive steering is neither a general nor a bakeable mitigation, and
+pointing at the fine-tune that is.</p>
+<h2 id="experiment-scripts-gemma-4-31b-ornith-10-9b-anchored">Experiment scripts (gemma-4-31B + Ornith-1.0-9B anchored)<a class="headerlink" href="#experiment-scripts-gemma-4-31b-ornith-10-9b-anchored" title="Permanent link">&para;</a></h2>
+<ul>
+<li><code>scripts/lens_exp101_toolcall_lens.py</code> — tool-call representations under quantization</li>
+<li><code>scripts/lens_exp102_loop_autopsy.py</code> — loop diagnosis + intervention</li>
+<li><code>scripts/lens_exp103_knowledge_probes.py</code> — knowledge loss at 2 bpw</li>
+<li><code>scripts/lens_exp104_why_calibration.py</code> — the calibration divergence study</li>
+<li><code>scripts/lens_exp105_ornith_action_bias.py</code> — why Ornith-9B IQ2_M patches but resolves 0 (explore≫act)</li>
+<li><code>scripts/lens_exp106_bake_deloop.py</code> — bake a jlens loop direction out of a GGUF (corrected quant)</li>
+<li><code>scripts/lens_refusal_steer.py</code> — steer a red-team failure back to a refusal (contrastive direction + gate + <code>--export-gguf</code> fix bundle)</li>
+<li><code>scripts/build_refusal_probe_set.py</code> — labeled failure/correct-refusal/benign set (direction source, fix eval, QAT seed)</li>
+<li><code>scripts/build_probe_set.py</code> — mine the probe set</li>
+<li><code>scripts/lens_smoke.sh</code> — CPU end-to-end smoke on a tiny GGUF (the acceptance gate)</li>
+</ul>
+<h2 id="testing">Testing<a class="headerlink" href="#testing" title="Permanent link">&para;</a></h2>
+<p>Unit tests (<code>tests/unit/test_lens_*.py</code>, <code>test_gguf_edit.py</code>,
+<code>test_hf_gguf_map_inverse.py</code>) need no model files. Integration tests
+(<code>tests/integration/</code>) are gated on <code>QT_LENS_IT=1</code> + <code>QT_TINY_GGUF=&lt;path&gt;</code> and
+exercise the built server, including a numpy-readout-vs-server-logits parity
+check (corr ≥ 0.9999) that is the canary for llama.cpp submodule drift.</p>
+<h2 id="caveats">Caveats<a class="headerlink" href="#caveats" title="Permanent link">&para;</a></h2>
+<ul>
+<li>The lens is fit on FP16 and applied to quant activations; each capture run
+  records observed residual norms and warns if they drift far from the lens's
+  fit distribution. A/B conclusions are always stated relative to the shared lens.</li>
+<li>CPU grid latency is worst on gemma's ~262k vocab — capture only the decision
+  tail (<code>--tail</code>), and readouts are cached per run.</li>
+<li>The pinned llama.cpp (<code>f3e182816</code>) differs from the commit jlens-gguf was
+  tested against; the public-API linkage and the startup <code>l_out_ok</code> self-check
+  guard this, and the serving commit is stamped into every capture-run manifest.</li>
+</ul>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "content.code.copy", "search.highlight", "search.suggest", "search.preview"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

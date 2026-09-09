@@ -1,0 +1,1397 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Calibrate your own GGUF quantizations and vLLM W4A16 checkpoints from real agentic-coding logs">
+      
+      
+        <meta name="author" content="K. Pearson">
+      
+      
+      
+        <link rel="prev" href="../gemma4_ternary_reproduce/">
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Reddit: ternary QAT post - quant-tuner</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#what-these-models-are" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="quant-tuner" class="md-header__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            quant-tuner
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Reddit: ternary QAT post
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18V6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-2.69L23.31 12 20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="quant-tuner" class="md-nav__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    quant-tuner
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methods
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Methods
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The three calibrators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipe reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calibration_datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calibration datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmarks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lens/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jacobian lens
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT for ternary models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    QAT for ternary models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method & invariants
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_curriculum/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curriculum
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_preprint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Preprint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary/HANDOFF/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B stage 1 (handoff)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run logs (Qwen 3.8 family)
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Run logs (Qwen 3.8 family)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_release/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 release
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_awq_2bit_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 AWQ 2-bit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_gptq_vllm_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 GPTQ vLLM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_exp062_rebuild/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 exp-062 rebuild
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Research notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_32k_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT 32K handoff
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_optimization_audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT optimization audit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_run_history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT run history
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_calibration_experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ternary calibration experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patch_gguf_chat_template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patch a GGUF chat template
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_feasibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary feasibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reddit: ternary QAT post
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<p>We've heard the hype around binary and ternary models, and it seems recently, their performance is starting to catch up and be competitive for every-day use across a range of devices, although there's still more to wish for...</p>
+<h1 id="what-these-models-are">What these models are<a class="headerlink" href="#what-these-models-are" title="Permanent link">&para;</a></h1>
+<p>A new family of true sub-2-bit LLMs is out: PrismML's Bonsai line. Every weight is ternary (-1/0/+1) or binary (-1/+1), with one shared fp16 scale per group of 128 weights. Ternary lands at a true \~1.7 bits/weight, binary at \~1.1. That is genuinely sub-2-bit, unlike conventional "2-bit" GGUF quants, which are really \~2.8 bits once you average in the higher-precision tensors they keep.</p>
+<p>Two things worth knowing:</p>
+<ul>
+<li><strong>They are not made the BitNet way.</strong> BitNet pretrains a 1.58-bit model from scratch. Bonsai instead converts an existing pretrained model (a Qwen3) into ternary with a proprietary method, so you keep the model you already wanted. Their new flagship is a 27B; the release I used is an earlier 8B (Ternary-Bonsai-8B, a ternary Qwen3-8B). PrismML themselves note those earlier 1.7B-8B releases did not target reasoning or reliable tool use, which matters for my results below.</li>
+<li><strong>They run at \~2 GB for an 8B</strong>, but the format is new, so you need PrismML's llama.cpp fork to run it (upstream PR pending).</li>
+</ul>
+<p>** The question I cared about: can you specialize one on your own data? **</p>
+<h1 id="post-hoc-quant-calibration-does-nothing-here">Post-hoc quant calibration does nothing here<a class="headerlink" href="#post-hoc-quant-calibration-does-nothing-here" title="Permanent link">&para;</a></h1>
+<p>imatrix, AWQ, and GPTQ exist to recover "quantization rounding error," the gap between a full-precision original and a low-bit grid. A native-ternary model has no such gap: its checkpoint is already exactly <code>scale * {-1,0,+1}</code>, so the 2-bit GGUF is a lossless re-encode meaning these techniques don't work for this class of model.</p>
+<h1 id="how-to-fine-tune-it">How to fine-tune it<a class="headerlink" href="#how-to-fine-tune-it" title="Permanent link">&para;</a></h1>
+<p>Bonsai's <em>creation</em> is proprietary, but <em>continuing to train</em> a released ternary model is standard quantization aware training (QAT) with a straight-through estimator, and that part is "easily" reproducible (with AI by your side):</p>
+<ol>
+<li>Load the unpacked checkpoint (fp16 weights = the ternary values in a fat container).</li>
+<li>Forward pass: ternarize each weight on the fly (per 128-weight group). The model computes with ternary weights.</li>
+<li>Backward pass: straight-through estimator, so gradients flow to the fp16 latent weights.</li>
+<li>Train. Latents drift, re-ternarize each step, weights flip sign when a latent crosses the threshold.</li>
+<li>Re-ternarize and re-pack to the 2-bit GGUF to have the same footprint as the original.</li>
+</ol>
+<p>Init from the shipped weights reproduces the model exactly at step 0, so you fine-tune the real thing.  The best part of all is that it can be done entirely  on Metal, no CUDA, albiet a bit slower..</p>
+<p>In a native-ternary model, every weight is stored as one of three values: -1, 0, or +1. Call that the weight's <strong>code</strong>. Each group of 128 weights also shares one fp16 <strong>scale</strong>, so the real number a weight represents is <code>code * scale</code>. A <strong>code flip</strong> is when training changes a weight's code, for example from 0 to +1, or from +1 to -1. That is the only way the model's actual logic changes. Training can also just nudge the shared scales, which turns the volume knobs up and down but rewires nothing. As you will see, "did the codes flip, or did we only move scales" is exactly the line between the model learning something and the model only appearing to.</p>
+<h1 id="partial-results-preliminary">Partial-Results (preliminary)<a class="headerlink" href="#partial-results-preliminary" title="Permanent link">&para;</a></h1>
+<p>Task: make it a better agentic coder, measured on SWE-rebench-v1 (10 held-out real issues in python only).</p>
+<table>
+<thead>
+<tr>
+<th>run</th>
+<th>patch rate</th>
+<th>pass rate</th>
+<th>training loss</th>
+<th>notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>base 8B (no fine-tune)</td>
+<td>50%</td>
+<td>0%</td>
+<td>-</td>
+<td>-</td>
+</tr>
+<tr>
+<td>QAT, last 18 layers</td>
+<td>40%</td>
+<td>0%</td>
+<td>~1.0</td>
+<td>looped badly (one command repeated up to 553x)</td>
+</tr>
+<tr>
+<td>QAT, gradient-influential layers</td>
+<td>40%</td>
+<td>0%</td>
+<td>~1.0</td>
+<td>looping fixed, clean runs</td>
+</tr>
+<tr>
+<td>QAT, ALL 36 layers</td>
+<td>30%</td>
+<td>0%</td>
+<td>0.91</td>
+<td>best-behaved, worst patch rate</td>
+</tr>
+</tbody>
+</table>
+<p>Two caveats I found after the fact, and both point the same way. First, these runs trained on a corpus with the stop-token masking bug, so some of the budget went to a broken target. Second, and more important: the all-layers run drove the training loss LOWER than any other and produced the WORST patch rate. The lowest loss gave the least capable agent. It was the tidiest (fewest steps, no loops, cleanest tool calls) and it solved the fewest issues perhaps suggesting some level of over-fitting and that the logs do not adequately teach a good problem solving process since I'm guilty of having really long conversation logs that trail on rather than short, succinct conversations that specifically focus on one task at a time.</p>
+<p>That kills the "just under-trained" idea. The problem is what the loss measures. My corpus was agent logs I had scraped from my own coding sessions across Claude Code, OpenCode, and Qwen Code, pulled with a little tool I wrote called <a href="https://github.com/pearsonkyle/LogMiner">LogMiner</a>. Those are imitation data, records of how the tools ran, not verified successful solutions. So minimizing the loss teaches the model to mimic the STYLE of those logs (be terse, emit clean tool calls, stop early), not to SOLVE. Lower loss = better log-mimicry = a neater agent that does less. The metric and the goal were misaligned.</p>
+<p>So the real lever is better DATA. That is what I am testing next.</p>
+<h1 id="iteration-5-verified-solutions-and-the-lr-that-decides-everything">Iteration 5: verified solutions, and the LR that decides everything<a class="headerlink" href="#iteration-5-verified-solutions-and-the-lr-that-decides-everything" title="Permanent link">&para;</a></h1>
+<p>So I changed the data after a few iterations... I took a strong 9B agentic coder (a different model that resolves real GitHub issues), let it solve a batch of them, and kept ONLY the trajectories where the hidden tests actually passed. A patch that does not pass is the same mimicry trap, so it is filtered out. Those winning trajectories get re-rendered through the ternary model's own tokenizer with the fixed masking, so it learns the SHAPE of a solution that works, not the style of a log. The issues are disjoint from the ones I grade on, so a gain is generalization.</p>
+<p>This first run had only 12 verified trajectories (small on purpose, to see if the signal is even there). The result was a lesson in the learning rate, and it is the most important thing in this whole writeup:</p>
+<ul>
+<li><strong>lr 3e-4: the model did not learn at all.</strong> Zero code flips (0.003% at most). The loss dropped smoothly to 0.6, but purely by rescaling the ternary groups. The actual -1/0/+1 assignments never moved. Behavior changes, capability does not. This is the trap from the last section, and it was still happening at a fairly normal LR.</li>
+<li><strong>lr 1e-3: real code flips, but it wrecked the model.</strong> Now the codes moved (3.8% in the first layer, millions of weights). But on only 12 trajectories that is way too aggressive: it overwrote the model's existing tool-use to memorize a dozen examples. Patch rate fell to 20%, tool errors shot to 73%, and it gave up after a few steps.</li>
+<li><strong>lr 5e-4 for \~2 epochs: the sweet spot.</strong> Moderate flips (0.7% of all codes), loss settling around 0.5 instead of memorizing down to 0.01, tool-use intact.</li>
+</ul>
+<p>I then scaled the same recipe from 12 to 30 verified trajectories and re-measured, on two splits: the disjoint held-out issues (generalization) and the exact issues it trained on (in-distribution). Every eval is 5e-4, \~2 epochs, all 36 layers, so this is directly reproducible.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">run</th>
+<th style="text-align: left;">eval split</th>
+<th style="text-align: left;">patch rate</th>
+<th style="text-align: left;">pass rate</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">base 8B (no fine-tune)</td>
+<td style="text-align: left;">held-out</td>
+<td style="text-align: left;">50%</td>
+<td style="text-align: left;">0%</td>
+</tr>
+<tr>
+<td style="text-align: left;">5e-4, 12 trajectories</td>
+<td style="text-align: left;">held-out (generalization)</td>
+<td style="text-align: left;">40%</td>
+<td style="text-align: left;">0%</td>
+</tr>
+<tr>
+<td style="text-align: left;">5e-4, 12 trajectories</td>
+<td style="text-align: left;">trained-on (in-distribution)</td>
+<td style="text-align: left;">25%</td>
+<td style="text-align: left;">8%</td>
+</tr>
+<tr>
+<td style="text-align: left;">5e-4, 30 trajectories</td>
+<td style="text-align: left;">held-out (generalization)</td>
+<td style="text-align: left;"><strong>50%</strong></td>
+<td style="text-align: left;"><strong>0%</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">5e-4, 30 trajectories</td>
+<td style="text-align: left;">trained-on (in-distribution)</td>
+<td style="text-align: left;">43%</td>
+<td style="text-align: left;">0%</td>
+</tr>
+</tbody>
+</table>
+<p>Read the last two rows carefully, because this is the honest, reproducible state: with 30 verified trajectories the model sits right at the base model's <strong>50% patch rate on unseen issues, and 0% pass rate</strong>. It writes patches at the same rate as the base, and none of them pass the hidden tests. Behavior is actually healthier than at 12 (tool-error rate dropped, it stays engaged instead of bailing), but it solves nothing on held-out repos.</p>
+<p>The one bright spot at 12 trajectories, that single 8% in-distribution solve, did NOT replicate at 30. So I now read it as noise, not a trend: one lucky solved issue, washed out once the training distribution shifted. What survives is the patch rate, which climbs back to baseline as you add data, and the pass rate, which stubbornly stays at zero on unseen issues.</p>
+<p>So the reproducible headline is deliberately unglamorous: <strong>you can fine-tune this 2-bit model to match its base model's generalization patch rate, but not (yet) to actually pass more tests.</strong> Getting a real, repeatable pass on unseen issues is the open problem, not a solved one.</p>
+<h1 id="what-is-next">What is next<a class="headerlink" href="#what-is-next" title="Permanent link">&para;</a></h1>
+<ul>
+<li><strong>More data, on autopilot.</strong> I have a loop that keeps generating fresh verified trajectories, retraining at the fixed 5e-4 / 2-epoch recipe, and re-measuring both splits, until the generalization pass rate finally breaks zero (or it plateaus). 12 to 30 recovered the patch rate to baseline but did nothing for passing, so the open question is whether 50, 100, 1000 trajectories eventually bend the pass curve up, or whether it stays pinned at zero.</li>
+<li><strong>Distill the logits, not just the behavior.</strong> If more data plateaus, the likely lever is soft-label distillation. The solver I harvested from uses a different tokenizer, so I can only copy its behavior. But the ternary model is a converted Qwen3-8B, and there are strong SWE fine-tunes of that exact base with the SAME vocabulary. Training on a teacher's full output distribution at every token beats one-hot targets at 2 bits in the low-bit-QAT literature, and it is the natural next thing to try when imitation of tokens is not enough.</li>
+</ul>
+<h1 id="the-metal-mps-traps-the-useful-part">The Metal / MPS traps (the useful part)<a class="headerlink" href="#the-metal-mps-traps-the-useful-part" title="Permanent link">&para;</a></h1>
+<ul>
+<li><strong>foreach=False is mandatory.</strong> MPS multi-tensor (foreach) optimizer/clip kernels deadlock at full-model scale. Symptom: "training hangs at step 5." Pass it to AdamW and clip_grad_norm_.</li>
+<li><strong>Sequence length &lt;= 4096.</strong> seq 8192 throws "MPSGraph tensor dims larger than INT_MAX" (no flash attention on MPS).</li>
+<li><strong>fp32 latents, not bf16.</strong> bf16 either blows up or the tiny updates underflow the ternary threshold, so no weight ever flips.</li>
+<li><strong>Optimizer sets how many layers fit.</strong> AdamW keeps two fp32 states (\~56GB extra) and swaps even on 128GB. Adafactor uses factored state and fits all 36 layers in \~70GB.</li>
+<li><strong>Pick which layers by gradient importance, not position.</strong> On this model the early layers carry almost all the task gradient; the middle layers are nearly dead.</li>
+<li><strong>Mask the loss to tool-call tokens</strong> and render tool schemas into the chat template, so you train schema-conditioned tool use, not boilerplate.</li>
+<li><strong>Label the stop token, or the model never learns to stop.</strong> This one cost me the most. My masking labeled the assistant content but ended the span one token before the <code>&lt;|im_end|&gt;</code> terminator. Under the standard causal-LM label shift that means no position in the entire corpus ever had the stop token as a target, so the model got zero gradient toward ending its turn. That, not the training "teaching persistence," was the real cause of the pathological looping (a command repeated hundreds of times). If your fine-tuned model loops, check that your loss actually covers the end-of-turn token before you touch anything else.</li>
+<li><strong>Watch code flips, not just loss.</strong> For a ternary net a weight only changes when its latent crosses the sign threshold. At a low LR the optimizer just nudges the per-group scales and never flips a single code, so the loss falls while the actual ternary weights barely move. Log how many codes flip per checkpoint. If it is near zero, your loss curve is lying to you and the LR is too low.</li>
+</ul>
+<h2 id="links">Links<a class="headerlink" href="#links" title="Permanent link">&para;</a></h2>
+<ul>
+<li><strong>QAT code (this project):</strong> <a href="https://github.com/pearsonkyle/Quant-Tuner">github.com/pearsonkyle/Quant-Tuner</a>, the repo I used to do all of this, with a reusable pipeline guide in <code>docs/ternary_qat.md</code>.</li>
+<li><strong>LogMiner:</strong> <a href="https://github.com/pearsonkyle/LogMiner">github.com/pearsonkyle/LogMiner</a>, the tool that scraped my Claude Code / OpenCode / Qwen Code sessions into the first (log) training corpus.</li>
+<li><strong>The 2-bit model:</strong> <a href="https://huggingface.co/prism-ml/Ternary-Bonsai-8B">prism-ml/Ternary-Bonsai-8B</a> (a ternary <a href="https://huggingface.co/Qwen/Qwen3-8B">Qwen3-8B</a>). The whole <a href="https://huggingface.co/prism-ml">prism-ml</a> org has the Bonsai line, including the 27B flagship.</li>
+<li><strong>The solver I distilled from:</strong> <a href="https://huggingface.co/pearsonkyle/Ornith-1.0-9B">Ornith-1.0-9B</a>, my own agentic coder.</li>
+<li><strong>The issues:</strong> <a href="https://huggingface.co/datasets/nebius/SWE-rebench">nebius/SWE-rebench</a>, real GitHub bugs with hidden pass/fail tests.</li>
+<li><strong>Same-vocab teachers for the logit-distillation idea (iter-6):</strong> <a href="https://huggingface.co/SWE-Lego/SWE-Lego-Qwen3-8B">SWE-Lego/SWE-Lego-Qwen3-8B</a> and <a href="https://huggingface.co/Open-Bee/Bee-8B-RL">Open-Bee/Bee-8B-RL</a>, both Qwen3-8B fine-tunes, so they share the Bonsai tokenizer.</li>
+</ul>
+<h2 id="try-it">Try it<a class="headerlink" href="#try-it" title="Permanent link">&para;</a></h2>
+<p>Apple Silicon with enough unified memory is all you need (this work used a M4 Max with 128Gb). A 2-bit model can be trained on a Mac and matched to its base on generalization patch rate. It clearly learns (codes flip, in-distribution behavior changes); turning that into a repeatable pass on held-out repos is still unsolved and an on-going challenge. If you get there, I want to hear how. Maybe MLX has some better solutions?</p>
+<p>Thanks for making it this far. Stay tuned for the next iteration of the model once we find out if more data helps or if we need to distill the logits.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "content.code.copy", "search.highlight", "search.suggest", "search.preview"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

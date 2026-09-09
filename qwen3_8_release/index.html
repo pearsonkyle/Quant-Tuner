@@ -1,0 +1,1961 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Calibrate your own GGUF quantizations and vLLM W4A16 checkpoints from real agentic-coding logs">
+      
+      
+        <meta name="author" content="K. Pearson">
+      
+      
+      
+        <link rel="prev" href="../gemma4_ternary/HANDOFF/">
+      
+      
+        <link rel="next" href="../qwen3_8_awq_2bit_handoff/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>Qwen3.8 release - quant-tuner</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#exp-060-calibrated-gguf-ladder-for-qwen38-27b-mtp" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="quant-tuner" class="md-header__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            quant-tuner
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Qwen3.8 release
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18V6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-2.69L23.31 12 20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="quant-tuner" class="md-nav__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    quant-tuner
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methods
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Methods
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The three calibrators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipe reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calibration_datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calibration datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmarks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lens/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jacobian lens
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT for ternary models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    QAT for ternary models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method & invariants
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_curriculum/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curriculum
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_preprint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Preprint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary/HANDOFF/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B stage 1 (handoff)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run logs (Qwen 3.8 family)
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Run logs (Qwen 3.8 family)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 release
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 release
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#whats-new-relative-to-the-exp-041-qwopus36-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What's new relative to the exp-041 (Qwopus3.6) release
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-0-is-the-template-usable-seconds-no-gpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 0 — is the template usable? (seconds, no GPU)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-1-fetch-keep-the-mtp-head-convert" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 1 — fetch, keep the MTP head, convert
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-2-the-universal-corpus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 2 — the universal corpus
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Stage 2 — the universal corpus">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#two-extra-outputs-from-the-same-pass" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two extra outputs from the same pass
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#calibration-context-8192-and-why-the-corpus-is-packed-for-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Calibration context: 8192, and why the corpus is packed for it
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tokenizer-template-what-carries-forward-from-3536" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tokenizer &amp; template: what carries forward from 3.5/3.6
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#can-the-imatrix-be-prepared-in-advance-no" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Can the imatrix be prepared in advance? No.
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-built-dataset-2026-08-10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The built dataset (2026-08-10)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-3-imatrix-the-four-quants" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 3 — imatrix + the four quants
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-4-the-things-static-metrics-dont-tell-you" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 4 — the things static metrics don't tell you
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-5-stage-the-repository" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 5 — stage the repository
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_awq_2bit_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 AWQ 2-bit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_gptq_vllm_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 GPTQ vLLM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_exp062_rebuild/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 exp-062 rebuild
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Research notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_32k_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT 32K handoff
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_optimization_audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT optimization audit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_run_history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT run history
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_calibration_experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ternary calibration experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patch_gguf_chat_template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patch a GGUF chat template
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_feasibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary feasibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reddit_ternary_qat_post/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reddit: ternary QAT post
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#whats-new-relative-to-the-exp-041-qwopus36-release" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What's new relative to the exp-041 (Qwopus3.6) release
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-0-is-the-template-usable-seconds-no-gpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 0 — is the template usable? (seconds, no GPU)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-1-fetch-keep-the-mtp-head-convert" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 1 — fetch, keep the MTP head, convert
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-2-the-universal-corpus" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 2 — the universal corpus
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Stage 2 — the universal corpus">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#two-extra-outputs-from-the-same-pass" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Two extra outputs from the same pass
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#calibration-context-8192-and-why-the-corpus-is-packed-for-it" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Calibration context: 8192, and why the corpus is packed for it
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tokenizer-template-what-carries-forward-from-3536" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tokenizer &amp; template: what carries forward from 3.5/3.6
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#can-the-imatrix-be-prepared-in-advance-no" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Can the imatrix be prepared in advance? No.
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#the-built-dataset-2026-08-10" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        The built dataset (2026-08-10)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-3-imatrix-the-four-quants" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 3 — imatrix + the four quants
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-4-the-things-static-metrics-dont-tell-you" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 4 — the things static metrics don't tell you
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#stage-5-stage-the-repository" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stage 5 — stage the repository
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="exp-060-calibrated-gguf-ladder-for-qwen38-27b-mtp">exp-060: calibrated GGUF ladder for Qwen3.8-27B (+ MTP)<a class="headerlink" href="#exp-060-calibrated-gguf-ladder-for-qwen38-27b-mtp" title="Permanent link">&para;</a></h1>
+<p>Runbook for standing up a new model release end to end: <strong>IQ2_M · IQ3_M · IQ4_XS · Q5_K_M</strong>,
+each with the MTP draft head bundled at Q8_0, calibrated on the universal corpus (every
+dataset in <code>datasets/</code>, plus raw wiki).</p>
+<p><code>Qwen/Qwen3.8-27B</code> is unreleased at the time of writing. Every stage below is exercisable
+today against a released sibling — pass <code>--model Jackrong/Qwopus3.6-27B-Coder --run
+exp-060-dryrun</code> and the whole chain runs unchanged.</p>
+<h2 id="whats-new-relative-to-the-exp-041-qwopus36-release">What's new relative to the exp-041 (Qwopus3.6) release<a class="headerlink" href="#whats-new-relative-to-the-exp-041-qwopus36-release" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>exp-041</th>
+<th>exp-060</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Calibration sources</td>
+<td>CLI logs + wiki</td>
+<td>+ <strong>multi-language agent trajectories</strong>, <strong>SWE trajectories</strong>, <strong>broad-domain supplement</strong>, <strong>red-team attacks paired with refusals</strong>, and reasoning-terminal windows</td>
+</tr>
+<tr>
+<td>Chat template</td>
+<td>assumed</td>
+<td><strong>checked against a tool-calling fixture before anything is built</strong>, and the built corpus is re-scanned for markers</td>
+</tr>
+<tr>
+<td>Reasoning</td>
+<td>ignored (≈none survived templating)</td>
+<td><strong>normalized across source shapes and given its own window cut</strong>, with coverage measured</td>
+</tr>
+<tr>
+<td>MTP pin</td>
+<td>hardcoded <code>blk.64.</code></td>
+<td><strong>read from the GGUF</strong> (<code>models.mtp.describe</code>)</td>
+</tr>
+<tr>
+<td>Eval corpora</td>
+<td>external + general</td>
+<td>+ in-distribution <strong>tools</strong>, <strong>agentic</strong>, <strong>broad</strong> and <strong>refusal</strong> holdouts</td>
+</tr>
+</tbody>
+</table>
+<h2 id="stage-0-is-the-template-usable-seconds-no-gpu">Stage 0 — is the template usable? (seconds, no GPU)<a class="headerlink" href="#stage-0-is-the-template-usable-seconds-no-gpu" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">uv run python scripts/verify_chat_template.py --model Qwen/Qwen3.8-27B --show
+</code></pre>
+<p>Everything downstream is chat-templated text, so this runs first. It renders a fixture with
+two tools in scope, an assistant turn carrying prose <em>and</em> a call, a tool result, and a
+closing turn, then asserts the schemas, the argument JSON and the result all survive, that
+in-text markers still tokenize to single ids, and that the packer's window slicing doesn't
+come back empty. A blocking failure means the corpus would contain no tool-call structure —
+which produces a quant that benches fine and can't tool-call.</p>
+<h2 id="stage-1-fetch-keep-the-mtp-head-convert">Stage 1 — fetch, keep the MTP head, convert<a class="headerlink" href="#stage-1-fetch-keep-the-mtp-head-convert" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">PYTHONPATH=src .venv/bin/python scripts/exp060_setup_qwen38.py
+</code></pre>
+<ul>
+<li>Cross-checks <code>config.json</code>'s draft-layer count against the <strong>actual <code>mtp.*</code> weights</strong>.
+  Only "declared <strong>and</strong> present" turns on <code>keep_mtp</code> — Ornith-1.0-9B declared a head it
+  didn't ship, and keeping it produced a phantom block that crashed llama.cpp.</li>
+<li>Converts to F16 and writes <code>out/exp-060/mtp_report.json</code> with the draft layer index and
+  the <code>--tensor-type</code> pin that stage 2 consumes.</li>
+<li>If the model ships <strong>no</strong> head, the release can still go out; speculative decoding then
+  needs a graft (<code>scripts/exp045_graft_mtp.py</code>, requires a byte-identical sibling) or a
+  separate draft model. That is also the hook for a later distillation pass to train a
+  better head.</li>
+</ul>
+<h2 id="stage-2-the-universal-corpus">Stage 2 — the universal corpus<a class="headerlink" href="#stage-2-the-universal-corpus" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">uv run python scripts/build_universal_corpus.py \
+    --out out/exp-060/corpora --model out/exp-060/model_extracted
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Source</th>
+<th>Cal slice</th>
+<th>Eval slice</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>datasets/agent-logs/data/logs-cli.jsonl.gz</code> (CLI usage logs)</td>
+<td>train 80%, windowed</td>
+<td>holdout 10% → <code>corpus.eval.tools.txt</code></td>
+</tr>
+<tr>
+<td><code>datasets/agent-logs/data/logs-agents.jsonl.gz</code> (435 verified trajectories, 19 languages)</td>
+<td>train 80%, windowed</td>
+<td>holdout 10% → <code>corpus.eval.tools.txt</code></td>
+</tr>
+<tr>
+<td>reasoning-terminal windows (from the same train slice)</td>
+<td>budgeted separately</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>datasets/redteam-safety-disclosures</code> (attacks, <strong>refused</strong>)</td>
+<td>90%</td>
+<td>10% → <code>corpus.eval.redteam.txt</code></td>
+</tr>
+<tr>
+<td><code>pearsonkyle/swe-agentic-trajectories</code> (resolved)</td>
+<td>90%, windowed</td>
+<td>10% → <code>corpus.eval.agentic.txt</code></td>
+</tr>
+<tr>
+<td><code>pearsonkyle/broad-domain-supplement</code> (<code>calib</code> half)</td>
+<td>raw text</td>
+<td>10% of the <code>mtp</code> half → <code>corpus.eval.broad.txt</code></td>
+</tr>
+<tr>
+<td><code>wiki.test.raw</code></td>
+<td>chunked</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>eaddario/imatrix-calibration</code> (external)</td>
+<td>—</td>
+<td><code>corpus.eval.txt</code>, <code>corpus.eval.general.txt</code></td>
+</tr>
+</tbody>
+</table>
+<p>Notes worth keeping in mind:</p>
+<ul>
+<li>Sources are <strong>interleaved proportionally</strong>, never concatenated — AWQ/GPTQ sample a fixed
+  token budget across the file, and a contiguous block either eats the budget or misses it.
+  Check <code>token_share</code> in <code>corpora_audit.json</code>; if wiki dominates, cap it with
+  <code>--cal-wiki-tokens</code>.</li>
+<li>The supplement's <strong><code>mtp</code> half stays out of calibration</strong> (bar its eval slice). It is
+  reserved for MTP draft-head training — a head trained on text the trunk was calibrated on
+  flatters its own acceptance rate.</li>
+<li><strong>Reasoning needs its own window shape.</strong> Chat templates keep reasoning only on a render's
+  final assistant turn, so ordinary windows carried 2 of 4,291 available reasoning turns into
+  the corpus. <code>reasoning_windows</code> re-cuts the same conversations so a chain-of-thought turn
+  lands last; the audit reports blocks available vs. blocks that landed. (Empty
+  <code>&lt;think&gt;&lt;/think&gt;</code> blocks — which Qwen templates emit on every final turn — are not counted.)</li>
+<li><strong>Red-team rows are refused, never replayed.</strong> Attack turns are kept verbatim, every
+  assistant turn is replaced with a generic refusal from a small deterministic bank, and the
+  original completions and <code>target_reasoning</code> never reach a corpus. Asserted on the built
+  sessions, not just intended.</li>
+<li>Agentic tool outputs are head+tail clipped to <code>--max-tool-output-tokens</code> (512). A single
+  raw pytest dump is 10k+ tokens and would consume a window on its own.</li>
+<li>The audit records the tool-call marker count <strong>per source</strong>. A source silently losing its
+  calls is invisible in the total, which the other chat source keeps non-zero.</li>
+</ul>
+<p><strong>How much data is there, and how much do we use?</strong> Measured on the Qwen3.6 tokenizer
+(message content, before windowing): logs-cli 14.2M + logs-agents 15.1M, swe-resolved 1.03M,
+broad calib-half 0.34M, redteam-refused 0.09M, wiki 0.30M — ~31M tokens, overwhelmingly the
+two log corpora. Broad, red-team and wiki are budgeted <code>None</code> = <strong>all of them</strong>; SWE is
+data-bound (its cap is above what survives tool-output clipping). Only the logs are
+budget-bound, at 2M — <code>--cal-logs-tokens</code> is the knob, and the cost of raising it is
+llama-imatrix wall-clock, which is linear in corpus tokens.</p>
+<p>Reference build at default budgets — <strong>4.41M tokens, 9,403 tool calls, 5,942 tool results,
+375 reasoning blocks</strong>:</p>
+<pre><code>cal[logs]:            1,999,837 tokens (45.3%)  5,151 tool calls, 131 reasoning blocks
+                      spread across 20 agent sources: qwen 15%, claude 13%, go 8%, cpp 8%, …
+cal[reasoning]:       1,000,539 tokens (22.7%)  1,777 tool calls, 244 reasoning blocks
+cal[swe-trajectories]:  680,418 tokens (15.4%)  2,475 tool calls   (all that survives clipping)
+cal[broad-supplement]:  344,589 tokens ( 7.8%)      0 tool calls   (the whole calib half)
+cal[redteam-refusals]:   88,812 tokens ( 2.0%)      0 tool calls   (all 348 attacks, refused)
+cal[wiki]:              297,120 tokens ( 6.7%)      0 tool calls   (all of wiki.test.raw)
+</code></pre>
+<p>The log source is spread by the packer's <code>(source, length_bucket)</code> round-robin with a
+per-stratum shuffle, so no single agent source dominates: 20 sources, none above 15%, 18 of
+the 19 trajectory languages represented.</p>
+<h3 id="two-extra-outputs-from-the-same-pass">Two extra outputs from the same pass<a class="headerlink" href="#two-extra-outputs-from-the-same-pass" title="Permanent link">&para;</a></h3>
+<p><code>corpus.cal.jsonl.gz</code> — the calibration corpus as records (<code>i</code>, <code>source</code>, <code>n_chars</code>,
+<code>text</code>), one per window, byte-identical to <code>corpus.cal.txt</code>. This is what you query when a
+number looks wrong and you need to know which source a given span came from.</p>
+<p><code>sft.jsonl.gz</code> — <strong>the training view</strong>, and deliberately not the calibration view. Every
+chat-shaped source as complete conversations: no windowing, no tool-output clipping, no
+system/schema stubbing, no chat template applied. <code>tool_calls</code>, <code>tool_call_id</code>/<code>name</code> and
+<code>reasoning_content</code> are separate message fields, so a trainer can template them however it
+likes and mask reasoning independently of the answer. <code>split</code> matches the calibration
+split, so training on <code>split == "train"</code> leaves the tools / agentic / refusal holdouts
+genuinely held out.</p>
+<pre><code>6,643 conversations · 85,643 messages · 33,572 tool calls · 4,289 reasoning turns · 87M chars
+  broad-instruct    5,536      logs-agents  435      redteam-refusals  348
+  logs (CLI)          253      swe-traj      71
+</code></pre>
+<p><strong>System prompts are scrubbed</strong> in the SFT view (not in the calibration corpus, where the
+packer already stubs prose). 90% of system-prompt characters in these logs sit in blocks
+repeated verbatim across sessions — tone guidelines, git etiquette, worked examples — and
+training on 24k tokens of preamble thousands of times teaches nothing. A repeated block is
+<strong>kept</strong> when it names a path or file this conversation actually touches, which is what
+separates "the repo layout" from "the harness". 6.4M → 0.4M characters; <code>--no-sft-scrub-system</code>
+disables it. Neither frequency nor keywords alone works here: the harness blocks are full of
+the words "repository" and "file paths", and generic filenames (<code>package.json</code>, <code>AGENTS.md</code>)
+plus library names (<code>Node.js</code>) ground nothing — they are filtered by document frequency.</p>
+<p><strong>What the quantizers actually sample</strong> is now reported and gated. AWQ and GPTQ don't read
+the whole corpus; they stride a fixed budget across it. The audit runs the production sampler
+over an index tensor and attributes every sampled token back to its source:</p>
+<pre><code>awq  (65k budget): 1.5% of corpus, 6 sources — logs 49% · reasoning 18% · swe 18% · broad 6% · wiki 6% · redteam 4%, 141 tool calls
+gptq (32k budget): 0.7% of corpus, 6 sources — logs 50% · reasoning 17% · swe 12% · wiki 11% · broad 8% · redteam 2%,  59 tool calls
+</code></pre>
+<p>A build whose GPTQ slice contains zero tool calls now fails rather than shipping. The corpus
+is also checked for control tokens on the bytes as written (<code>&lt;tool_call&gt;</code> 9,393,
+<code>&lt;tool_response&gt;</code> 5,936, <code>&lt;|im_end|&gt;</code> 16,125) — every one must tokenize to a single id, since
+<code>llama-imatrix --parse-special</code> and the HF-side calibrators both depend on that.</p>
+<p>Pass <code>--sft-token-counts</code> for per-conversation <code>n_tokens</code> (a second tokenization pass over
+~30M tokens, and specific to <code>--model</code>'s tokenizer); <code>--no-sft</code> skips the file.</p>
+<h3 id="calibration-context-8192-and-why-the-corpus-is-packed-for-it">Calibration context: 8192, and why the corpus is packed for it<a class="headerlink" href="#calibration-context-8192-and-why-the-corpus-is-packed-for-it" title="Permanent link">&para;</a></h3>
+<p>The context is a <strong>packing</strong> parameter, not just a runtime flag. At ctx 4096 the packer's
+3500-token windows ended exactly at the cap for <strong>51% of log windows and 46% of SWE
+windows</strong> — agentic tool-call chains cut mid-chain, which is the one structure this release
+most needs calibrated. Repacking for 8192 (windows ≤7500) roughly doubles how much of a
+chain fits in one context:</p>
+<table>
+<thead>
+<tr>
+<th></th>
+<th>ctx 4096</th>
+<th>ctx 8192</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>windows (same 4.4M tokens)</td>
+<td>1,754</td>
+<td>1,136</td>
+</tr>
+<tr>
+<td>median chat window</td>
+<td>3,169 tok</td>
+<td>5,434 tok</td>
+</tr>
+<tr>
+<td><strong>mean tool results per agentic window</strong></td>
+<td><strong>6.1</strong></td>
+<td><strong>13.5</strong></td>
+</tr>
+<tr>
+<td>longest chain in one window</td>
+<td>26</td>
+<td>42</td>
+</tr>
+</tbody>
+</table>
+<p>Cost, measured on the 27B F16 on Metal: <strong>48.5 s per 4096-token pass (84 tok/s) vs 116.2 s
+per 8192-token pass (70 tok/s)</strong> — about +19% wall-clock for the same token budget, since
+attention is quadratic in context. A full 4.4M-token imatrix pass is ~15 h at 4096 and ~17 h
+at 8192 on this machine; it is an overnight job either way, and much faster on CUDA. Trim
+<code>--cal-logs-tokens</code> if that is too long.</p>
+<p><code>ctx</code> lives in <code>UniversalConfig</code> and the window budget derives from it, so the corpus always
+records the context it was packed for (<code>corpora_audit.json</code>, top-level <code>ctx</code> / <code>window_cap</code>). <strong>Give the
+same value to all three</strong>: <code>llama-imatrix -c</code>, <code>awq.calibrate(ctx=)</code>, <code>gptq.calibrate(ctx=)</code>.
+Note 59% of agentic windows still end at the 7500 cap — these trajectories are long enough
+that 16K would capture more again.</p>
+<h3 id="tokenizer-template-what-carries-forward-from-3536">Tokenizer &amp; template: what carries forward from 3.5/3.6<a class="headerlink" href="#tokenizer-template-what-carries-forward-from-3536" title="Permanent link">&para;</a></h3>
+<p>Checked directly (full id→token map, not just vocab size):</p>
+<table>
+<thead>
+<tr>
+<th>model</th>
+<th>vocab</th>
+<th>vocab sha</th>
+<th>chat template</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Qwen3.5-27B</td>
+<td>248,077</td>
+<td><code>5660eab8ed1d73c3</code></td>
+<td><code>a4aee8afcf2e</code></td>
+</tr>
+<tr>
+<td>Qwen3.5-4B</td>
+<td>248,077</td>
+<td><code>5660eab8ed1d73c3</code></td>
+<td><code>a4aee8afcf2e</code></td>
+</tr>
+<tr>
+<td>Qwen3.6-27B</td>
+<td>248,077</td>
+<td><code>5660eab8ed1d73c3</code></td>
+<td><code>e84f32a23fdd</code></td>
+</tr>
+<tr>
+<td>Qwen3-0.6B</td>
+<td>151,669</td>
+<td><code>8a14c88d4bebfca7</code></td>
+<td>different</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The tokenizer is byte-identical across Qwen3.5 and Qwen3.6</strong> and changed only between
+Qwen3 and Qwen3.5. If Qwen3.8 keeps it, this corpus needs <strong>no rebuild</strong> — the token
+budgets, window packing and marker ids all carry over, and the imatrix can start the moment
+the weights land.</p>
+<p>The <strong>chat template does differ</strong> (3.5 → 3.6 is a 2-line diff): 3.6 adds a <code>preserve_thinking</code>
+flag and changes tool-call argument serialization. Two consequences:</p>
+<ul>
+<li>The corpus is now built with the <strong>official <code>Qwen/Qwen3.6-27B</code></strong> tokenizer, not the
+  Qwopus3.6 finetune's (whose template is a different, shorter 4,718 chars). The finetune's
+  template is not a good proxy for what Qwen ships.</li>
+<li>The official template is <strong>strict</strong> — it raises <code>"No user query found"</code> for any window
+  without a user turn. On a long agentic trajectory (one task, then fifty assistant/tool
+  turns) that refuses every window past the first: the reasoning source fell 1.00M → 232k
+  tokens and SWE 675k → 425k before this was fixed. <code>session_windows(user_anchor=True)</code>
+  retries a refused window with the session's task statement prepended, which is exactly the
+  history-truncated context the model has at inference. Restored: reasoning 1.00M, SWE 687k.</li>
+<li><code>preserve_thinking=True</code> (3.6 only, not 3.5) keeps reasoning on <strong>every</strong> assistant turn
+  rather than the final one. <code>verify_chat_template.py</code> now reports whether a template
+  supports it. Not enabled by default: it would put far more reasoning in the corpus at the
+  cost of a history distribution that differs from default inference, which strips it —
+  a per-release judgement call.</li>
+</ul>
+<h3 id="can-the-imatrix-be-prepared-in-advance-no">Can the imatrix be prepared in advance? No.<a class="headerlink" href="#can-the-imatrix-be-prepared-in-advance-no" title="Permanent link">&para;</a></h3>
+<p>An imatrix is per-model activation statistics — <code>E[a²]</code> per input channel per tensor,
+collected by running <strong>that model's weights</strong> forward over the corpus. There is no way to
+compute it without the weights, and borrowing Qwen3.6's would be quietly wrong: channel
+importances differ between models even at identical architecture, and the result is a quant
+that loads, runs, and is just worse. The same holds for AWQ scales and GPTQ Hessians.</p>
+<p>What <em>is</em> ready in advance: the corpus, the packing, the template pre-flight, the eval
+holdouts and the whole run chain. Release day is then a single unattended chain, and the
+only long pole is the ~17 h imatrix pass.</p>
+<h3 id="the-built-dataset-2026-08-10">The built dataset (2026-08-10)<a class="headerlink" href="#the-built-dataset-2026-08-10" title="Permanent link">&para;</a></h3>
+<p>Saved at <code>out/corpora/qwen3-universal/</code>, built with the <strong>official <code>Qwen/Qwen3.6-27B</code></strong>
+tokenizer + template (4,417,697 tokens, ctx 8192). Rebuild only if Qwen3.8 changes the
+tokenizer or template — check with <code>verify_chat_template.py</code> and the vocab sha above. The
+audit is tracked at <code>docs/qwen3_universal_corpora_audit.json</code>.</p>
+<table>
+<thead>
+<tr>
+<th>file</th>
+<th>what</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>corpus.cal.txt</code> (17.4 MB)</td>
+<td>4,406,512 tokens · 8,650 tool calls · 5,464 tool results · 791 reasoning blocks, packed for <strong>ctx 8192</strong></td>
+</tr>
+<tr>
+<td><code>corpus.cal.jsonl.gz</code></td>
+<td>the same, one record per window, source-labelled</td>
+</tr>
+<tr>
+<td><code>corpus.val.txt</code></td>
+<td>AWQ cv-scoring slice (in-domain logs + out-of-domain breadth)</td>
+</tr>
+<tr>
+<td><code>corpus.eval.{txt,general,tools,agentic,broad,redteam}.txt</code></td>
+<td>six disjoint eval holdouts, each needing its own <code>baseline.kld</code></td>
+</tr>
+<tr>
+<td><code>sft.jsonl.gz</code> (22.7 MB)</td>
+<td>6,643 conversations · 85,643 messages · 33,572 tool calls · 4,289 reasoning turns · <strong>24.1M tokens</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>All three calibrators were run against this corpus, not assumed to work:</strong></p>
+<ul>
+<li><strong>imatrix</strong> — <code>llama-imatrix</code> on the real 27B F16 (<code>out/exp-041/model-f16.gguf</code>) with
+  <code>--parse-special</code>, at <strong>both</strong> contexts: 12 chunks @4096 and 8 chunks @8192. 496 tensor
+  entries, all finite, no all-zero tensor, and the result loads through
+  <code>calibrate.imatrix._load_base_imatrix</code> (the input every variant consumes).</li>
+<li><strong>AWQ</strong> — <code>awq.calibrate</code> end-to-end on Qwen3-0.6B at ctx 4096 and <strong>8192</strong>: 56 groups,
+  per-tensor α search with <code>cv_strategy="gate"</code> scored against <code>corpus.val.txt</code>.</li>
+<li><strong>GPTQ</strong> — <code>gptq.calibrate</code> end-to-end at ctx 2048 and <strong>8192</strong> (its default is 2048, so
+  8192 is a 4× jump in sequence length): 196 Hessians (112 attn / 84 mlp) accumulated from
+  the strided sample, snapshotted without error.</li>
+</ul>
+<h2 id="stage-3-imatrix-the-four-quants">Stage 3 — imatrix + the four quants<a class="headerlink" href="#stage-3-imatrix-the-four-quants" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">PYTHONPATH=src .venv/bin/python scripts/exp060_quants_qwen38.py
+</code></pre>
+<p>Base imatrix at ctx 4096 → <code>hybrid_custom</code> re-weighting → IQ2_M / IQ3_M / IQ4_XS / Q5_K_M,
+each with the draft layer pinned Q8_0. Each eval corpus gets its <strong>own</strong> FP16 baseline and
+its own <code>results.&lt;eval&gt;.csv</code>; they are separate distributions and must never be
+concatenated. <code>--plain-anchor</code> adds the un-calibrated Q2_K control; <code>--no-mtp-pin</code> exists
+only to A/B what the Q8 head buys.</p>
+<p>Equivalent single-row CLI path: <code>src/quant_tuner/recipes/{iq2_m,iq3_m,iq4_xs,q5_k_m}_qwen3_8_mtp.yaml</code>
+(<code>quantize.mtp_pin: q8_0</code> resolves the layer from the GGUF the same way).</p>
+<h2 id="stage-4-the-things-static-metrics-dont-tell-you">Stage 4 — the things static metrics don't tell you<a class="headerlink" href="#stage-4-the-things-static-metrics-dont-tell-you" title="Permanent link">&para;</a></h2>
+<p>At 2 bits, KLD and agentic behavior have disagreed before (exp-051/052: AWQ lost on KLD and
+won decisively on tool-call accuracy). Before believing the ladder:</p>
+<pre><code class="language-bash">PYTHONPATH=src .venv/bin/python scripts/bench_mtp_speed.py      # draft acceptance / speedup
+PYTHONPATH=src .venv/bin/python scripts/run_swebench_eval.py    # agentic pass rate (Docker)
+PYTHONPATH=src .venv/bin/python scripts/run_toolcall_reps.py    # tool-call accuracy, N reps
+</code></pre>
+<p>If IQ2_M reads badly agentically, the exp-051/052 answer was <strong>AWQ at 2-bit</strong> — swap the
+2-bit row to <code>iq2_m_awq</code> and re-measure rather than accepting the imatrix row.</p>
+<h2 id="stage-5-stage-the-repository">Stage 5 — stage the repository<a class="headerlink" href="#stage-5-stage-the-repository" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">PYTHONPATH=src .venv/bin/python scripts/exp060_prepare_release.py
+</code></pre>
+<p>Stages <code>uploads/pearsonkyle/Qwen3.8-27B-imatrix-MTP-GGUF/</code> with terminal-quant filenames
+(so Hugging Face derives the Ollama <code>:IQ4_XS</code> tag), the calibration + eval corpora under
+<code>calibration_data/</code>, an <code>MTP/README.md</code>, and a README rendered from whatever numbers exist
+(missing ones render <code>—</code>). It does <strong>not</strong> push, and the frontmatter <code>license:</code> is emitted
+as <code>PLACEHOLDER</code> — confirm the base model's terms and set it before publishing.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "content.code.copy", "search.highlight", "search.suggest", "search.preview"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>

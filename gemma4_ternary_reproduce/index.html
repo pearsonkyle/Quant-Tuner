@@ -1,0 +1,1733 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Calibrate your own GGUF quantizations and vLLM W4A16 checkpoints from real agentic-coding logs">
+      
+      
+        <meta name="author" content="K. Pearson">
+      
+      
+      
+        <link rel="prev" href="../gemma4_ternary_feasibility/">
+      
+      
+        <link rel="next" href="../reddit_ternary_qat_post/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>gemma-4-E4B ternary reproduce - quant-tuner</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#reproducing-the-gemma-4-e4b-ternarization-study" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="quant-tuner" class="md-header__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            quant-tuner
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              gemma-4-E4B ternary reproduce
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="indigo" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18V6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-2.69L23.31 12 20 8.69V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="quant-tuner" class="md-nav__button md-logo" aria-label="quant-tuner" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    quant-tuner
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/pearsonkyle/Quant-Tuner" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    pearsonkyle/Quant-Tuner
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Methods
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Methods
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../methods/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    The three calibrators
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../recipes/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Recipe reference
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../calibration_datasets/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Calibration datasets
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../benchmarks/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Benchmarks
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lens/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Jacobian lens
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT for ternary models
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    QAT for ternary models
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Method & invariants
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_reproduce/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_curriculum/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Curriculum
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_qat_preprint/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Preprint
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary/HANDOFF/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B stage 1 (handoff)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Run logs (Qwen 3.8 family)
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Run logs (Qwen 3.8 family)
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_release/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 release
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_awq_2bit_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 AWQ 2-bit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_gptq_vllm_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 GPTQ vLLM
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qwen3_8_exp062_rebuild/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Qwen3.8 exp-062 rebuild
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_5" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Research notes
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Research notes
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_32k_handoff/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT 32K handoff
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_optimization_audit/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT optimization audit
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../qat_run_history/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    QAT run history
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ternary_calibration_experiments/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Ternary calibration experiments
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../patch_gguf_chat_template/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Patch a GGUF chat template
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../gemma4_ternary_feasibility/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary feasibility
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary reproduce
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    gemma-4-E4B ternary reproduce
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#0-prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0. Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-weight-space-damage-the-probe-that-returns-a-null-result" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Weight-space damage — the probe that returns a NULL result
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-output-space-damage-where-the-schedule-actually-comes-from" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Output-space damage — where the schedule actually comes from
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-termination-baseline-before-any-training" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Termination baseline — before any training
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-round-trip-convert-quantize-serve-with-no-training" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Round-trip: convert → quantize → serve, with no training
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-corpus-32k-windows-gemma-masking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Corpus — 32k windows, gemma masking
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-pre-flight-the-training-path-cpu-1-min" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Pre-flight the training path (CPU, ~1 min)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-the-first-training-stage-needs-the-gpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. The first training stage (needs the GPU)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../reddit_ternary_qat_post/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reddit: ternary QAT post
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#0-prerequisites" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        0. Prerequisites
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#1-weight-space-damage-the-probe-that-returns-a-null-result" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1. Weight-space damage — the probe that returns a NULL result
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#2-output-space-damage-where-the-schedule-actually-comes-from" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        2. Output-space damage — where the schedule actually comes from
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#3-termination-baseline-before-any-training" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        3. Termination baseline — before any training
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#4-round-trip-convert-quantize-serve-with-no-training" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        4. Round-trip: convert → quantize → serve, with no training
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#5-corpus-32k-windows-gemma-masking" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        5. Corpus — 32k windows, gemma masking
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#6-pre-flight-the-training-path-cpu-1-min" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        6. Pre-flight the training path (CPU, ~1 min)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#7-the-first-training-stage-needs-the-gpu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        7. The first training stage (needs the GPU)
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="reproducing-the-gemma-4-e4b-ternarization-study">Reproducing the gemma-4-E4B ternarization study<a class="headerlink" href="#reproducing-the-gemma-4-e4b-ternarization-study" title="Permanent link">&para;</a></h1>
+<p>Every command behind <code>docs/gemma4_ternary_feasibility.md</code>, in order, with the check that
+must pass at each step. Companion to that doc (findings) and to
+<code>docs/ternary_qat_reproduce.md</code> (the Bonsai pipeline these tools came from).</p>
+<p><strong>Nothing here needs a GPU</strong> except the round-trip generation in §4, which needs ~5 GB for
+a few seconds. Every measurement was produced on CPU while the card was busy.</p>
+<p>Paths assume the repo root. <code>PY=.venv/bin/python</code>.</p>
+<p>The measurement outputs are tracked under <code>docs/gemma4_ternary/</code> — the <code>out/</code> tree is
+gitignored, so those files are the record. Re-running should reproduce them; a diff is a
+finding, not a nuisance.</p>
+<hr />
+<h2 id="0-prerequisites">0. Prerequisites<a class="headerlink" href="#0-prerequisites" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">uv sync
+# Q2_0 is ftype 41 and gemma-4 conversion both live ONLY in the prism fork. Mainline
+# llama.cpp can neither quantize nor read these GGUFs.
+git clone https://github.com/PrismML-Eng/llama.cpp vendor/llama.cpp-prism
+git -C vendor/llama.cpp-prism checkout 9ca265a   # the commit these numbers were made on
+cmake -S vendor/llama.cpp-prism -B vendor/llama.cpp-prism/build -DGGML_CUDA=ON
+cmake --build vendor/llama.cpp-prism/build -j
+</code></pre>
+<p><strong>Base model: <code>google/gemma-4-E4B-it-qat-q4_0-unquantized</code></strong> — the QAT weights stored
+densely in bf16 (15.9 GB, one safetensors file). Not the stock <code>gemma-4-E4B-it</code>: that repo
+ships 54 tensors <code>from_pretrained</code> silently drops (k/v/k_norm for the 18 KV-sharing layers
+24–41). Adopt the QAT repo for that reason more than for its ~3% smaller distance to the
+ternary grid.</p>
+<p>Check before going further — 2076 tensors in, 0 dropped:</p>
+<pre><code class="language-bash">$PY - &lt;&lt;'EOF'
+import glob, torch
+from huggingface_hub import snapshot_download
+from safetensors import safe_open
+from transformers import AutoConfig, Gemma4ForConditionalGeneration
+R = &quot;google/gemma-4-E4B-it-qat-q4_0-unquantized&quot;
+with torch.device(&quot;meta&quot;):
+    m = Gemma4ForConditionalGeneration._from_config(AutoConfig.from_pretrained(R))
+live = {n for n, _ in m.named_parameters()} | {n for n, _ in m.named_buffers()}
+ck = set()
+for f in glob.glob(f&quot;{snapshot_download(R)}/*.safetensors&quot;):
+    with safe_open(f, framework=&quot;pt&quot;) as h:
+        ck |= set(h.keys())
+print(f&quot;checkpoint {len(ck)} tensors, dropped on load: {len(ck - live)}&quot;)
+EOF
+</code></pre>
+<hr />
+<h2 id="1-weight-space-damage-the-probe-that-returns-a-null-result">1. Weight-space damage — the probe that returns a NULL result<a class="headerlink" href="#1-weight-space-damage-the-probe-that-returns-a-null-result" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">$PY scripts/gemma4_ternary_damage.py --model google/gemma-4-E4B-it-qat-q4_0-unquantized \
+    --out out/gemma4-ternary/damage_g128.json
+$PY scripts/gemma4_ternary_damage.py --model google/gemma-4-E4B-it \
+    --out out/gemma4-ternary/damage_stock_g128.json
+</code></pre>
+<p>~70 s each on 384 cores. <strong>Expect every tensor kind at 0.42–0.49 relative Frobenius error
+with frac_zero ≈ 0.42</strong> — which is what i.i.d. Gaussian scores under the same quantizer
+(0.4350 / 0.4224). That is the point: there is no ordering to extract here, so do not build
+a schedule on it. Tracked as <code>docs/gemma4_ternary/weight_damage_{qat,stock}.json</code>.</p>
+<p>If a tensor ever lands near 0, the model is already on the grid and this is the wrong study.</p>
+<hr />
+<h2 id="2-output-space-damage-where-the-schedule-actually-comes-from">2. Output-space damage — where the schedule actually comes from<a class="headerlink" href="#2-output-space-damage-where-the-schedule-actually-comes-from" title="Permanent link">&para;</a></h2>
+<p>Needs an SFT corpus to read eval text from (<code>out/corpora/qwen3-universal-v2/sft.jsonl.gz</code>,
+built by <code>scripts/build_universal_corpus.py</code>). Uses the <code>test</code> split, so the number is not
+read on data a later fine-tune trains on.</p>
+<pre><code class="language-bash">$PY scripts/gemma4_layer_damage.py --split test --window 2048 --windows 3 \
+    --mode both --cumulative --threads 256 \
+    --out out/gemma4-ternary/layer_damage.json
+</code></pre>
+<p>~2.5 h on CPU with the card busy. Three results, all in
+<code>docs/gemma4_ternary/layer_damage.json</code>:</p>
+<ul>
+<li><strong>by kind</strong> — <code>mlp.down_proj</code> 1.199 (PPL 12.91), 3.4× the next-worst; everything else
+  0.009–0.43 and PPL in the 4.2–5.1 band.</li>
+<li><strong>by layer</strong> — layers 22, 23 worst (0.626, 0.271); layers 0–3 best (~0.01). Layers 22–23
+  are the last KV donors, and 24–41 consume what they produce.</li>
+<li><strong>cumulative</strong> — 6/12/18/24/30/36/42 layers → KLD 0.105 / 0.269 / 0.610 / 1.222 / 2.171 /
+  5.288 / 10.666. <strong>Each step ≈ ×2.</strong> If your run does not reproduce that doubling, the
+  eval windows differ — the ordering is stable but the absolute KLD is not comparable
+  across eval sets.</li>
+</ul>
+<p>One window per conversation, deliberately: our sessions are long enough that a concatenated
+stream would draw every window from the first conversation, and a damage number read off a
+single session is not a distribution.</p>
+<hr />
+<h2 id="3-termination-baseline-before-any-training">3. Termination baseline — before any training<a class="headerlink" href="#3-termination-baseline-before-any-training" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">$PY scripts/measure_stop_baseline.py \
+    --model google/gemma-4-E4B-it-qat-q4_0-unquantized --device cpu --threads 64 \
+    --out out/gemma4-ternary/stop_baseline.json
+</code></pre>
+<p>Expect diagnostic <code>sentence_period</code> <strong>0.00274</strong> and control <code>answer_after_tool</code> <strong>0.07032</strong>
+(tracked as <code>docs/gemma4_ternary/stop_baseline.json</code>). These are already in
+<code>PROBE_SPECS['gemma4'].vanilla</code>; re-measure only if the checkpoint changes.</p>
+<p><strong>Do not reuse Qwen's probe points.</strong> <code>after_tool_call</code> reads 0.99995 on Qwen and 0.00004
+here, because gemma's template hands over to the harness at that point. Using it as the
+control inverts the test.</p>
+<hr />
+<h2 id="4-round-trip-convert-quantize-serve-with-no-training">4. Round-trip: convert → quantize → serve, with no training<a class="headerlink" href="#4-round-trip-convert-quantize-serve-with-no-training" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">SNAP=$($PY -c &quot;from huggingface_hub import snapshot_download as d; \
+    print(d('google/gemma-4-E4B-it-qat-q4_0-unquantized'))&quot;)
+PYTHONPATH=vendor/llama.cpp-prism/gguf-py $PY \
+    vendor/llama.cpp-prism/convert_hf_to_gguf.py &quot;$SNAP&quot; \
+    --outfile out/gemma4-ternary/E4B-qat-F16.gguf --outtype f16          # 666 tensors, 14,236 MiB
+
+Q=vendor/llama.cpp-prism/build/bin/llama-quantize
+# ternary trunk, both embedding tables at Q4_0
+$Q --token-embedding-type q4_0 --tensor-type per_layer_token_embd=q4_0 \
+   out/gemma4-ternary/E4B-qat-F16.gguf \
+   out/gemma4-ternary/E4B-qat-trunkQ2_0-embQ4_0.gguf Q2_0 64             # 2,926 MiB, 3.29 BPW
+# THE CONTROL — identical except the trunk type
+$Q --token-embedding-type q4_0 --tensor-type per_layer_token_embd=q4_0 \
+   out/gemma4-ternary/E4B-qat-F16.gguf \
+   out/gemma4-ternary/E4B-qat-trunkQ4_0-embQ4_0.gguf Q4_0 24             # 4,043 MiB, 4.54 BPW
+</code></pre>
+<p>Verify the overrides landed — <code>per_layer_token_embd</code> 5376 → 1512 MiB, <code>token_embd</code>
+1280 → 360 MiB, <code>blk.*</code> at 2.125 bpw (<code>attn_q</code> 10.00 → 1.33 MiB):</p>
+<pre><code class="language-bash">grep -E &quot;per_layer_token_embd|token_embd\.weight|blk\.0\.attn_q&quot; out/gemma4-ternary/quantize.log
+</code></pre>
+<p>Then generate from each. <strong>Run the control.</strong> Without it, token soup is equally consistent
+with a broken converter, and the whole point of the round-trip is to tell those apart:</p>
+<pre><code class="language-bash">for m in trunkQ2_0-embQ4_0 trunkQ4_0-embQ4_0; do
+  vendor/llama.cpp-prism/build/bin/llama-cli -m out/gemma4-ternary/E4B-qat-$m.gguf \
+    -ngl 99 -st -n 40 --temp 0 --no-warmup -p &quot;What is the capital of France?&quot;
+done
+</code></pre>
+<p>Expected — and recorded verbatim in <code>docs/gemma4_ternary/roundtrip_generation_ab.txt</code>:
+Q4_0 says <em>"The capital of France is Paris."</em>, Q2_0 emits multilingual token soup. That is
+the correct starting point, not a failure.</p>
+<p>Two traps. <code>-st</code> (single-turn) is required or llama-cli sits at an interactive prompt and
+looks like a hang. <code>--jinja</code> makes it parse the model's output as a chat message, and the
+chat parser <strong>aborts</strong> on the ternary model's garbage — a harness crash, not a model one.</p>
+<hr />
+<h2 id="5-corpus-32k-windows-gemma-masking">5. Corpus — 32k windows, gemma masking<a class="headerlink" href="#5-corpus-32k-windows-gemma-masking" title="Permanent link">&para;</a></h2>
+<pre><code class="language-bash">for SPLIT in train test; do
+  OUT=out/gemma4-ternary/corpus_sft_gemma4_${SPLIT/test/val}_32768.pt
+  $PY scripts/build_sft_qat_corpus.py \
+      --sft out/corpora/qwen3-universal-v2/sft.jsonl.gz --split $SPLIT \
+      --model google/gemma-4-E4B-it-qat-q4_0-unquantized \
+      --window 32768 --max-tool-tokens 8192 --min-density 0.05 --out $OUT
+done
+</code></pre>
+<p>Fingerprints to match: train <code>0c70d992882d29a7</code> (651 windows, 21.3 M tokens, 28.7%
+supervised, 6,300 labeled <code>&lt;turn|&gt;</code>), val <code>16177b9a361cbdd7</code> (86 windows). Build logs are
+tracked as <code>docs/gemma4_ternary/corpus_build_{train,val}.log</code>.</p>
+<blockquote>
+<p><strong>Known-stale lines in the tracked train log.</strong> It was produced before bfc30c2 fixed the
+per-source audit counters (<code>count_rendered()</code> was matching Qwen's markers on a gemma
+render), so its "tool-calls 57/10,014 kept · reasoning 0/343 kept" lines are the counter
+bug, not the corpus — 25,772 of 26,389 calls are present and every one supervised. A
+rebuild at current HEAD reproduces the <em>fingerprint</em> but prints corrected audit lines
+(the val log, built 34 s after the fix landed, shows the true shape: 3,190/3,190 kept).
+Only an audit-line diff <strong>plus a fingerprint diff</strong> is a finding.</p>
+</blockquote>
+<p><strong>Then audit it.</strong> This is the step that catches a silently wrong mask:</p>
+<pre><code class="language-bash">$PY scripts/inspect_corpus_window.py out/gemma4-ternary/corpus_sft_gemma4_32768.pt \
+    --audit --model google/gemma-4-E4B-it-qat-q4_0-unquantized
+</code></pre>
+<p>The line that matters is <code>supervised tokens inside a TOOL RESPONSE  0</code>. gemma renders a
+whole tool exchange inside one <code>model</code> turn, so a mask that supervises the turn trains the
+model on environment output while every aggregate looks healthy. The audit exits non-zero
+if it finds any, or if no stop token is supervised.</p>
+<p>Expect a large <code>carry-over</code> figure (3.2 M, 52% of supervised tokens) — gemma's model turns
+run to tens of thousands of tokens, so a 32k window routinely opens inside one. The
+tool-response check covers that region too.</p>
+<hr />
+<h2 id="6-pre-flight-the-training-path-cpu-1-min">6. Pre-flight the training path (CPU, ~1 min)<a class="headerlink" href="#6-pre-flight-the-training-path-cpu-1-min" title="Permanent link">&para;</a></h2>
+<p>Before spending GPU time, confirm the real checkpoint loads, wraps and backprops:</p>
+<pre><code class="language-bash">$PY - &lt;&lt;'EOF'
+import torch
+from transformers import Gemma4ForConditionalGeneration
+from quant_tuner.qat.train import wrap_model, decoder_layers
+torch.set_num_threads(64)
+R = &quot;google/gemma-4-E4B-it-qat-q4_0-unquantized&quot;
+m = Gemma4ForConditionalGeneration.from_pretrained(R, dtype=torch.float32, device_map=&quot;cpu&quot;)
+wrap_model(m, n_train=0, layer_spec=&quot;0-3,7,8&quot;, ternary_spec=&quot;0-3,7,8&quot;,
+           dense_kinds=(&quot;down_proj&quot;,))
+blob = torch.load(&quot;out/gemma4-ternary/corpus_sft_gemma4_32768.pt&quot;, weights_only=False)
+out = m(blob[&quot;ids&quot;][0:1, :512], labels=blob[&quot;labels&quot;][0:1, :512])
+out.loss.backward()
+n = sum(1 for p in m.parameters() if p.grad is not None)
+print(f&quot;loss {out.loss.item():.4f}  tensors with grad {n}&quot;)
+print(&quot;trainable outside language_model:&quot;,
+      sum(1 for k, p in m.named_parameters() if p.requires_grad and &quot;language_model&quot; not in k))
+EOF
+</code></pre>
+<p><strong><code>trainable outside language_model</code> must be 0.</strong> gemma's vision and audio towers have
+their own <code>layers.N</code> and submodules literally called <code>linear</code>, which the old name-based
+selection matched — 167.8 M params of tower were handed to the optimizer, silently, because
+a text-only forward never gives them a gradient.</p>
+<p>The number of tensors with a gradient should equal the linears in the scheduled layers:
+<strong>48 ternary + 6 dense <code>down_proj</code> = 54</strong> for the stage above. It is layer-set dependent —
+layers 24–41 have no <code>k_proj</code>/<code>v_proj</code>, so a stage drawn from there contributes 6 linears
+per layer, not 8.</p>
+<hr />
+<h2 id="7-the-first-training-stage-needs-the-gpu">7. The first training stage (needs the GPU)<a class="headerlink" href="#7-the-first-training-stage-needs-the-gpu" title="Permanent link">&para;</a></h2>
+<p>The damage profile says ~6 layers per stage, least-damaging first, <code>down_proj</code> kept dense
+— and the loss is the full Bonsai anchor-ladder stack, not bare CE (see the feasibility
+doc's loss-stack section: CE alone at a flip-capable lr diverges even a dense model, and a
+from-scratch stage has dense tensors inside every trainable layer).</p>
+<pre><code class="language-bash"># 7a. Forced-stop KD table from a dense gemma teacher (forward-only). Stop id is 106.
+#     ~6.6 h for 651 windows: 36.8 s/window, of which top-K is 0.07 s -- it is entirely
+#     the 31B trunk at a 32k window. There is no faster kernel to reach for on this
+#     architecture: gemma-4's full-attention layers use global_head_dim 512 and
+#     FlashAttention-2 caps at 256, FA3 ships no kernel for this compute capability, and
+#     flex_attention wants 201 KB of shared memory against the card's 101 KB. SDPA it is.
+$PY scripts/kd_precompute.py --teacher google/gemma-4-31B-it \
+    --corpus out/gemma4-ternary/corpus_sft_gemma4_32768.pt \
+    --out out/gemma4-ternary/kd/gemma31b_topk64_fs106.pt --topk 64 --dtype bf16 \
+    --student-model google/gemma-4-E4B-it-qat-q4_0-unquantized \
+    --include-ids 106
+# Read `coverage` at startup; below 0.8 the KL is far weaker than it looks.
+
+# 7b. The teacher's own probe values — the report's dotted asymptotes.
+$PY scripts/teacher_stop_probe.py --teacher google/gemma-4-31B-it \
+    --student-model google/gemma-4-E4B-it-qat-q4_0-unquantized \
+    --out out/gemma4-ternary/kd/teacher_probe_31b.json
+
+# 7c. Stage 1. Anchor margins and abort thresholds are SCALED FROM GEMMA'S BASELINE
+#     (stop_baseline.json: diagnostic 0.00274, control 0.070), not copied from Bonsai;
+#     lr/clip are Bonsai's only as the first guess — re-measure with a 60-step A/B.
+$PY -m quant_tuner.qat.train \
+    --model-dir google/gemma-4-E4B-it-qat-q4_0-unquantized \
+    --corpus out/gemma4-ternary/corpus_sft_gemma4_32768.pt \
+    --val-corpus out/gemma4-ternary/corpus_sft_gemma4_val_32768.pt \
+    --layers 0,1,2,3,7,8 --ternary-layers 0,1,2,3,7,8 --dense-kind down_proj \
+    --kd-table out/gemma4-ternary/kd/gemma31b_topk64_fs106.pt --kd-alpha 0.5 --kd-temp 1.0 \
+    --stop-anchor 0.2 --stop-anchor-margin 1.0 --stop-anchor-margin-hi 0.1 \
+    --steer-weight 0 --clip-norm 0.25 --lr-scale group-scale \
+    --lr 5e-4 --optim adafactor --dtype fp32 --compute-dtype fp32 \
+    --val-every 50 --probe-every 25 \
+    --probe-abort 0.03 --probe-abort-control 0.01 --probe-abort-patience 2 \
+    --out out/gemma4-ternary/stage1
+# Report watcher, same as Bonsai: bash scripts/qat_report_watch.sh out/gemma4-ternary/stage1
+</code></pre>
+<p><strong><code>--model-dir</code> is not optional.</strong> It defaults to <code>out/exp-057/model</code> — the Bonsai
+checkpoint — and every other flag above is dialect-agnostic, so omitting it launches a
+run against the wrong model entirely. It dies on the embedding lookup (the gemma corpus
+carries ids up to 262,143 against Bonsai's 151,669 vocab) rather than training something
+plausible-but-wrong, but only by luck of the vocab sizes.</p>
+<pre><code class="language-bash"># 7d. Damage, before and after, from the same probe in the same process. This is the
+#     go/no-go number. Run it with no --ckpt first: the untrained baseline under the
+#     stage's OWN configuration is not the matching row of layer_damage.json, because a
+#     stage holds --dense-kind tensors dense and down_proj is the most damaging kind
+#     there is. CPU, ~15 min, runs while the card is busy.
+$PY scripts/gemma4_stage_damage.py --ternary-layers 0,1,2,3,7,8 --dense-kind down_proj \
+    --out out/gemma4-ternary/stage1/stage_damage_untrained.json
+$PY scripts/gemma4_stage_damage.py --ternary-layers 0,1,2,3,7,8 --dense-kind down_proj \
+    --ckpt out/gemma4-ternary/stage1/trained_latents.pt \
+    --out out/gemma4-ternary/stage1/stage_damage_trained.json
+</code></pre>
+<p>The control-side abort deserves a caveat: gemma's control baseline is 0.070 with ~25× of
+headroom over the diagnostic (Qwen had ~10⁴), so <code>--probe-abort-control</code> here is a
+last-ditch floor, not a health band — a stage that moves the control should be checked
+against a generated trajectory before the probe is believed in either direction.
+<code>--steer-weight</code> stays <strong>0</strong> until the steering batches are ported: their control class
+teaches "stop after a tool call", which is correct Qwen and <em>inverted</em> gemma (gemma's
+stop-is-right position is <code>answer_after_tool</code> — the same trap the probe section documents),
+and their bodies hardcode Qwen markers. The anchor and the KD KL are dialect-clean and
+carry the termination defense meanwhile.</p>
+<p>Stage order from <code>layer_damage.json["layer_order"]</code> — stage 2 is <code>05,06,36,37,38,39</code>; the
+last six (<code>10,11,17,21,22,23</code>) are the full-attention and late KV-donor layers and may be
+worth leaving dense permanently.</p>
+<p><strong>Read the stop probe from step 1, against §3's baseline, not Bonsai's.</strong> And read it next
+to the code-flip telemetry: a run can hold termination and learn nothing, or learn and
+collapse, and neither number alone distinguishes them.</p>
+<p><strong>The open question this stage answers:</strong> whether QAT recovers a stage's damage before the
+next stage compounds on it. The cumulative curve doubles every 6 layers with no training;
+if training cannot pull a stage back down, the schedule buys nothing and the honest answer
+is that fully-ternary E4B is out of reach.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.top", "content.code.copy", "search.highlight", "search.suggest", "search.preview"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
