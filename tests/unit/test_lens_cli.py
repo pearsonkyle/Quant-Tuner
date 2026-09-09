@@ -34,4 +34,9 @@ def test_parse_layers():
 def test_leaderboard_has_lens_csv_option():
     result = runner.invoke(app, ["leaderboard", "--help"])
     assert result.exit_code == 0
+    if "--lens-csv" not in result.output:
+        # DEBUG (temporary): dump the full help on CI so the missing option is visible.
+        print("\n=== typer", getattr(__import__("typer"), "__version__", "?"),
+              "click", __import__("click").__version__, "===")
+        print(result.output)
     assert "--lens-csv" in result.output
