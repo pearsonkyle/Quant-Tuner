@@ -121,8 +121,16 @@ module = [
     "pyarrow.*",
     # Vendored gguf-py. Not installed into the venv at all — `paths.ensure_gguf_py()`
     # puts it on sys.path at call time from the llama.cpp submodule, so mypy can
-    # never resolve it in any environment.
+    # never resolve it in any environment. `gguf.quants` is the dequant helper the
+    # lens reads through; list the subpath too (the PyPI `gguf` stub has no `quants`).
     "gguf",
+    "gguf.quants",
+    # Lazy-optional extras not in the base/dev install: the 4-bit drafter path
+    # (bitsandbytes) and the fsspec read helper (no py.typed marker).
+    "bitsandbytes",
+    "fsspec",
+    # The native lens server, vendored + built at call time (never in the venv).
+    "jlens",
 ]
 ignore_missing_imports = true
 

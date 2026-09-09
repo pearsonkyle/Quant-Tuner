@@ -72,8 +72,10 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dev deps
-        run: uv sync --extra dev
+      # `vllm-ptq` (llmcompressor) is imported lazily in vllm_export/ — installing
+      # it lets mypy resolve those imports instead of reporting import-not-found.
+      - name: Install dev + lazy-import deps
+        run: uv sync --extra dev --extra vllm-ptq
 
       - name: MyPy
         run: uv run mypy src
