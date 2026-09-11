@@ -36,17 +36,27 @@ KNOWN_TOOL_CALL_MARKERS = (
     "<|tool_call|>",
     "[TOOL_CALLS]",         # Mistral
     "<|python_tag|>",       # Llama 3.x
-    "```json",              # some Gemma / generic templates
+    "```json",              # older Gemma / generic templates
+    "<|tool_call>",         # Gemma 4 -- opens `<|tool_call>call:NAME{...}<tool_call|>`
     "<function_call>",
     "<|tool▁calls▁begin|>",  # DeepSeek
     "functools[",
 )
+
+# Gemma 4 brackets every structured span with an ASYMMETRIC pair -- `<|x>` opens and
+# `<x|>` closes -- so none of the symmetric `<|x|>` entries above match it. A Gemma 4
+# corpus scanned without these reads as having no tool calls at all: the 15M-token
+# v65536 calibration split scored 70 "```json" hits across 12,175 real tool calls,
+# which is the shape of a false negative, not a thin corpus. Counting only the
+# OPENING marker keeps these counts comparable with the other families' single-token
+# markers.
 
 KNOWN_TOOL_RESPONSE_MARKERS = (
     "<tool_response>",
     "<|tool_response|>",
     "[TOOL_RESULTS]",
     "<|tool▁output▁begin|>",
+    "<|tool_response>",     # Gemma 4
     "ipython",
     "tool\n",               # `<|im_start|>tool` and friends
 )
