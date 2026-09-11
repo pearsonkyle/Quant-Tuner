@@ -1,0 +1,62 @@
+diff --git a/conversion/gemma.py b/conversion/gemma.py
+index 5b4ca5c..83cc4c0 100644
+--- a/conversion/gemma.py
++++ b/conversion/gemma.py
+@@ -652,6 +652,39 @@ class Gemma4Model(Gemma3Model):
+         self.gguf_writer.add_add_space_prefix(False)
+         self.gguf_writer.add_add_bos_token(True)
+ 
++    def _global_head_dim(self) -> int:
++        """head_dim of the full_attention layers, across two config schemas.
++
++        transformers restructured this between 5.6.2 (which wrote the upstream
++        Gemma 4 checkpoints) and 5.16.1:
++
++            old   "global_head_dim": 512
++            new   "per_layer_config": {"05": {"head_dim": 512}, "11": {...}, ...}
++
++        The new form is what AutoConfig produces, so a config.json hand-patched
++        with the old key does NOT survive the round-trip in load_hparams -- which
++        is why this is derived here rather than fixed in the model directory.
++
++        The mapping is verified, not assumed: per_layer_config's keys must be
++        exactly the full_attention layers and must agree on a single head_dim. A
++        wrong value here would not crash -- it would silently write the wrong
++        key/value length and RoPE dimension count into the GGUF.
++        """
++        if "global_head_dim" in self.hparams:
++            return self.hparams["global_head_dim"]
++        plc = self.hparams.get("per_layer_config")
++        if not plc:
++            raise KeyError("global_head_dim")
++        full = [i for i, t in enumerate(self.hparams["layer_types"]) if t == "full_attention"]
++        if sorted(int(k) for k in plc) != full:
++            raise ValueError(
++                f"per_layer_config keys {sorted(int(k) for k in plc)} are not the "
++                f"full_attention layers {full}; refusing to guess global_head_dim")
++        dims = {v["head_dim"] for v in plc.values() if "head_dim" in v}
++        if len(dims) != 1:
++            raise ValueError(f"full_attention layers disagree on head_dim: {sorted(dims)}")
++        return dims.pop()
++
+     def set_gguf_parameters(self):
+         super().set_gguf_parameters()
+ 
+@@ -665,7 +698,7 @@ class Gemma4Model(Gemma3Model):
+         swa_layers = [t == "sliding_attention" for t in self.hparams["layer_types"]]
+         self.gguf_writer.add_sliding_window_pattern(swa_layers)
+ 
+-        head_dim_full = self.hparams["global_head_dim"]
++        head_dim_full = self._global_head_dim()
+         head_dim_swa = self.hparams["head_dim"]
+         # correct the head dim for global/swa layers
+         self.gguf_writer.add_key_length(head_dim_full)
+@@ -708,7 +741,7 @@ class Gemma4Model(Gemma3Model):
+         # IMPORTANT: this ROPE_FREQS tensor is ONLY used by the full_attention layers
+         rope_params_full = self.hparams["rope_parameters"]["full_attention"]
+         assert rope_params_full["rope_type"] == "proportional"
+-        head_dim_full = (self.hparams["global_head_dim"])
++        head_dim_full = self._global_head_dim()
+         partial_rotary_factor_full = rope_params_full["partial_rotary_factor"]
+         n_rot_full = int(head_dim_full * partial_rotary_factor_full / 2)
+         n_unrot_full = int(head_dim_full / 2) - n_rot_full
