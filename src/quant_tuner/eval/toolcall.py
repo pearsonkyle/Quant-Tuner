@@ -65,7 +65,7 @@ def strip_for_api(msgs: list[dict]) -> list[dict]:
         elif role == "assistant":
             o: dict[str, Any] = {"role": "assistant", "content": m.get("content") or None}
             if m.get("tool_calls"):
-                tcs = []
+                tcs: list[dict] = []
                 for tc in m["tool_calls"]:
                     fn = tc.get("function") or {}
                     args = fn.get("arguments")
@@ -178,9 +178,9 @@ def call_model(
     tools_kwarg = {"tools": tools} if tools else {}
     for attempt in range(max_retries + 1):
         try:
-            return client.chat.completions.create(
+            return client.chat.completions.create(  # type: ignore[call-overload]
                 model=model_name,
-                messages=messages,
+                messages=messages,  # type: ignore[arg-type]
                 **tools_kwarg,
                 **sampling.to_request_kwargs(),
             )
@@ -345,7 +345,8 @@ def _annotate_failing_calls(msgs: list[dict]) -> None:
                         ) or {},
                     }
         elif m.get("role") == "tool" and tool_result_is_error(m):
-            failing = by_id.get(m.get("tool_call_id"))
+            tool_call_id = m.get("tool_call_id")
+            failing = by_id.get(tool_call_id) if tool_call_id is not None else None
             if failing is not None:
                 m["_failing_call"] = failing
 
@@ -726,6 +727,8 @@ def run_toolcall_eval(
             return _run_with(client)
         if base_url is not None:
             return _run_against(base_url)
+        if model_path is None:
+            raise ValueError("either model_path or base_url must be provided")
         with running_server(
             model_path, ctx=ctx, ngl=ngl,
             log_path=server_log_path,

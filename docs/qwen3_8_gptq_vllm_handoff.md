@@ -17,7 +17,7 @@ This is the sibling of the GGUF ladder, not a replacement. The GGUF ladder ships
 `IQ2_M / IQ3_M / IQ4_XS / Q5_K_M` with an MTP head pinned Q8_0; this path ships one
 4-bit checkpoint for a vLLM deployment.
 
-**Read `/workspace/CLAUDE.md` §"vLLM-native PTQ export" before starting** — it documents the
+**Read `/workspace/AGENTS.md` §"vLLM-native PTQ export" before starting** — it documents the
 module you will be driving (`src/quant_tuner/vllm_export/w4a16.py`).
 
 ---
@@ -113,7 +113,7 @@ you want it near-lossless anyway.
 
 48 of 64 layers are `linear_attention` carrying recurrent state (`mamba_ssm_dtype: float32`).
 This is structurally the same hazard that forced `--pipeline basic` on gemma-4 (cross-layer
-shared KV broke the sequential tracer — see CLAUDE.md).
+shared KV broke the sequential tracer — see AGENTS.md).
 
 **Try `--pipeline sequential` first** (the default, and far cheaper in memory). If it fails
 inside the tracer, fall back to `basic`. Do not start with `basic` "to be safe" — see the
@@ -332,4 +332,4 @@ to `work/<instance>/test_patch.diff` and that only source files were modified.
   `out/exp-060-32k/release/upload_to_hf.py` is dry-run-by-default and refuses `--push` while
   any `*pending*` placeholder remains in the card.
 - **AWQ** was requested and never started. `recipes/iq2_m_awq.yaml` etc. exist; the AWQ branch
-  collects its imatrix on the *folded* F16 (see CLAUDE.md) — do not reuse an unfolded one.
+  collects its imatrix on the *folded* F16 (see AGENTS.md) — do not reuse an unfolded one.

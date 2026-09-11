@@ -2,12 +2,24 @@
 
 from __future__ import annotations
 
+import re
+
 from typer.testing import CliRunner
 
 from quant_tuner.cli import app
 from quant_tuner.lens.cli import _parse_layers, lens_app
 
 runner = CliRunner()
+
+# Typer's rich-rendered help inserts ANSI color codes *inside* long option
+# names when the terminal is colored (e.g. a CI runner with a wide COLUMNS),
+# splitting "--lens-csv" into "-"/"lens"/"-csv" segments. Strip the escapes
+# before asserting so the check is independent of the color state.
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _plain(text: str) -> str:
+    return _ANSI.sub("", text)
 
 
 def test_lens_subapp_registered():
@@ -34,4 +46,4 @@ def test_parse_layers():
 def test_leaderboard_has_lens_csv_option():
     result = runner.invoke(app, ["leaderboard", "--help"])
     assert result.exit_code == 0
-    assert "--lens-csv" in result.output
+    assert "--lens-csv" in _plain(result.output)

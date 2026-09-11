@@ -228,7 +228,7 @@ def test_kv_shorter_than_q_is_rejected():
         chunked_causal_sdpa(q, k[:, :, :32], v[:, :, :32], enable_gqa=True)
 
 
-def test_short_cached_window_is_not_sent_to_the_stock_kernel(patched):
+def test_short_cached_window_is_not_sent_to_the_stock_kernel(patched, requires_cuda):
     """A 128-token tail is below chunk_above, but with a cache the stock maskless kernel is
     WRONG — the gate has to notice kv_len != q_len."""
     from transformers.integrations import sdpa_attention as mod
@@ -350,7 +350,7 @@ def test_recompute_actually_defers_the_scores_to_backward():
 
 
 # --------------------------------------------------------------------------- fp32 GQA
-def test_fp32_gqa_predicate_is_patched_only_for_fp32():
+def test_fp32_gqa_predicate_is_patched_only_for_fp32(requires_cuda):
     """transformers asks SDPA for GQA whenever the mask is None on CUDA. In fp32 no fused
     kernel provides it, so the call falls back to math and materializes [heads, S, S] —
     7.75 GiB at a 8064 window. The patch must flip the predicate for fp32 and ONLY fp32:

@@ -3,7 +3,7 @@
 exp-040b proved the rmsnorm_plus_one fix recovers AWQ (IQ2_XS top_p 0.15%→78.69%),
 but it still trails imatrix-only (81.70%). Suspected cause: exp-040's AWQ rows
 quantized with the PRE-FOLD imatrix (`imatrix=IMATRIX`, collected on the original
-F16). CLAUDE.md is explicit that the AWQ branch must collect its imatrix on the
+F16). AGENTS.md is explicit that the AWQ branch must collect its imatrix on the
 FOLDED F16 — an unfolded imatrix over-weights exactly the channels AWQ rescaled,
 mis-allocating 2-bit precision. That pre-fold imatrix is correct for imatrix-only
 (weights unchanged) but wrong for AWQ, which fits the asymmetry we measured.

@@ -128,4 +128,4 @@ class TernaryLinear(torch.nn.Module):
 
     @property
     def weight(self) -> torch.nn.Parameter:  # convenience for export
-        return self.linear.weight
+        return self.linear.weight  # type: ignore[return-value]

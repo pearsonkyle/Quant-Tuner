@@ -64,10 +64,10 @@ def fit_causal_lens(
     from quant_tuner.lens.fitting import load_corpus
     from quant_tuner.lens.pt_convert import convert_pt_lens
 
-    hf = transformers.AutoModelForCausalLM.from_pretrained(str(hf_model))
+    hf = transformers.AutoModelForCausalLM.from_pretrained(str(hf_model))  # type: ignore[call-arg]
     tok = transformers.AutoTokenizer.from_pretrained(str(hf_model))
     try:
-        hf = hf.cuda()
+        hf = hf.cuda()  # type: ignore[call-arg]
     except Exception:
         logger.info("running causal fit on CPU (no CUDA)")
     model = jlens.from_hf(hf, tok)

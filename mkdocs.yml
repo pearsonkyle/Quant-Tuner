@@ -1,0 +1,67 @@
+site_name: quant-tuner
+site_description: Calibrate your own GGUF quantizations and vLLM W4A16 checkpoints from real agentic-coding logs
+site_author: K. Pearson
+repo_url: https://github.com/pearsonkyle/Quant-Tuner
+repo_name: pearsonkyle/Quant-Tuner
+theme:
+  name: material
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to dark mode
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-6
+        name: Switch to light mode
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.highlight
+    - search.suggest
+    - search.preview
+
+# The README (symlinked as docs/index.md) is the index. docs/ is the source of
+# truth for everything else. docs/runs/ is gitignored (per-experiment
+# telemetry) and not referenced from the nav.
+nav:
+  - Overview: index.md
+  - Methods:
+      - The three calibrators: methods.md
+      - Recipe reference: recipes.md
+      - Calibration datasets: calibration_datasets.md
+      - Benchmarks: benchmarks.md
+      - Jacobian lens: lens.md
+  - QAT for ternary models:
+      - Method & invariants: ternary_qat.md
+      - Reproduce: ternary_qat_reproduce.md
+      - Curriculum: ternary_qat_curriculum.md
+      - Preprint: ternary_qat_preprint.md
+      - gemma-4-E4B stage 1 (handoff): gemma4_ternary/HANDOFF.md
+  - Run logs (Qwen 3.8 family):
+      - Qwen3.8 release: qwen3_8_release.md
+      - Qwen3.8 AWQ 2-bit: qwen3_8_awq_2bit_handoff.md
+      - Qwen3.8 GPTQ vLLM: qwen3_8_gptq_vllm_handoff.md
+      - Qwen3.8 exp-062 rebuild: qwen3_8_exp062_rebuild.md
+  - Research notes:
+      - QAT 32K handoff: qat_32k_handoff.md
+      - QAT optimization audit: qat_optimization_audit.md
+      - QAT run history: qat_run_history.md
+      - Ternary calibration experiments: ternary_calibration_experiments.md
+      - Patch a GGUF chat template: patch_gguf_chat_template.md
+      - gemma-4-E4B ternary feasibility: gemma4_ternary_feasibility.md
+      - gemma-4-E4B ternary reproduce: gemma4_ternary_reproduce.md
+      - "Reddit: ternary QAT post": reddit_ternary_qat_post.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true

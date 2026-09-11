@@ -431,7 +431,7 @@ def calibrate(
     tok = AutoTokenizer.from_pretrained(model_dir, fix_mistral_regex=True)
     model = AutoModelForCausalLM.from_pretrained(
         model_dir, torch_dtype=torch_dtype, trust_remote_code=True
-    ).to(device)
+    ).to(device)  # type: ignore[arg-type]
     model.eval()
     for p in model.parameters():
         p.requires_grad_(False)
@@ -579,7 +579,7 @@ def apply(
     tok = AutoTokenizer.from_pretrained(model_dir, fix_mistral_regex=True)
     model = AutoModelForCausalLM.from_pretrained(
         model_dir, torch_dtype=torch_dtype, trust_remote_code=True
-    ).to(device)
+    ).to(device)  # type: ignore[arg-type]
     model.eval()
 
     ref_logits = None

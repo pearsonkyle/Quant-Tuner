@@ -453,10 +453,8 @@ class GradOffload:
             b = self._bufs.get(id(q))
             if b is None:
                 b = torch.zeros(g.shape, dtype=g.dtype)
-                try:
-                    b = b.pin_memory()
-                except RuntimeError:
-                    pass  # pinning is an optimization, never a requirement
+                with contextlib.suppress(RuntimeError):
+                    b = b.pin_memory()  # pinning is an optimization, never a requirement
                 self._bufs[id(q)] = b
             b.add_(g.detach().cpu())
             q.grad = None
@@ -972,7 +970,7 @@ def train_qat(cfg: QATConfig) -> int:
         print(f"[qat] val corpus {val_ids.shape[0]} windows "
               f"(using {min(cfg.val_windows, val_ids.shape[0])})", flush=True)
 
-    model = AutoModelForCausalLM.from_pretrained(cfg.model_dir, dtype=dtype).to(dev)
+    model = AutoModelForCausalLM.from_pretrained(cfg.model_dir, dtype=dtype).to(dev)  # type: ignore[arg-type]
     model.config.use_cache = False
     model.gradient_checkpointing_enable()  # transformers>=5 defaults use_reentrant=False
     wrap_model(model, cfg.train_layers, layer_spec=cfg.layers,
@@ -983,7 +981,7 @@ def train_qat(cfg: QATConfig) -> int:
     teacher = None
     if cfg.kd_teacher:
         tdtype = backend.teacher_dtype
-        teacher = AutoModelForCausalLM.from_pretrained(cfg.kd_teacher, dtype=tdtype).to(dev)
+        teacher = AutoModelForCausalLM.from_pretrained(cfg.kd_teacher, dtype=tdtype).to(dev)  # type: ignore[arg-type]
         teacher.config.use_cache = False
         teacher.eval().requires_grad_(False)
         assert teacher.config.vocab_size == model.config.vocab_size, (
@@ -1016,7 +1014,7 @@ def train_qat(cfg: QATConfig) -> int:
             #   Adafactor + beta1  +27.8 GiB -> ~98 GiB   OOM
             #   AdamW8bit  +13.9 GiB -> ~84 GiB    fits
             #   Lion8bit    +7.0 GiB -> ~78 GiB    fits
-            # NOTE the CLAUDE.md line "an 8-bit optimizer is a no-op here" is about
+            # NOTE the AGENTS.md line "an 8-bit optimizer is a no-op here" is about
             # 8-bit ADAFACTOR (whose state is already ~9 MB). Against AdamW it is the
             # difference between fitting and not.
             import bitsandbytes as bnb
@@ -1159,7 +1157,7 @@ def train_qat(cfg: QATConfig) -> int:
                   f"{kd_table.coverage():.1%} of the teacher's mass — the KL is a weaker "
                   f"constraint than it looks; consider a larger --topk", flush=True)
 
-    stop_anchor_id = None
+    stop_anchor_id: int | None = None
     if cfg.stop_anchor > 0:
         if kd_table is None:
             sys.exit("[qat] --stop-anchor needs --kd-table (the teacher's per-position "
@@ -1168,7 +1166,10 @@ def train_qat(cfg: QATConfig) -> int:
 
         from quant_tuner.qat.dialect import detect as _detect
         _t = AutoTokenizer.from_pretrained(str(cfg.model_dir))
-        stop_anchor_id = _t.convert_tokens_to_ids(_detect(_t).stop_piece)
+        _stop_id = _t.convert_tokens_to_ids(_detect(_t).stop_piece)
+        if not isinstance(_stop_id, int):
+            sys.exit(f"[qat] stop anchor: expected a single stop token id, got {_stop_id!r}")
+        stop_anchor_id = _stop_id
         # Fail at startup, not at window 0: the plain top-K table lacks the stop id in
         # ~98% of rows and there is nothing to anchor to.
         stop_logp_of(kd_table.for_window(
@@ -1228,12 +1229,13 @@ def train_qat(cfg: QATConfig) -> int:
               f"episode contexts (L={rep_traj_batch.ids.shape[1]}), every "
               f"{cfg.steer_rep_traj_every} steps, cap {cfg.steer_rep_cap} — the real "
               f"loop state needs its full history (truncation collapses it)", flush=True)
-        print(f"[qat] repetition steering: {rep_batch.ids.shape[0]} contexts every "
-              f"step, weight {cfg.steer_rep_weight}, per-token cap "
-              f"{cfg.steer_rep_cap}, identical rounds k={_ks}, "
-              f"bank={cfg.steer_rep_bank or 'synthetic'} "
-              f"on verbatim command re-issue", flush=True)
-        if cfg.steer_rep_kd:
+        if rep_batch is not None:
+            print(f"[qat] repetition steering: {rep_batch.ids.shape[0]} contexts every "
+                  f"step, weight {cfg.steer_rep_weight}, per-token cap "
+                  f"{cfg.steer_rep_cap}, identical rounds k={_ks}, "
+                  f"bank={cfg.steer_rep_bank or 'synthetic'} "
+                  f"on verbatim command re-issue", flush=True)
+        if cfg.steer_rep_kd and rep_batch is not None:
             from quant_tuner.qat.steer import RepKD
             rep_kd = RepKD.load(cfg.steer_rep_kd, rep_batch).to(dev)
             print(f"[qat] rep teacher-KL: {rep_kd.idx.shape[0]} span positions from "
@@ -1395,7 +1397,7 @@ def train_qat(cfg: QATConfig) -> int:
               f"(restores the accum-1 peak-memory profile)", flush=True)
     opt.zero_grad()
     while step < total_steps and not stop["f"]:
-        w = order[mi % n_win].item()
+        w = int(order[mi % n_win].item())
         mi += 1
         if mi % n_win == 0:  # reshuffle each epoch
             order = torch.randperm(n_win, generator=g)
@@ -1419,7 +1421,8 @@ def train_qat(cfg: QATConfig) -> int:
                 kd_win = kd_table.for_window(w, (lbl[:, 1:][0] != -100)
                                              .nonzero(as_tuple=True)[0]).to(dev)
             anchor_arg = None
-            if kd_win is not None and cfg.stop_anchor > 0:
+            if (kd_win is not None and cfg.stop_anchor > 0
+                    and stop_anchor_id is not None):
                 anchor_arg = (stop_anchor_id, stop_logp_of(kd_win, stop_anchor_id),
                               cfg.stop_anchor_margin, cfg.stop_anchor_margin_hi)
             # NOT `out` — that is the run directory in this scope, and shadowing it
@@ -1586,36 +1589,37 @@ def train_qat(cfg: QATConfig) -> int:
                     probs, diag, ctrl, abort_hi=cfg.probe_abort,
                     abort_ctrl_lo=cfg.probe_abort_control,
                     patience=max(1, cfg.probe_abort_patience), strikes=abort_strikes)
-                for side, n in abort_strikes.items():
-                    if fired is None and n > 0:
-                        key, val = (diag, probs.get(diag)) if side == "diag"                             else (ctrl, probs.get(ctrl))
-                        print(f"[qat] step {step} PROBE-WARN: {key}={val:.4f} outside "
-                              f"the abort band (strike {n}/"
-                              f"{max(1, cfg.probe_abort_patience)}) — a second "
-                              f"consecutive violation aborts.", flush=True)
-                if fired == "control":
-                    # Losing the ability to stop where stopping is right — the sft32k
-                    # loop failure (a0.75: control 0.9998 -> 0.8876 while the
-                    # diagnostic sat under its threshold).
-                    print(f"[qat] step {step} PROBE-ABORT: {ctrl}="
-                          f"{probs[ctrl]:.4f} < --probe-abort-control "
-                          f"{cfg.probe_abort_control} for {abort_strikes['ctrl']} "
-                          f"consecutive probes — the model is losing the ability to "
-                          f"STOP where stopping is right (the loop failure); saving "
-                          f"and stopping.", flush=True)
-                elif fired == "diagnostic":
-                    # Stopping too early — visible by ~step 50 and monotone in every
-                    # observed collapse; a full run spends 8+ hours past this point
-                    # learning nothing we will ship.
-                    print(f"[qat] step {step} PROBE-ABORT: {diag}="
-                          f"{probs[diag]:.4f} > --probe-abort {cfg.probe_abort} for "
-                          f"{abort_strikes['diag']} consecutive probes — termination "
-                          f"is collapsing; saving and stopping.", flush=True)
-                if fired is not None:
-                    save_ckpt(step)
-                    if metrics_fh is not None:
-                        metrics_fh.close()
-                    sys.exit(3)
+                if probs is not None:
+                    for side, n in abort_strikes.items():
+                        if fired is None and n > 0:
+                            key, val = (diag, probs.get(diag)) if side == "diag"                             else (ctrl, probs.get(ctrl))
+                            print(f"[qat] step {step} PROBE-WARN: {key}={val:.4f} outside "
+                                  f"the abort band (strike {n}/"
+                                  f"{max(1, cfg.probe_abort_patience)}) — a second "
+                                  f"consecutive violation aborts.", flush=True)
+                    if fired == "control":
+                        # Losing the ability to stop where stopping is right — the sft32k
+                        # loop failure (a0.75: control 0.9998 -> 0.8876 while the
+                        # diagnostic sat under its threshold).
+                        print(f"[qat] step {step} PROBE-ABORT: {ctrl}="
+                              f"{probs[ctrl]:.4f} < --probe-abort-control "
+                              f"{cfg.probe_abort_control} for {abort_strikes['ctrl']} "
+                              f"consecutive probes — the model is losing the ability to "
+                              f"STOP where stopping is right (the loop failure); saving "
+                              f"and stopping.", flush=True)
+                    elif fired == "diagnostic":
+                        # Stopping too early — visible by ~step 50 and monotone in every
+                        # observed collapse; a full run spends 8+ hours past this point
+                        # learning nothing we will ship.
+                        print(f"[qat] step {step} PROBE-ABORT: {diag}="
+                              f"{probs[diag]:.4f} > --probe-abort {cfg.probe_abort} for "
+                              f"{abort_strikes['diag']} consecutive probes — termination "
+                              f"is collapsing; saving and stopping.", flush=True)
+                    if fired is not None:
+                        save_ckpt(step)
+                        if metrics_fh is not None:
+                            metrics_fh.close()
+                        sys.exit(3)
             if cfg.ckpt_every and step % cfg.ckpt_every == 0:
                 save_ckpt(step)
     # drop any partial accum group before the final save

@@ -38,7 +38,7 @@ The build asserts the two halves are disjoint and records a sha256 of each in
 `calibration_supplements/mmmu/combined.txt` is currently used as the **AWQ cv-gate
 validation** corpus (`scripts/exp040_release_jackrong27b.py`,
 `scripts/exp054_qwythos.py`). This tree is separate from it and neither half should be
-pointed at an eval that also uses the mmmu files. Per the repo invariant in CLAUDE.md,
+pointed at an eval that also uses the mmmu files. Per the repo invariant in AGENTS.md,
 re-check every eval that touches a slice before repurposing it.
 
 ## Taxonomy

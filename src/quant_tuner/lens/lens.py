@@ -229,7 +229,7 @@ class JacobianLensGGUF:
             for layer in first.source_layers
         }
         return cls(
-            merged,
+            merged,  # type: ignore[arg-type]
             d_model=first.d_model,
             n_prompts=n_total,
             target_layer=first.target_layer,

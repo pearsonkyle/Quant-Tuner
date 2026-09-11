@@ -101,9 +101,9 @@ def discover_groups(model, *, include_output_proj: bool = False) -> list[ScaleGr
 
         mlp = getattr(layer, "mlp", None)
         if mlp is not None and isinstance(getattr(mlp, "gate_proj", None), torch.nn.Linear):
-            members = [f"{prefix}.mlp.gate_proj"]
+            mlp_members: list[str] = [f"{prefix}.mlp.gate_proj"]
             if isinstance(getattr(mlp, "up_proj", None), torch.nn.Linear):
-                members.append(f"{prefix}.mlp.up_proj")
+                mlp_members.append(f"{prefix}.mlp.up_proj")
             # Gemma-2/3/4 put `pre_feedforward_layernorm` immediately before the MLP
             # and use `post_attention_layernorm` between attention and residual add.
             # Llama/Mistral/Qwen lack `pre_feedforward_layernorm`; their pre-MLP norm
@@ -118,7 +118,7 @@ def discover_groups(model, *, include_output_proj: bool = False) -> list[ScaleGr
                 out.append(ScaleGroup(
                     group_id=f"L{i}_mlp",
                     anchor=f"{prefix}.mlp.gate_proj",
-                    members=tuple(members),
+                    members=tuple(mlp_members),
                     prev_norm=f"{prefix}.{norm_name}",
                 ))
 
@@ -762,7 +762,7 @@ def calibrate(
     tok = AutoTokenizer.from_pretrained(model_dir, fix_mistral_regex=True)
     model = AutoModelForCausalLM.from_pretrained(
         model_dir, torch_dtype=torch_dtype, trust_remote_code=True
-    ).to(device)
+    ).to(device)  # type: ignore[arg-type]
     model.eval()
     for p in model.parameters():
         p.requires_grad_(False)
@@ -928,9 +928,9 @@ def calibrate(
                     scores = {
                         a: cal_losses[a] + cv_weight * ho_losses[a] for a in local
                     }
-                    m_best_a = min(scores, key=scores.get)
+                    m_best_a = min(scores, key=scores.get)  # type: ignore[arg-type]
                 else:
-                    m_best_a = min(cal_losses, key=cal_losses.get)
+                    m_best_a = min(cal_losses, key=cal_losses.get)  # type: ignore[arg-type]
 
                 # Gate (exp-017): accept the per-member α only if it doesn't
                 # worsen the held-out proxy loss vs the group α baseline.
@@ -1116,7 +1116,7 @@ def apply(
     tok = AutoTokenizer.from_pretrained(model_dir, fix_mistral_regex=True)
     model = AutoModelForCausalLM.from_pretrained(
         model_dir, torch_dtype=torch_dtype, trust_remote_code=True
-    ).to(device)
+    ).to(device)  # type: ignore[arg-type]
     model.eval()
 
     ref_logits = None

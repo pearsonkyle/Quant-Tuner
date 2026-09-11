@@ -782,9 +782,9 @@ def _make_target_callback(
 
     async def _callback(input: str, turns: Any = None) -> str:
         messages = turns_to_messages(turns, input)
-        resp = await client.chat.completions.create(
+        resp = await client.chat.completions.create(  # type: ignore[arg-type]
             model=model,
-            messages=messages,
+            messages=messages,  # type: ignore[arg-type]
             extra_body=extra_body or None,
             **native,
         )

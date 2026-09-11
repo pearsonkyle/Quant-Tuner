@@ -1,0 +1,38 @@
+# Output-aware imatrix calibration -> IQ3_M at 32K ctx
+#
+# IQ3_M GGUF calibrated on a 32K-context window over the llmtk-sft corpus
+# (pearsonkyle/llmtk-sft-corpus-v2, calibration-15m-v65536-ctx32k slice).
+# `imatrix_ctx: 32768` is the context every calibrator reads the corpus at:
+# llama-imatrix -c 32768, and the corpus windows are packed to fill one 32K
+# context exactly (no window straddles a boundary).
+#
+# The `hybrid_custom` variant is the published winner for the Qwen family —
+# per-tensor L1-normalized max of E[a^2] and the analytic prior. No forward
+# pass beyond the standard llama-imatrix run.
+name: iq3m_imatrix_32k
+
+model: PLACEHOLDER
+
+workspace: ./out/iq3m_imatrix_32k
+
+data:
+  logs: PLACEHOLDER
+  train_frac: 0.8
+  test_frac: 0.1
+  holdout_frac: 0.1
+  train_max_tokens: 1000000
+  eval_max_tokens: 50000
+  context_len: 32768
+
+calibration:
+  method: imatrix
+  variant: hybrid_custom
+  params:
+    imatrix_ctx: 32768
+
+quantize:
+  type: IQ3_M
+
+bench:
+  suite: full
+  eval_ctx: 8192

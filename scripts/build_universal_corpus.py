@@ -65,6 +65,10 @@ def main() -> int:
                         "(SFT export); default = staged copy, else the Hub")
     p.add_argument("--swe-jsonl", type=Path, default=None,
                    help=f"local override for {universal.SWE_DATASET}")
+    p.add_argument("--llmtk-sft", type=Path, default=None,
+                   help=f"local override for the {universal.LLMTK_SFT_DATASET} "
+                        f"{universal.LLMTK_SFT_SPLIT} text slice (default: staged copy, "
+                        "else the Hub)")
     p.add_argument("--sources", nargs="+",
                    default=list(universal.UniversalConfig.sources),
                    choices=list(universal.ALL_SOURCES),
@@ -84,6 +88,9 @@ def main() -> int:
                    help="cap wiki's contribution (default: all of it). Check "
                         "token_share in the audit — with small chat budgets wiki "
                         "otherwise dominates the mix")
+    p.add_argument("--cal-llmtk-sft-tokens", type=int, default=4_000_000,
+                   help="budget for the llmtk-sft 32K-ctx slice (default 4M; 0 disables "
+                        "the source even if it is in --sources)")
     p.add_argument("--eval-tokens-per-domain", type=int, default=30_000)
     p.add_argument("--ctx", type=int, default=8192,
                    help="the context EVERY calibrator will read this corpus at (default "
@@ -126,10 +133,12 @@ def main() -> int:
         broad_jsonl=a.broad_jsonl,
         broad_instruct_jsonl=a.broad_instruct_jsonl,
         swe_jsonl=a.swe_jsonl,
+        llmtk_sft=a.llmtk_sft,
         sources=tuple(a.sources),
         cal_logs_tokens=a.cal_logs_tokens,
         cal_swe_tokens=a.cal_swe_tokens,
         cal_broad_tokens=a.cal_broad_tokens,
+        cal_llmtk_sft_tokens=a.cal_llmtk_sft_tokens,
         cal_redteam_tokens=a.cal_redteam_tokens,
         cal_reasoning_tokens=a.cal_reasoning_tokens,
         reasoning_policy=a.reasoning,

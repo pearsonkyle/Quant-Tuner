@@ -70,7 +70,7 @@ def _prepare_corpora(model_dir: Path, train_out: Path, eval_out: Path) -> None:
     """Build the custom calibration corpus and the eval (holdout) corpus.
 
     Matches the OmniCoder script's split shape (80/10/10, seed=42) so the
-    holdout invariant from CLAUDE.md is preserved. Appends calibration_supplement.txt
+    holdout invariant from AGENTS.md is preserved. Appends calibration_supplement.txt
     to the train corpus.
     """
     from transformers import AutoTokenizer

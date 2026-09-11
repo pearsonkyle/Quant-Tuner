@@ -220,7 +220,7 @@ def capture_run(
     )
 
     run_dir.mkdir(parents=True, exist_ok=True)
-    np.savez(run_dir / ACTIVATIONS_NAME, **arrays)
+    np.savez(run_dir / ACTIVATIONS_NAME, **arrays)  # type: ignore[arg-type]
     if fr.logits:
         positions = sorted(fr.logits)
         rows = np.stack([fr.logits[p] for p in positions]).astype(np.float32)

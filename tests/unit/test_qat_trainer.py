@@ -406,7 +406,7 @@ def sdpa_patched():
     disable_chunked_sdpa()
 
 
-def test_prefix_context_tail_loss_equals_the_full_window_loss(sdpa_patched):
+def test_prefix_context_tail_loss_equals_the_full_window_loss(sdpa_patched, requires_cuda):
     model = tiny_model().eval()
     ids, lbl = rand_batch(seq=64, frac_labeled=0.5)
     n_prefix = 32
@@ -421,7 +421,7 @@ def test_prefix_context_tail_loss_equals_the_full_window_loss(sdpa_patched):
     assert torch.allclose(got, ref, atol=1e-5), f"{got} vs full-window {ref}"
 
 
-def test_prefix_context_drops_prefix_targets_from_the_loss(sdpa_patched):
+def test_prefix_context_drops_prefix_targets_from_the_loss(sdpa_patched, requires_cuda):
     """A prefix target has no graph, so it must not be scored — and the caller must be
     able to tell, because the resulting CE is on a different target set."""
     model = tiny_model().eval()
@@ -435,7 +435,7 @@ def test_prefix_context_drops_prefix_targets_from_the_loss(sdpa_patched):
     assert int(tail_idx.min()) >= 32
 
 
-def test_prefix_covering_every_target_raises_rather_than_returning_zero(sdpa_patched):
+def test_prefix_covering_every_target_raises_rather_than_returning_zero(sdpa_patched, requires_cuda):
     model = tiny_model().eval()
     ids, _ = rand_batch(seq=64)
     lbl = torch.full_like(ids, -100)
@@ -445,7 +445,7 @@ def test_prefix_covering_every_target_raises_rather_than_returning_zero(sdpa_pat
         trainer.masked_forward(model, ids, lbl, need_logits=False, n_prefix=32)
 
 
-def test_prefix_gradients_reach_the_tail_only(sdpa_patched):
+def test_prefix_gradients_reach_the_tail_only(sdpa_patched, requires_cuda):
     model = tiny_model()
     make_ternary(model)
     ids, lbl = rand_batch(seq=64, frac_labeled=0.5)
@@ -457,7 +457,7 @@ def test_prefix_gradients_reach_the_tail_only(sdpa_patched):
     assert emb.grad is not None and emb.grad.abs().sum() > 0
 
 
-def test_prefix_survives_gradient_checkpointing(sdpa_patched):
+def test_prefix_survives_gradient_checkpointing(sdpa_patched, requires_cuda):
     """The reason the prefix does NOT use a transformers Cache: GradientCheckpointingLayer
     nulls `past_key_values` whenever `gradient_checkpointing and training`, so a cache-based
     tail attends to nothing and the loss still falls. Riding in the attention function is

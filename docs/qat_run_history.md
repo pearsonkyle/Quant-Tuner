@@ -79,4 +79,3 @@ being overwritten by the attempt that worked.
 | sft32k | `train.log` | complete | 355–610 | 0.7676 → 1.029 | 1.346 | 350 |
 | sft32k_sw1 | `train.log.dead-step1` | died | 1–1 | 0.7004 → 0.7004 | 0.7004 | — |
 | sft32k_sw1 | `train.log` | complete | 1–610 | 0.7004 → 1.063 | 9.979 | — |
-

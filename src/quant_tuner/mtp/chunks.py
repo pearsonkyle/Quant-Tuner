@@ -41,7 +41,7 @@ def session_to_text(session: dict, tok: object) -> str:
         return ""
 
     try:
-        return tok.apply_chat_template(
+        return tok.apply_chat_template(  # type: ignore[attr-defined]
             messages, tokenize=False, add_generation_prompt=False
         )
     except Exception:
@@ -111,7 +111,7 @@ def build_token_batches(
         wiki_ids = tok.encode(raw, add_special_tokens=False)
     else:
         log("  loading wikitext-2-raw-v1 from HuggingFace datasets …")
-        from datasets import load_dataset
+        from datasets import load_dataset  # type: ignore[attr-defined]
         ds = load_dataset("wikitext", "wikitext-2-raw-v1", split="train", trust_remote_code=False)
         wiki_ids = []
         for row in ds:
